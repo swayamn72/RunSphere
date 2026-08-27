@@ -1,12 +1,12 @@
-export const ACTIVITY_QUEUE_SCHEMA_VERSION = 2;
+export const ACTIVITY_QUEUE_SCHEMA_VERSION = 3;
 
 /**
- * Metadata-only activity work item. Location points, routes, and exact GPS traces must never be
- * persisted by this M1 queue; recording has not been implemented.
+ * Metadata-only activity work item. Upload is deliberately deferred: this queue stores no GPS
+ * points, routes, coordinates, or exact traces, and it has no upload worker.
  */
 export interface QueuedActivity {
   id: string;
-  movementType: 'walk' | 'run';
+  movementType: 'walk' | 'run' | 'hike';
   createdAt: string;
   status: 'ready';
 }
@@ -20,7 +20,7 @@ export interface ActivityQueueDatabase {
 export const activityQueueSchema = `
   CREATE TABLE IF NOT EXISTS activity_queue (
     id TEXT PRIMARY KEY NOT NULL,
-    movement_type TEXT NOT NULL CHECK (movement_type IN ('walk', 'run')),
+    movement_type TEXT NOT NULL CHECK (movement_type IN ('walk', 'run', 'hike')),
     created_at TEXT NOT NULL,
     status TEXT NOT NULL CHECK (status = 'ready')
   );

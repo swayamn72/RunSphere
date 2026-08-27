@@ -16,6 +16,7 @@ import {
 import { colors } from '@runsphere/ui';
 import { clearAccountData } from './src/account-cleanup';
 import { activityQueue } from './src/activity-queue.native';
+import { MobileApiClient } from './src/api-client';
 import { authStorage } from './src/auth-storage.native';
 import { homeModel } from './src/models';
 import {
@@ -26,21 +27,28 @@ import {
 } from './src/onboarding';
 
 type Tab = 'Home' | 'Explore' | 'Season' | 'Clubs' | 'You';
-
+type AuthStatus = 'idle' | 'loading' | 'error';
 const tabs: readonly Tab[] = ['Home', 'Explore', 'Season', 'Clubs', 'You'];
+const apiClient = new MobileApiClient(undefined, fetch, authStorage);
 
 export default function App() {
   const [onboarding, dispatch] = useReducer(onboardingReducer, initialOnboardingState);
   const [activeTab, setActiveTab] = useState<Tab>('Home');
   const [activityStarted, setActivityStarted] = useState(false);
+  const [restoring, setRestoring] = useState(true);
 
   useEffect(() => {
     void activityQueue.initialize();
+    void authStorage
+      .read()
+      .then((session) => {
+        if (session) dispatch({ type: 'restoreSession' });
+      })
+      .finally(() => setRestoring(false));
   }, []);
 
-  if (onboarding.step !== 'complete') {
-    return <Onboarding state={onboarding} dispatch={dispatch} />;
-  }
+  if (restoring) return <LoadingScreen label="Restoring your secure session…" />;
+  if (onboarding.step !== 'complete') return <Onboarding state={onboarding} dispatch={dispatch} />;
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -58,10 +66,7 @@ export default function App() {
           <View style={styles.comingSoon}>
             <Text style={styles.eyebrow}>{activeTab.toUpperCase()}</Text>
             <Text style={styles.comingSoonTitle}>{activeTab} is next.</Text>
-            <Text style={styles.comingSoonCopy}>
-              Your M1 profile and private activity controls are ready now. More exploration features
-              are on their way.
-            </Text>
+            <Text style={styles.comingSoonCopy}>More exploration features are on their way.</Text>
           </View>
         )}
       </ScrollView>
@@ -77,6 +82,30 @@ function Onboarding({
   state: typeof initialOnboardingState;
   dispatch: React.Dispatch<Parameters<typeof onboardingReducer>[1]>;
 }) {
+  const [authStatus, setAuthStatus] = useState<AuthStatus>('idle');
+  const [authError, setAuthError] = useState<string>();
+  const authenticate = async () => {
+    if (!canSubmitAccount(state)) return;
+    setAuthStatus('loading');
+    setAuthError(undefined);
+    try {
+      if (state.accountMode === 'login')
+        await apiClient.login({ email: state.email.trim(), password: state.password });
+      else
+        await apiClient.register({
+          email: state.email.trim(),
+          password: state.password,
+          ageAssertion: true,
+          policyVersion: 'm1-private-pilot'
+        });
+      dispatch({ type: 'authenticationSucceeded' });
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Unable to complete authentication.');
+      setAuthStatus('error');
+      return;
+    }
+    setAuthStatus('idle');
+  };
   const requestLocation = async () => {
     const permission = await Location.requestForegroundPermissionsAsync();
     dispatch({
@@ -105,47 +134,61 @@ function Onboarding({
             </View>
             <Text style={styles.eyebrow}>YOUR WORLD, IN MOTION</Text>
             <Text style={styles.onboardingTitle}>
-              Move outside.{`\n`}
+              Move outside.{'\n'}
               <Text style={styles.teal}>Make it yours.</Text>
             </Text>
             <Text style={styles.lead}>
-              Turn everyday walks and runs into exploration quests—with seasonal competition that
-              stays fair.
+              Turn everyday walks, runs, and hikes into exploration quests—with seasonal competition
+              that stays fair.
             </Text>
             <MovementChoice
               selected={state.movement}
               onChoose={(movement) => dispatch({ type: 'chooseMovement', movement })}
             />
-            <PrimaryButton label="Get started" onPress={() => dispatch({ type: 'startAccount' })} />
+            <PrimaryButton
+              label="Create account"
+              onPress={() => dispatch({ type: 'startAccount', mode: 'register' })}
+            />
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="I already have an account"
-              onPress={() => dispatch({ type: 'startAccount' })}
-              hitSlop={10}
+              onPress={() => dispatch({ type: 'startAccount', mode: 'login' })}
             >
               <Text style={styles.textButton}>I already have an account</Text>
             </Pressable>
           </>
         )}
-
         {state.step === 'account' && (
           <>
-            <StepHeader step="STEP 1 OF 3" onBack={() => dispatch({ type: 'back' })} />
-            <Text style={styles.eyebrow}>MAKE IT YOURS</Text>
-            <Text style={styles.onboardingTitle}>A few details first.</Text>
-            <Text style={styles.lead}>
-              We use these details to create your private RunSphere profile.
-            </Text>
-            <Text style={styles.fieldLabel}>DISPLAY NAME</Text>
-            <TextInput
-              accessibilityLabel="Display name"
-              autoCapitalize="words"
-              value={state.name}
-              onChangeText={(name) => dispatch({ type: 'updateAccount', name })}
-              placeholder="How should we call you?"
-              placeholderTextColor={colors.muted}
-              style={styles.input}
+            <StepHeader
+              step={state.accountMode === 'login' ? 'SIGN IN' : 'STEP 1 OF 3'}
+              onBack={() => dispatch({ type: 'back' })}
             />
+            <Text style={styles.eyebrow}>
+              {state.accountMode === 'login' ? 'WELCOME BACK' : 'MAKE IT YOURS'}
+            </Text>
+            <Text style={styles.onboardingTitle}>
+              {state.accountMode === 'login' ? 'Sign in securely.' : 'A few details first.'}
+            </Text>
+            <Text style={styles.lead}>
+              {state.accountMode === 'login'
+                ? 'Use your email and password to restore your private RunSphere account.'
+                : 'We use your email and password to create your private RunSphere account.'}
+            </Text>
+            {state.accountMode === 'register' && (
+              <>
+                <Text style={styles.fieldLabel}>DISPLAY NAME</Text>
+                <TextInput
+                  accessibilityLabel="Display name"
+                  autoCapitalize="words"
+                  value={state.name}
+                  onChangeText={(name) => dispatch({ type: 'updateAccount', name })}
+                  placeholder="How should we call you?"
+                  placeholderTextColor={colors.muted}
+                  style={styles.input}
+                />
+              </>
+            )}
             <Text style={styles.fieldLabel}>EMAIL</Text>
             <TextInput
               accessibilityLabel="Email address"
@@ -158,26 +201,68 @@ function Onboarding({
               placeholderTextColor={colors.muted}
               style={styles.input}
             />
-            <Pressable
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: state.isAdult }}
-              accessibilityLabel="I confirm that I am 18 or older"
-              onPress={() => dispatch({ type: 'updateAccount', isAdult: !state.isAdult })}
-              style={styles.checkRow}
-            >
-              <View style={[styles.checkbox, state.isAdult && styles.checkboxChecked]}>
-                {state.isAdult && <Text style={styles.checkMark}>✓</Text>}
-              </View>
-              <Text style={styles.checkCopy}>I confirm that I am 18 or older.</Text>
-            </Pressable>
-            <PrimaryButton
-              label="Continue"
-              disabled={!canSubmitAccount(state)}
-              onPress={() => dispatch({ type: 'submitAccount' })}
+            <Text style={styles.fieldLabel}>PASSWORD</Text>
+            <TextInput
+              accessibilityLabel="Password"
+              autoCapitalize="none"
+              autoComplete={state.accountMode === 'login' ? 'current-password' : 'new-password'}
+              secureTextEntry
+              value={state.password}
+              onChangeText={(password) => dispatch({ type: 'updateAccount', password })}
+              placeholder="At least 12 characters"
+              placeholderTextColor={colors.muted}
+              style={styles.input}
             />
+            {state.accountMode === 'register' && (
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: state.isAdult }}
+                accessibilityLabel="I confirm that I am 18 or older"
+                onPress={() => dispatch({ type: 'updateAccount', isAdult: !state.isAdult })}
+                style={styles.checkRow}
+              >
+                <View style={[styles.checkbox, state.isAdult && styles.checkboxChecked]}>
+                  {state.isAdult && <Text style={styles.checkMark}>✓</Text>}
+                </View>
+                <Text style={styles.checkCopy}>I confirm that I am 18 or older.</Text>
+              </Pressable>
+            )}
+            {authError && (
+              <Text accessibilityLiveRegion="polite" style={styles.errorText}>
+                {authError}
+              </Text>
+            )}
+            <PrimaryButton
+              label={
+                authStatus === 'loading'
+                  ? 'Please wait…'
+                  : authStatus === 'error'
+                    ? 'Try again'
+                    : state.accountMode === 'login'
+                      ? 'Sign in'
+                      : 'Create account'
+              }
+              disabled={!canSubmitAccount(state) || authStatus === 'loading'}
+              onPress={() => void authenticate()}
+            />
+            <Pressable
+              accessibilityRole="button"
+              disabled={authStatus === 'loading'}
+              onPress={() =>
+                dispatch({
+                  type: 'startAccount',
+                  mode: state.accountMode === 'login' ? 'register' : 'login'
+                })
+              }
+            >
+              <Text style={styles.textButton}>
+                {state.accountMode === 'login'
+                  ? 'Need an account? Create one'
+                  : 'Already have an account? Sign in'}
+              </Text>
+            </Pressable>
           </>
         )}
-
         {state.step === 'privacy' && (
           <>
             <StepHeader step="STEP 2 OF 3" onBack={() => dispatch({ type: 'back' })} />
@@ -188,40 +273,44 @@ function Onboarding({
             <Text style={styles.eyebrow}>YOU’RE IN CONTROL</Text>
             <Text style={styles.onboardingTitle}>Set up your activity map.</Text>
             <Text style={styles.lead}>
-              RunSphere uses location while you move to map distance, quests, and territory.
+              Location is requested only while you use the app for activity mapping. We do not
+              request background location, and no GPS trace is stored in this pilot.
             </Text>
             <PermissionCard
               icon="⌖"
               title="Precise location"
-              detail="Only during an activity"
+              detail="Only while using the app; not retained as a trace yet"
               badge="Required"
             />
             <PermissionCard
               icon="◉"
               title="Motion & fitness"
-              detail="Improves pace and distance"
+              detail="Optional; improves future estimates"
               badge="Optional"
             />
             <View style={styles.privacyRow}>
               <View style={styles.flexCopy}>
                 <Text style={styles.rowTitle}>Hide start & finish</Text>
-                <Text style={styles.rowDetail}>Blur 200 m around saved places</Text>
+                <Text style={styles.rowDetail}>
+                  Pilot preference only — applies after server privacy zones exist
+                </Text>
               </View>
               <Switch
-                accessibilityLabel="Hide activity start and finish within 200 metres"
+                accessibilityLabel="Hide activity start and finish preference"
                 value={state.hideStartFinish}
                 onValueChange={(value) => dispatch({ type: 'setHideStartFinish', value })}
                 trackColor={{ false: colors.line, true: colors.teal }}
               />
             </View>
             <Text style={styles.privateNote}>
-              Activity visibility is Private by default. You can change this later in You.
+              Visibility stays Private in this pilot. Declining location still lets you browse
+              RunSphere, but activity mapping and nearby quests remain unavailable.
             </Text>
             {state.location !== 'granted' ? (
               <PrimaryButton label="Allow location" onPress={() => void requestLocation()} />
             ) : (
               <PrimaryButton
-                label="Location allowed"
+                label="Continue to RunSphere"
                 onPress={() => dispatch({ type: 'finish' })}
               />
             )}
@@ -230,33 +319,19 @@ function Onboarding({
                 <Text style={styles.textButton}>Allow motion & fitness (optional)</Text>
               </Pressable>
             )}
-            {state.location === 'granted' && state.motion !== 'idle' && (
-              <Pressable accessibilityRole="button" onPress={() => dispatch({ type: 'finish' })}>
-                <Text style={styles.textButton}>Continue to RunSphere</Text>
-              </Pressable>
-            )}
-            <Pressable
-              accessibilityRole="link"
-              onPress={() =>
-                Alert.alert(
-                  'Privacy policy',
-                  'Policy review will be available before pilot launch.'
-                )
-              }
-            >
-              <Text style={styles.textButton}>Review privacy policy</Text>
+            <Pressable accessibilityRole="button" onPress={() => dispatch({ type: 'finish' })}>
+              <Text style={styles.textButton}>Continue without location</Text>
             </Pressable>
           </>
         )}
-
         {state.step === 'location-denied' && (
           <>
             <StepHeader step="LOCATION NEEDED" onBack={() => dispatch({ type: 'back' })} />
             <Text style={styles.eyebrow}>LOCATION IS OFF</Text>
-            <Text style={styles.onboardingTitle}>We can’t map an activity yet.</Text>
+            <Text style={styles.onboardingTitle}>You can keep browsing.</Text>
             <Text style={styles.lead}>
-              Allow location while using the app to record distance and show nearby quests. We never
-              ask for background location in this pilot.
+              Without location, activity mapping and nearby quests are unavailable. RunSphere never
+              requests background location in this pilot, and it stores no GPS trace.
             </Text>
             <PrimaryButton
               label="Try location again"
@@ -288,17 +363,6 @@ function Home({
   onOpenProfile: () => void;
 }) {
   const { dailyPath, member, nearbyQuest } = homeModel;
-  const queueActivity = () => {
-    const id = `starter-activity-${new Date().toISOString()}`;
-    void activityQueue.enqueue({
-      id,
-      createdAt: new Date().toISOString(),
-      movementType: 'walk',
-      status: 'ready'
-    });
-    onStart();
-  };
-
   return (
     <>
       <View style={styles.header}>
@@ -324,7 +388,7 @@ function Home({
           <Text style={styles.xp}>+{dailyPath.rewardXp} XP</Text>
         </View>
         <Text style={styles.cardCopy}>
-          Visit 3 green spaces. Walk or run—your pace, your route.
+          Visit 3 green spaces. Walk, run, or hike—your pace, your route.
         </Text>
         <View style={styles.progressTrack}>
           <View style={styles.progressFill} />
@@ -361,12 +425,12 @@ function Home({
         </View>
       </View>
       <PrimaryButton
-        label={activityStarted ? 'Activity ready' : 'Start activity'}
-        onPress={queueActivity}
+        label={activityStarted ? 'Activity setup ready' : 'Start activity'}
+        onPress={onStart}
       />
       {activityStarted && (
         <Text accessibilityLiveRegion="polite" style={styles.confirmation}>
-          GPS setup is next. Your route stays private by default.
+          Activity recording and queue upload are deferred. No route trace is stored yet.
         </Text>
       )}
     </>
@@ -374,31 +438,31 @@ function Home({
 }
 
 function Profile() {
-  const [hideStartFinish, setHideStartFinish] = useState(true);
-  const [visibility, setVisibility] = useState<'Private' | 'Friends'>('Private');
-  const placeholder = (action: string) =>
-    Alert.alert(`${action} placeholder`, `${action} is not available in the M1 private pilot yet.`);
-  const clearLocalAccountData = (action: 'Log out' | 'Delete account') => {
+  const clearLocalAccountData = (action: 'Log out' | 'Delete account') =>
     Alert.alert(
       action,
-      `This pilot placeholder clears local secure tokens and queued activity metadata.`,
+      'This clears local secure tokens and queued activity metadata. Account deletion remains a pilot-only placeholder.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: action,
           style: 'destructive',
           onPress: () => {
-            void clearAccountData(activityQueue, authStorage).then(() =>
-              Alert.alert(
-                'Local data cleared',
-                'Secure tokens and queued activity metadata were removed from this device.'
-              )
-            );
+            void (async () => {
+              try {
+                if (action === 'Log out') await apiClient.logout();
+              } finally {
+                await clearAccountData(activityQueue, authStorage);
+                Alert.alert(
+                  'Local data cleared',
+                  'Secure tokens and queued metadata were removed.'
+                );
+              }
+            })();
           }
         }
       ]
     );
-  };
   return (
     <>
       <View style={styles.profileHeader}>
@@ -422,36 +486,17 @@ function Profile() {
         <ProfileStat value="9" label="WEEK STREAK" />
       </View>
       <SettingsGroup title="Activity preferences">
-        <Setting label="Primary movement" value="Walking + running" />
-        <Setting label="Accessibility" value="Step-free routes" />
+        <Setting label="Primary movement" value="Pilot-only" disabled />
+        <Setting label="Accessibility" value="Pilot-only" disabled />
       </SettingsGroup>
       <SettingsGroup title="Privacy & safety">
-        <Setting
-          label="Activity visibility"
-          value={visibility}
-          onPress={() => setVisibility(visibility === 'Private' ? 'Friends' : 'Private')}
-        />
-        <View style={styles.settingSwitch}>
-          <View style={styles.flexCopy}>
-            <Text style={styles.rowTitle}>Hide start & finish</Text>
-            <Text style={styles.rowDetail}>Blur 200 m around saved places</Text>
-          </View>
-          <Switch
-            accessibilityLabel="Hide start and finish privacy zone"
-            value={hideStartFinish}
-            onValueChange={setHideStartFinish}
-            trackColor={{ false: colors.line, true: colors.teal }}
-          />
-        </View>
-        <Setting label="Privacy zones" value="2 places" />
-        <Setting label="Safety contact" value="Elena R." />
+        <Setting label="Activity visibility" value="Private · pilot-only" disabled />
+        <Setting label="Hide start & finish" value="Requires server privacy zones" disabled />
+        <Setting label="Privacy zones" value="Pilot-only" disabled />
+        <Setting label="Safety contact" value="Pilot-only" disabled />
       </SettingsGroup>
       <SettingsGroup title="Data">
-        <Setting
-          label="Export your data"
-          value="Pilot placeholder"
-          onPress={() => placeholder('Export your data')}
-        />
+        <Setting label="Export your data" value="Pilot placeholder" disabled />
         <Setting
           label="Log out"
           value="Clear this device"
@@ -475,21 +520,24 @@ function MovementChoice({
   selected: MovementPreference;
   onChoose: (movement: MovementPreference) => void;
 }) {
+  const labels: Record<MovementPreference, [string, string]> = {
+    walk: ['Walk', 'Every step counts'],
+    run: ['Run', 'Find your pace'],
+    hike: ['Hike', 'Explore farther']
+  };
   return (
     <View style={styles.choiceGrid}>
-      {(['walk', 'run'] as const).map((movement) => (
+      {(Object.keys(labels) as MovementPreference[]).map((movement) => (
         <Pressable
           key={movement}
           accessibilityRole="radio"
           accessibilityState={{ selected: selected === movement }}
-          accessibilityLabel={`Choose ${movement === 'walk' ? 'walking' : 'running'}`}
+          accessibilityLabel={`Choose ${labels[movement][0].toLowerCase()}`}
           onPress={() => onChoose(movement)}
           style={[styles.choice, selected === movement && styles.choiceSelected]}
         >
-          <Text style={styles.choiceTitle}>{movement === 'walk' ? 'Walk' : 'Run'}</Text>
-          <Text style={styles.rowDetail}>
-            {movement === 'walk' ? 'Every step counts' : 'Find your pace'}
-          </Text>
+          <Text style={styles.choiceTitle}>{labels[movement][0]}</Text>
+          <Text style={styles.rowDetail}>{labels[movement][1]}</Text>
         </Pressable>
       ))}
     </View>
@@ -621,22 +669,29 @@ function Setting({
   label,
   value,
   onPress,
-  destructive = false
+  destructive = false,
+  disabled = false
 }: {
   label: string;
   value: string;
   onPress?: () => void;
   destructive?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled}
       accessibilityLabel={`${label}, ${value}`}
       onPress={onPress}
-      style={styles.setting}
+      style={[styles.setting, disabled && styles.settingDisabled]}
     >
       <Text style={[styles.rowTitle, destructive && styles.destructive]}>{label}</Text>
-      <Text style={[styles.settingValue, destructive && styles.destructive]}>{value} ›</Text>
+      <Text style={[styles.settingValue, destructive && styles.destructive]}>
+        {value}
+        {onPress ? ' ›' : ''}
+      </Text>
     </Pressable>
   );
 }
@@ -648,12 +703,24 @@ function ProfileStat({ value, label }: { value: string; label: string }) {
     </View>
   );
 }
+function LoadingScreen({ label }: { label: string }) {
+  return (
+    <SafeAreaView style={styles.screen}>
+      <View style={styles.loading}>
+        <Text accessibilityLiveRegion="polite" style={styles.lead}>
+          {label}
+        </Text>
+      </View>
+    </SafeAreaView>
+  );
+}
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.cream },
   content: { padding: 20, paddingBottom: 118 },
   onboardingContent: { padding: 20, paddingBottom: 44 },
   flexCopy: { flex: 1 },
+  loading: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 30 },
   eyebrow: { color: colors.teal, fontSize: 11, fontWeight: '900', letterSpacing: 1.4 },
   teal: { color: colors.teal },
   lead: { color: colors.muted, fontSize: 16, lineHeight: 24, marginBottom: 18 },
@@ -665,6 +732,7 @@ const styles = StyleSheet.create({
     lineHeight: 36,
     marginBottom: 14
   },
+  errorText: { color: '#B83220', fontSize: 14, fontWeight: '700', lineHeight: 20, marginTop: 16 },
   hero: {
     backgroundColor: colors.moss,
     height: 234,
@@ -694,17 +762,18 @@ const styles = StyleSheet.create({
     width: 200
   },
   heroPin: { color: colors.lime, fontSize: 44, left: '54%', position: 'absolute', top: 102 },
-  choiceGrid: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  choiceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
   choice: {
     backgroundColor: colors.card,
     borderColor: colors.line,
     borderRadius: 16,
     borderWidth: 1,
-    flex: 1,
+    flexGrow: 1,
     minHeight: 82,
+    minWidth: '30%',
     padding: 14
   },
-  choiceSelected: { borderColor: colors.teal, borderWidth: 2, backgroundColor: '#EEF9E7' },
+  choiceSelected: { backgroundColor: '#EEF9E7', borderColor: colors.teal, borderWidth: 2 },
   choiceTitle: { color: colors.ink, fontSize: 17, fontWeight: '900', marginBottom: 5 },
   primaryButton: {
     alignItems: 'center',
@@ -1048,20 +1117,13 @@ const styles = StyleSheet.create({
     minHeight: 54,
     paddingHorizontal: 15
   },
+  settingDisabled: { opacity: 0.55 },
   settingValue: {
     color: colors.muted,
     fontSize: 13,
     fontWeight: '700',
     marginLeft: 12,
     textAlign: 'right'
-  },
-  settingSwitch: {
-    alignItems: 'center',
-    borderBottomColor: colors.line,
-    borderBottomWidth: 1,
-    flexDirection: 'row',
-    minHeight: 70,
-    paddingHorizontal: 15
   },
   destructive: { color: '#B83220' }
 });

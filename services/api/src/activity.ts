@@ -8,6 +8,10 @@ export interface TracePoint {
   recordedAt: string;
   accuracyMeters?: number;
 }
+interface ZoneProvenance {
+  id: string;
+  geometry_version: number;
+}
 
 export const chunkHash = (chunk: ActivityChunkRequest) =>
   createHash('sha256').update(JSON.stringify(chunk)).digest('hex');
@@ -21,7 +25,6 @@ export const distanceMeters = (a: TracePoint, b: TracePoint) => {
     Math.cos(radians(a.latitude)) * Math.cos(radians(b.latitude)) * Math.sin(lon / 2) ** 2;
   return 2 * earth * Math.asin(Math.sqrt(x));
 };
-
 export const summarize = (points: TracePoint[]) => ({
   distanceMeters: points
     .slice(1)
@@ -36,25 +39,12 @@ export const summarize = (points: TracePoint[]) => ({
   pointCount: points.length,
   privacyTrimmed: false
 });
-
 export const loadPoints = async (db: Database, activityId: string): Promise<TracePoint[]> => {
   const chunks = await db.query<{ payload: ActivityChunkRequest }>(
     'SELECT payload FROM activity_chunks WHERE activity_id = $1 ORDER BY sequence',
     [activityId]
   );
   return chunks.rows.flatMap((chunk) => chunk.payload.points);
-};
-
-const trimEndpoint = (points: TracePoint[], fromEnd = false): TracePoint[] => {
-  const ordered = fromEnd ? [...points].reverse() : points;
-  let covered = 0;
-  let index = 0;
-  while (index + 1 < ordered.length && covered < 200) {
-    covered += distanceMeters(ordered[index]!, ordered[index + 1]!);
-    index += 1;
-  }
-  const result = ordered.slice(index);
-  return fromEnd ? result.reverse() : result;
 };
 
 export const processActivity = async (db: Database, activityId: string): Promise<void> => {
@@ -64,30 +54,53 @@ export const processActivity = async (db: Database, activityId: string): Promise
   );
   if (!activity.rows[0]) return;
   const points = await loadPoints(db, activityId);
-  const zones = await db.query<{ id: string }>(
-    'SELECT id FROM privacy_zones WHERE account_id = $1',
-    [activity.rows[0].account_id]
+  if (points.length === 0) return;
+  const candidate = JSON.stringify({
+    type: 'MultiPoint',
+    coordinates: points.map((point) => [point.longitude, point.latitude])
+  });
+  const trim = await db.query<{ kept_indexes: number[]; applied_zones: ZoneProvenance[] }>(
+    `WITH input AS (SELECT ST_SetSRID(ST_GeomFromGeoJSON($1), 4326) AS points),
+      numbered AS (SELECT dumped.geom AS point, row_number() OVER () - 1 AS point_index FROM input CROSS JOIN LATERAL ST_DumpPoints(points) AS dumped),
+      removed AS (
+        SELECT numbered.point_index, zone.id, zone.geometry_version
+        FROM numbered JOIN privacy_zones zone ON zone.account_id = $2
+        WHERE ST_DWithin(numbered.point::geography, zone.geometry::geography, 200)
+      )
+      SELECT coalesce(array_agg(numbered.point_index ORDER BY numbered.point_index) FILTER (WHERE removed.point_index IS NULL), ARRAY[]::integer[]) AS kept_indexes,
+        coalesce(jsonb_agg(DISTINCT jsonb_build_object('id', removed.id, 'geometryVersion', removed.geometry_version)) FILTER (WHERE removed.id IS NOT NULL), '[]'::jsonb) AS applied_zones
+      FROM numbered LEFT JOIN removed ON removed.point_index = numbered.point_index`,
+    [candidate, activity.rows[0].account_id]
   );
-  const withoutEndpoints = trimEndpoint(trimEndpoint(points), true);
-  const kept: TracePoint[] = [];
-  for (const point of withoutEndpoints) {
-    const inside = await db.query<{ id: string }>(
-      'SELECT id FROM privacy_zones WHERE account_id = $1 AND ST_Intersects(geometry, ST_SetSRID(ST_MakePoint($2, $3), 4326)) LIMIT 1',
-      [activity.rows[0].account_id, point.longitude, point.latitude]
-    );
-    if (inside.rows.length === 0) kept.push(point);
+  const rawIndexes = trim.rows[0]?.kept_indexes ?? [];
+  const indexes = Array.isArray(rawIndexes)
+    ? rawIndexes
+    : String(rawIndexes).replace(/[{}]/g, '').split(',').filter(Boolean);
+  const keptIndexes = new Set(indexes.map(Number));
+  const segments: TracePoint[][] = [];
+  let current: TracePoint[] = [];
+  for (const [index, point] of points.entries()) {
+    if (keptIndexes.has(index)) current.push(point);
+    else if (current.length > 0) {
+      segments.push(current);
+      current = [];
+    }
   }
-  const route =
-    kept.length >= 2
-      ? JSON.stringify({
-          type: 'LineString',
-          coordinates: kept.map((point) => [point.longitude, point.latitude])
-        })
-      : null;
-  const summary = { ...summarize(points), privacyTrimmed: points.length !== kept.length };
+  if (current.length > 0) segments.push(current);
+  const routeSegments = segments.filter((segment) => segment.length >= 2);
+  const route = routeSegments.length
+    ? JSON.stringify({
+        type: 'MultiLineString',
+        coordinates: routeSegments.map((segment) =>
+          segment.map((point) => [point.longitude, point.latitude])
+        )
+      })
+    : null;
+  const appliedZones = trim.rows[0]?.applied_zones ?? [];
+  const summary = { ...summarize(points), privacyTrimmed: keptIndexes.size !== points.length };
   await db.query(
-    `INSERT INTO activity_derivations (activity_id, shareable_route, source_checksum, route_checksum, policy_version, algorithm_version, applied_zone_ids, removed_point_count, outcome)
-     VALUES ($1, CASE WHEN $2::jsonb IS NULL THEN NULL ELSE ST_SetSRID(ST_GeomFromGeoJSON($2), 4326) END, $3, $4, 'm1-privacy-200m', 'm1-canonical-v1', $5::uuid[], $6, $7)
+    `INSERT INTO activity_derivations (activity_id, shareable_route, source_checksum, route_checksum, policy_version, algorithm_version, applied_zone_ids, applied_zones, removed_point_count, outcome)
+     VALUES ($1, CASE WHEN $2::jsonb IS NULL THEN NULL ELSE ST_SetSRID(ST_GeomFromGeoJSON($2), 4326) END, $3, $4, 'm1-privacy-200m', 'm1-canonical-v2', $5::uuid[], $6::jsonb, $7, $8)
      ON CONFLICT (activity_id) DO NOTHING`,
     [
       activityId,
@@ -96,8 +109,9 @@ export const processActivity = async (db: Database, activityId: string): Promise
       createHash('sha256')
         .update(route ?? '')
         .digest('hex'),
-      zones.rows.map((zone) => zone.id),
-      points.length - kept.length,
+      appliedZones.map((zone) => zone.id),
+      JSON.stringify(appliedZones),
+      points.length - keptIndexes.size,
       route ? 'trimmed' : 'no-shareable-route'
     ]
   );

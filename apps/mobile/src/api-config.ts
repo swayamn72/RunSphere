@@ -17,8 +17,11 @@ export const getApiBaseUrl = (
     throw new Error('EXPO_PUBLIC_API_BASE_URL must be a valid absolute URL.');
   }
 
-  const allowsHttp = environment !== 'production' && isLocalDevelopmentHost(parsed.hostname);
-  if (parsed.protocol !== 'https:' && !allowsHttp) {
+  const allowsLocalHttp =
+    parsed.protocol === 'http:' &&
+    environment !== 'production' &&
+    isLocalDevelopmentHost(parsed.hostname);
+  if (parsed.protocol !== 'https:' && !allowsLocalHttp) {
     throw new Error('EXPO_PUBLIC_API_BASE_URL must use HTTPS outside local development.');
   }
 

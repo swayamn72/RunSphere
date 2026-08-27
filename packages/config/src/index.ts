@@ -8,6 +8,61 @@ export const productConfig = {
 
 const defaultAllowedOrigins = ['http://localhost:4173'];
 
+/**
+ * Shared Pino paths for sensitive HTTP metadata. Request bodies are not logged
+ * wholesale; these paths protect explicitly logged request or response fields.
+ */
+export const pinoRedactionPaths = [
+  'req.headers.authorization',
+  'req.headers.cookie',
+  'req.headers["set-cookie"]',
+  'res.headers["set-cookie"]',
+  'authorization',
+  'cookie',
+  'setCookie',
+  'token',
+  'accessToken',
+  'refreshToken',
+  'password',
+  'email',
+  'req.body.token',
+  'req.body.accessToken',
+  'req.body.refreshToken',
+  'req.body.password',
+  'req.body.email',
+  'req.body.coordinates',
+  'req.body.geometry.coordinates',
+  'req.body.points.*.latitude',
+  'req.body.points.*.longitude',
+  'req.body.polyline',
+  'req.body.placeId',
+  'req.body.placeIds',
+  'req.body.*.token',
+  'req.body.*.accessToken',
+  'req.body.*.refreshToken',
+  'req.body.*.password',
+  'req.body.*.email',
+  'req.body.*.coordinates',
+  'req.body.*.geometry.coordinates',
+  'req.body.*.points.*.latitude',
+  'req.body.*.points.*.longitude',
+  'req.body.*.polyline',
+  'req.body.*.placeId',
+  'req.body.*.placeIds',
+  'res.body.token',
+  'res.body.accessToken',
+  'res.body.refreshToken',
+  'res.body.password',
+  'res.body.email',
+  'res.body.coordinates',
+  'res.body.geometry.coordinates',
+  'res.body.points.*.latitude',
+  'res.body.points.*.longitude',
+  'res.body.polyline',
+  'res.body.placeId',
+  'res.body.placeIds'
+] as const;
+
 export interface ApiConfig {
   host: string;
   port: number;

@@ -11,7 +11,7 @@ make infra-up
 POSTGRES_PASSWORD='your-local-password' AUTH_TOKEN_SECRET='a-long-random-secret' pnpm dev:api
 ```
 
-M1 endpoints are contract-backed and documented through OpenAPI: adult registration/login/refresh/logout, authenticated privacy zones, and idempotent activity create/chunk/finalize/status. The worker consumes `activity.finalized` outbox events and writes only the server-derived, privacy-trimmed route plus provenance.
+M1 endpoints are contract-backed and documented through OpenAPI: adult registration/login/refresh/logout, authenticated privacy zones, and idempotent activity create/chunk/finalize/status. The worker consumes `activity.finalized` outbox events continuously (5-second poll). It reclaims stale 5-minute claims, retries at most five times, then marks events failed for operations review. Use `WORKER_ONCE=true` for a one-pass job runner. It writes only the server-derived, privacy-trimmed route plus provenance.
 
 Run deterministic PostGIS integration coverage against a running local service explicitly:
 

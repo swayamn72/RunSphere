@@ -31,16 +31,12 @@ export class MobileApiClient {
 
   async logout(): Promise<void> {
     const session = await this.auth?.read();
-    try {
-      if (session && this.baseUrl) {
-        await this.fetcher(`${this.baseUrl}/v1/auth/logout`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ refreshToken: session.refreshToken })
-        });
-      }
-    } finally {
-      await this.auth?.clear();
+    if (session && this.baseUrl) {
+      await this.fetcher(`${this.baseUrl}/v1/auth/logout`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ refreshToken: session.refreshToken })
+      });
     }
   }
 

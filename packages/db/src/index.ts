@@ -33,28 +33,32 @@ const migrationDirectory = join(
 );
 
 export const migrate = async (db: Database, directory = migrationDirectory): Promise<void> => {
-  await db.query(
-    'CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())'
-  );
-  const files = (await readdir(directory)).filter((file) => file.endsWith('.sql')).sort();
-  for (const file of files) {
-    const applied = await db.query<{ version: string }>(
-      'SELECT version FROM schema_migrations WHERE version = $1',
-      [file]
+  const client = await db.connect();
+  try {
+    await client.query('SELECT pg_advisory_lock(hashtext($1))', ['runsphere-schema-migrations']);
+    await client.query(
+      'CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())'
     );
-    if (applied.rows.length > 0) continue;
-    const client = await db.connect();
-    try {
-      await client.query('BEGIN');
-      await client.query(await readFile(join(directory, file), 'utf8'));
-      await client.query('INSERT INTO schema_migrations (version) VALUES ($1)', [file]);
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
+    const files = (await readdir(directory)).filter((file) => file.endsWith('.sql')).sort();
+    for (const file of files) {
+      const applied = await client.query<{ version: string }>(
+        'SELECT version FROM schema_migrations WHERE version = $1',
+        [file]
+      );
+      if (applied.rows.length > 0) continue;
+      try {
+        await client.query('BEGIN');
+        await client.query(await readFile(join(directory, file), 'utf8'));
+        await client.query('INSERT INTO schema_migrations (version) VALUES ($1)', [file]);
+        await client.query('COMMIT');
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      }
     }
+  } finally {
+    await client.query('SELECT pg_advisory_unlock(hashtext($1))', ['runsphere-schema-migrations']);
+    client.release();
   }
 };
 

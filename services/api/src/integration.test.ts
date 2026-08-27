@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { createDatabase, defaultDatabaseUrl, migrate } from '@runsphere/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
+import { processActivity } from './activity.js';
 
 const enabled = Boolean(
   process.env.RUN_POSTGIS_INTEGRATION && (process.env.DATABASE_URL || process.env.POSTGRES_PASSWORD)
@@ -26,7 +27,7 @@ describePostgis('M1 PostGIS activity flow', () => {
       method: 'POST',
       url: '/v1/auth/register',
       payload: {
-        email: `pilot-${randomUUID()}@example.test`,
+        email: `pilot-${randomUUID()}-${Date.now()}@example.test`,
         password: 'a-safe-pilot-password',
         ageAssertion: true,
         policyVersion: 'm1'
@@ -75,5 +76,50 @@ describePostgis('M1 PostGIS activity flow', () => {
     expect(
       (await db.query('SELECT id FROM outbox_events WHERE aggregate_id = $1', [id])).rows
     ).toHaveLength(1);
+    await processActivity(db, id);
+    const derived = await db.query<{ route: string; applied_zones: unknown }>(
+      'SELECT ST_AsGeoJSON(shareable_route) AS route, applied_zones FROM activity_derivations WHERE activity_id = $1',
+      [id]
+    );
+    expect(derived.rows[0]?.route).toContain('MultiLineString');
+    expect(derived.rows[0]?.applied_zones).toEqual([]);
+
+    const zone = await app.inject({
+      method: 'POST',
+      url: '/v1/privacy-zones',
+      headers: { authorization: `Bearer ${auth.accessToken}` },
+      payload: { name: 'start', geometry: { type: 'Point', coordinates: [72.8777, 19.076] } }
+    });
+    expect(zone.statusCode).toBe(201);
+    const second = await app.inject({
+      method: 'POST',
+      url: '/v1/activities',
+      headers: { authorization: `Bearer ${auth.accessToken}`, 'idempotency-key': randomUUID() },
+      payload: { movementType: 'walk' }
+    });
+    const secondId = (second.json() as { id: string }).id;
+    await app.inject({
+      method: 'PUT',
+      url: `/v1/activities/${secondId}/chunks`,
+      headers: { authorization: `Bearer ${auth.accessToken}` },
+      payload: chunk
+    });
+    await app.inject({
+      method: 'POST',
+      url: `/v1/activities/${secondId}/finalize`,
+      headers: { authorization: `Bearer ${auth.accessToken}` },
+      payload: { expectedChunkCount: 1 }
+    });
+    await processActivity(db, secondId);
+    const trimmed = await db.query<{
+      route: string;
+      applied_zones: Array<{ id: string; geometryVersion: number }>;
+    }>(
+      'SELECT ST_AsGeoJSON(shareable_route) AS route, applied_zones FROM activity_derivations WHERE activity_id = $1',
+      [secondId]
+    );
+    expect(trimmed.rows[0]?.route).not.toContain('72.8777');
+    expect(trimmed.rows[0]?.applied_zones[0]?.id).toBe((zone.json() as { id: string }).id);
+    expect(trimmed.rows[0]?.applied_zones[0]?.geometryVersion).toBe(1);
   });
 });

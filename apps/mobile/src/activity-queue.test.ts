@@ -43,11 +43,11 @@ describe('activity queue', () => {
     const database = new MemoryDatabase();
     const queue = createActivityQueue(database);
     await queue.initialize();
-    expect(database.version).toBe(2);
+    expect(database.version).toBe(3);
 
     const activity = {
       id: 'activity-1',
-      movementType: 'walk' as const,
+      movementType: 'hike' as const,
       createdAt: '2026-08-27T00:00:00Z',
       status: 'ready' as const
     };

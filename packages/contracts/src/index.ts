@@ -69,16 +69,25 @@ export const AuthResponseSchema = Type.Object(
   },
   { $id: 'AuthResponse' }
 );
+const CoordinateSchema = Type.Array(Type.Number(), { minItems: 2, maxItems: 2 });
+const GeoJsonPointSchema = Type.Object(
+  { type: Type.Literal('Point'), coordinates: CoordinateSchema },
+  Strict
+);
+const GeoJsonPolygonSchema = Type.Object(
+  {
+    type: Type.Literal('Polygon'),
+    coordinates: Type.Array(Type.Array(CoordinateSchema, { minItems: 4, maxItems: 1000 }), {
+      minItems: 1,
+      maxItems: 50
+    })
+  },
+  Strict
+);
 export const PrivacyZoneRequestSchema = Type.Object(
   {
     name: Type.String({ minLength: 1, maxLength: 80 }),
-    geometry: Type.Object(
-      {
-        type: Type.Union([Type.Literal('Point'), Type.Literal('Polygon')]),
-        coordinates: Type.Unknown()
-      },
-      Strict
-    )
+    geometry: Type.Union([GeoJsonPointSchema, GeoJsonPolygonSchema])
   },
   { ...Strict, $id: 'PrivacyZoneRequest' }
 );
@@ -90,6 +99,10 @@ export const PrivacyZoneResponseSchema = Type.Object(
     geometryVersion: Type.Integer({ minimum: 1 })
   },
   { $id: 'PrivacyZoneResponse' }
+);
+export const ActivityParamsSchema = Type.Object(
+  { activityId: UuidSchema },
+  { ...Strict, $id: 'ActivityParams' }
 );
 export const ActivityCreateRequestSchema = Type.Object(
   { movementType: Type.Union([Type.Literal('walk'), Type.Literal('run'), Type.Literal('hike')]) },

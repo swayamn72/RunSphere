@@ -5,6 +5,7 @@ import {
   ActivityChunkRequestSchema,
   ActivityCreateRequestSchema,
   ActivityFinalizeRequestSchema,
+  ActivityParamsSchema,
   ActivityStatusResponseSchema,
   AuthResponseSchema,
   ErrorResponseSchema,
@@ -28,7 +29,7 @@ import {
   type RefreshRequest,
   type QuestSummary
 } from '@runsphere/contracts';
-import { sha256, type Database } from '@runsphere/db';
+import { sha256, withTransaction, type Database } from '@runsphere/db';
 import { demoQuests, getQuestById } from '@runsphere/domain';
 import Fastify, { type FastifyBaseLogger, type FastifyRequest } from 'fastify';
 import { chunkHash } from './activity.js';
@@ -60,7 +61,26 @@ export interface BuildAppOptions {
   loggerInstance?: FastifyBaseLogger;
   db?: Database;
   authSecret?: string;
+  allowInsecureAuthSecret?: boolean;
 }
+
+const assertAuthSecret = (secret: string, allowed: boolean) => {
+  if (!allowed && (secret.length < 32 || secret === 'development-secret-not-for-production')) {
+    throw new Error('AUTH_TOKEN_SECRET must be at least 32 characters outside tests.');
+  }
+};
+const authRateLimit = new Map<string, { attempts: number; resetAt: number }>();
+const allowAuthAttempt = (key: string) => {
+  const now = Date.now();
+  const current = authRateLimit.get(key);
+  if (!current || current.resetAt <= now) {
+    authRateLimit.set(key, { attempts: 1, resetAt: now + 60_000 });
+    return true;
+  }
+  if (current.attempts >= 10) return false;
+  current.attempts += 1;
+  return true;
+};
 const accountIdFrom = (request: FastifyRequest, secret: string) => {
   const value = request.headers.authorization;
   return value?.startsWith('Bearer ') ? verifyAccessToken(value.slice(7), secret) : undefined;
@@ -82,8 +102,10 @@ export const buildApp = ({
   config = defaultApiConfig,
   loggerInstance,
   db,
-  authSecret = process.env.AUTH_TOKEN_SECRET ?? 'development-secret-not-for-production'
+  authSecret = process.env.AUTH_TOKEN_SECRET ?? 'development-secret-not-for-production',
+  allowInsecureAuthSecret = process.env.NODE_ENV === 'test'
 }: BuildAppOptions = {}) => {
+  assertAuthSecret(authSecret, allowInsecureAuthSecret);
   const database = db;
   const app = loggerInstance
     ? Fastify({ loggerInstance })
@@ -149,6 +171,8 @@ export const buildApp = ({
       },
       async (request, reply) => {
         if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+        if (!allowAuthAttempt(`register:${request.ip}`))
+          return reply.code(429).send({ message: 'Too many attempts' });
         try {
           const account = await database.query<{ id: string }>(
             'INSERT INTO accounts (email, password_hash, age_asserted_at, age_policy_version) VALUES ($1, $2, now(), $3) RETURNING id',
@@ -182,6 +206,8 @@ export const buildApp = ({
       },
       async (request, reply) => {
         if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+        if (!allowAuthAttempt(`login:${request.ip}:${request.body.email.toLowerCase()}`))
+          return reply.code(429).send({ message: 'Too many attempts' });
         const accounts = await database.query<{ id: string; password_hash: string }>(
           'SELECT id, password_hash FROM accounts WHERE lower(email) = lower($1)',
           [request.body.email.trim()]
@@ -230,25 +256,37 @@ export const buildApp = ({
       {
         schema: {
           body: PrivacyZoneRequestSchema,
-          response: { 201: PrivacyZoneResponseSchema, 401: ErrorResponseSchema }
+          response: {
+            201: PrivacyZoneResponseSchema,
+            400: ErrorResponseSchema,
+            401: ErrorResponseSchema
+          }
         }
       },
       async (request, reply) => {
         if (!database) return reply.code(503).send({ message: 'Service unavailable' });
         const accountId = requireAccount(request, reply, authSecret);
         if (!accountId) return;
+        const geojson = JSON.stringify(request.body.geometry);
+        if (Buffer.byteLength(geojson) > 100_000)
+          return reply.code(400).send({ message: 'Invalid privacy-zone geometry' });
+        const valid = await database.query<{ valid: boolean }>(
+          `SELECT ST_IsValid(geometry) AS valid FROM (SELECT ST_SetSRID(ST_GeomFromGeoJSON($1), 4326) AS geometry) zone
+           WHERE ST_SRID(geometry) = 4326 AND GeometryType(geometry) IN ('POINT', 'POLYGON')`,
+          [geojson]
+        );
+        if (!valid.rows[0]?.valid)
+          return reply.code(400).send({ message: 'Invalid privacy-zone geometry' });
         const result = await database.query<{ id: string; geometry_version: number }>(
           'INSERT INTO privacy_zones (account_id, name, geometry) VALUES ($1, $2, ST_SetSRID(ST_GeomFromGeoJSON($3), 4326)) RETURNING id, geometry_version',
-          [accountId, request.body.name, JSON.stringify(request.body.geometry)]
+          [accountId, request.body.name, geojson]
         );
-        return reply
-          .code(201)
-          .send({
-            id: result.rows[0]!.id,
-            name: request.body.name,
-            geometry: request.body.geometry,
-            geometryVersion: result.rows[0]!.geometry_version
-          });
+        return reply.code(201).send({
+          id: result.rows[0]!.id,
+          name: request.body.name,
+          geometry: request.body.geometry,
+          geometryVersion: result.rows[0]!.geometry_version
+        });
       }
     );
 
@@ -294,11 +332,7 @@ export const buildApp = ({
       '/v1/activities/:activityId/chunks',
       {
         schema: {
-          params: {
-            type: 'object',
-            required: ['activityId'],
-            properties: { activityId: { type: 'string', format: 'uuid' } }
-          },
+          params: ActivityParamsSchema,
           body: ActivityChunkRequestSchema,
           response: {
             204: { type: 'null' },
@@ -340,11 +374,7 @@ export const buildApp = ({
       '/v1/activities/:activityId/finalize',
       {
         schema: {
-          params: {
-            type: 'object',
-            required: ['activityId'],
-            properties: { activityId: { type: 'string', format: 'uuid' } }
-          },
+          params: ActivityParamsSchema,
           body: ActivityFinalizeRequestSchema,
           response: {
             202: ActivityStatusResponseSchema,
@@ -358,32 +388,34 @@ export const buildApp = ({
         if (!database) return reply.code(503).send({ message: 'Service unavailable' });
         const accountId = requireAccount(request, reply, authSecret);
         if (!accountId) return;
-        const chunks = await database.query<{ count: string; checksum: string }>(
-          'SELECT count(*)::text AS count, coalesce(string_agg(payload_hash, $2 ORDER BY sequence), $3) AS checksum FROM activity_chunks WHERE activity_id = $1',
-          [request.params.activityId, '', '']
-        );
-        if (Number(chunks.rows[0]?.count) !== request.body.expectedChunkCount)
-          return reply.code(400).send({ message: 'Unexpected chunk count' });
-        const activity = await database.query<{ id: string; status: 'validating' }>(
-          'UPDATE activity_submissions SET status = $1, finalized_at = now(), source_checksum = $2 WHERE id = $3 AND account_id = $4 AND status = $5 RETURNING id, status',
-          [
-            'validating',
-            sha256(chunks.rows[0]!.checksum),
-            request.params.activityId,
-            accountId,
-            'received'
-          ]
-        );
-        if (!activity.rows[0]) return reply.code(404).send({ message: 'Activity not found' });
-        await database.query(
-          'INSERT INTO outbox_events (topic, aggregate_id, payload) VALUES ($1, $2, $3)',
-          [
-            'activity.finalized',
-            activity.rows[0].id,
-            JSON.stringify({ activityId: activity.rows[0].id })
-          ]
-        );
-        return reply.code(202).send(activity.rows[0]);
+        const activity = await withTransaction(database, async (client) => {
+          const owned = await client.query<{ id: string }>(
+            'SELECT id FROM activity_submissions WHERE id = $1 AND account_id = $2 AND status = $3 FOR UPDATE',
+            [request.params.activityId, accountId, 'received']
+          );
+          if (!owned.rows[0]) return undefined;
+          const chunks = await client.query<{ count: string; checksum: string }>(
+            'SELECT count(*)::text AS count, coalesce(string_agg(payload_hash, $2 ORDER BY sequence), $3) AS checksum FROM activity_chunks WHERE activity_id = $1',
+            [request.params.activityId, '', '']
+          );
+          if (Number(chunks.rows[0]?.count) !== request.body.expectedChunkCount) return null;
+          const updated = await client.query<{ id: string; status: 'validating' }>(
+            'UPDATE activity_submissions SET status = $1, finalized_at = now(), source_checksum = $2 WHERE id = $3 RETURNING id, status',
+            ['validating', sha256(chunks.rows[0]!.checksum), request.params.activityId]
+          );
+          await client.query(
+            'INSERT INTO outbox_events (topic, aggregate_id, payload) VALUES ($1, $2, $3)',
+            [
+              'activity.finalized',
+              updated.rows[0]!.id,
+              JSON.stringify({ activityId: updated.rows[0]!.id })
+            ]
+          );
+          return updated.rows[0]!;
+        });
+        if (activity === undefined) return reply.code(404).send({ message: 'Activity not found' });
+        if (activity === null) return reply.code(400).send({ message: 'Unexpected chunk count' });
+        return reply.code(202).send(activity);
       }
     );
 
