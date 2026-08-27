@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_DB: runsphere_test
+          POSTGRES_USER: runsphere
+          POSTGRES_PASSWORD: runsphere_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U runsphere -d runsphere_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 6
+    env:
+      DATABASE_URL: postgresql://runsphere:runsphere_test@localhost:5432/runsphere_test
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Validate infrastructure configuration tests
+        run: ./infra/scripts/test-validate-config.sh
+
+      - name: Verify PostGIS is available
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+          psql "$DATABASE_URL" --set=ON_ERROR_STOP=1 --command 'CREATE EXTENSION IF NOT EXISTS postgis;'
+          ./scripts/infra/healthcheck-postgis.sh
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type-check
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Test API health endpoint
+        run: pnpm --filter @runsphere/api test
+
+      - name: Build
+        run: pnpm build

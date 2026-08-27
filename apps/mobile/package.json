@@ -1,0 +1,28 @@
+{
+  "name": "@runsphere/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "android": "expo start --android",
+    "build": "expo export --platform android",
+    "dev": "expo start --lan",
+    "lint": "eslint src App.tsx",
+    "start": "expo start",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@runsphere/domain": "workspace:*",
+    "@runsphere/ui": "workspace:*",
+    "expo": "57.0.17",
+    "expo-status-bar": "57.0.1",
+    "react": "19.2.3",
+    "react-native": "0.86.3"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.14",
+    "typescript": "6.0.3",
+    "vitest": "4.1.11"
+  },
+  "main": "expo/AppEntry"
+}

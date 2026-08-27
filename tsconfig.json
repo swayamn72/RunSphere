@@ -1,0 +1,14 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/config" },
+    { "path": "./packages/contracts" },
+    { "path": "./packages/domain" },
+    { "path": "./packages/observability" },
+    { "path": "./packages/ui" },
+    { "path": "./services/api" },
+    { "path": "./services/worker" },
+    { "path": "./apps/admin" },
+    { "path": "./apps/mobile" }
+  ]
+}

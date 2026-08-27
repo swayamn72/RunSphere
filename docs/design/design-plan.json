@@ -1,0 +1,175 @@
+{
+  "title": "RunSphere mobile product experience",
+  "summary": "A cohesive mobile-first direction built around deep evergreen, trail lime, warm terrain neutrals, crisp route orange, chunky geometry, and high-contrast activity controls. The system balances inclusive daily exploration with transparent, pace-neutral seasonal scoring; maps use implementation-feasible overlays, hex cells, and simple vector geometry suitable for Expo and MapLibre.",
+  "sections": [
+    {
+      "title": "Welcome to RunSphere",
+      "key": "onboarding-welcome",
+      "description": "Inclusive movement onboarding.",
+      "variations": [
+        {
+          "title": "Default mobile",
+          "key": "default",
+          "html_link": "onboarding-welcome-default.html",
+          "is_recommended": true
+        }
+      ]
+    },
+    {
+      "title": "Privacy & Permissions",
+      "key": "permissions-privacy",
+      "description": "Clear consent and privacy controls.",
+      "variations": [
+        {
+          "title": "Default mobile",
+          "key": "default",
+          "html_link": "permissions-privacy-default.html",
+          "is_recommended": true
+        }
+      ]
+    },
+    {
+      "title": "Home Dashboard",
+      "key": "home-dashboard",
+      "description": "Daily loop and activity launch.",
+      "variations": [
+        {
+          "title": "Default mobile",
+          "key": "default",
+          "html_link": "home-dashboard-default.html",
+          "is_recommended": true
+        }
+      ]
+    },
+    {
+      "title": "Live Activity",
+      "key": "live-activity",
+      "description": "High-legibility live tracking map.",
+      "variations": [
+        {
+          "title": "Default mobile",
+          "key": "default",
+          "html_link": "live-activity-default.html",
+          "is_recommended": true
+        }
+      ]
+    },
+    {
+      "title": "Quest Discovery",
+      "key": "quest-discovery",
+      "description": "Explore nearby inclusive quests.",
+      "variations": [
+        {
+          "title": "Default mobile",
+          "key": "default",
+          "html_link": "quest-discovery-default.html",
+          "is_recommended": true
+        }
+      ]
+    },
+    {
+      "title": "Activity Results",
+      "key": "activity-results",
+      "description": "Celebratory results and cell capture.",
+      "variations": [
+        {
+          "title": "Default mobile",
+          "key": "default",
+          "html_link": "activity-results-default.html",
+          "is_recommended": true
+        }
+      ]
+    },
+    {
+      "title": "Season Territory",
+      "key": "territory-season",
+      "description": "Fair seasonal territory competition.",
+      "variations": [
+        {
+          "title": "Default mobile",
+          "key": "default",
+          "html_link": "territory-season-default.html",
+          "is_recommended": true
+        }
+      ]
+    },
+    {
+      "title": "Club Challenge",
+      "key": "club-challenge",
+      "description": "Cooperative social club challenge.",
+      "variations": [
+        {
+          "title": "Default mobile",
+          "key": "default",
+          "html_link": "club-challenge-default.html",
+          "is_recommended": true
+        }
+      ]
+    },
+    {
+      "title": "Analytics Profile",
+      "key": "analytics-profile",
+      "description": "Progress insights without pace pressure.",
+      "variations": [
+        {
+          "title": "Default mobile",
+          "key": "default",
+          "html_link": "analytics-profile-default.html",
+          "is_recommended": true
+        }
+      ]
+    },
+    {
+      "title": "Safety Controls",
+      "key": "safety-controls",
+      "description": "In-activity safety and visibility controls.",
+      "variations": [
+        {
+          "title": "Default mobile",
+          "key": "default",
+          "html_link": "safety-controls-default.html",
+          "is_recommended": true
+        }
+      ]
+    },
+    {
+      "title": "Offline Activity",
+      "key": "offline-state",
+      "description": "Resilient offline activity state.",
+      "variations": [
+        {
+          "title": "Default mobile",
+          "key": "default",
+          "html_link": "offline-state-default.html",
+          "is_recommended": true
+        }
+      ]
+    },
+    {
+      "title": "GPS Recovery",
+      "key": "gps-error",
+      "description": "Actionable weak GPS error state.",
+      "variations": [
+        {
+          "title": "Default mobile",
+          "key": "default",
+          "html_link": "gps-error-default.html",
+          "is_recommended": true
+        }
+      ]
+    },
+    {
+      "title": "Profile & Privacy",
+      "key": "profile-settings",
+      "description": "Profile, activity modes and privacy settings.",
+      "variations": [
+        {
+          "title": "Default mobile",
+          "key": "default",
+          "html_link": "profile-settings-default.html",
+          "is_recommended": true
+        }
+      ]
+    }
+  ]
+}

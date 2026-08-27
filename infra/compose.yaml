@@ -1,0 +1,152 @@
+name: runsphere
+
+x-default-logging: &default-logging
+  driver: local
+  options:
+    max-size: 10m
+    max-file: '3'
+
+x-postgres-environment: &postgres-environment
+  POSTGRES_DB: ${POSTGRES_DB:-runsphere}
+  POSTGRES_USER: ${POSTGRES_USER:-runsphere}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+  POSTGRES_INITDB_ARGS: --data-checksums
+
+services:
+  postgres:
+    image: postgis/postgis:18-3.6
+    restart: unless-stopped
+    profiles: [local, demo, maps, routing, ops, scale]
+    environment: *postgres-environment
+    command:
+      - postgres
+      - -c
+      - shared_buffers=${POSTGRES_SHARED_BUFFERS:-128MB}
+      - -c
+      - effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-384MB}
+      - -c
+      - maintenance_work_mem=${POSTGRES_MAINTENANCE_WORK_MEM:-64MB}
+      - -c
+      - max_connections=${POSTGRES_MAX_CONNECTIONS:-40}
+      - -c
+      - log_min_duration_statement=${POSTGRES_LOG_MIN_DURATION_STATEMENT:-500}
+    ports:
+      - '127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    networks: [runsphere-internal]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    mem_limit: 512m
+    cpus: '0.75'
+    logging: *default-logging
+
+  pgadmin:
+    image: dpage/pgadmin4:9.2
+    restart: unless-stopped
+    profiles: [ops]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:?Set PGADMIN_DEFAULT_EMAIL in .env}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:?Set PGADMIN_DEFAULT_PASSWORD in .env}
+      PGADMIN_CONFIG_SERVER_MODE: 'True'
+    ports:
+      - '127.0.0.1:${PGADMIN_HOST_PORT:-5050}:80'
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    networks: [runsphere-internal]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'wget --no-verbose --tries=1 --spider http://127.0.0.1/misc/ping || exit 1']
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    mem_limit: 256m
+    cpus: '0.25'
+    logging: *default-logging
+
+  martin:
+    image: ghcr.io/maplibre/martin:v0.17.0
+    restart: unless-stopped
+    profiles: [maps]
+    command:
+      [
+        '--listen-addresses',
+        '0.0.0.0:3000',
+        '--postgres',
+        '${MARTIN_DATABASE_URL:?Set MARTIN_DATABASE_URL in .env}'
+      ]
+    ports:
+      - '127.0.0.1:${MARTIN_HOST_PORT:-3000}:3000'
+    networks: [runsphere-internal]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/health || exit 1']
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    mem_limit: 256m
+    cpus: '0.25'
+    logging: *default-logging
+
+  valhalla:
+    image: ghcr.io/gis-ops/docker-valhalla/valhalla:3.5.1@sha256:d154396aa2499f463f3d5419ef3f107063247a4ffbed80dbcdf952aa53172d97
+    restart: unless-stopped
+    profiles: [routing]
+    environment:
+      tile_urls: ${VALHALLA_TILE_URLS:-}
+      serve_tiles: 'False'
+    ports:
+      - '127.0.0.1:${VALHALLA_HOST_PORT:-8002}:8002'
+    volumes:
+      - valhalla-data:/custom_files
+    networks: [runsphere-internal]
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'curl --fail --silent --show-error http://127.0.0.1:8002/status >/dev/null']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    mem_limit: 1g
+    cpus: '1.0'
+    logging: *default-logging
+
+  postgres-replica-placeholder:
+    image: postgis/postgis:18-3.6
+    profiles: [scale]
+    command:
+      [
+        'sh',
+        '-ec',
+        "echo 'Replica is intentionally a deployment placeholder; configure managed replication before enabling.'; sleep infinity"
+      ]
+    networks: [runsphere-internal]
+    mem_limit: 128m
+    cpus: '0.10'
+    logging: *default-logging
+
+networks:
+  runsphere-internal:
+    name: runsphere-internal
+    driver: bridge
+
+volumes:
+  postgres-data:
+    name: runsphere-postgres-data
+  pgadmin-data:
+    name: runsphere-pgadmin-data
+  valhalla-data:
+    name: runsphere-valhalla-data
