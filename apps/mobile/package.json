@@ -11,12 +11,18 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "prebuild:android": "expo prebuild --platform android --no-install",
-    "android:assemble:debug": "cd android && ./gradlew assembleDebug"
+    "android:assemble:debug": "cd android && ./gradlew assembleDebug",
+    "verify:android-permissions": "node src/verify-android-permissions.mjs"
   },
   "dependencies": {
+    "@runsphere/contracts": "workspace:*",
     "@runsphere/domain": "workspace:*",
     "@runsphere/ui": "workspace:*",
     "expo": "57.0.17",
+    "expo-location": "~57.0.14",
+    "expo-secure-store": "~57.0.2",
+    "expo-sensors": "~57.0.2",
+    "expo-sqlite": "~57.0.2",
     "expo-status-bar": "57.0.1",
     "react": "19.2.3",
     "react-native": "0.86.3"
