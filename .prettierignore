@@ -1,0 +1,8 @@
+**/node_modules/**
+**/dist/**
+**/build/**
+**/.expo/**
+**/.turbo/**
+**/.gradle/**
+**/.cxx/**
+pnpm-lock.yaml
