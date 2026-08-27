@@ -1,0 +1,17 @@
+node_modules/
+.pnpm-store/
+.turbo/
+dist/
+build/
+coverage/
+.expo/
+android/.gradle/
+android/local.properties
+ios/Pods/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+.vscode/
+.idea/
