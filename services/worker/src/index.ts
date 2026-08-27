@@ -1,4 +1,3 @@
-import { createLogger } from '@runsphere/observability';
+import { startWorker } from './worker.js';
 
-const logger = createLogger('worker');
-logger.info('worker.started', { message: 'RunSphere background worker shell is ready.' });
+startWorker();

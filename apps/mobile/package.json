@@ -3,13 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "android": "expo start --android",
+    "android": "expo run:android",
     "build": "expo export --platform android",
     "dev": "expo start --lan",
     "lint": "eslint src App.tsx",
     "start": "expo start",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "prebuild:android": "expo prebuild --platform android --no-install",
+    "android:assemble:debug": "cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
     "@runsphere/domain": "workspace:*",

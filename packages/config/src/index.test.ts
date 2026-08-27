@@ -17,3 +17,11 @@ describe('API configuration', () => {
     );
   });
 });
+
+it('accepts an exact public admin preview origin', () => {
+  expect(
+    loadApiConfig({
+      CORS_ALLOWED_ORIGINS: 'https://preview-admin.runsphere.test,https://admin.runsphere.test'
+    }).allowedOrigins
+  ).toEqual(['https://preview-admin.runsphere.test', 'https://admin.runsphere.test']);
+});

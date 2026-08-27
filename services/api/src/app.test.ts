@@ -35,20 +35,24 @@ describe('API routes', () => {
     expect(response.json()).toEqual({ message: 'Quest not found' });
   });
 
-  it('only permits configured browser origins', async () => {
-    const app = buildApp({ config: { allowedOrigins: ['https://admin.runsphere.test'] } });
+  it('only permits configured browser origins, including a public admin preview', async () => {
+    const app = buildApp({
+      config: { allowedOrigins: ['https://preview-admin.runsphere.test'] }
+    });
     apps.push(app);
     const accepted = await app.inject({
       method: 'GET',
       url: '/health',
-      headers: { origin: 'https://admin.runsphere.test' }
+      headers: { origin: 'https://preview-admin.runsphere.test' }
     });
     const rejected = await app.inject({
       method: 'GET',
       url: '/health',
       headers: { origin: 'https://untrusted.test' }
     });
-    expect(accepted.headers['access-control-allow-origin']).toBe('https://admin.runsphere.test');
+    expect(accepted.headers['access-control-allow-origin']).toBe(
+      'https://preview-admin.runsphere.test'
+    );
     expect(rejected.headers['access-control-allow-origin']).toBeUndefined();
   });
 

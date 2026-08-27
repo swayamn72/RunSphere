@@ -11,9 +11,15 @@
     "jsx": "react-jsx"
   },
   "references": [
-    { "path": "../../packages/config" },
-    { "path": "../../packages/domain" },
-    { "path": "../../packages/ui" }
+    {
+      "path": "../../packages/config"
+    },
+    {
+      "path": "../../packages/domain"
+    },
+    {
+      "path": "../../packages/ui"
+    }
   ],
   "include": ["src", "vite.config.ts"]
 }
