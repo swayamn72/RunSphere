@@ -20,3 +20,4 @@ export const isPublishedQuest = (quest: Pick<QuestSummary, 'checkpointCount'>): 
   quest.checkpointCount > 0;
 
 export type { QuestDetail, QuestSummary };
+export * from './gamification.js';
