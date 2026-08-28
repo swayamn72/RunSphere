@@ -78,6 +78,7 @@ export default function App() {
       />
     ) : activeTab === 'Home' ? (
       <HomeScreen
+        api={apiClient}
         movement={movement}
         onMovementChange={setMovement}
         onStart={openActivity}

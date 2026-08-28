@@ -5,6 +5,7 @@ import { activityRecorder } from '../activity-recorder.native';
 import type { ActivitySession, MovementType, RecordingState } from '../activity-recorder-core';
 import { recordingLocationAdapter } from '../location-adapter';
 import { type createActivitySyncCoordinator } from '../activity-sync';
+import type { ActivityStatus } from '../api-client';
 import { PrimaryButton, Stat } from '../components/primitives';
 import { styles } from '../components/styles';
 
@@ -242,11 +243,19 @@ function ActivityDetail({
   onChange: (session: ActivitySession | undefined) => void;
 }) {
   const [current, setCurrent] = useState(session);
+  const [remote, setRemote] = useState<ActivityStatus>();
   const isProcessed = current.state === 'processed';
   const retry = async () => {
     const next = await sync.sync(current);
     setCurrent(next.session);
+    setRemote(next.status);
   };
+  useEffect(() => {
+    void sync
+      .refresh(session)
+      .then((status) => status && setRemote(status))
+      .catch(() => undefined);
+  }, [session, sync]);
   const remove = async () => {
     await sync.delete(current);
     onChange(undefined);
@@ -269,15 +278,51 @@ function ActivityDetail({
       </Text>
       <Text style={styles.lead}>
         {isProcessed
-          ? 'Processed results are available in your private history.'
-          : (current.syncError ??
-            'Your local result is safe and will resume when connectivity returns.')}
+          ? 'Validation is complete. Your processed result stays private in your activity history.'
+          : remote?.status === 'rejected'
+            ? (remote.rejectionReason ?? 'This activity did not pass validation.')
+            : (current.syncError ??
+              'Your local result is safe and will resume when connectivity returns.')}
       </Text>
       <View style={styles.resultStats}>
-        <Stat label="KM" value={(current.distanceMeters / 1000).toFixed(2)} detail="Local" />
-        <Stat label="TIME" value={formatDuration(current.durationSeconds)} detail="Recorded" />
-        <Stat label="STATUS" value={current.state.toUpperCase()} detail="Private" />
+        <Stat
+          label="KM"
+          value={((remote?.summary?.distanceMeters ?? current.distanceMeters) / 1000).toFixed(2)}
+          detail={remote?.summary ? 'Validated' : 'Local'}
+        />
+        <Stat
+          label="TIME"
+          value={formatDuration(remote?.summary?.durationSeconds ?? current.durationSeconds)}
+          detail={remote?.summary ? 'Validated' : 'Recorded'}
+        />
+        <Stat
+          label="STATUS"
+          value={(remote?.status ?? current.state).toUpperCase()}
+          detail={remote?.summary?.privacyTrimmed ? '200 m zones applied' : 'Private'}
+        />
       </View>
+      {remote?.status === 'rejected' && remote.validationErrors?.length ? (
+        <View style={[styles.notice, styles.warningNotice]} accessibilityLiveRegion="polite">
+          <Text style={styles.noticeIcon}>!</Text>
+          <View style={styles.flexCopy}>
+            <Text style={styles.noticeTitle}>Validation needs attention</Text>
+            <Text style={styles.noticeCopy}>{remote.validationErrors.join(' ')}</Text>
+          </View>
+        </View>
+      ) : null}
+      {isProcessed && (
+        <View style={styles.notice} accessibilityLiveRegion="polite">
+          <Text style={styles.noticeIcon}>✓</Text>
+          <View style={styles.flexCopy}>
+            <Text style={styles.noticeTitle}>Validation complete</Text>
+            <Text style={styles.noticeCopy}>
+              {remote?.summary?.privacyTrimmed
+                ? 'Start, finish, and route fragments inside saved privacy zones were removed.'
+                : 'No shareable map is created unless your privacy settings allow one.'}
+            </Text>
+          </View>
+        </View>
+      )}
       {!isProcessed && (
         <PrimaryButton
           label={current.state === 'failed' ? 'Retry sync' : 'Sync now'}
@@ -305,18 +350,24 @@ export function ActivityHistory({
 }) {
   const [items, setItems] = useState<ActivitySession[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>();
   const refresh = async () => {
     setLoading(true);
-    await sync.syncPending(accountId);
-    const local = await activityRecorder.list(accountId);
-    await Promise.all(local.map((item) => sync.refresh(item).catch(() => undefined)));
-    setItems(await activityRecorder.list(accountId));
-    setLoading(false);
+    setError(undefined);
+    try {
+      await sync.syncPending(accountId);
+      const local = await activityRecorder.list(accountId);
+      await Promise.all(local.map((item) => sync.refresh(item).catch(() => undefined)));
+      setItems(await activityRecorder.list(accountId));
+    } catch {
+      setError('Your local history is still safe. Connect to refresh validation results.');
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => {
     void refresh();
   }, [accountId]);
-  if (!items.length) return null;
   return (
     <View style={styles.history}>
       <View style={styles.sectionHeader}>
@@ -325,6 +376,24 @@ export function ActivityHistory({
           <Text style={styles.link}>{loading ? 'Refreshing…' : 'Refresh'}</Text>
         </Pressable>
       </View>
+      {error && (
+        <View style={[styles.notice, styles.warningNotice]} accessibilityLiveRegion="polite">
+          <Text style={styles.noticeIcon}>!</Text>
+          <View style={styles.flexCopy}>
+            <Text style={styles.noticeTitle}>History is offline</Text>
+            <Text style={styles.noticeCopy}>{error}</Text>
+          </View>
+        </View>
+      )}
+      {!loading && !items.length && !error && (
+        <View style={styles.notice} accessibilityLiveRegion="polite">
+          <Text style={styles.noticeIcon}>⌁</Text>
+          <View style={styles.flexCopy}>
+            <Text style={styles.noticeTitle}>No activities yet</Text>
+            <Text style={styles.noticeCopy}>Your completed activities will appear here privately.</Text>
+          </View>
+        </View>
+      )}
       {items.map((item) => (
         <Pressable
           key={item.id}

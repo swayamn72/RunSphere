@@ -555,5 +555,37 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     marginBottom: 8,
     padding: 14
+  },
+  settingsHint: { color: colors.muted, fontSize: 12, lineHeight: 17, paddingHorizontal: 15, paddingTop: 7 },
+  settingStack: { padding: 15 },
+  checkpoint: {
+    alignItems: 'center',
+    borderBottomColor: colors.line,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    minHeight: 64,
+    paddingHorizontal: 15
+  },
+  checkpointNumber: {
+    alignItems: 'center',
+    backgroundColor: colors.lime,
+    borderRadius: 14,
+    color: colors.ink,
+    fontSize: 13,
+    fontWeight: '900',
+    height: 28,
+    marginRight: 11,
+    overflow: 'hidden',
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    width: 28
+  },
+  contactRow: {
+    alignItems: 'center',
+    borderBottomColor: colors.line,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    minHeight: 58,
+    paddingHorizontal: 15
   }
 });
