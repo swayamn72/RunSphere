@@ -1,9 +1,9 @@
 import * as Location from 'expo-location';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Linking, Pressable, Text, View } from 'react-native';
+import type { LngLat } from '@maplibre/maplibre-react-native';
 import { activityRecorder } from '../activity-recorder.native';
 import {
-  isWeakGpsSample,
   type ActivitySession,
   type MovementType,
   type RecordingState
@@ -28,6 +28,17 @@ import { type createActivitySyncCoordinator } from '../activity-sync';
 import type { ActivityStatus } from '../api-client';
 import { MovementChoice, PrimaryButton, Stat } from '../components/primitives';
 import { useAppStyles } from '../components/styles';
+import { MapSurface } from '../maps/MapSurface';
+import {
+  classifyLiveGps,
+  formatLastClear,
+  formatProvisionalDistance,
+  formatProvisionalDuration,
+  latestUsableSample,
+  liveRouteLayers,
+  provisionalPace
+} from './live-activity-model';
+import type { RecordedLocationSample } from '../activity-recorder-core';
 
 export function ActivityPreparation({
   accountId,
@@ -297,53 +308,90 @@ export function ActivityRecording({
 }) {
   const styles = useAppStyles();
   const [current, setCurrent] = useState(session);
-  const [gpsWeak, setGpsWeak] = useState(false);
+  const [samples, setSamples] = useState<RecordedLocationSample[]>([]);
+  const [now, setNow] = useState(Date.now());
+  const [cameraMode, setCameraMode] = useState<'follow' | 'free-pan'>('follow');
+  const [recenterRequest, setRecenterRequest] = useState<{ id: number; coordinate: LngLat }>();
+  const [subscriptionError, setSubscriptionError] = useState<string>();
+  const mounted = useRef(true);
+  const refreshGeneration = useRef(0);
+  const sessionRef = useRef({ id: session.id, accountId });
+  sessionRef.current = { id: current.id, accountId };
+
+  const refresh = useCallback(async (): Promise<ActivitySession | undefined> => {
+    const generation = ++refreshGeneration.current;
+    const identity = sessionRef.current;
+    const [fresh, trace] = await Promise.all([
+      activityRecorder.get(identity.id, identity.accountId),
+      activityRecorder.liveSamples(identity.id, identity.accountId)
+    ]);
+    if (
+      !mounted.current ||
+      generation !== refreshGeneration.current ||
+      identity.id !== sessionRef.current.id
+    )
+      return fresh;
+    if (fresh) setCurrent(fresh);
+    setSamples(trace);
+    return fresh;
+  }, []);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      refreshGeneration.current += 1;
+    };
+  }, []);
   useEffect(() => {
     let subscription: Location.LocationSubscription | undefined;
     let cancelled = false;
+    void refresh();
     if (['active', 'resumed'].includes(current.state)) {
       void recordingLocationAdapter
         .subscribe(async (sample) => {
-          const accepted = await activityRecorder.appendSample(current.id, accountId, sample);
-          if (cancelled) return;
-          setGpsWeak(isWeakGpsSample(sample));
-          if (!accepted) return;
-          const fresh = await activityRecorder.get(current.id, accountId);
-          if (fresh && !cancelled) setCurrent(fresh);
+          await activityRecorder.appendSample(current.id, accountId, sample);
+          if (!cancelled) await refresh();
         })
         .then((next) => {
           if (cancelled) next.remove();
           else subscription = next;
         })
-        .catch((error) => {
-          if (!cancelled) console.warn('Unable to start activity location watcher', error);
+        .catch(() => {
+          if (!cancelled && mounted.current)
+            setSubscriptionError(
+              'Location updates could not start. Your saved route remains private; retry by pausing and resuming.'
+            );
         });
     }
     return () => {
       cancelled = true;
       subscription?.remove();
     };
-  }, [accountId, current.id, current.state]);
+  }, [accountId, current.id, current.state, refresh]);
   useEffect(() => {
     if (!['active', 'resumed'].includes(current.state)) return;
-    const { id } = current;
     const interval = setInterval(() => {
-      void activityRecorder.heartbeat(id, accountId, new Date().toISOString()).then(async () => {
-        const fresh = await activityRecorder.get(id, accountId);
-        if (fresh) setCurrent(fresh);
-      });
-    }, 15_000);
+      setNow(Date.now());
+      void activityRecorder
+        .heartbeat(current.id, accountId, new Date().toISOString())
+        .then(() => void refresh());
+    }, 5_000);
     return () => clearInterval(interval);
-  }, [accountId, current.id, current.state]);
+  }, [accountId, current.id, current.state, refresh]);
+
   const transition = async (to: RecordingState) => {
     const from = current.state;
-    const at = new Date().toISOString();
-    await activityRecorder.transition(current.id, accountId, from, to, at);
-    const fresh = await activityRecorder.get(current.id, accountId);
-    if (fresh) {
-      setCurrent(fresh);
-      onChange(fresh);
-    }
+    await activityRecorder.transition(
+      current.id,
+      accountId,
+      from,
+      to,
+      new Date().toISOString(),
+      to === 'paused' ? 'manual' : undefined
+    );
+    const fresh = await refresh();
+    if (fresh) onChange(fresh);
   };
   const finish = async () => {
     const at = new Date().toISOString();
@@ -356,17 +404,9 @@ export function ActivityRecording({
       'completed-local',
       new Date().toISOString()
     );
-    const fresh = await activityRecorder.get(current.id, accountId);
-    if (fresh) {
-      setCurrent(fresh);
-      onChange(fresh);
-    }
+    const fresh = await refresh();
+    if (fresh) onChange(fresh);
   };
-  const duration = formatDuration(current.durationSeconds);
-  const pace =
-    current.distanceMeters > 0
-      ? formatDuration(Math.round(current.durationSeconds / (current.distanceMeters / 1000)))
-      : '—';
   if (current.state === 'completed-local')
     return (
       <ActivityResults
@@ -388,34 +428,84 @@ export function ActivityRecording({
     );
   if (['queued', 'failed', 'processed'].includes(current.state))
     return <ActivityDetail session={current} sync={sync} onExit={onExit} />;
-  if (gpsWeak)
-    return (
-      <GpsRecovery onRetry={() => setGpsWeak(false)} onPause={() => void transition('paused')} />
-    );
-  const paused = current.state === 'paused';
+
+  const status = classifyLiveGps({ state: current.state, samples, now });
+  const latest = latestUsableSample(samples);
+  const center = useMemo(
+    () => (latest ? ([latest.longitude, latest.latitude] as LngLat) : undefined),
+    [latest?.latitude, latest?.longitude]
+  );
+  const layers = useMemo(() => liveRouteLayers(samples), [samples]);
+  const recoveredPause = current.state === 'paused' && current.pauseReason === 'recovered';
   return (
-    <View style={styles.liveCard}>
-      <View style={styles.liveTop}>
-        <Text style={styles.eyebrow}>
-          {current.movementType.toUpperCase()} · {duration}
-        </Text>
-        <Text style={styles.gpsStrong}>● GPS strong</Text>
-      </View>
-      <Text style={styles.liveDistance}>
-        {(current.distanceMeters / 1000).toFixed(2)} <Text style={styles.unit}>km</Text>
-      </Text>
-      <Text style={styles.provisional}>PROVISIONAL DISTANCE · accuracy-filtered</Text>
-      <View style={styles.liveStats}>
-        <Stat label="AVG PACE /KM" value={pace} detail="Provisional" />
-        <Stat label="SAMPLES" value={`${current.acceptedSamples}`} detail="Accepted GPS points" />
-      </View>
-      <PrimaryButton
-        label={paused ? 'Resume activity' : 'Pause activity'}
-        onPress={() => void transition(paused ? 'resumed' : 'paused')}
+    <View style={styles.liveScreen}>
+      <MapSurface
+        localLayers={layers}
+        accessibilityLabel="Private activity route stored only on this device."
+        {...(center ? { initialCenter: center, liveCenter: center, initialFollow: true } : {})}
+        recenterEnabled={Boolean(center)}
+        onEnterFreePan={() => setCameraMode('free-pan')}
+        onRequestRecenter={() => {
+          if (!center) return;
+          const request = { id: (recenterRequest?.id ?? 0) + 1, coordinate: center };
+          setRecenterRequest(request);
+          setCameraMode('follow');
+        }}
+        {...(recenterRequest ? { recenterRequest } : {})}
       />
-      <Pressable accessibilityRole="button" onPress={() => void finish()}>
-        <Text style={styles.textButton}>Finish activity</Text>
-      </Pressable>
+      <View style={styles.liveOverlay}>
+        <Text style={styles.eyebrow}>
+          {current.movementType.toUpperCase()} · PRIVATE ON THIS DEVICE
+        </Text>
+        <Text style={styles.liveDistance}>{formatProvisionalDistance(current.distanceMeters)}</Text>
+        <Text style={styles.provisional}>PROVISIONAL DISTANCE · ACCURACY-FILTERED</Text>
+        <Text style={styles.privateNote}>
+          {cameraMode === 'follow'
+            ? 'Following your private local route'
+            : 'Free pan — recording continues privately'}
+        </Text>
+        <View accessibilityLiveRegion="polite" style={styles.liveStatus}>
+          <Text style={styles.noticeTitle}>
+            {status.state === 'strong' ? 'GPS clear' : status.state.toUpperCase()}
+          </Text>
+          <Text style={styles.noticeCopy}>{status.message}</Text>
+          <Text style={styles.noticeCopy}>{formatLastClear(status.lastUsableAt, now)}</Text>
+          {(status.state === 'weak' || status.state === 'gap') && (
+            <Text style={styles.noticeCopy}>
+              Move to open sky, keep RunSphere open, and wait for a clear fix. We will start a new
+              segment without filling the gap.
+            </Text>
+          )}
+        </View>
+        {subscriptionError && (
+          <View accessibilityLiveRegion="polite" style={styles.liveStatus}>
+            <Text style={styles.noticeCopy}>{subscriptionError}</Text>
+          </View>
+        )}
+        <View style={styles.liveStats}>
+          <Stat
+            label="ACTIVE TIME"
+            value={formatProvisionalDuration(current.durationSeconds)}
+            detail="Provisional"
+          />
+          <Stat label="PACE /KM" value={provisionalPace(current)} detail="Provisional" />
+        </View>
+        {current.state === 'paused' ? (
+          <>
+            <Text style={styles.noticeCopy}>
+              {recoveredPause
+                ? 'Recovered activity: recording remains paused until you explicitly resume.'
+                : 'Activity paused. Resume when you are ready.'}
+            </Text>
+            <PrimaryButton label="Resume activity" onPress={() => void transition('resumed')} />
+          </>
+        ) : (
+          <PrimaryButton label="Pause activity" onPress={() => void transition('paused')} />
+        )}
+        <Pressable accessibilityRole="button" onPress={() => void finish()}>
+          <Text style={styles.textButton}>Finish activity</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -614,24 +704,6 @@ export function ActivityHistory({
   );
 }
 
-function GpsRecovery({ onRetry, onPause }: { onRetry: () => void; onPause: () => void }) {
-  const styles = useAppStyles();
-  return (
-    <View style={styles.recordCard}>
-      <Text style={styles.gpsError}>!</Text>
-      <Text style={styles.recordTitle}>We can’t get a clear GPS signal</Text>
-      <Text style={styles.lead}>Your activity is paused so distance stays accurate.</Text>
-      <Text
-        style={styles.recovery}
-      >{`1  Move away from tall buildings or dense cover.\n2  Keep RunSphere open and location enabled.\n3  Wait a moment while we reconnect.`}</Text>
-      <Text style={styles.provisional}>Looking for GPS… Last strong signal was recent.</Text>
-      <PrimaryButton label="Try again" onPress={onRetry} />
-      <Pressable onPress={onPause}>
-        <Text style={styles.textButton}>Keep activity paused</Text>
-      </Pressable>
-    </View>
-  );
-}
 function ActivityResults({
   session,
   onQueue,

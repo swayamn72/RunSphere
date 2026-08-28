@@ -78,7 +78,7 @@ function RunSphereApp() {
         await activityRecorder.rekeyLegacyScopes(scope, legacyAccountScopesFor(session));
         // M1 keeps acquisition in memory; discard only legacy pre-route rows after account scope is known.
         await activityRecorder.discardLegacyPreparation(scope);
-        const recovered = await activityRecorder.recover(scope);
+        const recovered = await activityRecorder.recoverPaused(scope, new Date().toISOString());
         if (!mounted) return;
         setAccountId(scope);
         setRecording(recovered);
@@ -170,7 +170,9 @@ function RunSphereApp() {
     activityRoute: activityRoute.screen,
     hasRecording: Boolean(recording),
     hasSelectedQuest: Boolean(selectedQuest),
-    liveInteractive: false,
+    liveInteractive: Boolean(
+      recording && ['active', 'resumed', 'paused'].includes(recording.state)
+    ),
     exploreInteractive:
       activeTab === 'Explore' && !selectedQuest && activityRoute.screen === 'idle' && !recording
   });

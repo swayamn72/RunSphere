@@ -176,6 +176,23 @@ Device-level authenticated preparation flows remain blocked by the documented HT
 - `/code/.generated_artifacts/images/runsphere-preparation-account-submit.png`
 - `/code/.generated_artifacts/recordings/runsphere-activity-preparation-onboarding.mp4`
 
+## Live Activity milestone — 2026-08-28
+
+Implemented encrypted recorder schema v7, private renderer-local segmented routes, follow/free-pan/recenter camera state, provisional neutral metrics, weak/missing GPS recovery, and explicit paused recovery after process relaunch. Only usable observations (`accuracy <= 50 m`) and flagged weak observations (`50–100 m`) are retained with explicit accuracy; unknown, negative, and `>100 m` fixes are dropped for privacy minimization and client/server consistency. Pauses, weak fixes, impossible segments, and gaps over 60 seconds never bridge route geometry or provisional totals. No local coordinate or route layer enters map-provider configuration or logging.
+
+Validation passed for this milestone:
+
+- focused Live suites: 27 implementation tests, plus an independent 23-test recorder/native adapter/map/Live test pass;
+- root Prettier, lint, typecheck, test, build, MapLibre compatibility, and `git diff --check`;
+- fresh universal debug APK assembly, Android 15 install/cold launch, and APK permission audit.
+
+Authenticated Live device flows remain blocked by the same authorization-stripping HTTPS route. No synthetic device location pathway was enabled; GPX cases remain pure test fixtures under ADR-0003. The following artifacts prove build/install/pre-auth launch only:
+
+- `/code/.generated_artifacts/apk/runsphere-live-activity-debug.apk`
+- `/code/.generated_artifacts/images/runsphere-live-fresh-launch.png`
+
+Still pending after an approved authenticated route exists: record/pause/resume/finish, pan/recenter, weak and 61+ second gap recovery, fallback map, background/foreground and process recovery, TalkBack, large text, theme, and reduced-motion evidence.
+
 ## Confirmed validation still pending
 
 The latest Android test report is **partial**, not failed. The corrected universal APK builds, installs, launches, and excludes `ACCESS_BACKGROUND_LOCATION` and `SYSTEM_ALERT_WINDOW`. Workspace checks and 17 PostGIS API integration tests passed.

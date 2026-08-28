@@ -413,18 +413,24 @@ export const createAppStyles = (t: SemanticTokens) =>
       marginBottom: 10,
       marginTop: 7
     },
-    liveCard: { backgroundColor: t.action.primary, borderRadius: 22, marginTop: 12, padding: 20 },
-    liveTop: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-    gpsStrong: { color: t.action.primary, fontSize: 11, fontWeight: '900' },
+    liveScreen: { flex: 1, marginHorizontal: -20, marginTop: -20, minHeight: 520 },
+    liveOverlay: {
+      backgroundColor: t.background.surface,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      gap: 8,
+      marginTop: -28,
+      padding: 20
+    },
+    liveStatus: { backgroundColor: t.background.surfaceInset, borderRadius: 12, padding: 12 },
     liveDistance: {
-      color: t.text.inverse,
+      color: t.text.primary,
       fontSize: 48,
       fontWeight: '900',
       letterSpacing: -2,
       marginTop: 28,
       textAlign: 'center'
     },
-    unit: { color: t.text.inverse, fontSize: 20, letterSpacing: 0 },
     provisional: {
       color: t.text.secondary,
       fontSize: 11,
@@ -437,23 +443,11 @@ export const createAppStyles = (t: SemanticTokens) =>
       backgroundColor: t.scrim.subtle,
       borderRadius: 16,
       flexDirection: 'row',
-      marginTop: 24,
+      flexWrap: 'wrap',
+      gap: 12,
+      marginTop: 12,
       padding: 14
     },
-    gpsError: {
-      alignSelf: 'center',
-      backgroundColor: t.status.warning,
-      borderRadius: 24,
-      color: t.text.inverse,
-      fontSize: 25,
-      fontWeight: '900',
-      height: 48,
-      overflow: 'hidden',
-      textAlign: 'center',
-      textAlignVertical: 'center',
-      width: 48
-    },
-    recovery: { color: t.text.primary, fontSize: 15, lineHeight: 27, marginBottom: 14 },
     resultStats: {
       backgroundColor: t.background.canvas,
       borderRadius: 16,
