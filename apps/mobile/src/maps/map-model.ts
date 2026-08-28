@@ -53,6 +53,9 @@ export const recenterMap = (camera: MapCameraState): MapCameraState => ({
 
 export const resetCompass = (camera: MapCameraState): MapCameraState => ({ ...camera, bearing: 0 });
 
+/** Reduced motion keeps camera updates immediate without changing follow state. */
+export const shouldAnimateCamera = (reduceMotion: boolean): boolean => !reduceMotion;
+
 export const adjustMapZoom = (camera: MapCameraState, amount: number): MapCameraState => ({
   ...camera,
   zoom: Math.max(1, Math.min(22, camera.zoom + amount))

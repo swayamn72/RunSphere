@@ -1,117 +1,302 @@
 import * as Location from 'expo-location';
-import { useEffect, useState } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState, Linking, Pressable, Text, View } from 'react-native';
+import type { LngLat } from '@maplibre/maplibre-react-native';
+import type { Geometry } from 'geojson';
 import { activityRecorder } from '../activity-recorder.native';
 import {
-  isWeakGpsSample,
   type ActivitySession,
   type MovementType,
   type RecordingState
 } from '../activity-recorder-core';
 import { recordingLocationAdapter } from '../location-adapter';
+import {
+  ACQUISITION_TIMEOUT_MS,
+  cancelAcquisition,
+  type AcquisitionState
+} from '../activity-acquisition';
+import {
+  acquisitionStatusCopy,
+  beginPreparationAcquisition,
+  preparationFix,
+  preparationTimeout
+} from '../activity-preparation-model';
+import {
+  getRecordingLocationPermissionState,
+  type RecordingLocationPermissionState
+} from '../location-permission';
 import { type createActivitySyncCoordinator } from '../activity-sync';
-import type { ActivityStatus } from '../api-client';
-import { PrimaryButton, Stat } from '../components/primitives';
+import type { ActivityDetail } from '../api-client';
+import {
+  activityHistoryLabel,
+  activityHistoryMetric,
+  activityResultPresentation,
+  calculatedPace,
+  derivedResultRouteLayers,
+  derivedRouteCenter
+} from './activity-results-model';
+import { MovementChoice, PrimaryButton, Stat } from '../components/primitives';
 import { useAppStyles } from '../components/styles';
+import { MapSurface } from '../maps/MapSurface';
+import {
+  classifyLiveGps,
+  formatLastClear,
+  formatProvisionalDistance,
+  formatProvisionalDuration,
+  latestUsableSample,
+  liveRouteLayers,
+  provisionalPace
+} from './live-activity-model';
+import type { RecordedLocationSample } from '../activity-recorder-core';
 
 export function ActivityPreparation({
   accountId,
   initialMovement,
+  originLabel,
   onChange,
   onExit
 }: {
   accountId: string;
   initialMovement: MovementType;
+  originLabel?: string;
   onChange: (session: ActivitySession) => void;
   onExit: () => void;
 }) {
   const styles = useAppStyles();
   const [movement, setMovement] = useState<MovementType>(initialMovement);
-  const [busy, setBusy] = useState(false);
-  const [backgroundOptIn, setBackgroundOptIn] = useState(false);
-  const begin = async () => {
-    setBusy(true);
+  const [permission, setPermission] = useState<RecordingLocationPermissionState>('unrequested');
+  const [acquisition, setAcquisition] = useState<AcquisitionState>();
+  const [message, setMessage] = useState<string>();
+  const mounted = useRef(false);
+  const starting = useRef(false);
+  const activationStarted = useRef(false);
+  const acquisitionState = useRef<AcquisitionState | undefined>(undefined);
+  const acquisitionGeneration = useRef(0);
+  const subscription = useRef<Location.LocationSubscription | undefined>(undefined);
+  const timeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const cleanup = () => {
+    acquisitionGeneration.current += 1;
+    subscription.current?.remove();
+    subscription.current = undefined;
+    if (timeout.current) clearTimeout(timeout.current);
+    timeout.current = undefined;
+  };
+  const showAcquisition = (next: AcquisitionState) => {
+    acquisitionState.current = next;
+    setAcquisition(next);
+  };
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      cleanup();
+    };
+  }, []);
+  useEffect(() => {
+    const appState = AppState.addEventListener('change', (state) => {
+      if (state !== 'active' || permission !== 'blocked') return;
+      void Location.getForegroundPermissionsAsync()
+        .then((current) => {
+          if (!mounted.current) return;
+          const next = getRecordingLocationPermissionState(current);
+          setPermission(next);
+          if (next === 'precise') setMessage(undefined);
+        })
+        .catch(() => mounted.current && setPermission('failure'));
+    });
+    return () => appState.remove();
+  }, [permission]);
+
+  const cancelAcquiring = () => {
+    cleanup();
+    activationStarted.current = false;
+    if (acquisitionState.current) showAcquisition(cancelAcquisition(acquisitionState.current));
+    starting.current = false;
+  };
+  const activateAfterGate = async () => {
+    if (!starting.current || activationStarted.current) return;
+    activationStarted.current = true;
+    cleanup();
+    const now = new Date().toISOString();
+    const id = `activity-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     try {
-      const foreground = await Location.requestForegroundPermissionsAsync();
-      if (!foreground.granted) {
-        Alert.alert('Location needed', 'Allow precise location to record an activity.');
-        return;
-      }
-      let backgroundGranted = false;
-      if (backgroundOptIn) {
-        const background = await recordingLocationAdapter.requestBackgroundPermission();
-        backgroundGranted = background.granted;
-        if (!backgroundGranted)
-          Alert.alert(
-            'Screen-lock recording unavailable',
-            'Recording will stay active while RunSphere remains open.'
-          );
-      }
-      const now = new Date().toISOString();
-      const id = `activity-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      // Deliberate M1 deviation: preparation remains in-memory until the acquisition gate passes.
+      // No pre-route row or acquisition fix can enter recovery/history; legacy rows are discarded at init.
       await activityRecorder.create({
         id,
         accountId,
         movementType: movement,
-        state: 'prepare',
+        state: 'active',
         startedAt: now,
         updatedAt: now,
         lastHeartbeatAt: now
       });
-      await activityRecorder.transition(id, accountId, 'prepare', 'acquiring', now);
-      if (backgroundGranted) await recordingLocationAdapter.startBackground();
-      await activityRecorder.transition(
-        id,
-        accountId,
-        'acquiring',
-        'active',
-        new Date().toISOString()
-      );
       const session = await activityRecorder.get(id, accountId);
-      if (session) onChange(session);
+      if (!mounted.current || !session) {
+        await activityRecorder.remove(id, accountId);
+        return;
+      }
+      onChange(session);
+    } catch {
+      if (mounted.current) {
+        setPermission('failure');
+        setMessage('Recording could not start. No route or distance was created. Try again.');
+      }
     } finally {
-      setBusy(false);
+      activationStarted.current = false;
+      starting.current = false;
     }
   };
+  const beginAcquisition = async () => {
+    const generation = ++acquisitionGeneration.current;
+    const initial = beginPreparationAcquisition(Date.now());
+    showAcquisition(initial);
+    setMessage(undefined);
+    try {
+      const nextSubscription = await recordingLocationAdapter.subscribe((sample) => {
+        if (!mounted.current || generation !== acquisitionGeneration.current) return;
+        const current = acquisitionState.current;
+        if (!current) return;
+        const next = preparationFix(current, sample, Date.now());
+        showAcquisition(next);
+        if (next.status === 'ready' && current.status === 'acquiring') void activateAfterGate();
+      });
+      if (!mounted.current || !starting.current || generation !== acquisitionGeneration.current) {
+        nextSubscription.remove();
+        return;
+      }
+      subscription.current = nextSubscription;
+      timeout.current = setTimeout(() => {
+        if (!mounted.current || generation !== acquisitionGeneration.current) return;
+        const current = acquisitionState.current;
+        if (!current) return;
+        const next = preparationTimeout(current, Date.now());
+        showAcquisition(next);
+        if (next.status === 'timed-out') {
+          cleanup();
+          starting.current = false;
+          setMessage(
+            'We did not get three clear fixes in 30 seconds. No route or distance was created.'
+          );
+        }
+      }, ACQUISITION_TIMEOUT_MS);
+    } catch {
+      starting.current = false;
+      if (mounted.current) {
+        setPermission('failure');
+        setMessage('We could not read your location. No route or distance was created. Try again.');
+      }
+    }
+  };
+  const begin = async () => {
+    if (starting.current) return;
+    starting.current = true;
+    setPermission('requesting');
+    setMessage(undefined);
+    try {
+      const current = await Location.getForegroundPermissionsAsync();
+      const currentState = getRecordingLocationPermissionState(current);
+      const response =
+        currentState === 'precise' ? current : await Location.requestForegroundPermissionsAsync();
+      const next = getRecordingLocationPermissionState(response);
+      if (!mounted.current) return;
+      setPermission(next);
+      if (next !== 'precise') {
+        starting.current = false;
+        setMessage(
+          next === 'approximate'
+            ? 'Recording needs precise location. No route or distance was created.'
+            : 'Location was not granted. No route or distance was created.'
+        );
+        return;
+      }
+      await beginAcquisition();
+    } catch {
+      starting.current = false;
+      if (mounted.current) {
+        setPermission('failure');
+        setMessage(
+          'We could not check location permission. No route or distance was created. Try again.'
+        );
+      }
+    }
+  };
+  const retry = () => {
+    cleanup();
+    acquisitionState.current = undefined;
+    activationStarted.current = false;
+    starting.current = false;
+    void begin();
+  };
+  const isAcquiring = acquisition?.status === 'acquiring';
+  const isActivating = acquisition?.status === 'ready';
+  const needsSettings = permission === 'blocked';
   return (
     <View style={styles.recordCard}>
-      <Text style={styles.eyebrow}>START AN ACTIVITY</Text>
-      <Text style={styles.recordTitle}>Move at your own pace.</Text>
+      <Text style={styles.eyebrow}>FREE ACTIVITY</Text>
+      <Text style={styles.recordTitle}>Prepare your private activity.</Text>
       <Text style={styles.lead}>
-        Foreground recording works while RunSphere is open. Screen-lock recording is an optional,
-        separate permission.
+        Current location is used only while RunSphere is open to build a private route and distance.
+        It is retained on this device only after recording starts. No background location is
+        requested.
       </Text>
-      <Pressable
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: backgroundOptIn }}
-        onPress={() => setBackgroundOptIn((value) => !value)}
-        style={styles.checkRow}
-      >
-        <View style={[styles.checkbox, backgroundOptIn && styles.checkboxChecked]}>
-          {backgroundOptIn && <Text style={styles.checkMark}>✓</Text>}
+      {originLabel && <Text style={styles.privateNote}>Started from {originLabel}</Text>}
+      <MovementChoice selected={movement} onChoose={setMovement} />
+      {isAcquiring && (
+        <View style={styles.notice} accessibilityLiveRegion="polite">
+          <View style={styles.flexCopy}>
+            <Text style={styles.noticeTitle}>Finding a clear GPS signal</Text>
+            <Text style={styles.noticeCopy}>{acquisitionStatusCopy(acquisition)}</Text>
+          </View>
         </View>
-        <Text style={styles.checkCopy}>Keep recording when the screen locks</Text>
-      </Pressable>
-      <View style={styles.choiceGrid}>
-        {(['walk', 'run', 'hike'] as MovementType[]).map((type) => (
-          <Pressable
-            key={type}
-            accessibilityRole="radio"
-            accessibilityState={{ selected: movement === type }}
-            onPress={() => setMovement(type)}
-            style={[styles.choice, movement === type && styles.choiceSelected]}
-          >
-            <Text style={styles.choiceTitle}>{type.charAt(0).toUpperCase() + type.slice(1)}</Text>
-          </Pressable>
-        ))}
-      </View>
-      <PrimaryButton
-        label={busy ? 'Preparing…' : 'Start recording'}
-        disabled={busy}
-        onPress={() => void begin()}
-      />
-      <Pressable accessibilityRole="button" onPress={onExit}>
-        <Text style={styles.textButton}>Not now</Text>
+      )}
+      {message && (
+        <View style={[styles.notice, styles.warningNotice]} accessibilityLiveRegion="polite">
+          <View style={styles.flexCopy}>
+            <Text style={styles.noticeTitle}>
+              {needsSettings ? 'Location is blocked' : 'Location needs attention'}
+            </Text>
+            <Text style={styles.noticeCopy}>{message}</Text>
+          </View>
+        </View>
+      )}
+      {needsSettings ? (
+        <PrimaryButton label="Open location settings" onPress={() => void Linking.openSettings()} />
+      ) : (
+        <PrimaryButton
+          label={
+            permission === 'requesting'
+              ? 'Checking location…'
+              : isAcquiring
+                ? 'Finding GPS…'
+                : 'Start recording'
+          }
+          disabled={permission === 'requesting' || isAcquiring || isActivating}
+          onPress={() => void begin()}
+        />
+      )}
+      {(permission === 'denied' ||
+        permission === 'approximate' ||
+        permission === 'failure' ||
+        acquisition?.status === 'timed-out') && (
+        <Pressable accessibilityRole="button" onPress={retry}>
+          <Text style={styles.textButton}>Retry location</Text>
+        </Pressable>
+      )}
+      {isAcquiring && (
+        <Pressable accessibilityRole="button" onPress={cancelAcquiring}>
+          <Text style={styles.textButton}>Cancel GPS check</Text>
+        </Pressable>
+      )}
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => {
+          cancelAcquiring();
+          onExit();
+        }}
+      >
+        <Text style={styles.textButton}>{originLabel ? `Back to ${originLabel}` : 'Not now'}</Text>
       </Pressable>
     </View>
   );
@@ -132,53 +317,90 @@ export function ActivityRecording({
 }) {
   const styles = useAppStyles();
   const [current, setCurrent] = useState(session);
-  const [gpsWeak, setGpsWeak] = useState(false);
+  const [samples, setSamples] = useState<RecordedLocationSample[]>([]);
+  const [now, setNow] = useState(() => Date.now());
+  const [cameraMode, setCameraMode] = useState<'follow' | 'free-pan'>('follow');
+  const [recenterRequest, setRecenterRequest] = useState<{ id: number; coordinate: LngLat }>();
+  const [subscriptionError, setSubscriptionError] = useState<string>();
+  const mounted = useRef(true);
+  const refreshGeneration = useRef(0);
+  const sessionRef = useRef({ id: session.id, accountId });
+  sessionRef.current = { id: current.id, accountId };
+
+  const refresh = useCallback(async (): Promise<ActivitySession | undefined> => {
+    const generation = ++refreshGeneration.current;
+    const identity = sessionRef.current;
+    const [fresh, trace] = await Promise.all([
+      activityRecorder.get(identity.id, identity.accountId),
+      activityRecorder.liveSamples(identity.id, identity.accountId)
+    ]);
+    if (
+      !mounted.current ||
+      generation !== refreshGeneration.current ||
+      identity.id !== sessionRef.current.id
+    )
+      return fresh;
+    if (fresh) setCurrent(fresh);
+    setSamples(trace);
+    return fresh;
+  }, []);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      refreshGeneration.current += 1;
+    };
+  }, []);
   useEffect(() => {
     let subscription: Location.LocationSubscription | undefined;
     let cancelled = false;
+    void refresh();
     if (['active', 'resumed'].includes(current.state)) {
       void recordingLocationAdapter
         .subscribe(async (sample) => {
-          const accepted = await activityRecorder.appendSample(current.id, accountId, sample);
-          if (cancelled) return;
-          setGpsWeak(isWeakGpsSample(sample));
-          if (!accepted) return;
-          const fresh = await activityRecorder.get(current.id, accountId);
-          if (fresh && !cancelled) setCurrent(fresh);
+          await activityRecorder.appendSample(current.id, accountId, sample);
+          if (!cancelled) await refresh();
         })
         .then((next) => {
           if (cancelled) next.remove();
           else subscription = next;
         })
-        .catch((error) => {
-          if (!cancelled) console.warn('Unable to start activity location watcher', error);
+        .catch(() => {
+          if (!cancelled && mounted.current)
+            setSubscriptionError(
+              'Location updates could not start. Your saved route remains private; retry by pausing and resuming.'
+            );
         });
     }
     return () => {
       cancelled = true;
       subscription?.remove();
     };
-  }, [accountId, current.id, current.state]);
+  }, [accountId, current.id, current.state, refresh]);
   useEffect(() => {
     if (!['active', 'resumed'].includes(current.state)) return;
-    const { id } = current;
     const interval = setInterval(() => {
-      void activityRecorder.heartbeat(id, accountId, new Date().toISOString()).then(async () => {
-        const fresh = await activityRecorder.get(id, accountId);
-        if (fresh) setCurrent(fresh);
-      });
-    }, 15_000);
+      setNow(Date.now());
+      void activityRecorder
+        .heartbeat(current.id, accountId, new Date().toISOString())
+        .then(() => void refresh());
+    }, 5_000);
     return () => clearInterval(interval);
-  }, [accountId, current.id, current.state]);
+  }, [accountId, current.id, current.state, refresh]);
+
   const transition = async (to: RecordingState) => {
     const from = current.state;
-    const at = new Date().toISOString();
-    await activityRecorder.transition(current.id, accountId, from, to, at);
-    const fresh = await activityRecorder.get(current.id, accountId);
-    if (fresh) {
-      setCurrent(fresh);
-      onChange(fresh);
-    }
+    await activityRecorder.transition(
+      current.id,
+      accountId,
+      from,
+      to,
+      new Date().toISOString(),
+      to === 'paused' ? 'manual' : undefined
+    );
+    const fresh = await refresh();
+    if (fresh) onChange(fresh);
   };
   const finish = async () => {
     const at = new Date().toISOString();
@@ -191,18 +413,17 @@ export function ActivityRecording({
       'completed-local',
       new Date().toISOString()
     );
-    await recordingLocationAdapter.stopBackground();
-    const fresh = await activityRecorder.get(current.id, accountId);
-    if (fresh) {
-      setCurrent(fresh);
-      onChange(fresh);
-    }
+    const fresh = await refresh();
+    if (fresh) onChange(fresh);
   };
-  const duration = formatDuration(current.durationSeconds);
-  const pace =
-    current.distanceMeters > 0
-      ? formatDuration(Math.round(current.durationSeconds / (current.distanceMeters / 1000)))
-      : '—';
+  const status = classifyLiveGps({ state: current.state, samples, now });
+  const center = useMemo(() => {
+    const latest = latestUsableSample(samples);
+    return latest ? ([latest.longitude, latest.latitude] as LngLat) : undefined;
+  }, [samples]);
+  const layers = useMemo(() => liveRouteLayers(samples), [samples]);
+  const recoveredPause = current.state === 'paused' && current.pauseReason === 'recovered';
+
   if (current.state === 'completed-local')
     return (
       <ActivityResults
@@ -222,41 +443,114 @@ export function ActivityRecording({
         }}
       />
     );
-  if (['queued', 'failed', 'processed'].includes(current.state))
+  if (
+    ['queued', 'failed', 'processed'].includes(current.state) ||
+    ['rejected', 'derived', 'deleted'].includes(current.remoteStatus ?? '')
+  )
     return <ActivityDetail session={current} sync={sync} onExit={onExit} />;
-  if (gpsWeak)
-    return (
-      <GpsRecovery onRetry={() => setGpsWeak(false)} onPause={() => void transition('paused')} />
-    );
-  const paused = current.state === 'paused';
+
   return (
-    <View style={styles.liveCard}>
-      <View style={styles.liveTop}>
-        <Text style={styles.eyebrow}>
-          {current.movementType.toUpperCase()} · {duration}
-        </Text>
-        <Text style={styles.gpsStrong}>● GPS strong</Text>
-      </View>
-      <Text style={styles.liveDistance}>
-        {(current.distanceMeters / 1000).toFixed(2)} <Text style={styles.unit}>km</Text>
-      </Text>
-      <Text style={styles.provisional}>PROVISIONAL DISTANCE · accuracy-filtered</Text>
-      <View style={styles.liveStats}>
-        <Stat label="AVG PACE /KM" value={pace} detail="Provisional" />
-        <Stat label="SAMPLES" value={`${current.acceptedSamples}`} detail="Accepted GPS points" />
-      </View>
-      <PrimaryButton
-        label={paused ? 'Resume activity' : 'Pause activity'}
-        onPress={() => void transition(paused ? 'resumed' : 'paused')}
+    <View style={styles.liveScreen}>
+      <MapSurface
+        localLayers={layers}
+        accessibilityLabel="Private activity route stored only on this device."
+        {...(center ? { initialCenter: center, liveCenter: center, initialFollow: true } : {})}
+        recenterEnabled={Boolean(center)}
+        onEnterFreePan={() => setCameraMode('free-pan')}
+        onRequestRecenter={() => {
+          if (!center) return;
+          const request = { id: (recenterRequest?.id ?? 0) + 1, coordinate: center };
+          setRecenterRequest(request);
+          setCameraMode('follow');
+        }}
+        {...(recenterRequest ? { recenterRequest } : {})}
       />
-      <Pressable accessibilityRole="button" onPress={() => void finish()}>
-        <Text style={styles.textButton}>Finish activity</Text>
-      </Pressable>
+      <View style={styles.liveOverlay}>
+        <Text style={styles.eyebrow}>
+          {current.movementType.toUpperCase()} · PRIVATE ON THIS DEVICE
+        </Text>
+        <Text style={styles.liveDistance}>{formatProvisionalDistance(current.distanceMeters)}</Text>
+        <Text style={styles.provisional}>PROVISIONAL DISTANCE · ACCURACY-FILTERED</Text>
+        <Text style={styles.privateNote}>
+          {cameraMode === 'follow'
+            ? 'Following your private local route'
+            : 'Free pan — recording continues privately'}
+        </Text>
+        <View accessibilityLiveRegion="polite" style={styles.liveStatus}>
+          <Text style={styles.noticeTitle}>
+            {status.state === 'strong' ? 'GPS clear' : status.state.toUpperCase()}
+          </Text>
+          <Text style={styles.noticeCopy}>{status.message}</Text>
+          <Text style={styles.noticeCopy}>{formatLastClear(status.lastUsableAt, now)}</Text>
+          {(status.state === 'weak' || status.state === 'gap') && (
+            <Text style={styles.noticeCopy}>
+              Move to open sky, keep RunSphere open, and wait for a clear fix. We will start a new
+              segment without filling the gap.
+            </Text>
+          )}
+        </View>
+        {subscriptionError && (
+          <View accessibilityLiveRegion="polite" style={styles.liveStatus}>
+            <Text style={styles.noticeCopy}>{subscriptionError}</Text>
+          </View>
+        )}
+        <View style={styles.liveStats}>
+          <Stat
+            label="ACTIVE TIME"
+            value={formatProvisionalDuration(current.durationSeconds)}
+            detail="Provisional"
+          />
+          <Stat label="PACE /KM" value={provisionalPace(current)} detail="Provisional" />
+        </View>
+        {current.state === 'paused' ? (
+          <>
+            <Text style={styles.noticeCopy}>
+              {recoveredPause
+                ? 'Recovered activity: recording remains paused until you explicitly resume.'
+                : 'Activity paused. Resume when you are ready.'}
+            </Text>
+            <PrimaryButton label="Resume activity" onPress={() => void transition('resumed')} />
+          </>
+        ) : (
+          <PrimaryButton label="Pause activity" onPress={() => void transition('paused')} />
+        )}
+        <Pressable accessibilityRole="button" onPress={() => void finish()}>
+          <Text style={styles.textButton}>Finish activity</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
 
-function ActivityDetail({
+const terminalRemoteStatus = (status: ActivitySession['remoteStatus']): boolean =>
+  ['derived', 'rejected', 'deleted'].includes(status ?? '');
+
+const remoteStatusRank = (status: ActivitySession['remoteStatus']): number =>
+  status === 'received'
+    ? 1
+    : status === 'validating'
+      ? 2
+      : status === 'accepted'
+        ? 3
+        : status
+          ? 4
+          : 0;
+
+export const reseedActivityDetailSession = (
+  current: ActivitySession,
+  parent: ActivitySession
+): ActivitySession => {
+  if (current.id !== parent.id || current.accountId !== parent.accountId) return parent;
+  const remoteId = parent.remoteId ?? current.remoteId;
+  const remoteStatus =
+    remoteStatusRank(parent.remoteStatus) >= remoteStatusRank(current.remoteStatus)
+      ? (parent.remoteStatus ?? current.remoteStatus)
+      : current.remoteStatus;
+  if (remoteId === current.remoteId && remoteStatus === current.remoteStatus) return current;
+  return { ...current, remoteId, remoteStatus };
+};
+
+export function ActivityDetail({
   session,
   sync,
   onExit
@@ -267,91 +561,181 @@ function ActivityDetail({
 }) {
   const styles = useAppStyles();
   const [current, setCurrent] = useState(session);
-  const [remote, setRemote] = useState<ActivityStatus>();
-  const isProcessed = current.state === 'processed';
-  const retry = async () => {
-    const next = await sync.sync(current);
-    setCurrent(next.session);
-    setRemote(next.status);
-  };
+  const [detail, setDetail] = useState<ActivityDetail>();
+  const mounted = useRef(true);
+  const refreshGeneration = useRef(0);
+  const sessionKey = `${session.accountId}:${session.id}:${session.remoteId ?? ''}:${session.remoteStatus ?? ''}`;
+  const currentKey = `${current.accountId}:${current.id}:${current.remoteId ?? ''}:${current.remoteStatus ?? ''}`;
+  const parentRemoteId = session.remoteId;
+  const parentRemoteStatus = session.remoteStatus;
+  const currentRemoteId = current.remoteId;
+  const presentation = useMemo(
+    () => activityResultPresentation(detail, current.remoteStatus),
+    [current.remoteStatus, detail]
+  );
+
   useEffect(() => {
-    void sync
-      .refresh(session)
-      .then((status) => status && setRemote(status))
-      .catch(() => undefined);
-  }, [session, sync]);
+    setCurrent((previous) => reseedActivityDetailSession(previous, session));
+    setDetail((previous) =>
+      currentRemoteId && parentRemoteId && currentRemoteId !== parentRemoteId ? undefined : previous
+    );
+    // sessionKey captures only monotonic identity/status reconciliation, not parent object churn.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionKey, currentRemoteId, parentRemoteId, parentRemoteStatus]);
+
+  const updateFromServer = useCallback(
+    async (activeSession: ActivitySession) => {
+      if (!activeSession.remoteId) return;
+      const generation = ++refreshGeneration.current;
+      try {
+        const next = await sync.refresh(activeSession);
+        const refreshed = await activityRecorder.get(activeSession.id, activeSession.accountId);
+        if (!mounted.current || generation !== refreshGeneration.current) return;
+        if (next) setDetail(next);
+        if (refreshed) setCurrent((previous) => reseedActivityDetailSession(previous, refreshed));
+      } catch {
+        // Cached lifecycle metadata never supplies a result detail while offline.
+      }
+    },
+    [sync]
+  );
+  useEffect(() => {
+    mounted.current = true;
+    if (currentRemoteId) void updateFromServer(current);
+    return () => {
+      mounted.current = false;
+      refreshGeneration.current += 1;
+    };
+  }, [currentKey, current, currentRemoteId, updateFromServer]);
+  const retry = async () => {
+    // Parent reconciliation may have learned a remote ID before its state effect commits.
+    const latest = reseedActivityDetailSession(current, session);
+    const next = await sync.sync(latest);
+    if (!mounted.current) return;
+    setCurrent((previous) => reseedActivityDetailSession(previous, next.session));
+    if (next.status) void updateFromServer(next.session);
+  };
   const remove = async () => {
     await sync.delete(current);
-    onExit();
+    if (mounted.current) onExit();
   };
+  const localPace = current.distanceMeters
+    ? formatDuration(Math.round(current.durationSeconds / (current.distanceMeters / 1_000)))
+    : '—';
+  const terminalRejected = presentation.state === 'rejected';
+  const terminalDeleted = presentation.state === 'deleted';
+  const canSync = presentation.state === 'pending' && !terminalRemoteStatus(current.remoteStatus);
+  const canRefresh =
+    Boolean(current.remoteId) && !['rejected', 'deleted'].includes(current.remoteStatus ?? '');
   return (
     <View style={styles.recordCard}>
       <Text style={styles.eyebrow}>
-        {isProcessed
-          ? 'ACTIVITY PROCESSED'
-          : current.state === 'failed'
-            ? 'SYNC NEEDS ATTENTION'
-            : 'OFFLINE · SAVED ON THIS DEVICE'}
+        {presentation.state === 'validated'
+          ? 'VALIDATED ACTIVITY'
+          : terminalRejected
+            ? 'SAVED PRIVATELY'
+            : terminalDeleted
+              ? 'DELETED ON RUNSPHERE'
+              : 'PENDING SERVER VALIDATION'}
       </Text>
       <Text style={styles.recordTitle}>
-        {isProcessed
-          ? 'Activity ready.'
-          : current.state === 'failed'
-            ? 'Sync paused.'
-            : 'Activity queued.'}
+        {presentation.state === 'validated'
+          ? 'Activity validated.'
+          : terminalRejected
+            ? 'Activity saved privately.'
+            : terminalDeleted
+              ? 'Activity deleted.'
+              : current.state === 'failed'
+                ? 'Sync paused.'
+                : 'Activity pending.'}
       </Text>
       <Text style={styles.lead}>
-        {isProcessed
-          ? 'Validation is complete. Your processed result stays private in your activity history.'
-          : remote?.status === 'rejected'
-            ? (remote.rejectionReason ?? 'This activity did not pass validation.')
-            : (current.syncError ??
-              'Your local result is safe and will resume when connectivity returns.')}
+        {presentation.state === 'validated'
+          ? 'Validated totals are ready. Your route remains private and uses the server-trimmed result only.'
+          : terminalRejected
+            ? (presentation.detail?.rejectionReason ??
+              'This activity was saved privately but is not eligible for validated totals.')
+            : terminalDeleted
+              ? 'This activity was deleted on RunSphere and is no longer available for validation.'
+              : (current.syncError ??
+                'Results remain pending until RunSphere validates this activity. Local recording does not count toward validated totals.')}
       </Text>
-      <View style={styles.resultStats}>
-        <Stat
-          label="KM"
-          value={((remote?.summary?.distanceMeters ?? current.distanceMeters) / 1000).toFixed(2)}
-          detail={remote?.summary ? 'Validated' : 'Local'}
-        />
-        <Stat
-          label="TIME"
-          value={formatDuration(remote?.summary?.durationSeconds ?? current.durationSeconds)}
-          detail={remote?.summary ? 'Validated' : 'Recorded'}
-        />
-        <Stat
-          label="STATUS"
-          value={(remote?.status ?? current.state).toUpperCase()}
-          detail={remote?.summary?.privacyTrimmed ? '200 m zones applied' : 'Private'}
-        />
-      </View>
-      {remote?.status === 'rejected' && remote.validationErrors?.length ? (
-        <View style={[styles.notice, styles.warningNotice]} accessibilityLiveRegion="polite">
-          <Text style={styles.noticeIcon}>!</Text>
-          <View style={styles.flexCopy}>
-            <Text style={styles.noticeTitle}>Validation needs attention</Text>
-            <Text style={styles.noticeCopy}>{remote.validationErrors.join(' ')}</Text>
+      {presentation.state === 'validated' ? (
+        <>
+          <DerivedResultMap presentation={presentation} />
+          <View style={styles.resultStats}>
+            <Stat
+              label="KM"
+              value={(presentation.detail.summary!.distanceMeters / 1_000).toFixed(2)}
+              detail="Validated"
+            />
+            <Stat
+              label="TIME"
+              value={formatDuration(presentation.detail.summary!.durationSeconds)}
+              detail="Validated"
+            />
+            <Stat
+              label="PACE /KM"
+              value={calculatedPace(presentation.detail.summary!)}
+              detail="Calculated from validated totals"
+            />
           </View>
-        </View>
-      ) : null}
-      {isProcessed && (
+        </>
+      ) : (
+        <>
+          <MapUnavailable />
+          <View style={styles.resultStats}>
+            <Stat
+              label="KM"
+              value={(current.distanceMeters / 1_000).toFixed(2)}
+              detail="Provisional"
+            />
+            <Stat label="TIME" value={formatDuration(current.durationSeconds)} detail="Recorded" />
+            <Stat label="PACE /KM" value={localPace} detail="Provisional" />
+          </View>
+        </>
+      )}
+      {(terminalRejected || terminalDeleted) && (
         <View style={styles.notice} accessibilityLiveRegion="polite">
-          <Text style={styles.noticeIcon}>✓</Text>
+          <Text style={styles.noticeIcon}>i</Text>
           <View style={styles.flexCopy}>
-            <Text style={styles.noticeTitle}>Validation complete</Text>
+            <Text style={styles.noticeTitle}>
+              {terminalDeleted ? 'Deleted on RunSphere' : 'Saved privately'}
+            </Text>
             <Text style={styles.noticeCopy}>
-              {remote?.summary?.privacyTrimmed
-                ? 'Start, finish, and route fragments inside saved privacy zones were removed.'
-                : 'No shareable map is created unless your privacy settings allow one.'}
+              {terminalDeleted
+                ? 'This activity is no longer available for validation.'
+                : (presentation.detail?.validationErrors?.join(' ') ??
+                  'This activity is not eligible for validated totals.')}
             </Text>
           </View>
         </View>
       )}
-      {!isProcessed && (
+      {presentation.state === 'validated' && (
+        <View style={styles.notice} accessibilityLiveRegion="polite">
+          <Text style={styles.noticeIcon}>✓</Text>
+          <View style={styles.flexCopy}>
+            <Text style={styles.noticeTitle}>Validated by RunSphere</Text>
+            <Text style={styles.noticeCopy}>
+              {presentation.detail.summary!.privacyTrimmed
+                ? 'Start, finish, and route fragments inside saved privacy zones were removed.'
+                : 'The validated route is shown only when RunSphere returned safe route geometry.'}
+            </Text>
+          </View>
+        </View>
+      )}
+      {canSync && (
         <PrimaryButton
           label={current.state === 'failed' ? 'Retry sync' : 'Sync now'}
           onPress={() => void retry()}
         />
+      )}
+      {canRefresh && (
+        <Pressable accessibilityRole="button" onPress={() => void updateFromServer(current)}>
+          <Text style={styles.textButton}>
+            {current.remoteStatus === 'derived' ? 'Refresh validated result' : 'Refresh validation'}
+          </Text>
+        </Pressable>
       )}
       <Pressable accessibilityRole="button" onPress={() => void remove()}>
         <Text style={[styles.textButton, styles.destructive]}>Delete activity</Text>
@@ -362,6 +746,32 @@ function ActivityDetail({
     </View>
   );
 }
+
+export const HISTORY_REFRESH_CONCURRENCY = 3;
+
+export const shouldRefreshHistoryDetail = (session: ActivitySession): boolean =>
+  Boolean(session.remoteId) && !['rejected', 'deleted'].includes(session.remoteStatus ?? '');
+
+/** Bounds history reads and keeps terminal server outcomes from being polled again. */
+export const refreshHistoryDetails = async (
+  sessions: readonly ActivitySession[],
+  sync: Pick<ReturnType<typeof createActivitySyncCoordinator>, 'refresh'>
+): Promise<(ActivityDetail | undefined)[]> => {
+  const results: (ActivityDetail | undefined)[] = Array(sessions.length);
+  let nextIndex = 0;
+  const worker = async () => {
+    while (nextIndex < sessions.length) {
+      const index = nextIndex++;
+      const session = sessions[index];
+      if (!session) continue;
+      results[index] = await sync.refresh(session).catch(() => undefined);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(HISTORY_REFRESH_CONCURRENCY, sessions.length) }, worker)
+  );
+  return results;
+};
 
 export function ActivityHistory({
   accountId,
@@ -374,25 +784,42 @@ export function ActivityHistory({
 }) {
   const styles = useAppStyles();
   const [items, setItems] = useState<ActivitySession[]>([]);
+  const [details, setDetails] = useState<Record<string, ActivityDetail>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
-  const refresh = async () => {
+  const refreshInFlight = useRef(false);
+  const refresh = useCallback(async () => {
+    if (refreshInFlight.current) return;
+    refreshInFlight.current = true;
     setLoading(true);
     setError(undefined);
     try {
       await sync.syncPending(accountId);
       const local = await activityRecorder.list(accountId);
-      await Promise.all(local.map((item) => sync.refresh(item).catch(() => undefined)));
-      setItems(await activityRecorder.list(accountId));
+      const fetched = await refreshHistoryDetails(local.filter(shouldRefreshHistoryDetail), sync);
+      const refreshedItems = await activityRecorder.list(accountId);
+      const remoteIds = new Set(
+        refreshedItems.flatMap((item) => (item.remoteId ? [item.remoteId] : []))
+      );
+      setDetails((current) => ({
+        ...Object.fromEntries(Object.entries(current).filter(([id]) => remoteIds.has(id))),
+        ...Object.fromEntries(
+          fetched
+            .filter((detail): detail is ActivityDetail => Boolean(detail))
+            .map((detail) => [detail.id, detail])
+        )
+      }));
+      setItems(refreshedItems);
     } catch {
       setError('Your local history is still safe. Connect to refresh validation results.');
     } finally {
+      refreshInFlight.current = false;
       setLoading(false);
     }
-  };
+  }, [accountId, sync]);
   useEffect(() => {
     void refresh();
-  }, [accountId]);
+  }, [refresh]);
   return (
     <View style={styles.history}>
       <View style={styles.sectionHeader}>
@@ -421,53 +848,75 @@ export function ActivityHistory({
           </View>
         </View>
       )}
-      {items.map((item) => (
-        <Pressable
-          key={item.id}
-          accessibilityRole="button"
-          onPress={() => onOpen(item)}
-          style={styles.historyRow}
-        >
-          <View style={styles.flexCopy}>
-            <Text style={styles.rowTitle}>
-              {item.movementType.charAt(0).toUpperCase() + item.movementType.slice(1)} ·{' '}
-              {(item.distanceMeters / 1000).toFixed(2)} km
-            </Text>
-            <Text style={styles.rowDetail}>
-              {item.state === 'processed'
-                ? 'Processed'
-                : item.state === 'failed'
-                  ? 'Sync failed — refresh to retry'
-                  : item.state === 'queued'
-                    ? 'Queued / processing'
-                    : 'Local activity'}
-            </Text>
-          </View>
-          <Text style={styles.link}>View ›</Text>
-        </Pressable>
-      ))}
+      {items.map((item) => {
+        const metric = activityHistoryMetric(item, details[item.remoteId ?? '']);
+        return (
+          <Pressable
+            key={item.id}
+            accessibilityRole="button"
+            onPress={() => onOpen(item)}
+            style={styles.historyRow}
+          >
+            <View style={styles.flexCopy}>
+              <Text style={styles.rowTitle}>
+                {item.movementType.charAt(0).toUpperCase() + item.movementType.slice(1)} ·{' '}
+                {(metric.distanceMeters / 1_000).toFixed(2)} km
+              </Text>
+              <Text style={styles.rowDetail}>
+                {item.state === 'failed' && !item.remoteStatus
+                  ? 'Sync failed — refresh to retry · provisional local distance'
+                  : `${activityHistoryLabel(item.remoteStatus)} · ${metric.detail}`}
+              </Text>
+            </View>
+            <Text style={styles.link}>View ›</Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
 
-function GpsRecovery({ onRetry, onPause }: { onRetry: () => void; onPause: () => void }) {
-  const styles = useAppStyles();
+function DerivedResultMap({
+  presentation
+}: {
+  presentation: ReturnType<typeof activityResultPresentation>;
+}) {
+  const route = useMemo(() => derivedResultRouteLayers(presentation), [presentation]);
+  const center = useMemo(() => {
+    const geometry = route[0]?.data.features[0]?.geometry;
+    return geometry ? derivedRouteCenter(geometry as Geometry) : undefined;
+  }, [route]);
+  if (!route.length || !center) return <MapUnavailable />;
   return (
-    <View style={styles.recordCard}>
-      <Text style={styles.gpsError}>!</Text>
-      <Text style={styles.recordTitle}>We can’t get a clear GPS signal</Text>
-      <Text style={styles.lead}>Your activity is paused so distance stays accurate.</Text>
-      <Text
-        style={styles.recovery}
-      >{`1  Move away from tall buildings or dense cover.\n2  Keep RunSphere open and location enabled.\n3  Wait a moment while we reconnect.`}</Text>
-      <Text style={styles.provisional}>Looking for GPS… Last strong signal was recent.</Text>
-      <PrimaryButton label="Try again" onPress={onRetry} />
-      <Pressable onPress={onPause}>
-        <Text style={styles.textButton}>Keep activity paused</Text>
-      </Pressable>
+    <View style={stylesForResultMap.container}>
+      <MapSurface
+        localLayers={route}
+        accessibilityLabel="Server-derived private activity route."
+        initialCenter={center as LngLat}
+        recenterEnabled={false}
+        showAttribution
+      />
     </View>
   );
 }
+
+function MapUnavailable() {
+  const styles = useAppStyles();
+  return (
+    <View style={stylesForResultMap.unavailable} accessibilityLiveRegion="polite">
+      <Text style={styles.noticeTitle}>Map unavailable</Text>
+      <Text style={styles.noticeCopy}>
+        A map is shown only when RunSphere returns safe derived route geometry.
+      </Text>
+    </View>
+  );
+}
+
+const stylesForResultMap = {
+  container: { height: 240, marginBottom: 12, overflow: 'hidden' as const },
+  unavailable: { height: 240, justifyContent: 'center' as const, padding: 16 }
+};
+
 function ActivityResults({
   session,
   onQueue,

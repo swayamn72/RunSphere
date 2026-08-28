@@ -39,3 +39,7 @@ CORS_ALLOWED_ORIGINS=https://<preview-host>.preview.us1.vorflux.com pnpm --filte
 ```
 
 Use a durable deployed admin origin for non-preview environments; do not commit an ephemeral preview host.
+
+### Recorder disposition migration
+
+The legacy SQLite migration adds `activity_location_samples.disposition` with its safe default but does not add the current `CHECK` constraint. SQLite cannot add that constraint without rebuilding the table, which would be unsafe for private on-device recordings. New writes are constrained by the current schema and typed recorder; the legacy table remains additive until a separately reviewed migration can preserve all local recordings during a rebuild.

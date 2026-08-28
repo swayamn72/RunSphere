@@ -53,8 +53,6 @@ const required = new Set([
   'android.permission.ACCESS_FINE_LOCATION',
   'android.permission.ACCESS_NETWORK_STATE',
   'android.permission.ACTIVITY_RECOGNITION',
-  'android.permission.FOREGROUND_SERVICE',
-  'android.permission.FOREGROUND_SERVICE_LOCATION',
   'android.permission.INTERNET',
   'android.permission.VIBRATE'
 ]);

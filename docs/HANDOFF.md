@@ -153,6 +153,121 @@ Remaining approved milestones:
 
 After every milestone: run focused tests plus root format/lint/typecheck/test/build, `verify:maplibre`, native debug build and permission audit when applicable; update `docs/HANDOFF.md`; make a small commit; push; and require green PR #6 CI for the exact SHA. Never enable territory, exact live-location sharing, photos, nearby runners, speed pressure, client checkpoint authority, or unapproved public map endpoints. Production map provider/attribution terms and authenticated Redroid evidence remain open blockers.
 
+## Activity Preparation milestone — 2026-08-28
+
+The continuation work remains on `vorflux/full-android-product`. PR #6 merged at `2d6937c`; future exact-head gates must use a continuation pull request targeting `main`, because merged PR #6 cannot receive later commits.
+
+Implemented explicit Home/Explore/quest-detail activity origin state, precise foreground-location recovery, inline denial/blocked/settings states, and an in-memory start gate requiring three usable fixes (`accuracy <= 50 m`) within 30 seconds. Acquisition observations are never persisted. Legacy `prepare`/`acquiring` rows are discarded during encrypted-recorder initialization so pre-route attempts do not leak into history or recovery. Background-location and foreground-service request paths and permissions were removed.
+
+Validation passed for this milestone:
+
+- focused preparation suite: 8 files, 28 tests;
+- root Prettier, lint, typecheck, test, build, MapLibre compatibility, and `git diff --check`;
+- fresh universal debug APK assembly and APK permission audit;
+- Android 15 Redroid install and cold launch.
+
+The permission audit confirmed absence of `ACCESS_BACKGROUND_LOCATION`, `ACCESS_WIFI_STATE`, overlays, storage/media, biometric, and fingerprint permissions.
+
+Device-level authenticated preparation flows remain blocked by the documented HTTPS tunnel behavior that does not preserve bearer `Authorization`. The evidence below proves build/install/pre-auth launch only, not authenticated preparation behavior:
+
+- `/code/.generated_artifacts/apk/runsphere-activity-preparation-debug.apk`
+- `/code/.generated_artifacts/images/runsphere-preparation-fresh-launch.png`
+- `/code/.generated_artifacts/images/runsphere-preparation-account-form.png`
+- `/code/.generated_artifacts/images/runsphere-preparation-account-submit.png`
+- `/code/.generated_artifacts/recordings/runsphere-activity-preparation-onboarding.mp4`
+
+## Live Activity milestone — 2026-08-28
+
+Implemented encrypted recorder schema v7, private renderer-local segmented routes, follow/free-pan/recenter camera state, provisional neutral metrics, weak/missing GPS recovery, and explicit paused recovery after process relaunch. Only usable observations (`accuracy <= 50 m`) and flagged weak observations (`50–100 m`) are retained with explicit accuracy; unknown, negative, and `>100 m` fixes are dropped for privacy minimization and client/server consistency. Pauses, weak fixes, impossible segments, and gaps over 60 seconds never bridge route geometry or provisional totals. No local coordinate or route layer enters map-provider configuration or logging.
+
+Validation passed for this milestone:
+
+- focused Live suites: 27 implementation tests, plus an independent 23-test recorder/native adapter/map/Live test pass;
+- root Prettier, lint, typecheck, test, build, MapLibre compatibility, and `git diff --check`;
+- fresh universal debug APK assembly, Android 15 install/cold launch, and APK permission audit.
+
+Authenticated Live device flows remain blocked by the same authorization-stripping HTTPS route. No synthetic device location pathway was enabled; GPX cases remain pure test fixtures under ADR-0003. The following artifacts prove build/install/pre-auth launch only:
+
+- `/code/.generated_artifacts/apk/runsphere-live-activity-debug.apk`
+- `/code/.generated_artifacts/images/runsphere-live-fresh-launch.png`
+
+Still pending after an approved authenticated route exists: record/pause/resume/finish, pan/recenter, weak and 61+ second gap recovery, fallback map, background/foreground and process recovery, TalkBack, large text, theme, and reduced-motion evidence.
+
+## Results milestone — 2026-08-28
+
+Implemented one Results presentation boundary where only a freshly fetched `status === 'derived'` detail with a server summary is validated. Local, queued, received, validating, accepted, offline, and cached-status states remain provisional/pending; rejected results stay private and use non-punitive copy. Pending/rejected screens retain explicitly labeled provisional recorded metrics. Only valid server-derived line geometry is mapped renderer-locally; null, malformed, rejected, and non-derived geometry produces no route map, and local recorder samples never enter Results.
+
+Encrypted recorder schema v8 adds nullable, non-sensitive `remote_status` metadata through an additive, metadata-checked migration. It supports truthful offline lifecycle labels without treating cached status alone as validation; legacy `processed` rows remain unknown until refreshed. Home weekly progress continues to reload from `GET /v1/goals/weekly` when Home remounts.
+
+Validation passed for this milestone:
+
+- mobile Results/recorder/sync suite: 117 tests;
+- shared contract tests;
+- API/PostGIS integration: 17 tests across four files, including non-derived detail projection;
+- root Prettier, lint, typecheck, test, build, MapLibre compatibility, and `git diff --check`;
+- fresh universal debug APK assembly, Android 15 install/cold launch, and APK permission audit.
+
+Authenticated Results device states remain blocked by the authorization-stripping HTTPS route. The following artifacts prove build/install/pre-auth launch only:
+
+- `/code/.generated_artifacts/apk/runsphere-results-debug.apk`
+- `/code/.generated_artifacts/images/runsphere-results-fresh-launch.png`
+
+Still pending after an approved authenticated route exists: queued/processing/accepted/rejected/derived presentation; server-derived valid, discontinuous privacy-trimmed, and null route states; offline/relaunch reconciliation; Home/history refresh; TalkBack and large-text evidence.
+
+## Final validation checkpoint — 2026-08-28
+
+Final code review found and corrected five core-loop defects before release gating: a finish-time React hook-order crash, an unbounded Results detail fetch loop, stale follow/free-pan reporting, stranded deleted activities, and inconsistent rejected terminal handling. `eslint-plugin-react-hooks` and a React Native render harness now guard these boundaries. History/detail fetching is bounded to three concurrent requests, terminal rows are not retried, result-center work is bounded, Live spacing is safer at large text, and map controls retain 48 dp minimum targets.
+
+Final clean validation at candidate head before the checkpoint commit passed:
+
+- focused activity suite: 13 files, 62 tests;
+- full mobile suite after final fixes: 33 files, 127 tests;
+- root Prettier, lint, typecheck, test, build, MapLibre compatibility, and `git diff --check`;
+- fresh universal Android debug build after clearing stale native CMake output;
+- exact APK permission audit;
+- Android 15 Redroid cold launch, background/foreground, force-stop/relaunch;
+- pre-auth accessibility-tree review, dark/light, 1.30 font scale, and reduced motion;
+- pre-auth runtime log/network privacy review with no coordinate/provider leakage.
+
+Measured reachable pre-auth performance:
+
+- cold activity launch: 526 ms;
+- force-stop relaunch: 565 ms;
+- stabilized total PSS: 177247 KB.
+
+Final evidence:
+
+- `/code/.generated_artifacts/apk/RunSphere-final-debug-universal.apk`
+- `/code/.generated_artifacts/logs/runsphere-focused-tests.log`
+- `/code/.generated_artifacts/logs/runsphere-root-format-check.log`
+- `/code/.generated_artifacts/logs/runsphere-root-lint.log`
+- `/code/.generated_artifacts/logs/runsphere-root-typecheck.log`
+- `/code/.generated_artifacts/logs/runsphere-root-test.log`
+- `/code/.generated_artifacts/logs/runsphere-root-build.log`
+- `/code/.generated_artifacts/logs/runsphere-maplibre.log`
+- `/code/.generated_artifacts/logs/runsphere-final-debug-build.log`
+- `/code/.generated_artifacts/logs/runsphere-final-apk-audit.log`
+- `/code/.generated_artifacts/logs/runsphere-final-launch.log`
+- `/code/.generated_artifacts/logs/runsphere-final-meminfo.txt`
+- `/code/.generated_artifacts/images/runsphere-final-fresh-launch.png`
+- `/code/.generated_artifacts/images/runsphere-final-onboarding-dark.png`
+- `/code/.generated_artifacts/images/runsphere-final-onboarding-dark-large-font-reduced-motion.png`
+- `/code/.generated_artifacts/images/runsphere-final-onboarding-light-restored.png`
+- `/code/.generated_artifacts/logs/runsphere-final-onboarding-ui.xml`
+- `/code/.generated_artifacts/logs/runsphere-final-large-font-ui.xml`
+- `/code/.generated_artifacts/logs/runsphere-final-runtime-log-review.txt`
+- `/code/.generated_artifacts/recordings/runsphere-final-preauth-accessibility.mp4`
+- `/code/.generated_artifacts/logs/runsphere-redroid-direct-network.log`
+- `/code/.generated_artifacts/logs/runsphere-final-auth-route-logcat.txt`
+- `/code/.generated_artifacts/images/runsphere-final-auth-route-outcome.png`
+
+Release blockers remain open and are not waived:
+
+- authenticated Preparation, Live, and Results device evidence requires an authorization-preserving staging HTTPS API or approved equivalent; ADB reverse reached local TCP but the real sign-in request did not complete;
+- production map-provider origin, attribution URL/wording, terms/privacy review, and operational ownership remain unresolved, so production maps stay fallback-only;
+- physical-device GPS/distance/battery freeze remains incomplete. Emulator and pure synthetic fixtures do not satisfy the required 20+ one-hour sessions across 5+ representative devices or the measured-route study;
+- account-switch isolation, full TalkBack traversal, authenticated process-kill recovery, and one-hour Live CPU/frame/battery evidence remain pending behind the authenticated environment and physical-device matrix.
+
 ## Confirmed validation still pending
 
 The latest Android test report is **partial**, not failed. The corrected universal APK builds, installs, launches, and excludes `ACCESS_BACKGROUND_LOCATION` and `SYSTEM_ALERT_WINDOW`. Workspace checks and 17 PostGIS API integration tests passed.

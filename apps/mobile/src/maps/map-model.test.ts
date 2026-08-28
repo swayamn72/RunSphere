@@ -7,6 +7,7 @@ import {
   initialMapCameraState,
   recenterMap,
   resetCompass,
+  shouldAnimateCamera,
   resolveSheetState,
   transitionMapLifecycle
 } from './map-model.js';
@@ -30,6 +31,11 @@ describe('map interaction models', () => {
         false
       )
     ).toEqual({ mode: 'follow', zoom: 15.5, bearing: 90 });
+  });
+
+  it('keeps reduced-motion camera updates immediate without changing camera mode', () => {
+    expect(shouldAnimateCamera(false)).toBe(true);
+    expect(shouldAnimateCamera(true)).toBe(false);
   });
 
   it('bounds pan controls and resets compass state', () => {

@@ -31,10 +31,18 @@ export interface MapSurfaceProps {
   readonly recenterEnabled?: boolean;
   /** An intentional product camera center. Omit it to use a neutral world view, never [0, 0]. */
   readonly initialCenter?: LngLat;
+  /** A private host-held center used only to move the native camera while following. */
+  readonly liveCenter?: LngLat;
+  /** Starts or restores camera follow after a usable local fix. */
+  readonly initialFollow?: boolean;
+  /** Called when a native gesture exits follow; no coordinates are reported. */
+  readonly onEnterFreePan?: () => void;
   readonly onRequestRecenter?: () => void;
   /** Lets a host surface independently observed offline/style/tile failures. */
   readonly fallbackState?: Extract<MapLifecycleState, 'offline' | 'style-error' | 'tile-error'>;
   readonly accessibilityLabel: string;
+  /** Keep attribution visible for non-full-screen product map embeds. */
+  readonly showAttribution?: boolean;
 }
 
 /**
@@ -46,9 +54,13 @@ export function MapSurface({
   recenterRequest,
   recenterEnabled,
   initialCenter,
+  liveCenter,
+  initialFollow = false,
+  onEnterFreePan,
   onRequestRecenter,
   fallbackState,
-  accessibilityLabel
+  accessibilityLabel,
+  showAttribution = true
 }: MapSurfaceProps) {
   const { tokens, reduceMotion } = useAppTheme();
   const providerConfig = useMemo(() => resolveMapRenderPlan(), []);
@@ -56,9 +68,11 @@ export function MapSurface({
     fallbackState ?? (providerConfig.kind === 'provider' ? 'loading' : 'fallback')
   );
   const [camera, setCamera] = useState<MapCameraState>(initialMapCameraState);
+  const cameraMode = useRef(initialMapCameraState.mode);
   const [mapInstance, setMapInstance] = useState(0);
   const cameraRef = useRef<CameraRef>(null);
   const appliedRecenterRequest = useRef<number | undefined>(undefined);
+  const hasStartedFollowing = useRef(false);
 
   useEffect(() => {
     if (fallbackState) setLifecycle(fallbackState);
@@ -102,7 +116,15 @@ export function MapSurface({
 
   const onRegionChanged = (event: { nativeEvent: ViewStateChangeEvent }) => {
     const { zoom, bearing, userInteraction } = event.nativeEvent;
-    setCamera((current) => applyNativeCameraState(current, { zoom, bearing }, userInteraction));
+    if (userInteraction && cameraMode.current !== 'free-pan') {
+      cameraMode.current = 'free-pan';
+      onEnterFreePan?.();
+    }
+    setCamera((current) => {
+      const next = applyNativeCameraState(current, { zoom, bearing }, userInteraction);
+      cameraMode.current = next.mode;
+      return next;
+    });
   };
 
   const retry = () => {
@@ -119,6 +141,7 @@ export function MapSurface({
   useEffect(() => {
     if (!recenterRequest || appliedRecenterRequest.current === recenterRequest.id) return;
     appliedRecenterRequest.current = recenterRequest.id;
+    cameraMode.current = 'follow';
     setCamera((current) => {
       const next = recenterMap(current);
       if (reduceMotion)
@@ -137,6 +160,32 @@ export function MapSurface({
       return next;
     });
   }, [recenterRequest, reduceMotion]);
+
+  // Start following separately from native camera work. Ref updates and native calls must not
+  // run inside a state updater because StrictMode may invoke that updater more than once.
+  useEffect(() => {
+    if (!liveCenter || !initialFollow || hasStartedFollowing.current) return;
+    hasStartedFollowing.current = true;
+    cameraMode.current = 'follow';
+    setCamera((current) =>
+      current.mode === 'follow' ? current : { ...current, mode: 'follow' as const }
+    );
+  }, [initialFollow, liveCenter]);
+
+  // Local live centers never enter provider configuration. They only update the native
+  // camera while this renderer is already in follow mode.
+  useEffect(() => {
+    if (!liveCenter || camera.mode !== 'follow') return;
+    if (reduceMotion)
+      cameraRef.current?.jumpTo({ center: liveCenter, zoom: camera.zoom, bearing: camera.bearing });
+    else
+      cameraRef.current?.easeTo({
+        center: liveCenter,
+        zoom: camera.zoom,
+        bearing: camera.bearing,
+        duration: 250
+      });
+  }, [camera, liveCenter, reduceMotion]);
 
   const fallbackMessage =
     fallbackState === 'offline' || lifecycle === 'offline'
@@ -189,7 +238,7 @@ export function MapSurface({
           recenterDisabled={!(recenterEnabled ?? Boolean(onRequestRecenter))}
         />
       )}
-      {isProviderMap && providerConfig.kind === 'provider' && (
+      {showAttribution && isProviderMap && providerConfig.kind === 'provider' && (
         <Text
           accessible
           accessibilityLabel={`Map attribution: ${providerConfig.provider.attribution}`}
@@ -344,6 +393,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     height: 48,
     justifyContent: 'center',
+    minHeight: 48,
+    minWidth: 48,
     width: 48
   },
   controlDisabled: { opacity: 0.5 },

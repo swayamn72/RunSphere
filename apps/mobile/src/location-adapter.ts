@@ -1,38 +1,21 @@
 import * as Location from 'expo-location';
-import * as TaskManager from 'expo-task-manager';
 import type { LocationSample } from './activity-recorder-core';
 import { parseSyntheticNdjson, replaySamples } from './location-adapter-core';
-import { activityRecorder } from './activity-recorder.native';
 
-export const LOCATION_TASK_NAME = 'runsphere-activity-location';
 export const isSyntheticLocationEnabled =
   __DEV__ && process.env.EXPO_PUBLIC_SYNTHETIC_LOCATION === 'true';
 
 export interface LocationAdapter {
-  requestBackgroundPermission(): Promise<Location.PermissionResponse>;
-  startBackground(): Promise<void>;
-  stopBackground(): Promise<void>;
   subscribe(onSample: (sample: LocationSample) => void): Promise<Location.LocationSubscription>;
 }
 
-const options: Location.LocationTaskOptions = {
+const options: Location.LocationOptions = {
   accuracy: Location.Accuracy.High,
   timeInterval: 5_000,
-  distanceInterval: 5,
-  foregroundService: {
-    notificationTitle: 'RunSphere is recording',
-    notificationBody: 'Your activity location is being recorded.'
-  },
-  pausesUpdatesAutomatically: false
+  distanceInterval: 5
 };
 
 export const nativeLocationAdapter: LocationAdapter = {
-  requestBackgroundPermission: () => Location.requestBackgroundPermissionsAsync(),
-  startBackground: () => Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, options),
-  stopBackground: async () => {
-    if (await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME))
-      await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
-  },
   subscribe: async (onSample) =>
     Location.watchPositionAsync(options, (location) =>
       onSample({
@@ -61,58 +44,16 @@ const configuredSyntheticSamples = (): LocationSample[] => {
         }
       ];
 };
+
 export const createSyntheticLocationAdapter = (
   samples: readonly LocationSample[]
 ): LocationAdapter => ({
-  requestBackgroundPermission: () =>
-    Promise.resolve({
-      status: 'granted',
-      granted: true,
-      canAskAgain: false,
-      expires: 'never'
-    } as Location.PermissionResponse),
-  startBackground: async () => undefined,
-  stopBackground: async () => undefined,
   subscribe: async (onSample) =>
     ({ remove: replaySamples(samples, onSample) }) as Location.LocationSubscription
 });
+
 export const syntheticLocationAdapter: LocationAdapter | undefined = isSyntheticLocationEnabled
   ? createSyntheticLocationAdapter(configuredSyntheticSamples())
   : undefined;
 
 export const recordingLocationAdapter = syntheticLocationAdapter ?? nativeLocationAdapter;
-
-export const persistBackgroundLocations = async (
-  data: { locations?: Location.LocationObject[] } | undefined,
-  recorder: Pick<
-    typeof activityRecorder,
-    'initialize' | 'recoverAnyActive' | 'appendSample'
-  > = activityRecorder
-): Promise<void> => {
-  await recorder.initialize();
-  const session = await recorder.recoverAnyActive();
-  // Android can wake the task with a batch. Process every ordered sample; SQLite writes are awaited
-  // so a process death cannot skip a tail of the batch.
-  if (!session) return;
-  for (const location of data?.locations ?? []) {
-    await recorder.appendSample(session.id, session.accountId, {
-      recordedAt: new Date(location.timestamp).toISOString(),
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
-      accuracy: location.coords.accuracy,
-      altitude: location.coords.altitude
-    });
-  }
-};
-
-TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
-  if (error) {
-    console.warn('Activity location task failed', error.message);
-    return;
-  }
-  try {
-    await persistBackgroundLocations(data as { locations?: Location.LocationObject[] } | undefined);
-  } catch (taskError) {
-    console.warn('Unable to persist activity location batch', taskError);
-  }
-});

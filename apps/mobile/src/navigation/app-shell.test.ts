@@ -1,14 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { exitActivityFlow, isTabBarVisible, selectAppShell } from './app-shell.js';
+import { isTabBarVisible, selectAppShell } from './app-shell.js';
 
-const standard = { activityStarted: false, hasRecording: false, liveInteractive: false };
+const standard = {
+  activityRoute: 'idle' as const,
+  hasRecording: false,
+  hasSelectedQuest: false,
+  liveInteractive: false
+};
 
 describe('app shell selection', () => {
   it('keeps standard tab screens scroll-owned and preparation/detail/results scrollable', () => {
     expect(selectAppShell({ ...standard, exploreInteractive: false })).toBe('tab-scroll');
-    expect(selectAppShell({ ...standard, activityStarted: true, exploreInteractive: false })).toBe(
-      'focused-scroll'
-    );
+    expect(
+      selectAppShell({ ...standard, activityRoute: 'prepare', exploreInteractive: false })
+    ).toBe('focused-scroll');
     expect(selectAppShell({ ...standard, hasRecording: true, exploreInteractive: false })).toBe(
       'focused-scroll'
     );
@@ -31,13 +36,5 @@ describe('app shell selection', () => {
     ).toBe('focused-flex');
     expect(isTabBarVisible('focused-scroll')).toBe(false);
     expect(isTabBarVisible('focused-flex')).toBe(false);
-  });
-
-  it('clears activity state when leaving a focused flow', () => {
-    expect(exitActivityFlow('Explore')).toEqual({
-      activityStarted: false,
-      recording: undefined,
-      activeTab: 'Explore'
-    });
   });
 });

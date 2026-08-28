@@ -1,5 +1,6 @@
 import type { ActivityRecorder, ActivitySession, LocationSample } from './activity-recorder-core';
-import type { ActivityChunk, ActivityStatus, MobileApiClient } from './api-client';
+import type { ActivityChunk, ActivityDetail, ActivityStatus, MobileApiClient } from './api-client';
+import { isKnownRemoteStatus, type SyncActivityStatus } from './screens/activity-results-model';
 
 export const SYNC_CHUNK_SIZE = 250;
 export const samplesToChunks = (samples: readonly LocationSample[]): ActivityChunk[] => {
@@ -23,12 +24,56 @@ export interface SyncResult {
   session: ActivitySession;
   status?: ActivityStatus;
 }
+
+const isTerminalStatus = (status: SyncActivityStatus): boolean =>
+  status === 'derived' || status === 'rejected' || status === 'deleted';
+
+export const SYNC_PENDING_CONCURRENCY = 3;
+
+const synchronizeBounded = async <T>(
+  items: readonly T[],
+  work: (item: T) => Promise<SyncResult>
+) => {
+  const results: SyncResult[] = Array(items.length);
+  let nextIndex = 0;
+  const worker = async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      const item = items[index];
+      if (item) results[index] = await work(item);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(SYNC_PENDING_CONCURRENCY, items.length) }, worker)
+  );
+  return results;
+};
+
+const settleRemoteStatus = async (
+  recorder: ActivityRecorder,
+  session: ActivitySession,
+  status: SyncActivityStatus,
+  from: ActivitySession['state']
+): Promise<void> => {
+  await recorder.setRemoteStatus(session.id, session.accountId, status);
+  const target = isTerminalStatus(status) ? 'processed' : 'queued';
+  if (from === 'syncing')
+    await recorder.transition(
+      session.id,
+      session.accountId,
+      from,
+      target,
+      new Date().toISOString()
+    );
+};
+
 export const createActivitySyncCoordinator = (
   api: MobileApiClient,
   recorder: ActivityRecorder
 ) => ({
   async sync(session: ActivitySession): Promise<SyncResult> {
     if (!['queued', 'failed', 'syncing'].includes(session.state)) return { session };
+    if (['rejected', 'deleted', 'derived'].includes(session.remoteStatus ?? '')) return { session };
     const now = new Date().toISOString();
     if (session.state !== 'syncing')
       await recorder.transition(session.id, session.accountId, session.state, 'syncing', now);
@@ -39,45 +84,40 @@ export const createActivitySyncCoordinator = (
       if (!remoteId) {
         const created = await api.createActivity(session.movementType, session.id);
         remoteId = created.id;
-        await recorder.setRemote(session.id, session.accountId, remoteId);
+        await recorder.setRemote(session.id, session.accountId, remoteId, created.status);
       }
-      // Recovery is authoritative: it identifies only valid local chunks that are still missing.
       const remote = await api.recoverActivitySync(remoteId, chunks.length);
-      if (remote.status === 'rejected') {
+      if (!isKnownRemoteStatus(remote.status)) {
         await recorder.transition(
           session.id,
           session.accountId,
           'syncing',
-          'processed',
+          'queued',
           new Date().toISOString()
         );
         return { session: (await recorder.get(session.id, session.accountId))!, status: remote };
       }
-      if (['validating', 'accepted', 'derived'].includes(remote.status)) {
-        const target = remote.status === 'derived' ? 'processed' : 'queued';
-        await recorder.transition(
-          session.id,
-          session.accountId,
-          'syncing',
-          target,
-          new Date().toISOString()
-        );
+      if (remote.status !== 'received') {
+        await settleRemoteStatus(recorder, session, remote.status, 'syncing');
         return { session: (await recorder.get(session.id, session.accountId))!, status: remote };
       }
+      await recorder.setRemoteStatus(session.id, session.accountId, remote.status);
       const pending = (remote.missingSequences ?? []).filter(
         (sequence) => Number.isInteger(sequence) && sequence >= 0 && sequence < chunks.length
       );
       for (const sequence of pending) await api.uploadActivityChunk(remoteId, chunks[sequence]!);
       const finalized = await api.finalizeActivity(remoteId, chunks);
-      const target =
-        finalized.status === 'derived' || finalized.status === 'rejected' ? 'processed' : 'queued';
-      await recorder.transition(
-        session.id,
-        session.accountId,
-        'syncing',
-        target,
-        new Date().toISOString()
-      );
+      if (!isKnownRemoteStatus(finalized.status)) {
+        await recorder.transition(
+          session.id,
+          session.accountId,
+          'syncing',
+          'queued',
+          new Date().toISOString()
+        );
+        return { session: (await recorder.get(session.id, session.accountId))!, status: finalized };
+      }
+      await settleRemoteStatus(recorder, session, finalized.status, 'syncing');
       return { session: (await recorder.get(session.id, session.accountId))!, status: finalized };
     } catch (error) {
       await recorder.markSyncFailure(
@@ -90,27 +130,22 @@ export const createActivitySyncCoordinator = (
     }
   },
   async syncPending(accountId: string): Promise<SyncResult[]> {
-    return Promise.all(
-      (await recorder.list(accountId))
-        .filter((item) => ['queued', 'failed', 'syncing'].includes(item.state))
-        .map((item) => this.sync(item))
+    const pending = (await recorder.list(accountId)).filter(
+      (item) =>
+        ['queued', 'failed', 'syncing'].includes(item.state) &&
+        !['rejected', 'deleted', 'derived'].includes(item.remoteStatus ?? '')
     );
+    return synchronizeBounded(pending, (item) => this.sync(item));
   },
   async delete(session: ActivitySession): Promise<void> {
     if (session.remoteId) await api.deleteActivity(session.remoteId);
     await recorder.remove(session.id, session.accountId);
   },
-  async refresh(session: ActivitySession): Promise<ActivityStatus | undefined> {
+  async refresh(session: ActivitySession): Promise<ActivityDetail | undefined> {
     if (!session.remoteId) return undefined;
     const status = await api.activityStatus(session.remoteId);
-    if (status.status === 'derived' && session.state !== 'processed')
-      await recorder.transition(
-        session.id,
-        session.accountId,
-        session.state,
-        'processed',
-        new Date().toISOString()
-      );
+    if (isKnownRemoteStatus(status.status))
+      await recorder.applyRemoteStatus(session, status.status);
     return status;
   }
 });

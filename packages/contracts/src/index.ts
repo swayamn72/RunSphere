@@ -385,7 +385,7 @@ const ActivitySummarySchema = Type.Object(
   },
   Strict
 );
-const ActivityStatusSchema = Type.Union([
+export const ActivityStatusSchema = Type.Union([
   Type.Literal('received'),
   Type.Literal('validating'),
   Type.Literal('accepted'),
@@ -478,5 +478,6 @@ export type ActivityChunkRequest = Static<typeof ActivityChunkRequestSchema>;
 export type ActivityChunkHeaders = Static<typeof ActivityChunkHeadersSchema>;
 export type ActivityFinalizeRequest = Static<typeof ActivityFinalizeRequestSchema>;
 export type ActivitySyncQuery = Static<typeof ActivitySyncQuerySchema>;
+export type ActivityLifecycleStatus = Static<typeof ActivityStatusSchema>;
 export type ActivityStatusResponse = Static<typeof ActivityStatusResponseSchema>;
 export type ActivityDetailResponse = Static<typeof ActivityDetailResponseSchema>;

@@ -1,22 +1,52 @@
 import { describe, expect, it } from 'vitest';
-import { getLocationPermissionState } from './location-permission.js';
+import {
+  getLocationPermissionState,
+  getRecordingLocationPermissionState
+} from './location-permission.js';
 
 describe('foreground location permission', () => {
-  it('accepts normal granted responses', () => {
+  it('requires precise Android access for recording', () => {
     expect(
-      getLocationPermissionState({ status: 'granted', granted: true, canAskAgain: true })
-    ).toBe('granted');
-  });
-
-  it('accepts externally granted fine or coarse Android access even when Expo status is stale', () => {
-    expect(
-      getLocationPermissionState({
-        status: 'denied',
-        granted: false,
-        canAskAgain: false,
+      getRecordingLocationPermissionState({
+        status: 'granted',
+        granted: true,
+        canAskAgain: true,
         android: { accuracy: 'fine' }
       })
-    ).toBe('granted');
+    ).toBe('precise');
+    expect(
+      getRecordingLocationPermissionState({
+        status: 'granted',
+        granted: true,
+        canAskAgain: true,
+        android: { accuracy: 'coarse' }
+      })
+    ).toBe('approximate');
+  });
+
+  it('does not treat a granted response without Android precision metadata as precise', () => {
+    expect(
+      getRecordingLocationPermissionState({ status: 'granted', granted: true, canAskAgain: true })
+    ).toBe('approximate');
+  });
+
+  it('classifies unrequested, askable denial, and blocked states distinctly', () => {
+    expect(
+      getRecordingLocationPermissionState({
+        status: 'undetermined',
+        granted: false,
+        canAskAgain: true
+      })
+    ).toBe('unrequested');
+    expect(
+      getRecordingLocationPermissionState({ status: 'denied', granted: false, canAskAgain: true })
+    ).toBe('denied');
+    expect(
+      getRecordingLocationPermissionState({ status: 'denied', granted: false, canAskAgain: false })
+    ).toBe('blocked');
+  });
+
+  it('preserves broader coarse-or-fine access for Explore recentering', () => {
     expect(
       getLocationPermissionState({
         status: 'undetermined',
@@ -25,20 +55,5 @@ describe('foreground location permission', () => {
         android: { accuracy: 'coarse' }
       })
     ).toBe('granted');
-  });
-
-  it('distinguishes retryable denial from a permanently blocked permission', () => {
-    expect(
-      getLocationPermissionState({ status: 'denied', granted: false, canAskAgain: true })
-    ).toBe('denied');
-    expect(
-      getLocationPermissionState({ status: 'denied', granted: false, canAskAgain: false })
-    ).toBe('blocked');
-  });
-
-  it('keeps an unrequested permission idle', () => {
-    expect(
-      getLocationPermissionState({ status: 'undetermined', granted: false, canAskAgain: true })
-    ).toBe('idle');
   });
 });

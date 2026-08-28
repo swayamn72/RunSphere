@@ -28,13 +28,14 @@
     "expo-sqlite": "~57.0.2",
     "expo-status-bar": "57.0.1",
     "expo-system-ui": "~57.0.3",
-    "expo-task-manager": "~57.0.14",
     "react": "19.2.3",
     "react-native": "0.86.3"
   },
   "devDependencies": {
     "@types/geojson": "^7946.0.16",
     "@types/react": "19.2.14",
+    "@types/react-test-renderer": "19.1.0",
+    "react-test-renderer": "19.2.3",
     "typescript": "6.0.3",
     "vitest": "4.1.11"
   },
