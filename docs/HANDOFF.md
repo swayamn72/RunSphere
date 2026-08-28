@@ -120,6 +120,39 @@ Artifacts:
 - `/code/.generated_artifacts/recordings/runsphere_home_walkthrough.mp4`
 - `/code/.generated_artifacts/apk/runsphere-home-redesign-debug.apk`
 
+## Redesign milestone: Explore map/list integration
+
+Checkpoint scope completed on 2026-08-28:
+
+- extracted Explore and quest detail into dedicated themed screens with a tab-map/flex shell and visible bottom navigation;
+- added list/sheet-first browsing with no initial pins, route, proximity, or location request;
+- added neutral open/limited/closed, accessibility, and active-time filters over fetched `QuestSummary` only;
+- fetches exactly one `QuestDetail` after explicit selection, then renders published checkpoint geometry as renderer-local display-only GeoJSON;
+- added pan/zoom/compass and one-shot recenter permission flow with askable denial, blocked/settings reconciliation, and browsing preserved;
+- added Android TalkBack list mode, 48dp actions, distinct quest status colors, stale-request guards, typed API failures, and truthful configuration/session/unavailable states;
+- clears stale selected quest state when entering or exiting activity flows.
+
+Validation completed before handoff:
+
+- mobile typecheck, lint, and 90 tests across 26 files passed;
+- workspace typecheck and tests passed;
+- Prettier and `git diff --check` passed.
+
+Android Explore evidence remains pending. The existing Redroid/auth tunnel replaces bearer authorization, so real authenticated catalog/detail rendering needs an authorization-preserving route or an approved native visual fixture. Map provider configuration is still fallback-only.
+
+## Next-agent continuation prompt
+
+Continue RunSphere on branch `vorflux/full-android-product` from the latest pushed commit. Read this file plus `docs/product.md`, `docs/architecture.md`, `docs/safety-and-privacy.md`, `docs/release-plan.md`, and the approved plan/design artifacts under `/code/.plans/` if available. Check the latest exact-head PR #6 GitHub Actions run before editing.
+
+Remaining approved milestones:
+
+1. Redesign Activity Preparation with explicit route/origin state and foreground-location denial recovery (plan task 6).
+2. Redesign Live Activity with renderer-local private route, follow/free-pan, provisional metrics, weak-GPS/gap recovery, and no exact live sharing (task 7).
+3. Redesign Results so only `status === 'derived'` is validated and only server-derived geometry is mapped; accepted stays pending (task 8).
+4. Run final Android/accessibility/privacy/lifecycle/performance evidence and update this handoff (task 9).
+
+After every milestone: run focused tests plus root format/lint/typecheck/test/build, `verify:maplibre`, native debug build and permission audit when applicable; update `docs/HANDOFF.md`; make a small commit; push; and require green PR #6 CI for the exact SHA. Never enable territory, exact live-location sharing, photos, nearby runners, speed pressure, client checkpoint authority, or unapproved public map endpoints. Production map provider/attribution terms and authenticated Redroid evidence remain open blockers.
+
 ## Confirmed validation still pending
 
 The latest Android test report is **partial**, not failed. The corrected universal APK builds, installs, launches, and excludes `ACCESS_BACKGROUND_LOCATION` and `SYSTEM_ALERT_WINDOW`. Workspace checks and 17 PostGIS API integration tests passed.

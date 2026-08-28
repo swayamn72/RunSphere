@@ -25,7 +25,10 @@ import {
 
 export interface MapSurfaceProps {
   readonly localLayers?: readonly LocalGeoJsonLayer[];
-  readonly recenterCoordinate?: LngLat;
+  /** A host-generated request result. Each id is applied once and never triggers a permission request. */
+  readonly recenterRequest?: { readonly id: number; readonly coordinate: LngLat };
+  /** Enables recenter when the host can handle a request; it may remain enabled before a coordinate exists. */
+  readonly recenterEnabled?: boolean;
   /** An intentional product camera center. Omit it to use a neutral world view, never [0, 0]. */
   readonly initialCenter?: LngLat;
   readonly onRequestRecenter?: () => void;
@@ -40,7 +43,8 @@ export interface MapSurfaceProps {
  */
 export function MapSurface({
   localLayers = [],
-  recenterCoordinate,
+  recenterRequest,
+  recenterEnabled,
   initialCenter,
   onRequestRecenter,
   fallbackState,
@@ -54,6 +58,7 @@ export function MapSurface({
   const [camera, setCamera] = useState<MapCameraState>(initialMapCameraState);
   const [mapInstance, setMapInstance] = useState(0);
   const cameraRef = useRef<CameraRef>(null);
+  const appliedRecenterRequest = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     if (fallbackState) setLifecycle(fallbackState);
@@ -107,11 +112,31 @@ export function MapSurface({
   };
   const resetNorth = () => moveCamera(resetCompass);
   const zoom = (amount: number) => moveCamera((current) => adjustMapZoom(current, amount));
-  const recenter = () => {
-    onRequestRecenter?.();
-    if (!recenterCoordinate) return;
-    moveCamera(recenterMap, recenterCoordinate);
-  };
+  const recenter = () => onRequestRecenter?.();
+
+  // A host may obtain a foreground coordinate only after an explicit recenter press.
+  // Apply its uniquely identified result once; theme changes (including reduced motion) never replay it.
+  useEffect(() => {
+    if (!recenterRequest || appliedRecenterRequest.current === recenterRequest.id) return;
+    appliedRecenterRequest.current = recenterRequest.id;
+    setCamera((current) => {
+      const next = recenterMap(current);
+      if (reduceMotion)
+        cameraRef.current?.jumpTo({
+          center: recenterRequest.coordinate,
+          zoom: next.zoom,
+          bearing: next.bearing
+        });
+      else
+        cameraRef.current?.easeTo({
+          center: recenterRequest.coordinate,
+          zoom: next.zoom,
+          bearing: next.bearing,
+          duration: 250
+        });
+      return next;
+    });
+  }, [recenterRequest, reduceMotion]);
 
   const fallbackMessage =
     fallbackState === 'offline' || lifecycle === 'offline'
@@ -153,7 +178,6 @@ export function MapSurface({
         />
       )}
 
-      {isLoadingProvider && <LoadingSurface />}
       {showMap && (
         <MapControls
           camera={camera}
@@ -162,7 +186,7 @@ export function MapSurface({
           onZoomOut={() => zoom(-1)}
           onResetNorth={resetNorth}
           onRecenter={recenter}
-          recenterDisabled={!recenterCoordinate}
+          recenterDisabled={!(recenterEnabled ?? Boolean(onRequestRecenter))}
         />
       )}
       {isProviderMap && providerConfig.kind === 'provider' && (
@@ -177,20 +201,6 @@ export function MapSurface({
           {providerConfig.provider.attribution}
         </Text>
       )}
-    </View>
-  );
-}
-
-function LoadingSurface() {
-  const { tokens } = useAppTheme();
-  return (
-    <View pointerEvents="none" style={[styles.loading, { backgroundColor: tokens.map.scrim }]}>
-      <Text
-        accessibilityLiveRegion="polite"
-        style={[styles.loadingText, { color: tokens.text.primary }]}
-      >
-        Preparing map details
-      </Text>
     </View>
   );
 }
@@ -327,16 +337,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18
   },
   retryText: { fontSize: 14, fontWeight: '800' },
-  loading: {
-    alignItems: 'center',
-    bottom: 0,
-    justifyContent: 'center',
-    left: 0,
-    position: 'absolute',
-    right: 0,
-    top: 0
-  },
-  loadingText: { fontSize: 14, fontWeight: '700' },
   controls: { gap: 8, position: 'absolute', right: 12, top: 12 },
   control: {
     alignItems: 'center',

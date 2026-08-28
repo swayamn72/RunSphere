@@ -1,21 +1,25 @@
-export type AppShell = 'tab-scroll' | 'focused-scroll' | 'focused-flex';
+export type AppShell = 'tab-scroll' | 'tab-map' | 'focused-scroll' | 'focused-flex';
 
-/** Current focused states contain forms/results and must scroll with large type. */
+/** Selects a gesture-owning Explore map shell without hiding the tab bar. */
 export const selectAppShell = ({
   activityStarted,
   hasRecording,
-  liveInteractive
+  liveInteractive,
+  exploreInteractive
 }: {
   activityStarted: boolean;
   hasRecording: boolean;
   liveInteractive: boolean;
+  exploreInteractive: boolean;
 }): AppShell => {
   if (hasRecording && liveInteractive) return 'focused-flex';
   if (activityStarted || hasRecording) return 'focused-scroll';
+  if (exploreInteractive) return 'tab-map';
   return 'tab-scroll';
 };
 
-export const isTabBarVisible = (shell: AppShell): boolean => shell === 'tab-scroll';
+export const isTabBarVisible = (shell: AppShell): boolean =>
+  shell === 'tab-scroll' || shell === 'tab-map';
 
 /** Returns a focused activity flow to its tab-owned origin. */
 export const exitActivityFlow = <T>(origin: T) => ({

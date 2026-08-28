@@ -5,6 +5,7 @@ import { activityQueue } from './src/activity-queue.native';
 import { accountScopeFor, legacyAccountScopesFor } from './src/account-scope';
 import { activityRecorder } from './src/activity-recorder.native';
 import type { ActivitySession, MovementType } from './src/activity-recorder-core';
+import type { QuestSummary } from '@runsphere/contracts';
 import type { AuthSession } from './src/auth-storage-core';
 import { createActivitySyncCoordinator } from './src/activity-sync';
 import { MobileApiClient } from './src/api-client';
@@ -24,12 +25,9 @@ import {
 } from './src/screens/ActivityScreens';
 import { Onboarding } from './src/screens/OnboardingScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
-import {
-  ClubsScreen,
-  ProfileScreen,
-  QuestScreen,
-  SeasonScreen
-} from './src/screens/ProductScreens';
+import { ClubsScreen, ProfileScreen, SeasonScreen } from './src/screens/ProductScreens';
+import { ExploreScreen } from './src/screens/ExploreScreen';
+import { QuestDetailScreen } from './src/screens/QuestDetailScreen';
 import { ThemeProvider, useAppTheme } from './src/theme/theme';
 
 const apiClient = new MobileApiClient(undefined, fetch, authStorage);
@@ -55,6 +53,7 @@ function RunSphereApp() {
   const [accountId, setAccountId] = useState<string>();
   const [restoring, setRestoring] = useState(true);
   const [storageError, setStorageError] = useState(false);
+  const [selectedQuest, setSelectedQuest] = useState<QuestSummary>();
   const [storageAttempt, retryStorage] = useReducer((attempt: number) => attempt + 1, 0);
 
   useEffect(() => {
@@ -87,6 +86,7 @@ function RunSphereApp() {
 
   const finishSession = useCallback(() => {
     setActiveTab('Home');
+    setSelectedQuest(undefined);
     setActivityStarted(false);
     setRecording(undefined);
     setAccountId(undefined);
@@ -126,19 +126,22 @@ function RunSphereApp() {
     );
 
   const openActivity = () => {
+    setSelectedQuest(undefined);
     setActivityStarted(true);
     setActiveTab('Home');
   };
   const exitActivity = () => {
+    setSelectedQuest(undefined);
     const next = exitActivityFlow(activeTab);
     setActivityStarted(next.activityStarted);
     setRecording(next.recording);
     setActiveTab(next.activeTab);
   };
   const shell = selectAppShell({
-    activityStarted,
+    activityStarted: activityStarted || Boolean(selectedQuest),
     hasRecording: Boolean(recording),
-    liveInteractive: false
+    liveInteractive: false,
+    exploreInteractive: activeTab === 'Explore' && !selectedQuest && !activityStarted && !recording
   });
   const content =
     recording && accountId ? (
@@ -166,8 +169,20 @@ function RunSphereApp() {
         onOpenProfile={() => setActiveTab('You')}
         onSessionExpired={expireSession}
       />
+    ) : selectedQuest ? (
+      <QuestDetailScreen
+        api={apiClient}
+        quest={selectedQuest}
+        onBack={() => setSelectedQuest(undefined)}
+        onStart={openActivity}
+      />
     ) : activeTab === 'Explore' ? (
-      <QuestScreen api={apiClient} onStart={openActivity} />
+      <ExploreScreen
+        api={apiClient}
+        onSelectQuest={setSelectedQuest}
+        onStart={openActivity}
+        onSessionExpired={expireSession}
+      />
     ) : activeTab === 'Clubs' ? (
       <ClubsScreen />
     ) : activeTab === 'Season' ? (
@@ -186,6 +201,8 @@ function RunSphereApp() {
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       {shell === 'tab-scroll' ? (
         <TabScrollShell>{content}</TabScrollShell>
+      ) : shell === 'tab-map' ? (
+        <FocusedFlexShell>{content}</FocusedFlexShell>
       ) : shell === 'focused-scroll' ? (
         <FocusedScrollShell>{content}</FocusedScrollShell>
       ) : (
@@ -196,6 +213,7 @@ function RunSphereApp() {
           activeTab={activeTab}
           onChange={(tab) => {
             setActivityStarted(false);
+            setSelectedQuest(undefined);
             setActiveTab(tab);
           }}
         />

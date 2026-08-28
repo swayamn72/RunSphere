@@ -30,6 +30,18 @@ import {
 export type { AuthSession } from './auth-storage-core';
 export type { SafetyContactResponse } from '@runsphere/contracts';
 export type ActivityMovement = 'walk' | 'run' | 'hike';
+
+/** Typed non-auth API failure for product state decisions without parsing error strings. */
+export class ApiFailure extends Error {
+  constructor(
+    public readonly status: number,
+    message: string
+  ) {
+    super(message);
+    this.name = 'ApiFailure';
+  }
+}
+
 export interface ActivityPoint {
   latitude: number;
   longitude: number;
@@ -105,7 +117,8 @@ export class MobileApiClient {
     }
     if (response.status === 401 || response.status === 403)
       throw new AuthFailure('invalid-credentials', response.status);
-    if (!response.ok) throw new Error(`Unable to load quests (${response.status}).`);
+    if (!response.ok)
+      throw new ApiFailure(response.status, `Unable to load quests (${response.status}).`);
     return ((await response.json()) as { data: QuestSummary[] }).data;
   }
   async getQuest(id: string): Promise<QuestDetail> {
@@ -232,7 +245,7 @@ export class MobileApiClient {
     }
     if (response.status === 401 || response.status === 403)
       throw new AuthFailure('invalid-credentials', response.status);
-    if (!response.ok) throw new Error(await responseMessage(response, path));
+    if (!response.ok) throw new ApiFailure(response.status, await responseMessage(response, path));
     return (request.empty ? undefined : await response.json()) as T;
   }
 

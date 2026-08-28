@@ -1,12 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, Switch, Text, TextInput, View } from 'react-native';
 import * as Location from 'expo-location';
-import type {
-  QuestDetail,
-  QuestSummary,
-  SafetyContactResponse,
-  WeeklyGoalResponse
-} from '@runsphere/contracts';
+import type { SafetyContactResponse, WeeklyGoalResponse } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { clearAccountData } from '../account-cleanup';
 import { activityQueue } from '../activity-queue.native';
@@ -18,7 +13,6 @@ import { useAppStyles } from '../components/styles';
 import { coordinateLogout } from '../logout-coordinator';
 import { homeErrorState, type HomeRemoteState, weeklyGoalState } from './home-state';
 
-const fallbackQuests: readonly QuestSummary[] = [];
 type RemoteState = HomeRemoteState;
 
 const useWeeklyGoal = (api: MobileApiClient) => {
@@ -39,215 +33,6 @@ const useWeeklyGoal = (api: MobileApiClient) => {
   }, [api]);
   return { goal, state, load, setGoal, setState };
 };
-
-export function QuestScreen({ api, onStart }: { api: MobileApiClient; onStart: () => void }) {
-  const styles = useAppStyles();
-  const [quests, setQuests] = useState<readonly QuestSummary[]>(fallbackQuests);
-  const [state, setState] = useState<RemoteState>('loading');
-  const [selected, setSelected] = useState<QuestSummary>();
-  const load = async () => {
-    setQuests([]);
-    setState('loading');
-    try {
-      const result = await api.listQuests();
-      setQuests(result);
-      setState(result.length ? 'ready' : 'empty');
-    } catch {
-      setQuests([]);
-      setState('error');
-    }
-  };
-  useEffect(() => {
-    void load();
-  }, [api]);
-  if (selected)
-    return (
-      <QuestDetailScreen
-        api={api}
-        quest={selected}
-        onBack={() => setSelected(undefined)}
-        onStart={onStart}
-      />
-    );
-  return (
-    <>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.eyebrow}>EXPLORE</Text>
-          <Text style={styles.homeTitle}>Find your next path</Text>
-        </View>
-        <Text accessibilityLabel="Quest filters" style={styles.iconButton}>
-          ≡
-        </Text>
-      </View>
-      <Text style={styles.mvpLabel}>MVP · ANDROID V1</Text>
-      <View style={styles.filterRow} accessibilityRole="tablist">
-        {['For you', 'Under 30 min', 'Step-free', 'Open now'].map((filter, index) => (
-          <Text key={filter} style={[styles.filterChip, index === 0 && styles.filterChipActive]}>
-            {filter}
-          </Text>
-        ))}
-      </View>
-      <View style={styles.notice} accessibilityLiveRegion="polite">
-        <Text style={styles.noticeIcon}>✓</Text>
-        <View style={styles.flexCopy}>
-          <Text style={styles.noticeTitle}>Verified before you go</Text>
-          <Text style={styles.noticeCopy}>
-            Recommendations use reviewed public places, opening status, accessibility, and coarse
-            area—not your pace.
-          </Text>
-        </View>
-      </View>
-      {state === 'loading' && (
-        <Text accessibilityLiveRegion="polite" style={styles.privateNote}>
-          Looking for nearby verified quests…
-        </Text>
-      )}
-      {state === 'empty' && (
-        <EmptyState
-          title="No quests available yet"
-          copy="Connect to discover reviewed public places, or start a private free activity."
-        />
-      )}
-      {state === 'error' && <ErrorState copy="Verified quests are unavailable." onRetry={load} />}
-      {quests.map((quest, index) => (
-        <QuestCard
-          key={quest.id}
-          quest={quest}
-          featured={index === 0}
-          onPress={() => setSelected(quest)}
-        />
-      ))}
-      <PrimaryButton label="Start a free activity" onPress={onStart} />
-    </>
-  );
-}
-
-function QuestCard({
-  quest,
-  featured,
-  onPress
-}: {
-  quest: QuestSummary;
-  featured: boolean;
-  onPress: () => void;
-}) {
-  const styles = useAppStyles();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`View ${quest.title}`}
-      onPress={onPress}
-      style={styles.recordCard}
-    >
-      {featured && <View style={styles.questArt} />}
-      <View style={styles.cardTopline}>
-        <View style={styles.flexCopy}>
-          <Text style={styles.eyebrow}>{featured ? 'RECOMMENDED' : 'VERIFIED ROUTE'}</Text>
-          <Text style={styles.sectionTitle}>{quest.title}</Text>
-        </View>
-        <Text style={styles.openPill}>{quest.openHours.status.toUpperCase()}</Text>
-      </View>
-      <Text style={styles.rowDetail}>
-        {(quest.distanceMeters / 1000).toFixed(1)} km · {quest.estimatedActiveMinutes} min · walk,
-        run, or hike{`\n`}
-        {quest.accessibility} · {quest.checkpointCount} flexible checkpoints
-      </Text>
-      <Text style={styles.link}>View quest ›</Text>
-    </Pressable>
-  );
-}
-
-function QuestDetailScreen({
-  api,
-  quest,
-  onBack,
-  onStart
-}: {
-  api: MobileApiClient;
-  quest: QuestSummary;
-  onBack: () => void;
-  onStart: () => void;
-}) {
-  const styles = useAppStyles();
-  const [detail, setDetail] = useState<QuestDetail>();
-  const [state, setState] = useState<RemoteState>('loading');
-  useEffect(() => {
-    void api
-      .getQuest(quest.id)
-      .then((item) => {
-        setDetail(item);
-        setState('ready');
-      })
-      .catch(() => setState('offline'));
-  }, [api, quest.id]);
-  return (
-    <>
-      <View style={styles.profileHeader}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Back to quests"
-          onPress={onBack}
-          style={styles.backButton}
-        >
-          <Text style={styles.backText}>‹</Text>
-        </Pressable>
-        <Text style={styles.mvpLabel}>VERIFIED QUEST</Text>
-        <View style={styles.backButton} />
-      </View>
-      <Text style={styles.homeTitle}>{quest.title}</Text>
-      <Text style={styles.lead}>
-        Explore reviewed public-space checkpoints in any order. Choose walking, running, or hiking.
-      </Text>
-      <View style={styles.resultStats}>
-        <Stat
-          label="DISTANCE"
-          value={(quest.distanceMeters / 1000).toFixed(1)}
-          suffix="km"
-          detail="Approximate band"
-        />
-        <Stat
-          label="TIME"
-          value={`${quest.estimatedActiveMinutes}`}
-          suffix="min"
-          detail="At your pace"
-        />
-        <Stat label="STOPS" value={`${quest.checkpointCount}`} detail="Flexible" />
-      </View>
-      {state === 'loading' && (
-        <Text style={styles.privateNote}>Loading reviewed checkpoint details…</Text>
-      )}
-      {state === 'offline' && (
-        <ErrorState copy="Checkpoint details are offline. The quest summary is still available." />
-      )}
-      <SettingsGroup title="Quest checkpoints">
-        {(detail?.checkpoints ?? []).map((checkpoint, index) => (
-          <View key={checkpoint.id} style={styles.checkpoint}>
-            <Text style={styles.checkpointNumber}>{index + 1}</Text>
-            <View style={styles.flexCopy}>
-              <Text style={styles.rowTitle}>{checkpoint.title}</Text>
-              <Text style={styles.rowDetail}>
-                {checkpoint.accessibility} · {checkpoint.openHours.status} ·{' '}
-                {checkpoint.openHours.schedule}
-              </Text>
-            </View>
-          </View>
-        ))}
-      </SettingsGroup>
-      <View style={styles.notice}>
-        <Text style={styles.noticeIcon}>⌖</Text>
-        <View style={styles.flexCopy}>
-          <Text style={styles.noticeTitle}>No prescribed route</Text>
-          <Text style={styles.noticeCopy}>
-            Checkpoint visits are confirmed after server validation. Exact live location is never
-            public.
-          </Text>
-        </View>
-      </View>
-      <PrimaryButton label="Choose activity type" onPress={onStart} />
-    </>
-  );
-}
 
 export function ClubsScreen() {
   const styles = useAppStyles();
@@ -768,18 +553,6 @@ function BackHeader({ label, onBack }: { label: string; onBack: () => void }) {
       </Pressable>
       <Text style={styles.eyebrow}>{label}</Text>
       <View style={styles.backButton} />
-    </View>
-  );
-}
-function EmptyState({ title, copy }: { title: string; copy: string }) {
-  const styles = useAppStyles();
-  return (
-    <View style={styles.notice}>
-      <Text style={styles.noticeIcon}>⌁</Text>
-      <View style={styles.flexCopy}>
-        <Text style={styles.noticeTitle}>{title}</Text>
-        <Text style={styles.noticeCopy}>{copy}</Text>
-      </View>
     </View>
   );
 }
