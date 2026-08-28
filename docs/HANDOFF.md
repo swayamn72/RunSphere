@@ -2,7 +2,7 @@
 
 Updated: 2026-08-28
 Branch: `vorflux/full-android-product`
-Pull request: PR #5 is merged; a fresh redesign PR will be opened from this branch.
+Pull request: https://github.com/swayamn72/RunSphere/pull/6
 
 ## Current state
 
@@ -37,7 +37,7 @@ Local CI-equivalent verification passed on 2026-08-28 after the formatting and A
 - `pnpm build`
 - `git diff --check`
 
-The prior GitHub formatting failure was addressed by commit `67a42c4`. The final lint correction in `bf7a7c1` replaces the undeclared Node `process` reference in `apps/mobile/src/verify-android-permissions.mjs`. The reconciled baseline passed `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` locally on 2026-08-28. Turbo required the documented `/tmp/runsphere-corepack` package-manager shim in this sandbox. The next checkpoint must push this reconciled branch, open a fresh pull request, and require a green `Validate and test` run for the exact head SHA before product redesign work continues.
+The prior GitHub formatting failure was addressed by commit `67a42c4`. The final lint correction in `bf7a7c1` replaces the undeclared Node `process` reference in `apps/mobile/src/verify-android-permissions.mjs`. The reconciled baseline passed `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` locally on 2026-08-28. Turbo required the documented `/tmp/runsphere-corepack` package-manager shim in this sandbox. PR #6 opened from checkpoint `762806a`; exact-head `Validate and test` run `33164797021` passed: https://github.com/swayamn72/RunSphere/actions/runs/33164797021. Product redesign work may proceed, with the same exact-head green CI gate after every milestone.
 
 ## Confirmed validation still pending
 
