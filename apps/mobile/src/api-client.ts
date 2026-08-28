@@ -1,21 +1,16 @@
 import type {
-  AccountDeletionResponse,
-  AccountExportResponse,
   LoginRequest,
   PrivacyZoneRequest,
-  PrivacyZoneResponse,
   QuestDetail,
   QuestSummary,
   RegisterRequest,
   SafetyContactRequest,
-  SafetyContactResponse,
   SafetyShareRequest,
-  SafetyShareResponse,
   VisibilityRequest,
-  VisibilityResponse,
   WeeklyGoalRequest,
   WeeklyGoalResponse
 } from '@runsphere/contracts';
+
 import type { AuthSession, AuthStorage } from './auth-storage-core';
 import { getApiBaseUrl } from './api-config';
 import { canonicalJson, sha256 } from './activity-checksum';
@@ -27,6 +22,35 @@ import {
 } from './auth-failure';
 
 export type { AuthSession } from './auth-storage-core';
+type Coordinates = { latitude: number; longitude: number };
+type AccountDeletionResponse = { status: 'scheduled' };
+type AccountExportResponse = {
+  status: 'ready';
+  generatedAt: string;
+  rawTraceAvailability: 'available-within-retention-window';
+  data: {
+    profile: { email: string; activityVisibility: 'private' | 'followers' };
+    privacyZones: Array<PrivacyZoneResponse>;
+    activities: Array<{ id: string; rawTraceAvailable: boolean }>;
+  };
+};
+type PrivacyZoneResponse = {
+  id: string;
+  name: string;
+  center: Coordinates;
+  radiusMeters: 200;
+  geometryVersion: number;
+};
+export type SafetyContactResponse = { id: string; email: string; status: 'pending' | 'accepted' };
+type SafetyShareResponse = {
+  id: string;
+  safetyContactId: string;
+  status: 'active' | 'revoked' | 'expired';
+  delayMinutes: 15;
+  tileSizeMeters: 500;
+  expiresAt: string;
+};
+type VisibilityResponse = { activityVisibility: 'private' | 'followers' };
 export type ActivityMovement = 'walk' | 'run' | 'hike';
 export interface ActivityPoint {
   latitude: number;

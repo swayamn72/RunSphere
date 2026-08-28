@@ -10,12 +10,8 @@ import {
   View
 } from 'react-native';
 import * as Location from 'expo-location';
-import type {
-  QuestDetail,
-  QuestSummary,
-  SafetyContactResponse,
-  WeeklyGoalResponse
-} from '@runsphere/contracts';
+import type { QuestDetail, QuestSummary, WeeklyGoalResponse } from '@runsphere/contracts';
+import type { SafetyContactResponse } from '../api-client';
 import { colors } from '@runsphere/ui';
 import type { MobileApiClient } from '../api-client';
 import { clearAccountData } from '../account-cleanup';
