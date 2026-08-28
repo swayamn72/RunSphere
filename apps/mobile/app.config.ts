@@ -5,7 +5,7 @@ const config: ExpoConfig = {
   slug: 'runsphere',
   version: '0.1.0',
   orientation: 'portrait',
-  userInterfaceStyle: 'light',
+  userInterfaceStyle: 'automatic',
   newArchEnabled: true,
   android: {
     package: 'com.runsphere.app',

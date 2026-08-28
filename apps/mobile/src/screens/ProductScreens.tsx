@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, Linking, Pressable, Switch, Text, TextInput, View } from 'react-native';
 import * as Location from 'expo-location';
 import type {
   QuestDetail,
@@ -7,7 +7,6 @@ import type {
   SafetyContactResponse,
   WeeklyGoalResponse
 } from '@runsphere/contracts';
-import { colors } from '@runsphere/ui';
 import type { MobileApiClient } from '../api-client';
 import { clearAccountData } from '../account-cleanup';
 import { activityQueue } from '../activity-queue.native';
@@ -20,7 +19,9 @@ import {
   SettingsGroup,
   Stat
 } from '../components/primitives';
-import { styles } from '../components/styles';
+import { LoopMascot } from '../components/Mascot';
+import { useAppTheme } from '../theme/theme';
+import { useAppStyles } from '../components/styles';
 import { coordinateLogout } from '../logout-coordinator';
 import { homeModel } from '../models';
 import type { MovementType } from '../activity-recorder-core';
@@ -75,6 +76,7 @@ export function HomeScreen({
   onOpenQuests: () => void;
   onOpenProfile: () => void;
 }) {
+  const styles = useAppStyles();
   const { dailyPath, member, nearbyQuest } = homeModel;
   const { goal, state: goalState } = useWeeklyGoal(api);
   const completed = goal
@@ -101,6 +103,19 @@ export function HomeScreen({
       </View>
       <Text style={styles.mvpLabel}>MVP · ANDROID V1</Text>
       <MovementChoice selected={movement} onChoose={onMovementChange} />
+      {goalState === 'loading' && (
+        <View style={styles.mascotGuide}>
+          <LoopMascot
+            variant="loading"
+            accessibility={{
+              mode: 'meaningful',
+              label: 'Loop is here while your weekly progress loads.'
+            }}
+            size={48}
+          />
+          <Text style={styles.rowDetail}>Getting your weekly progress ready.</Text>
+        </View>
+      )}
       <View style={styles.dailyCard}>
         <Text style={styles.cardEyebrow}>THIS WEEK</Text>
         <Text style={styles.cardTitle}>{goal ? goalLabel(goal) : 'Your progress'}</Text>
@@ -202,6 +217,7 @@ export function HomeScreen({
 }
 
 export function QuestScreen({ api, onStart }: { api: MobileApiClient; onStart: () => void }) {
+  const styles = useAppStyles();
   const [quests, setQuests] = useState<readonly QuestSummary[]>(fallbackQuests);
   const [state, setState] = useState<RemoteState>('loading');
   const [selected, setSelected] = useState<QuestSummary>();
@@ -295,6 +311,7 @@ function QuestCard({
   featured: boolean;
   onPress: () => void;
 }) {
+  const styles = useAppStyles();
   return (
     <Pressable
       accessibilityRole="button"
@@ -331,6 +348,7 @@ function QuestDetailScreen({
   onBack: () => void;
   onStart: () => void;
 }) {
+  const styles = useAppStyles();
   const [detail, setDetail] = useState<QuestDetail>();
   const [state, setState] = useState<RemoteState>('loading');
   useEffect(() => {
@@ -411,6 +429,7 @@ function QuestDetailScreen({
 }
 
 export function ClubsScreen() {
+  const styles = useAppStyles();
   return (
     <View style={styles.centeredState}>
       <Text style={styles.futureLabel}>COMING LATER · COOPERATIVE</Text>
@@ -434,6 +453,7 @@ export function ClubsScreen() {
 }
 
 export function SeasonScreen() {
+  const styles = useAppStyles();
   return (
     <View style={styles.centeredState}>
       <Text style={styles.mvpLabel}>CONDITIONAL · FLAG OFF</Text>
@@ -464,6 +484,7 @@ export function ProfileScreen({
   accountId: string | undefined;
   onLogoutComplete: () => void;
 }) {
+  const styles = useAppStyles();
   const [screen, setScreen] = useState<'profile' | 'safety' | 'goals'>('profile');
   const [visibility, setVisibility] = useState<'private' | 'followers'>('private');
   const [visibilityBusy, setVisibilityBusy] = useState(false);
@@ -625,6 +646,8 @@ export function ProfileScreen({
 }
 
 function GoalsScreen({ api, onBack }: { api: MobileApiClient; onBack: () => void }) {
+  const styles = useAppStyles();
+  const { tokens } = useAppTheme();
   const { goal, state, load, setGoal, setState } = useWeeklyGoal(api);
   const [minutes, setMinutes] = useState('150');
   const [distance, setDistance] = useState('5');
@@ -696,7 +719,7 @@ function GoalsScreen({ api, onBack }: { api: MobileApiClient; onBack: () => void
         onChangeText={setMinutes}
         style={styles.input}
         placeholder="e.g. 150"
-        placeholderTextColor={colors.muted}
+        placeholderTextColor={tokens.text.secondary}
       />
       <Text style={styles.fieldLabel}>WEEKLY DISTANCE IN KILOMETRES</Text>
       <TextInput
@@ -706,7 +729,7 @@ function GoalsScreen({ api, onBack }: { api: MobileApiClient; onBack: () => void
         onChangeText={setDistance}
         style={styles.input}
         placeholder="e.g. 5"
-        placeholderTextColor={colors.muted}
+        placeholderTextColor={tokens.text.secondary}
       />
       <PrimaryButton
         label={saving ? 'Saving…' : 'Save weekly goal'}
@@ -718,6 +741,8 @@ function GoalsScreen({ api, onBack }: { api: MobileApiClient; onBack: () => void
 }
 
 function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => void }) {
+  const styles = useAppStyles();
+  const { tokens } = useAppTheme();
   const [mapPreview, setMapPreview] = useState(true);
   const [zoneName, setZoneName] = useState('Home');
   const [zoneStatus, setZoneStatus] = useState('No saved zones this session');
@@ -817,7 +842,7 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
             onChangeText={setZoneName}
             style={styles.input}
             placeholder="Place name"
-            placeholderTextColor={colors.muted}
+            placeholderTextColor={tokens.text.secondary}
           />
           <PrimaryButton label="Save my current center" onPress={() => void saveZone()} />
           <Text accessibilityLiveRegion="polite" style={styles.privateNote}>
@@ -833,7 +858,7 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
             accessibilityLabel="Shareable map preview"
             value={mapPreview}
             onValueChange={setMapPreview}
-            trackColor={{ false: colors.line, true: colors.teal }}
+            trackColor={{ false: tokens.border.subtle, true: tokens.status.success }}
           />
         </View>
       </SettingsGroup>
@@ -850,7 +875,7 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
           onChangeText={setContactEmail}
           style={styles.input}
           placeholder="contact@example.com"
-          placeholderTextColor={colors.muted}
+          placeholderTextColor={tokens.text.secondary}
         />
         <PrimaryButton label="Invite verified contact" onPress={() => void invite()} />
         {state === 'loading' && <Text style={styles.privateNote}>Loading safety contacts…</Text>}
@@ -909,6 +934,7 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
 }
 
 function BackHeader({ label, onBack }: { label: string; onBack: () => void }) {
+  const styles = useAppStyles();
   return (
     <View style={styles.profileHeader}>
       <Pressable
@@ -925,6 +951,7 @@ function BackHeader({ label, onBack }: { label: string; onBack: () => void }) {
   );
 }
 function EmptyState({ title, copy }: { title: string; copy: string }) {
+  const styles = useAppStyles();
   return (
     <View style={styles.notice}>
       <Text style={styles.noticeIcon}>⌁</Text>
@@ -936,6 +963,7 @@ function EmptyState({ title, copy }: { title: string; copy: string }) {
   );
 }
 function ErrorState({ copy, onRetry }: { copy: string; onRetry?: () => void }) {
+  const styles = useAppStyles();
   return (
     <View style={[styles.notice, styles.warningNotice]}>
       <Text style={styles.noticeIcon}>!</Text>
@@ -949,13 +977,5 @@ function ErrorState({ copy, onRetry }: { copy: string; onRetry?: () => void }) {
         )}
       </View>
     </View>
-  );
-}
-
-export function ProductScroll({ children }: { children: React.ReactNode }) {
-  return (
-    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      {children}
-    </ScrollView>
   );
 }

@@ -39,6 +39,37 @@ Local CI-equivalent verification passed on 2026-08-28 after the formatting and A
 
 The prior GitHub formatting failure was addressed by commit `67a42c4`. The final lint correction in `bf7a7c1` replaces the undeclared Node `process` reference in `apps/mobile/src/verify-android-permissions.mjs`. The reconciled baseline passed `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` locally on 2026-08-28. Turbo required the documented `/tmp/runsphere-corepack` package-manager shim in this sandbox. PR #6 opened from checkpoint `762806a`; exact-head `Validate and test` run `33164797021` passed: https://github.com/swayamn72/RunSphere/actions/runs/33164797021. Product redesign work may proceed, with the same exact-head green CI gate after every milestone.
 
+## Redesign milestone: theme, shells, and Loop mascot
+
+Checkpoint scope completed on 2026-08-28:
+
+- added complete semantic dark/light tokens and Android system appearance switching;
+- migrated current mobile surfaces to theme-aware styles and added large-font-safe tab/focused shells;
+- preserved Home, Explore, Season, Clubs, You while visually de-emphasizing future modes;
+- added the original app-owned Loop mascot asset system, provenance, accessibility rules, and a restrained Home loading use;
+- fixed activity-preparation/back/discard navigation traps;
+- fixed clean-install encrypted SQLite provisioning by generating and persisting a non-empty native random key before keyed database access, with no runtime rekey;
+- kept territory, exact live-location sharing, photos, and client-authoritative validation disabled.
+
+Validation completed:
+
+- root format, lint, typecheck, test, build, and `git diff --check` passed;
+- mobile suite passed with 69 tests across 23 files;
+- clean debug and release APK builds passed;
+- debug and release APK permission audits exclude `ACCESS_BACKGROUND_LOCATION` and `SYSTEM_ALERT_WINDOW`;
+- clean encrypted startup and cold restart passed on Android 15;
+- Android light-to-dark switching updated the running process without restart.
+
+Runtime evidence:
+
+- `/code/.generated_artifacts/images/runsphere_release_fresh_light.png`
+- `/code/.generated_artifacts/images/runsphere_release_cold_restart_light.png`
+- `/code/.generated_artifacts/images/runsphere_release_inplace_dark.png`
+- `/code/.generated_artifacts/apk/runsphere-theme-mascot-debug-final.apk`
+- `/code/.generated_artifacts/apk/runsphere-theme-mascot-release.apk`
+
+Authenticated Home/mascot, all-tab interaction, Start → Not now, focused-shell, and large-font device walkthroughs remain unverified because the clean install had no authenticated fixture/session. Their pure navigation/theme behavior is covered by unit tests, but device evidence remains open.
+
 ## Confirmed validation still pending
 
 The latest Android test report is **partial**, not failed. The corrected universal APK builds, installs, launches, and excludes `ACCESS_BACKGROUND_LOCATION` and `SYSTEM_ALERT_WINDOW`. Workspace checks and 17 PostGIS API integration tests passed.

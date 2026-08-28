@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useReducer, useState } from 'react';
-import { SafeAreaView } from 'react-native';
+import { SafeAreaView, Text, View } from 'react-native';
 import { activityQueue } from './src/activity-queue.native';
 import { accountScopeFor, legacyAccountScopesFor } from './src/account-scope';
 import { activityRecorder } from './src/activity-recorder.native';
@@ -9,8 +9,11 @@ import type { AuthSession } from './src/auth-storage-core';
 import { createActivitySyncCoordinator } from './src/activity-sync';
 import { MobileApiClient } from './src/api-client';
 import { authStorage } from './src/auth-storage.native';
-import { styles } from './src/components/styles';
+import { FocusedFlexShell, FocusedScrollShell, TabScrollShell } from './src/components/ScreenShell';
+import { PrimaryButton } from './src/components/primitives';
+import { useAppStyles } from './src/components/styles';
 import { TabBar } from './src/navigation/TabBar';
+import { exitActivityFlow, isTabBarVisible, selectAppShell } from './src/navigation/app-shell';
 import type { Tab } from './src/navigation/types';
 import { initialOnboardingState, onboardingReducer } from './src/onboarding';
 import {
@@ -22,18 +25,27 @@ import { Onboarding } from './src/screens/OnboardingScreen';
 import {
   ClubsScreen,
   HomeScreen,
-  ProductScroll,
   ProfileScreen,
   QuestScreen,
   SeasonScreen
 } from './src/screens/ProductScreens';
+import { ThemeProvider, useAppTheme } from './src/theme/theme';
 
 const apiClient = new MobileApiClient(undefined, fetch, authStorage);
 const activitySync = createActivitySyncCoordinator(apiClient, activityRecorder);
-
 const accountIdFromSession = (session: AuthSession): string => accountScopeFor(session);
 
 export default function App() {
+  return (
+    <ThemeProvider>
+      <RunSphereApp />
+    </ThemeProvider>
+  );
+}
+
+function RunSphereApp() {
+  const { colorScheme, tokens } = useAppTheme();
+  const styles = useAppStyles();
   const [onboarding, dispatch] = useReducer(onboardingReducer, initialOnboardingState);
   const [activeTab, setActiveTab] = useState<Tab>('Home');
   const [activityStarted, setActivityStarted] = useState(false);
@@ -41,9 +53,13 @@ export default function App() {
   const [recording, setRecording] = useState<ActivitySession>();
   const [accountId, setAccountId] = useState<string>();
   const [restoring, setRestoring] = useState(true);
+  const [storageError, setStorageError] = useState(false);
+  const [storageAttempt, retryStorage] = useReducer((attempt: number) => attempt + 1, 0);
 
   useEffect(() => {
     let mounted = true;
+    setRestoring(true);
+    setStorageError(false);
     void (async () => {
       try {
         await Promise.all([activityQueue.initialize(), activityRecorder.initialize()]);
@@ -58,6 +74,7 @@ export default function App() {
         dispatch({ type: 'restoreSession' });
       } catch (error) {
         console.error('Unable to initialize encrypted activity storage', error);
+        if (mounted) setStorageError(true);
       } finally {
         if (mounted) setRestoring(false);
       }
@@ -65,9 +82,23 @@ export default function App() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [storageAttempt]);
 
-  if (restoring) return <SafeAreaView style={styles.screen} />;
+  if (restoring)
+    return <SafeAreaView style={[styles.screen, { backgroundColor: tokens.background.canvas }]} />;
+  if (storageError)
+    return (
+      <SafeAreaView style={[styles.screen, { backgroundColor: tokens.background.canvas }]}>
+        <View style={styles.loading}>
+          <Text style={styles.onboardingTitle}>Secure storage unavailable</Text>
+          <Text style={styles.lead}>
+            RunSphere could not unlock encrypted activity data. Recording stays disabled to protect
+            your local data.
+          </Text>
+          <PrimaryButton label="Try again" onPress={retryStorage} />
+        </View>
+      </SafeAreaView>
+    );
   if (onboarding.step !== 'complete')
     return (
       <Onboarding
@@ -82,12 +113,24 @@ export default function App() {
     setActivityStarted(true);
     setActiveTab('Home');
   };
+  const exitActivity = () => {
+    const next = exitActivityFlow(activeTab);
+    setActivityStarted(next.activityStarted);
+    setRecording(next.recording);
+    setActiveTab(next.activeTab);
+  };
+  const shell = selectAppShell({
+    activityStarted,
+    hasRecording: Boolean(recording),
+    liveInteractive: false
+  });
   const content =
     recording && accountId ? (
       <ActivityRecording
         session={recording}
         accountId={accountId}
         onChange={setRecording}
+        onExit={exitActivity}
         sync={activitySync}
       />
     ) : activityStarted && accountId ? (
@@ -95,6 +138,7 @@ export default function App() {
         accountId={accountId}
         initialMovement={movement}
         onChange={setRecording}
+        onExit={exitActivity}
       />
     ) : activeTab === 'Home' ? (
       <HomeScreen
@@ -131,16 +175,24 @@ export default function App() {
     );
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <StatusBar style="dark" />
-      <ProductScroll>{content}</ProductScroll>
-      <TabBar
-        activeTab={activeTab}
-        onChange={(tab) => {
-          setActivityStarted(false);
-          setActiveTab(tab);
-        }}
-      />
+    <SafeAreaView style={[styles.screen, { backgroundColor: tokens.background.canvas }]}>
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      {shell === 'tab-scroll' ? (
+        <TabScrollShell>{content}</TabScrollShell>
+      ) : shell === 'focused-scroll' ? (
+        <FocusedScrollShell>{content}</FocusedScrollShell>
+      ) : (
+        <FocusedFlexShell>{content}</FocusedFlexShell>
+      )}
+      {isTabBarVisible(shell) && (
+        <TabBar
+          activeTab={activeTab}
+          onChange={(tab) => {
+            setActivityStarted(false);
+            setActiveTab(tab);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }

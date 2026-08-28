@@ -28,4 +28,13 @@ describe('native activity queue adapter', () => {
     );
     expect(database.execAsync).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE'));
   });
+
+  it('shares concurrent initialization so key provisioning and schema setup run once', async () => {
+    const { activityQueue } = await import('./activity-queue.native.js');
+
+    await Promise.all([activityQueue.initialize(), activityQueue.initialize()]);
+
+    expect(prepareEncryptedDatabase).toHaveBeenCalledTimes(1);
+    expect(database.execAsync).toHaveBeenCalledTimes(1);
+  });
 });

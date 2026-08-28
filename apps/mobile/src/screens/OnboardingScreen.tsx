@@ -14,7 +14,7 @@ import {
   TextInput,
   View
 } from 'react-native';
-import { colors } from '@runsphere/ui';
+import { useAppTheme } from '../theme/theme';
 import type { MobileApiClient } from '../api-client';
 import { AuthFailure } from '../auth-failure';
 import { getLocationPermissionState } from '../location-permission';
@@ -26,7 +26,7 @@ import {
   PrimaryButton,
   StepHeader
 } from '../components/primitives';
-import { styles } from '../components/styles';
+import { useAppStyles } from '../components/styles';
 
 type AuthStatus = 'idle' | 'loading' | 'error';
 
@@ -41,6 +41,8 @@ export function Onboarding({
   dispatch: React.Dispatch<Parameters<typeof onboardingReducer>[1]>;
   onAuthenticated: (session: Awaited<ReturnType<MobileApiClient['login']>>) => void;
 }) {
+  const styles = useAppStyles();
+  const { colorScheme, tokens } = useAppTheme();
   const [authStatus, setAuthStatus] = useState<AuthStatus>('idle');
   const [authError, setAuthError] = useState<string>();
   const [authFailureKind, setAuthFailureKind] = useState<AuthFailure['kind']>();
@@ -112,7 +114,7 @@ export function Onboarding({
 
   return (
     <SafeAreaView style={styles.screen}>
-      <StatusBar style="dark" />
+      <StatusBar style={colorScheme === 'dark' ? 'dark' : 'light'} />
       <ScrollView
         contentContainerStyle={styles.onboardingContent}
         keyboardShouldPersistTaps="handled"
@@ -176,7 +178,7 @@ export function Onboarding({
                   value={state.name}
                   onChangeText={(name) => dispatch({ type: 'updateAccount', name })}
                   placeholder="How should we call you?"
-                  placeholderTextColor={colors.muted}
+                  placeholderTextColor={tokens.text.secondary}
                   style={styles.input}
                 />
               </>
@@ -190,7 +192,7 @@ export function Onboarding({
               value={state.email}
               onChangeText={(email) => dispatch({ type: 'updateAccount', email })}
               placeholder="you@example.com"
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={tokens.text.secondary}
               style={styles.input}
             />
             <Text style={styles.fieldLabel}>PASSWORD</Text>
@@ -202,7 +204,7 @@ export function Onboarding({
               value={state.password}
               onChangeText={(password) => dispatch({ type: 'updateAccount', password })}
               placeholder="At least 12 characters"
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={tokens.text.secondary}
               style={styles.input}
             />
             {state.accountMode === 'register' && (
@@ -313,7 +315,7 @@ export function Onboarding({
                 accessibilityLabel="Hide activity start and finish preference"
                 value={state.hideStartFinish}
                 onValueChange={(value) => dispatch({ type: 'setHideStartFinish', value })}
-                trackColor={{ false: colors.line, true: colors.teal }}
+                trackColor={{ false: tokens.border.subtle, true: tokens.status.success }}
               />
             </View>
             <Text style={styles.privateNote}>
