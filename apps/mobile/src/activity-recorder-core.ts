@@ -236,7 +236,7 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
     );
     return result.changes === 1;
   },
-  async heartbeat(id: string, accountId: string, at: string, durationSeconds: number): Promise<void> {
+  async heartbeat(id: string, accountId: string, at: string): Promise<void> {
     await database.runAsync(
       'UPDATE recorded_activities SET updated_at = ?, last_heartbeat_at = ? WHERE id = ? AND account_id = ?',
       at,

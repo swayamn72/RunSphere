@@ -138,12 +138,7 @@ export function ActivityRecording({
     if (!['active', 'resumed'].includes(current.state)) return;
     const interval = setInterval(() => {
       void activityRecorder
-        .heartbeat(
-          current.id,
-          accountId,
-          new Date().toISOString(),
-          current.durationSeconds
-        )
+        .heartbeat(current.id, accountId, new Date().toISOString())
         .then(async () => {
           const fresh = await activityRecorder.get(current.id, accountId);
           if (fresh) setCurrent(fresh);
@@ -163,7 +158,7 @@ export function ActivityRecording({
   };
   const finish = async () => {
     const at = new Date().toISOString();
-    await activityRecorder.heartbeat(current.id, accountId, at, current.durationSeconds);
+    await activityRecorder.heartbeat(current.id, accountId, at);
     await activityRecorder.transition(current.id, accountId, current.state, 'finishing', at);
     await activityRecorder.transition(
       current.id,
