@@ -74,6 +74,38 @@ Managed relational store / object storage / cache
   └─ cached proxy responses for approved geocoding
 ```
 
+### Gamification foundation
+
+The expansion follows the same single-API/single-worker/single-PostGIS posture.
+It does not introduce microservices, Redis, or WebSockets at the Foundation
+gate. The substrate is:
+
+- **Modular contracts/routes/jobs** — each gameplay capability (profiles,
+  friends/blocks, notifications, progression, challenges, clubs, competitions,
+  territory enrollment, campaigns, legal) ships its own TypeBox contracts, API
+  routes, and worker jobs instead of growing one monolith function.
+- **Versioned rules and periods** — scoring, achievement, competition, and
+  season rules carry a version, and weekly periods are immutable (ADR-0006).
+- **Event fan-out** — the existing transactional outbox fans finalized
+  activities and gameplay transitions out to progression, challenge, club,
+  competition, and notification consumers.
+- **Explicit domain evaluators and tables** — pace-neutral scoring, weekly
+  consistency, achievements, challenge results, club relays, leaderboard
+  standings, and territory use explicit evaluators and tables, not a generic
+  JSON game engine.
+- **Account email lifecycle** — verification, resend throttling, password
+  reset, change-email verification, old-address alert, session revocation, and
+  suppression/bounce handling converge on one audited path.
+- **Profiles/friends/blocks** — mutual friend authorization and block semantics
+  gate every challenge and shareable surface.
+- **Notification inbox/preferences** — a durable in-app inbox of record with
+  category preferences, quiet hours, and frequency caps (ADR-0009).
+- **Analytics schema** — derived, non-coordinate counters and events with
+  schema versions; no raw coordinates in analytics or logs.
+- **Legal versions** — Terms, Privacy Notice, Community Guidelines, and
+  Competition/Season Rules are versioned with consent records.
+- **Staff RBAC** — role-gated admin areas replace the single review page.
+
 ## Service boundaries
 
 | Boundary           | Responsibility                                                                         | Must not do                                                                           |
@@ -108,7 +140,16 @@ A failed quality gate is not an accusation of cheating. It is a transparent vali
 
 Core records are account, age assertion, consent, privacy zone, activity submission, raw trace object reference, trimmed activity, validation outcome, POI version, checkpoint version, quest version, season, enrollment, division assignment, score contribution, safety contact, and share session.
 
-Separate identifiers for source submission and derived activity are required. Derivations are reproducible using stored policy/version references. Encrypt data in transit and at rest; limit raw trace access to a least-privilege validation/support role. Store credentials in the platform secret facility rather than client binaries or repository files.
+The gamification foundation adds: profile, friend request, block, notification
+inbox entry, notification preference, progression/XP ledger, achievement
+definition and award, weekly period and snapshot, challenge definition and
+participation, club, club membership and role, club relay contribution,
+competition definition and enrollment, competition submission, leaderboard
+snapshot, territory season, enrollment, division assignment, cell contribution,
+weekly cell-control snapshot, legal-version record, campaign and campaign send,
+and staff role/assignment.
+
+Separate identifiers for source submission and derived activity are required. Derivations are reproducible using stored policy/version references. H3 indexes are stored as strings with pinned library, resolution, algorithm, privacy-policy, and scoring-rule versions. Encrypt data in transit and at rest; limit raw trace access to a least-privilege validation/support role. Store credentials in the platform secret facility rather than client binaries or repository files. Analytics receives derived counters or coarse aggregates only, never raw coordinates.
 
 ## Mapping and place-data policy
 
@@ -122,3 +163,9 @@ OpenStreetMap/Nominatim output is discovery input, not automatic checkpoint trut
 - [ADR-0002: Server-side privacy trimming and provenance](adr/0002-server-side-privacy-trimming.md)
 - [ADR-0003: Controlled synthetic GPS test mode](adr/0003-synthetic-gps-test-mode.md)
 - [ADR-0004: Curated MMR data with proxied Nominatim discovery](adr/0004-mmr-place-data.md)
+- [ADR-0005: Pace-neutral scoring and cosmetic progression](adr/0005-pace-neutral-cosmetic-progression.md)
+- [ADR-0006: Asia/Kolkata weekly periods and immutable snapshot resets](adr/0006-weekly-periods-immutable-snapshots.md)
+- [ADR-0007: Opt-in, privacy-minimized leaderboards](adr/0007-opt-in-privacy-minimized-leaderboards.md)
+- [ADR-0008: Seasonal territory — weekly ownership rounds and capped control-days](adr/0008-seasonal-territory-weekly-resets.md)
+- [ADR-0009: Durable notifications first; defer Redis and WebSockets](adr/0009-durable-notifications-first.md)
+- [ADR-0010: Cost governance — soft target with approval bands](adr/0010-cost-governance-approval-bands.md)

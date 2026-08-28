@@ -86,3 +86,66 @@ Retention durations and deletion-service objectives must be published before pub
 - consent and permission guidance.
 
 No photos are accepted, processed, or retained in v1. The results mockup’s “Add photos or notes” affordance is not a v1 commitment; it must be hidden or replaced with non-upload functionality until a later approved policy and architecture decision.
+
+## Social identity, friends, and blocks
+
+Friendship and challenge surfaces are gated by mutual authorization. A friend
+request must be accepted by both accounts before any challenge or friend board
+uses the relationship. Blocking is symmetric from the blocker's perspective: it
+immediately removes the other account from friend boards, challenge creation,
+and any shareable surface, and it is reversible. A blocked account is never
+notified that it was blocked.
+
+Social surfaces expose only an approved display identity and cosmetic, never
+coarse location, exact route, or activity timestamps. No location-based
+discovery of nearby runners exists.
+
+## Clubs and competition privacy
+
+Club boards, challenges, relays, and competitions are isolated by `club_id` and
+visible only to active members or enrolled participants. Leaving, removal,
+suspension, or archive immediately removes access while preserving audited
+historical results according to policy. Club relays and leaderboards receive
+only aggregate completion data — never another member's route, location, pace,
+or raw contribution details.
+
+## Territory and leaderboard privacy
+
+Global leaderboards are opt-in only, off by default, and separately revocable.
+They rank only server-derived pace-neutral scores and expose no location, route,
+activity detail, timestamps, or live state. See
+[ADR-0007](adr/0007-opt-in-privacy-minimized-leaderboards.md).
+
+Territory uses validated H3-cell aggregates only. Other participants' map cells
+expose no route, timestamp, exact start/finish, or owner identity. Territory
+contribution and cell-control rules are defined in
+[ADR-0008](adr/0008-seasonal-territory-weekly-resets.md).
+
+## Notifications and push
+
+The durable in-app inbox is the source of truth. Push contains an opaque
+notification ID and a safe deep link, never location or sensitive scores. The
+app requests Android notification permission in context and honors category
+preferences, quiet hours, and frequency caps. Notification payloads are
+coordinate-scrubbed like crash and analytics data.
+
+## Campaign email
+
+Transactional email (verification, password reset, change-email, security) is
+separate from opt-in product campaigns. Campaigns require consent, a visible
+one-click unsubscribe, provider authentication, signed webhook handling, send
+caps, test sends, and an audited pause/cancel path. Suppression and bounce
+handling converge with account deletion.
+
+## Legal versioning and compliance
+
+Terms, Privacy Notice, Community Guidelines, and Competition/Season Rules are
+versioned, and consent records reference the exact version presented. Disclosures
+must be updated for location derivation, H3 territory, social identity,
+challenges, clubs, moderation, profiling/recommendations, analytics, processors,
+push, email, export, and deletion before each relevant phase ships.
+
+Before public rollout, confirm the final implementation against current MeitY
+DPDP Rules, Google Play UGC/account-deletion policies (including a public web
+deletion-request path in addition to in-app deletion), Android notification
+requirements, and sender-provider rules.
