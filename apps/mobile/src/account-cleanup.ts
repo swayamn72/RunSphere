@@ -1,5 +1,5 @@
-import type { ActivityQueue } from './activity-queue';
-import type { AuthStorage } from './auth-storage';
+import type { ActivityQueue } from './activity-queue-core';
+import type { AuthStorage } from './auth-storage-core';
 
 /** Clears all data scoped to the signed-in account on logout or account deletion. */
 export const clearAccountData = async (

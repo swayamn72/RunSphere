@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MobileApiClient } from './api-client.js';
-import { createAuthStorage, type SecureKeyValueStore } from './auth-storage.js';
+import { createAuthStorage, type SecureKeyValueStore } from './auth-storage-core.js';
 
 class MemorySecureStore implements SecureKeyValueStore {
   private readonly values = new Map<string, string>();

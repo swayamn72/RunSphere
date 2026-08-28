@@ -1,8 +1,8 @@
 import type { LoginRequest, QuestSummary, RegisterRequest } from '@runsphere/contracts';
-import type { AuthSession, AuthStorage } from './auth-storage';
+import type { AuthSession, AuthStorage } from './auth-storage-core';
 import { getApiBaseUrl } from './api-config';
 
-export type { AuthSession } from './auth-storage';
+export type { AuthSession } from './auth-storage-core';
 
 export class MobileApiClient {
   constructor(
