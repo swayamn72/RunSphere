@@ -41,21 +41,24 @@ export const createActivitySyncCoordinator = (
         remoteId = created.id;
         await recorder.setRemote(session.id, session.accountId, remoteId);
       }
-      const remote = await api.activityStatus(remoteId);
-      const pending = remote.missingSequences ?? chunks.map((chunk) => chunk.sequence);
-      for (const sequence of pending) {
-        const chunk = chunks[sequence];
-        if (chunk) await api.uploadActivityChunk(remoteId, chunk);
+      // Recovery is authoritative: it identifies only valid local chunks that are still missing.
+      const remote = await api.recoverActivitySync(remoteId, chunks.length);
+      if (remote.status === 'rejected') {
+        await recorder.transition(session.id, session.accountId, 'syncing', 'processed', new Date().toISOString());
+        return { session: (await recorder.get(session.id, session.accountId))!, status: remote };
       }
-      const finalized = await api.finalizeActivity(remoteId, chunks);
-      const target = finalized.status === 'derived' ? 'processed' : 'queued';
-      await recorder.transition(
-        session.id,
-        session.accountId,
-        'syncing',
-        target,
-        new Date().toISOString()
+      if (['validating', 'accepted', 'derived'].includes(remote.status)) {
+        const target = remote.status === 'derived' ? 'processed' : 'queued';
+        await recorder.transition(session.id, session.accountId, 'syncing', target, new Date().toISOString());
+        return { session: (await recorder.get(session.id, session.accountId))!, status: remote };
+      }
+      const pending = (remote.missingSequences ?? []).filter(
+        (sequence) => Number.isInteger(sequence) && sequence >= 0 && sequence < chunks.length
       );
+      for (const sequence of pending) await api.uploadActivityChunk(remoteId, chunks[sequence]!);
+      const finalized = await api.finalizeActivity(remoteId, chunks);
+      const target = finalized.status === 'derived' || finalized.status === 'rejected' ? 'processed' : 'queued';
+      await recorder.transition(session.id, session.accountId, 'syncing', target, new Date().toISOString());
       return { session: (await recorder.get(session.id, session.accountId))!, status: finalized };
     } catch (error) {
       await recorder.markSyncFailure(

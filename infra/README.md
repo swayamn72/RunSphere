@@ -64,6 +64,16 @@ Before a public launch:
 5. Do not enable the `scale` placeholder directly. Replace it with tested managed replication, read routing, failover, and backup procedures once production load requires it.
 6. Budget mapping/routing data hosting separately. A regional routing extract may exceed the limits and budget of the base stack.
 
+## Service probes and metrics
+
+The API provides three intentionally separate operational endpoints:
+
+- `GET /health` is a liveness response and does not require a database.
+- `GET /ready` verifies the database query path and returns `503` until it is usable; point deployment readiness checks here.
+- `GET /metrics` exposes low-cardinality Prometheus text metrics for process uptime and response status totals. Keep it private to the monitoring collector; it has no user, activity, location, or token labels.
+
+Alert when readiness fails for 5 minutes, 5xx responses exceed 2% over 15 minutes, or the production budget crosses the 70%/85% thresholds in [the cost model](../docs/cost-model.md#cost-gates-and-fallback-actions). Do not expose `/metrics`, pgAdmin, Postgres, Martin, or Valhalla on the public internet.
+
 ## CI
 
-The repository workflow provisions the same PostgreSQL 18 + PostGIS image as a GitHub Actions service, installs and verifies PostGIS, checks formatting, runs the infrastructure validator test suite, and runs the workspace lint, type-check, test, API health-endpoint test, and build commands.
+The repository workflow provisions the same PostgreSQL 18 + PostGIS image as a GitHub Actions service, uses Node 22.21.0 to match the declared 22.x engine, installs and verifies PostGIS, checks formatting, validates MapLibre New Architecture compatibility before map rendering is introduced, runs the infrastructure validator test suite, and runs the workspace lint, type-check, test, API health-endpoint test, and build commands.

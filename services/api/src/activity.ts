@@ -25,20 +25,67 @@ export const distanceMeters = (a: TracePoint, b: TracePoint) => {
     Math.cos(radians(a.latitude)) * Math.cos(radians(b.latitude)) * Math.sin(lon / 2) ** 2;
   return 2 * earth * Math.asin(Math.sqrt(x));
 };
-export const summarize = (points: TracePoint[]) => ({
-  distanceMeters: points
-    .slice(1)
-    .reduce((sum, point, index) => sum + distanceMeters(points[index]!, point), 0),
-  durationSeconds:
-    points.length > 1
-      ? Math.max(
-          0,
-          (Date.parse(points.at(-1)!.recordedAt) - Date.parse(points[0]!.recordedAt)) / 1000
-        )
-      : 0,
-  pointCount: points.length,
-  privacyTrimmed: false
-});
+export interface ValidationOutput {
+  activeDurationSeconds: number;
+  distanceMeters: number;
+  acceptedPointCount: number;
+  rejectedPointCount: number;
+  rejectedGapCount: number;
+}
+
+const maximumAcceptedAccuracyMeters = 50;
+const maximumContinuousGapSeconds = 60;
+const maximumMovementMetersPerSecond = 25_000 / 3_600;
+
+/**
+ * Builds the activity totals from accepted validation segments. Time while paused,
+ * invalid, or separated by a rejected gap never contributes to active duration.
+ */
+export const validateTrace = (points: TracePoint[]): ValidationOutput => {
+  const accepted = points.map(
+    (point) =>
+      (point.accuracyMeters ?? maximumAcceptedAccuracyMeters) <= maximumAcceptedAccuracyMeters
+  );
+  let activeDurationSeconds = 0;
+  let distance = 0;
+  let rejectedGapCount = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    const prior = points[index - 1]!;
+    const current = points[index]!;
+    if (!accepted[index - 1] || !accepted[index]) continue;
+    const seconds = (Date.parse(current.recordedAt) - Date.parse(prior.recordedAt)) / 1_000;
+    const segmentDistance = distanceMeters(prior, current);
+    if (
+      !Number.isFinite(seconds) ||
+      seconds <= 0 ||
+      seconds > maximumContinuousGapSeconds ||
+      segmentDistance / seconds > maximumMovementMetersPerSecond
+    ) {
+      rejectedGapCount += 1;
+      continue;
+    }
+    activeDurationSeconds += seconds;
+    distance += segmentDistance;
+  }
+  const acceptedPointCount = accepted.filter(Boolean).length;
+  return {
+    activeDurationSeconds,
+    distanceMeters: distance,
+    acceptedPointCount,
+    rejectedPointCount: points.length - acceptedPointCount,
+    rejectedGapCount
+  };
+};
+export const summarize = (points: TracePoint[], validation = validateTrace(points)) => {
+  return {
+    distanceMeters: validation.distanceMeters,
+    durationSeconds: validation.activeDurationSeconds,
+    pointCount: validation.acceptedPointCount,
+    rejectedPointCount: validation.rejectedPointCount,
+    rejectedGapCount: validation.rejectedGapCount,
+    privacyTrimmed: false
+  };
+};
 export const loadPoints = async (db: Database, activityId: string): Promise<TracePoint[]> => {
   const chunks = await db.query<{ payload: ActivityChunkRequest }>(
     'SELECT payload FROM activity_chunks WHERE activity_id = $1 ORDER BY sequence',
@@ -98,7 +145,11 @@ export const processActivity = async (db: Database, activityId: string): Promise
       })
     : null;
   const appliedZones = trim.rows[0]?.applied_zones ?? [];
-  const summary = { ...summarize(points), privacyTrimmed: keptIndexes.size !== points.length };
+  const validation = validateTrace(points);
+  const summary = {
+    ...summarize(points, validation),
+    privacyTrimmed: keptIndexes.size !== points.length
+  };
   await db.query(
     `INSERT INTO activity_derivations (activity_id, shareable_route, source_checksum, route_checksum, policy_version, algorithm_version, applied_zone_ids, applied_zones, removed_point_count, outcome)
      SELECT $1, CASE WHEN $2::jsonb IS NULL THEN NULL ELSE ST_SetSRID(ST_GeomFromGeoJSON($2), 4326) END,
@@ -116,6 +167,39 @@ export const processActivity = async (db: Database, activityId: string): Promise
       JSON.stringify(appliedZones),
       points.length - keptIndexes.size,
       route ? 'trimmed' : 'no-shareable-route'
+    ]
+  );
+  await db.query(
+    `INSERT INTO activity_validation_outputs
+      (activity_id, active_duration_seconds, distance_meters, accepted_point_count, rejected_point_count, rejected_gap_count, validation_algorithm_version)
+     VALUES ($1, $2, $3, $4, $5, $6, 'product-core-validation-v1')
+     ON CONFLICT (activity_id) DO NOTHING`,
+    [
+      activityId,
+      Math.round(validation.activeDurationSeconds),
+      validation.distanceMeters,
+      validation.acceptedPointCount,
+      validation.rejectedPointCount,
+      validation.rejectedGapCount
+    ]
+  );
+  await db.query(
+    `INSERT INTO activity_validation_runs
+      (activity_id, source_checksum, validation_policy_version, validation_algorithm_version, outcome,
+       accepted_segment_count, excluded_gap_seconds, details)
+     VALUES ($1, $2, 'm2-privacy-200m', 'product-core-validation-v1', $3, $4, $5, $6::jsonb)`,
+    [
+      activityId,
+      activity.rows[0].source_checksum,
+      route ? 'accepted' : 'partial',
+      routeSegments.length,
+      validation.rejectedGapCount * maximumContinuousGapSeconds,
+      JSON.stringify({
+        acceptedPointCount: validation.acceptedPointCount,
+        rejectedPointCount: validation.rejectedPointCount,
+        rejectedGapCount: validation.rejectedGapCount,
+        removedPointCount: points.length - keptIndexes.size
+      })
     ]
   );
   await db.query(

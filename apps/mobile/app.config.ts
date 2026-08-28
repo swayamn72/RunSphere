@@ -14,7 +14,6 @@ const config: ExpoConfig = {
       'android.permission.ACCESS_COARSE_LOCATION',
       'android.permission.ACCESS_FINE_LOCATION',
       'android.permission.ACTIVITY_RECOGNITION',
-      'android.permission.ACCESS_BACKGROUND_LOCATION',
       'android.permission.FOREGROUND_SERVICE',
       'android.permission.FOREGROUND_SERVICE_LOCATION',
       'android.permission.INTERNET',
@@ -31,7 +30,7 @@ const config: ExpoConfig = {
   },
   plugins: [
     'expo-secure-store',
-    'expo-sqlite',
+    ['expo-sqlite', { useSQLCipher: true }],
     [
       'expo-location',
       {

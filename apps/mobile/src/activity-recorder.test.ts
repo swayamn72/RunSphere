@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   ACTIVITY_RECORDER_SCHEMA_VERSION,
+  acceptedSegment,
   createActivityRecorder,
+  isWeakGpsSample,
   type ActivitySession,
   type RecorderDatabase
 } from './activity-recorder-core.js';
@@ -67,16 +69,20 @@ class MemoryDatabase implements RecorderDatabase {
         number | null
       ];
       this.samples.push({ activityId, recordedAt, latitude, longitude, accuracy, altitude });
+    } else if (sql.includes('SET account_id')) {
+      const stored = this.session;
+      if (stored && stored.accountId === params[1]) stored.accountId = params[0] as string;
     } else if (sql.includes('SET distance_meters')) {
       this.session!.distanceMeters += params[0] as number;
+      this.session!.durationSeconds += params[1] as number;
       this.session!.acceptedSamples++;
-      this.session!.updatedAt = params[1] as string;
+      this.session!.updatedAt = params[2] as string;
     } else if (sql.includes('SET state')) {
       if (!this.session || this.session.state !== params[8]) return { changes: 0 };
       this.session.state = params[0] as ActivitySession['state'];
       this.session.updatedAt = params[1] as string;
     } else if (sql.includes('SET updated_at')) {
-      this.session!.durationSeconds = params[2] as number;
+      this.session!.updatedAt = params[0] as string;
     } else if (sql.startsWith('DELETE')) this.session = undefined;
     return { changes: 1 };
   }
@@ -86,7 +92,10 @@ class MemoryDatabase implements RecorderDatabase {
     if (sql.includes('account_id') && requestedAccount !== this.session?.accountId) return null;
     return (this.session ?? null) as T | null;
   }
-  async getAllAsync<T>(): Promise<T[]> {
+  async getAllAsync<T>(sql: string, ...params: unknown[]): Promise<T[]> {
+    if (sql.includes('activity_location_samples')) return this.samples as T[];
+    if (sql.includes('WHERE account_id = ?') && params[0] === this.session?.accountId)
+      return [this.session] as T[];
     return [];
   }
 }
@@ -148,6 +157,63 @@ describe('activity recorder', () => {
       acceptedSamples: 2,
       distanceMeters: expect.any(Number)
     });
+  });
+  it('only treats weak-accuracy samples as weak GPS, not duplicate or speed-rejected samples', () => {
+    expect(
+      isWeakGpsSample({
+        recordedAt: base.startedAt,
+        latitude: 19.076,
+        longitude: 72.8777,
+        accuracy: 80,
+        altitude: null
+      })
+    ).toBe(true);
+    expect(
+      isWeakGpsSample({
+        recordedAt: base.startedAt,
+        latitude: 19.076,
+        longitude: 72.8777,
+        accuracy: 8,
+        altitude: null
+      })
+    ).toBe(false);
+  });
+  it('re-keys legacy local rows to the stable server account UUID with count/checksum verification', async () => {
+    const database = new MemoryDatabase();
+    const recorder = createActivityRecorder(database);
+    await recorder.create({ ...base, accountId: 'account:legacy-token-hash' });
+    await expect(
+      recorder.rekeyLegacyScopes('8e7b0924-12fe-48d7-9bca-2ab3c055fa10', ['account:legacy-token-hash'])
+    ).resolves.toBe(1);
+  });
+  it('retains a private sample after a gap while excluding its segment from eligible totals', async () => {
+    const database = new MemoryDatabase();
+    const recorder = createActivityRecorder(database);
+    await recorder.create(base);
+    await recorder.transition(base.id, base.accountId, 'prepare', 'acquiring', base.startedAt);
+    await recorder.transition(base.id, base.accountId, 'acquiring', 'active', base.startedAt);
+    const initial = {
+      recordedAt: '2026-08-28T10:00:00Z',
+      latitude: 19.076,
+      longitude: 72.8777,
+      accuracy: 8,
+      altitude: null
+    };
+    const afterGap = { ...initial, recordedAt: '2026-08-28T10:01:01Z', latitude: 19.077 };
+
+    await recorder.appendSample(base.id, base.accountId, initial);
+    await recorder.appendSample(base.id, base.accountId, afterGap);
+
+    expect(await recorder.samples(base.id, base.accountId)).toEqual([
+      { ...initial, activityId: base.id },
+      { ...afterGap, activityId: base.id }
+    ]);
+    await expect(recorder.get(base.id, base.accountId)).resolves.toMatchObject({
+      acceptedSamples: 2,
+      distanceMeters: 0,
+      durationSeconds: 0
+    });
+    expect(acceptedSegment(initial, afterGap)).toEqual({ distanceMeters: 0, durationSeconds: 0 });
   });
   it('accepts only durable lifecycle transitions', async () => {
     const recorder = createActivityRecorder(new MemoryDatabase());

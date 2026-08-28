@@ -17,6 +17,9 @@ importers:
       eslint:
         specifier: 9.39.4
         version: 9.39.4
+      pg:
+        specifier: 8.16.3
+        version: 8.16.3
       prettier:
         specifier: 3.9.6
         version: 3.9.6
@@ -174,6 +177,9 @@ importers:
       '@runsphere/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@runsphere/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
       argon2:
         specifier: ^0.45.1
         version: 0.45.1

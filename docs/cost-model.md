@@ -29,13 +29,32 @@ Nominatim is used only through the server proxy/cache described in [architecture
 | Contingency                        |             250 | Held for small usage variance; no feature expansion funded implicitly.                                |
 | **Total**                          |       **3,000** | Do not exceed without an approved budget decision.                                                    |
 
+## Staging and production cost spike
+
+Use separate provider projects/accounts and immutable cost-centre tags (`environment=staging` and `environment=production`) so staging cannot consume production contingency. The initial monthly allocation is intentionally below the cap to absorb metering variance:
+
+| Environment | API/worker | Database + backup | Storage/maps/observability/auth | Reserved variance | Total (₹) |
+| ----------- | ---------: | ----------------: | ------------------------------: | ----------------: | --------: |
+| Staging     |        150 |               150 |                             100 |                 0 |       400 |
+| Production  |        650 |               600 |                             950 |               400 |     2,600 |
+| **Combined**|    **800** |           **750** |                       **1,050** |           **400** | **3,000** |
+
+Provision only a single MMR-region production stack: a small API/worker runtime, one managed Postgres/PostGIS primary with daily backup and restore validation, object storage with lifecycle deletion, cache-first place lookup, and sampled/scrubbed logs. Staging uses the same migration and readiness checks but autosuspends outside release windows. Martin, Valhalla, replicas, and territory are excluded from this spike; enabling any of them requires an approved amended forecast.
+
+### Encryption and key-management trade-offs
+
+- **Recommended launch posture:** use managed database/object-storage encryption at rest with a provider-managed key, TLS in transit, separate least-privilege runtime roles, encrypted backups, and secret-manager rotation. This stays inside the cap and avoids an extra key-management service or a self-hosted key escrow burden.
+- **Trade-off:** provider-managed keys provide less tenant-controlled rotation/audit separation than customer-managed keys. Record the provider key identifiers and access policy in deployment inventory; raw traces remain restricted and expire through lifecycle controls.
+- **Do not self-manage encryption keys** at launch: keeping KMS material, recovery, rotation, HSM backups, and dual-control procedures operationally correct would exceed the team and budget constraints. Move to customer-managed keys only after a legal/compliance requirement and a funded recovery exercise.
+
 ## Cost gates and fallback actions
 
-- Alert at 70% (₹2,100), investigate at 85% (₹2,550), and block non-essential traffic/features before projected spend crosses ₹3,000.
-- Monthly reporting must separate production, staging, and development use; staging cannot consume the production contingency.
+- Set provider budget notifications at **70% (₹2,100)** and **85% (₹2,550)** of the combined cap. Route both to the on-call operations channel and finance owner; create a ticket automatically at 70% and page the release owner at 85%.
+- At 70%, freeze non-production spend, inspect per-provider daily run rate, and reduce cache-miss/map lookup, verbose logs, and non-essential jobs. At 85%, autosuspend staging, block new non-essential processing, and require an explicit budget approval before resuming. Do not weaken privacy, deletion, backup, or activity validation safeguards.
+- Review provider invoices and tagged usage weekly; record actuals separately for production, staging, and development. Staging cannot consume the production contingency.
 - If map/geocoding spend grows, reduce live lookup through cache/curated data before reducing privacy or validation safeguards.
 - If storage grows, adjust retention only after privacy/legal approval; do not silently retain less data than a published policy.
-- A territory season needs a separate pre-season capacity forecast for validation-worker and database load. Do not open enrollment if the forecast breaks the cap.
+- A territory season needs a separate pre-season capacity forecast for validation-worker and database load. Do not open enrollment if the forecast breaks the cap; **territory remains off** for this launch slice.
 
 ## Baseline measurements that affect cost
 

@@ -9,9 +9,9 @@ export const isSyntheticLocationEnabled =
   __DEV__ && process.env.EXPO_PUBLIC_SYNTHETIC_LOCATION === 'true';
 
 export interface LocationAdapter {
-  requestLockedScreenPermission(): Promise<Location.PermissionResponse>;
-  start(): Promise<void>;
-  stop(): Promise<void>;
+  requestBackgroundPermission(): Promise<Location.PermissionResponse>;
+  startBackground(): Promise<void>;
+  stopBackground(): Promise<void>;
   subscribe(onSample: (sample: LocationSample) => void): Promise<Location.LocationSubscription>;
 }
 
@@ -27,9 +27,12 @@ const options: Location.LocationTaskOptions = {
 };
 
 export const nativeLocationAdapter: LocationAdapter = {
-  requestLockedScreenPermission: () => Location.requestBackgroundPermissionsAsync(),
-  start: () => Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, options),
-  stop: () => Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME),
+  requestBackgroundPermission: () => Location.requestBackgroundPermissionsAsync(),
+  startBackground: () => Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, options),
+  stopBackground: async () => {
+    if (await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME))
+      await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+  },
   subscribe: async (onSample) =>
     Location.watchPositionAsync(options, (location) =>
       onSample({
@@ -61,15 +64,15 @@ const configuredSyntheticSamples = (): LocationSample[] => {
 export const createSyntheticLocationAdapter = (
   samples: readonly LocationSample[]
 ): LocationAdapter => ({
-  requestLockedScreenPermission: () =>
+  requestBackgroundPermission: () =>
     Promise.resolve({
       status: 'granted',
       granted: true,
       canAskAgain: false,
       expires: 'never'
     } as Location.PermissionResponse),
-  start: async () => undefined,
-  stop: async () => undefined,
+  startBackground: async () => undefined,
+  stopBackground: async () => undefined,
   subscribe: async (onSample) =>
     ({ remove: replaySamples(samples, onSample) }) as Location.LocationSubscription
 });
@@ -79,23 +82,37 @@ export const syntheticLocationAdapter: LocationAdapter | undefined = isSynthetic
 
 export const recordingLocationAdapter = syntheticLocationAdapter ?? nativeLocationAdapter;
 
-TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
-  if (error) {
-    console.warn('Activity location task failed', error.message);
-    return;
-  }
-  const session = await activityRecorder.recoverAnyActive();
-  const locations =
-    (data as { locations?: Location.LocationObject[] } | undefined)?.locations ?? [];
-  // Android can wake the task with a batch. Bound every write burst to protect SQLite and process death recovery.
-  for (const location of locations.slice(-20)) {
-    if (!session) break;
-    await activityRecorder.appendSample(session.id, session.accountId, {
+export const persistBackgroundLocations = async (
+  data: { locations?: Location.LocationObject[] } | undefined,
+  recorder: Pick<
+    typeof activityRecorder,
+    'initialize' | 'recoverAnyActive' | 'appendSample'
+  > = activityRecorder
+): Promise<void> => {
+  await recorder.initialize();
+  const session = await recorder.recoverAnyActive();
+  // Android can wake the task with a batch. Process every ordered sample; SQLite writes are awaited
+  // so a process death cannot skip a tail of the batch.
+  if (!session) return;
+  for (const location of data?.locations ?? []) {
+    await recorder.appendSample(session.id, session.accountId, {
       recordedAt: new Date(location.timestamp).toISOString(),
       latitude: location.coords.latitude,
       longitude: location.coords.longitude,
       accuracy: location.coords.accuracy,
       altitude: location.coords.altitude
     });
+  }
+};
+
+TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
+  if (error) {
+    console.warn('Activity location task failed', error.message);
+    return;
+  }
+  try {
+    await persistBackgroundLocations(data as { locations?: Location.LocationObject[] } | undefined);
+  } catch (taskError) {
+    console.warn('Unable to persist activity location batch', taskError);
   }
 });

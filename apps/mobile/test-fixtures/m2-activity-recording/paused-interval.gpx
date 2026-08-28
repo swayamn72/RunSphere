@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="RunSphere">
+  <trk><name>paused-interval</name><trkseg>
+    <trkpt lat="19.076000" lon="72.877700"><time>2026-08-28T06:00:00Z</time></trkpt>
+    <trkpt lat="19.076150" lon="72.877850"><time>2026-08-28T06:00:05Z</time></trkpt>
+    <!-- Pause begins here; the 90 second interval must not count toward active duration. -->
+    <trkpt lat="19.076150" lon="72.877850"><time>2026-08-28T06:01:35Z</time></trkpt>
+    <trkpt lat="19.076300" lon="72.878000"><time>2026-08-28T06:01:40Z</time></trkpt>
+  </trkseg></trk>
+</gpx>

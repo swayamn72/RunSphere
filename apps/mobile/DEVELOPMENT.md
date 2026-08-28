@@ -1,6 +1,6 @@
 # Android debug APK
 
-The committed `android/` directory is the reproducible native path for Android development. It is generated from `app.config.ts` and should be refreshed deliberately with `pnpm prebuild:android` when Expo native settings change.
+The committed `android/` directory is the reproducible native path for Android development. It is generated from `app.config.ts` and should be refreshed deliberately with `pnpm prebuild:android` when Expo native settings change. The activity recorder enables SQLCipher through the Expo SQLite plugin, so regenerate Android before assembling after this setting changes; SQLCipher affects every Expo SQLite database in the app, and each must set its key before any access.
 
 ## Prerequisites
 

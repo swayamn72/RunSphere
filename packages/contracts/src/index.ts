@@ -11,17 +11,84 @@ export const HealthResponseSchema = Type.Object(
   },
   { $id: 'HealthResponse' }
 );
+export const ReadinessResponseSchema = Type.Object(
+  {
+    status: Type.Union([Type.Literal('ready'), Type.Literal('not_ready')]),
+    service: Type.Literal('api')
+  },
+  { $id: 'ReadinessResponse' }
+);
+export const StaffReviewAuthorizationHeadersSchema = Type.Object(
+  { authorization: Type.String({ pattern: '^Bearer\\s+\\S+$' }) },
+  { additionalProperties: true, $id: 'StaffReviewAuthorizationHeaders' }
+);
+export const StaffReviewItemSchema = Type.Object(
+  {
+    id: UuidSchema,
+    status: Type.Union([
+      Type.Literal('received'),
+      Type.Literal('validating'),
+      Type.Literal('rejected')
+    ]),
+    submittedAt: Type.String({ format: 'date-time' }),
+    rejectionReason: Type.Optional(Type.String()),
+    validationErrors: Type.Array(Type.String({ maxLength: 160 }), { maxItems: 20 })
+  },
+  { $id: 'StaffReviewItem' }
+);
+export const StaffReviewQueueResponseSchema = Type.Object(
+  { data: Type.Array(StaffReviewItemSchema, { maxItems: 100 }) },
+  { $id: 'StaffReviewQueueResponse' }
+);
 
+const AccessibilitySchema = Type.Union([
+  Type.Literal('step-free'),
+  Type.Literal('mixed'),
+  Type.Literal('unknown')
+]);
+const OpenHoursSchema = Type.Object(
+  {
+    timezone: Type.String({ minLength: 1, maxLength: 64 }),
+    schedule: Type.String({ minLength: 1, maxLength: 500 }),
+    status: Type.Union([Type.Literal('open'), Type.Literal('limited'), Type.Literal('closed')])
+  },
+  Strict
+);
 export const QuestSummarySchema = Type.Object(
   {
     id: Type.String({ minLength: 1 }),
     title: Type.String({ minLength: 1 }),
-    distanceKm: Type.Number({ exclusiveMinimum: 0 }),
-    durationMinutes: Type.Integer({ minimum: 1 }),
-    rewardXp: Type.Integer({ minimum: 0 }),
-    accessibility: Type.Union([Type.Literal('step-free'), Type.Literal('mixed')])
+    distanceMeters: Type.Integer({ minimum: 1 }),
+    estimatedActiveMinutes: Type.Integer({ minimum: 1 }),
+    accessibility: AccessibilitySchema,
+    openHours: OpenHoursSchema,
+    checkpointCount: Type.Integer({ minimum: 1 }),
+    /** @deprecated Compatibility-only field; v1 API responses never include XP. */
+    rewardXp: Type.Optional(Type.Integer({ minimum: 0 }))
   },
   { $id: 'QuestSummary' }
+);
+export const QuestCheckpointSchema = Type.Object(
+  {
+    id: Type.String({ format: 'uuid' }),
+    kind: Type.Union([Type.Literal('place'), Type.Literal('route'), Type.Literal('area')]),
+    title: Type.String({ minLength: 1 }),
+    geometry: Type.Unknown(),
+    geometryVersion: Type.Integer({ minimum: 1 }),
+    accessibility: AccessibilitySchema,
+    openHours: OpenHoursSchema
+  },
+  Strict
+);
+export const QuestDetailSchema = Type.Intersect(
+  [
+    QuestSummarySchema,
+    Type.Object({
+      checkpoints: Type.Array(QuestCheckpointSchema, { minItems: 1, maxItems: 20 }),
+      sourceReviewedAt: Type.String({ format: 'date-time' })
+    })
+  ],
+  { $id: 'QuestDetail' }
 );
 export const QuestListResponseSchema = Type.Object(
   { data: Type.Array(QuestSummarySchema) },
@@ -69,25 +136,17 @@ export const AuthResponseSchema = Type.Object(
   },
   { $id: 'AuthResponse' }
 );
-const CoordinateSchema = Type.Array(Type.Number(), { minItems: 2, maxItems: 2 });
-const GeoJsonPointSchema = Type.Object(
-  { type: Type.Literal('Point'), coordinates: CoordinateSchema },
-  Strict
-);
-const GeoJsonPolygonSchema = Type.Object(
+const LocationCenterSchema = Type.Object(
   {
-    type: Type.Literal('Polygon'),
-    coordinates: Type.Array(Type.Array(CoordinateSchema, { minItems: 4, maxItems: 1000 }), {
-      minItems: 1,
-      maxItems: 50
-    })
+    latitude: Type.Number({ minimum: -90, maximum: 90 }),
+    longitude: Type.Number({ minimum: -180, maximum: 180 })
   },
   Strict
 );
 export const PrivacyZoneRequestSchema = Type.Object(
   {
     name: Type.String({ minLength: 1, maxLength: 80 }),
-    geometry: Type.Union([GeoJsonPointSchema, GeoJsonPolygonSchema])
+    center: LocationCenterSchema
   },
   { ...Strict, $id: 'PrivacyZoneRequest' }
 );
@@ -95,11 +154,149 @@ export const PrivacyZoneResponseSchema = Type.Object(
   {
     id: UuidSchema,
     name: Type.String(),
-    geometry: Type.Unknown(),
+    center: LocationCenterSchema,
+    radiusMeters: Type.Literal(200),
     geometryVersion: Type.Integer({ minimum: 1 })
   },
   { $id: 'PrivacyZoneResponse' }
 );
+export const WeeklyGoalRequestSchema = Type.Object(
+  {
+    activeMinutes: Type.Optional(Type.Integer({ minimum: 1, maximum: 10_080 })),
+    distanceMeters: Type.Optional(Type.Integer({ minimum: 1, maximum: 1_000_000 }))
+  },
+  { ...Strict, minProperties: 1, $id: 'WeeklyGoalRequest' }
+);
+export const WeeklyGoalResponseSchema = Type.Object(
+  {
+    weekStartsOn: Type.String({ format: 'date' }),
+    activeMinutes: Type.Object(
+      { goal: Type.Optional(Type.Integer({ minimum: 1 })), actual: Type.Integer({ minimum: 0 }) },
+      Strict
+    ),
+    distanceMeters: Type.Object(
+      { goal: Type.Optional(Type.Integer({ minimum: 1 })), actual: Type.Integer({ minimum: 0 }) },
+      Strict
+    )
+  },
+  { $id: 'WeeklyGoalResponse' }
+);
+
+export const VisibilitySchema = Type.Union([Type.Literal('private'), Type.Literal('followers')]);
+export const VisibilityRequestSchema = Type.Object(
+  { activityVisibility: VisibilitySchema },
+  { ...Strict, $id: 'VisibilityRequest' }
+);
+export const VisibilityResponseSchema = Type.Object(
+  { activityVisibility: VisibilitySchema },
+  { $id: 'VisibilityResponse' }
+);
+export const SafetyContactRequestSchema = Type.Object(
+  { email: Type.String({ format: 'email', maxLength: 320 }) },
+  { ...Strict, $id: 'SafetyContactRequest' }
+);
+export const SafetyContactResponseSchema = Type.Object(
+  {
+    id: UuidSchema,
+    email: Type.String({ format: 'email' }),
+    status: Type.Union([Type.Literal('pending'), Type.Literal('accepted')])
+  },
+  { $id: 'SafetyContactResponse' }
+);
+export const SafetyContactListResponseSchema = Type.Object(
+  { data: Type.Array(SafetyContactResponseSchema, { maxItems: 50 }) },
+  { $id: 'SafetyContactListResponse' }
+);
+export const EmailVerificationCompleteRequestSchema = Type.Object(
+  { token: Type.String({ minLength: 32, maxLength: 1024 }) },
+  { ...Strict, $id: 'EmailVerificationCompleteRequest' }
+);
+export const EmailVerificationRequestResponseSchema = Type.Object(
+  { status: Type.Literal('requested') },
+  { $id: 'EmailVerificationRequestResponse' }
+);
+export const SafetyContactAcceptResponseSchema = Type.Object(
+  { status: Type.Literal('accepted') },
+  { $id: 'SafetyContactAcceptResponse' }
+);
+export const SafetyContactParamsSchema = Type.Object(
+  { safetyContactId: UuidSchema },
+  { ...Strict, $id: 'SafetyContactParams' }
+);
+export const SafetyShareRequestSchema = Type.Object(
+  {
+    safetyContactId: UuidSchema,
+    activityId: Type.Optional(UuidSchema),
+    durationMinutes: Type.Integer({ minimum: 15, maximum: 480 })
+  },
+  { ...Strict, $id: 'SafetyShareRequest' }
+);
+export const SafetyShareResponseSchema = Type.Object(
+  {
+    id: UuidSchema,
+    safetyContactId: UuidSchema,
+    status: Type.Union([Type.Literal('active'), Type.Literal('revoked'), Type.Literal('expired')]),
+    delayMinutes: Type.Literal(15),
+    tileSizeMeters: Type.Literal(500),
+    expiresAt: Type.String({ format: 'date-time' })
+  },
+  { $id: 'SafetyShareResponse' }
+);
+export const SafetyShareParamsSchema = Type.Object(
+  { shareId: UuidSchema },
+  { ...Strict, $id: 'SafetyShareParams' }
+);
+export const SafetyShareUpdateRequestSchema = Type.Object(
+  {
+    latitude: Type.Number({ minimum: -90, maximum: 90 }),
+    longitude: Type.Number({ minimum: -180, maximum: 180 }),
+    observedAt: Type.String({ format: 'date-time' })
+  },
+  { ...Strict, $id: 'SafetyShareUpdateRequest' }
+);
+export const SafetyShareReadResponseSchema = Type.Object(
+  {
+    status: Type.Union([Type.Literal('active'), Type.Literal('revoked'), Type.Literal('expired')]),
+    delayMinutes: Type.Literal(15),
+    tileSizeMeters: Type.Literal(500),
+    updates: Type.Array(
+      Type.Object(
+        {
+          tileX: Type.Integer(),
+          tileY: Type.Integer(),
+          observedAt: Type.String({ format: 'date-time' })
+        },
+        Strict
+      ),
+      { maxItems: 100 }
+    )
+  },
+  { $id: 'SafetyShareReadResponse' }
+);
+export const AccountExportResponseSchema = Type.Object(
+  {
+    status: Type.Literal('ready'),
+    generatedAt: Type.String({ format: 'date-time' }),
+    rawTraceAvailability: Type.Literal('available-within-retention-window'),
+    data: Type.Object(
+      {
+        profile: Type.Object({
+          email: Type.String({ format: 'email' }),
+          activityVisibility: VisibilitySchema
+        }),
+        privacyZones: Type.Array(PrivacyZoneResponseSchema),
+        activities: Type.Array(Type.Object({ id: UuidSchema, rawTraceAvailable: Type.Boolean() }))
+      },
+      Strict
+    )
+  },
+  { $id: 'AccountExportResponse' }
+);
+export const AccountDeletionResponseSchema = Type.Object(
+  { status: Type.Literal('scheduled') },
+  { $id: 'AccountDeletionResponse' }
+);
+
 export const ActivityParamsSchema = Type.Object(
   { activityId: UuidSchema },
   { ...Strict, $id: 'ActivityParams' }
@@ -182,6 +379,8 @@ const ActivitySummarySchema = Type.Object(
     distanceMeters: Type.Number({ minimum: 0 }),
     durationSeconds: Type.Number({ minimum: 0 }),
     pointCount: Type.Integer({ minimum: 0 }),
+    rejectedPointCount: Type.Integer({ minimum: 0 }),
+    rejectedGapCount: Type.Integer({ minimum: 0 }),
     privacyTrimmed: Type.Boolean()
   },
   Strict
@@ -207,6 +406,10 @@ export const ActivityStatusResponseSchema = Type.Object(
   {
     id: UuidSchema,
     status: ActivityStatusSchema,
+    movementType: Type.Optional(
+      Type.Union([Type.Literal('walk'), Type.Literal('run'), Type.Literal('hike')])
+    ),
+    createdAt: Type.Optional(Type.String({ format: 'date-time' })),
     summary: Type.Optional(ActivitySummarySchema),
     rejectionReason: Type.Optional(Type.String()),
     validationErrors: Type.Optional(Type.Array(Type.String({ maxLength: 160 }), { maxItems: 20 })),
@@ -218,6 +421,10 @@ export const ActivityDetailResponseSchema = Type.Object(
   {
     id: UuidSchema,
     status: ActivityStatusSchema,
+    movementType: Type.Optional(
+      Type.Union([Type.Literal('walk'), Type.Literal('run'), Type.Literal('hike')])
+    ),
+    createdAt: Type.Optional(Type.String({ format: 'date-time' })),
     summary: Type.Optional(ActivitySummarySchema),
     rejectionReason: Type.Optional(Type.String()),
     validationErrors: Type.Optional(Type.Array(Type.String({ maxLength: 160 }), { maxItems: 20 })),
@@ -239,12 +446,31 @@ export const ActivityChunkResponseSchema = Type.Null({ $id: 'ActivityChunkRespon
 export const ActivityDeleteResponseSchema = Type.Null({ $id: 'ActivityDeleteResponse' });
 
 export type HealthResponse = Static<typeof HealthResponseSchema>;
+export type StaffReviewItem = Static<typeof StaffReviewItemSchema>;
+export type StaffReviewQueueResponse = Static<typeof StaffReviewQueueResponseSchema>;
 export type QuestSummary = Static<typeof QuestSummarySchema>;
+export type QuestDetail = Static<typeof QuestDetailSchema>;
+export type WeeklyGoalRequest = Static<typeof WeeklyGoalRequestSchema>;
+export type WeeklyGoalResponse = Static<typeof WeeklyGoalResponseSchema>;
 export type QuestParams = Static<typeof QuestParamsSchema>;
 export type RegisterRequest = Static<typeof RegisterRequestSchema>;
 export type LoginRequest = Static<typeof LoginRequestSchema>;
 export type RefreshRequest = Static<typeof RefreshRequestSchema>;
 export type PrivacyZoneRequest = Static<typeof PrivacyZoneRequestSchema>;
+export type PrivacyZoneResponse = Static<typeof PrivacyZoneResponseSchema>;
+export type VisibilityRequest = Static<typeof VisibilityRequestSchema>;
+export type VisibilityResponse = Static<typeof VisibilityResponseSchema>;
+export type SafetyContactRequest = Static<typeof SafetyContactRequestSchema>;
+export type SafetyContactResponse = Static<typeof SafetyContactResponseSchema>;
+export type EmailVerificationCompleteRequest = Static<
+  typeof EmailVerificationCompleteRequestSchema
+>;
+export type SafetyShareRequest = Static<typeof SafetyShareRequestSchema>;
+export type SafetyShareResponse = Static<typeof SafetyShareResponseSchema>;
+export type SafetyShareUpdateRequest = Static<typeof SafetyShareUpdateRequestSchema>;
+export type SafetyShareReadResponse = Static<typeof SafetyShareReadResponseSchema>;
+export type AccountExportResponse = Static<typeof AccountExportResponseSchema>;
+export type AccountDeletionResponse = Static<typeof AccountDeletionResponseSchema>;
 export type ActivityCreateRequest = Static<typeof ActivityCreateRequestSchema>;
 export type ActivityCreateHeaders = Static<typeof ActivityCreateHeadersSchema>;
 export type ActivityAuthorizationHeaders = Static<typeof ActivityAuthorizationHeadersSchema>;

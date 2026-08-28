@@ -84,6 +84,41 @@ button {
   border-radius: 12px;
   padding: 11px 16px;
   font-weight: 700;
+  cursor: pointer;
+}
+button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+.status.neutral {
+  background: #eff4e8;
+}
+.sign-in-panel {
+  max-width: 520px;
+}
+form {
+  display: grid;
+  gap: 16px;
+}
+label {
+  display: grid;
+  gap: 7px;
+  font-weight: 700;
+}
+input {
+  width: 100%;
+  border: 1px solid #d9dfd4;
+  border-radius: 10px;
+  background: white;
+  padding: 11px;
+  font: inherit;
+}
+.error {
+  color: #9d2222;
+  font-weight: 700;
+}
+code {
+  font-size: 12px;
 }
 table {
   border-collapse: collapse;

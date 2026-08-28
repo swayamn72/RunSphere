@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="RunSphere">
+  <trk><name>weak-gps</name><trkseg>
+    <trkpt lat="19.076000" lon="72.877700"><time>2026-08-28T06:00:00Z</time><hdop>2</hdop></trkpt>
+    <!-- Fixture harness maps hdop 25 to a 125 m reported accuracy: reject. -->
+    <trkpt lat="19.077000" lon="72.878700"><time>2026-08-28T06:00:05Z</time><hdop>25</hdop></trkpt>
+    <!-- A 1 km movement over five seconds is implausible at 25 km/h and must be rejected. -->
+    <trkpt lat="19.086000" lon="72.887700"><time>2026-08-28T06:00:10Z</time><hdop>2</hdop></trkpt>
+  </trkseg></trk>
+</gpx>

@@ -6,8 +6,10 @@ const database = {
   getAllAsync: vi.fn(async () => [])
 };
 const openDatabaseSync = vi.fn(() => database);
+const prepareEncryptedDatabase = vi.fn(async () => undefined);
 
 vi.mock('expo-sqlite', () => ({ openDatabaseSync }));
+vi.mock('./encrypted-sqlite.native', () => ({ prepareEncryptedDatabase }));
 
 describe('native activity queue adapter', () => {
   beforeEach(() => {
@@ -15,11 +17,15 @@ describe('native activity queue adapter', () => {
     vi.resetModules();
   });
 
-  it('loads the shared queue factory without resolving back to the native adapter', async () => {
+  it('prepares its separate SQLCipher key before loading the shared queue schema', async () => {
     const { activityQueue } = await import('./activity-queue.native.js');
 
     expect(openDatabaseSync).toHaveBeenCalledWith('runsphere-activity-queue.db');
     await expect(activityQueue.initialize()).resolves.toBeUndefined();
+    expect(prepareEncryptedDatabase).toHaveBeenCalledWith(
+      database,
+      'runsphere.activity-queue.sqlcipher-key.v1'
+    );
     expect(database.execAsync).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE'));
   });
 });
