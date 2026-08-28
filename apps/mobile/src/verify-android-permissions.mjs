@@ -51,7 +51,7 @@ try {
   globalThis.console.log(
     `Verified Android source permission allowlist: ${manifestPermissions.join(', ')}`
   );
-  process.exit(0);
+  globalThis.process.exit(0);
 }
 
 const { stdout } = await execFile('aapt', ['dump', 'permissions', apkUrl.pathname]);

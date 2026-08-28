@@ -24,9 +24,22 @@ Territory capture is intentionally disabled. Clubs are a truthful future-state s
 4. Configure production services and real MMR quest data.
 5. Consider retention features only after the core loop is polished and measured.
 
+## Current CI checkpoint
+
+Local CI-equivalent verification passed on 2026-08-28 after the formatting and Android permission-verifier fixes:
+
+- `pnpm format:check`
+- `pnpm lint`
+- `pnpm typecheck`
+- `pnpm test`
+- `pnpm build`
+- `git diff --check`
+
+The prior GitHub formatting failure was addressed by commit `67a42c4`. The final lint correction replaces the undeclared Node `process` reference in `apps/mobile/src/verify-android-permissions.mjs`; confirm the latest GitHub Actions run is green after its checkpoint commit.
+
 ## Confirmed validation still pending
 
-The latest test report is **partial**, not failed. The corrected universal APK builds, installs, launches, and excludes `ACCESS_BACKGROUND_LOCATION` and `SYSTEM_ALERT_WINDOW`. Workspace checks and 17 PostGIS API integration tests passed.
+The latest Android test report is **partial**, not failed. The corrected universal APK builds, installs, launches, and excludes `ACCESS_BACKGROUND_LOCATION` and `SYSTEM_ALERT_WINDOW`. Workspace checks and 17 PostGIS API integration tests passed.
 
 Still required before release approval:
 
