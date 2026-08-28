@@ -4,7 +4,10 @@ import { describe, expect, it } from 'vitest';
 import {
   ChallengeLengthDaysSchema,
   InboxEntrySchema,
+  LevelInfoSchema,
   ProfileSchema,
+  ProgressionRuleSchema,
+  ProgressionSummarySchema,
   WeeklyConsistencySchema
 } from './index.js';
 
@@ -56,5 +59,42 @@ describe('gamification contracts', () => {
     };
     expect(Value.Check(WeeklyConsistencySchema, base)).toBe(true);
     expect(Value.Check(WeeklyConsistencySchema, { ...base, activeDays: 8 })).toBe(false);
+  });
+
+  it('ProgressionRuleSchema requires cumulative levels and accepts zero-rate fields', () => {
+    const base = {
+      xpPerActiveMinute: 1,
+      xpPerActiveDay: 20,
+      dailyCapMinutes: 240,
+      minMinutesPerActiveDay: 1,
+      goalActiveDays: 3,
+      levels: [0, 100, 250]
+    };
+    expect(Value.Check(ProgressionRuleSchema, base)).toBe(true);
+    expect(Value.Check(ProgressionRuleSchema, { ...base, levels: [] })).toBe(false);
+    expect(Value.Check(ProgressionRuleSchema, { ...base, dailyCapMinutes: 0 })).toBe(false);
+    expect(Value.Check(ProgressionRuleSchema, { ...base, goalActiveDays: 8 })).toBe(false);
+  });
+
+  it('LevelInfoSchema omits nextLevelAt at the terminal level', () => {
+    expect(Value.Check(LevelInfoSchema, { level: 3, xpInLevel: 40, nextLevelAt: 250 })).toBe(true);
+    expect(Value.Check(LevelInfoSchema, { level: 10, xpInLevel: 0 })).toBe(true);
+    expect(Value.Check(LevelInfoSchema, { level: 0, xpInLevel: 0 })).toBe(false);
+  });
+
+  it('ProgressionSummarySchema accepts an optional level', () => {
+    const base = {
+      totalXp: 150,
+      questsCompleted: 0,
+      achievements: []
+    };
+    expect(Value.Check(ProgressionSummarySchema, base)).toBe(true);
+    expect(
+      Value.Check(ProgressionSummarySchema, {
+        ...base,
+        level: { level: 2, xpInLevel: 50, nextLevelAt: 250 }
+      })
+    ).toBe(true);
+    expect(Value.Check(ProgressionSummarySchema, { ...base, totalXp: -1 })).toBe(false);
   });
 });

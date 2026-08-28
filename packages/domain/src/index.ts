@@ -21,3 +21,4 @@ export const isPublishedQuest = (quest: Pick<QuestSummary, 'checkpointCount'>): 
 
 export type { QuestDetail, QuestSummary };
 export * from './gamification.js';
+export * from './progression.js';
