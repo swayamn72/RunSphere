@@ -481,3 +481,13 @@ export type ActivitySyncQuery = Static<typeof ActivitySyncQuerySchema>;
 export type ActivityLifecycleStatus = Static<typeof ActivityStatusSchema>;
 export type ActivityStatusResponse = Static<typeof ActivityStatusResponseSchema>;
 export type ActivityDetailResponse = Static<typeof ActivityDetailResponseSchema>;
+
+export * from './social.js';
+export * from './notifications.js';
+export * from './progression.js';
+export * from './challenge.js';
+export * from './club.js';
+export * from './competition.js';
+export * from './legal.js';
+export * from './campaign.js';
+export * from './territory.js';
