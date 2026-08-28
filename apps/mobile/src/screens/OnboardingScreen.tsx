@@ -279,14 +279,21 @@ export function Onboarding({
             <Text style={styles.eyebrow}>YOU’RE IN CONTROL</Text>
             <Text style={styles.onboardingTitle}>Set up your activity map.</Text>
             <Text style={styles.lead}>
-              Location is requested only while you use the app for activity mapping. We do not
-              request background location, and no GPS trace is stored in this pilot.
+              Precise location records your activity. GPS samples are encrypted on this device,
+              then uploaded for server validation when you choose to sync. Raw submitted GPS is
+              retained for up to 30 days; eligible maps are trimmed around saved privacy zones.
             </Text>
             <PermissionCard
               icon="⌖"
               title="Precise location"
-              detail="Only while using the app; not retained as a trace yet"
+              detail="While recording; encrypted locally and uploaded only to validate a saved activity"
               badge="Required"
+            />
+            <PermissionCard
+              icon="⌁"
+              title="Background location"
+              detail="Optional; only requested if you choose screen-lock recording before an activity"
+              badge="Optional"
             />
             <PermissionCard
               icon="◉"
@@ -296,9 +303,9 @@ export function Onboarding({
             />
             <View style={styles.privacyRow}>
               <View style={styles.flexCopy}>
-                <Text style={styles.rowTitle}>Hide start & finish</Text>
+                <Text style={styles.rowTitle}>Trim saved places</Text>
                 <Text style={styles.rowDetail}>
-                  Pilot preference only — applies after server privacy zones exist
+                  Saved privacy zones remove start, finish, and route fragments within 200 m before a map can be shared
                 </Text>
               </View>
               <Switch
@@ -309,8 +316,8 @@ export function Onboarding({
               />
             </View>
             <Text style={styles.privateNote}>
-              Visibility stays Private in this pilot. Declining location still lets you browse
-              RunSphere, but activity mapping and nearby quests remain unavailable.
+              Activities stay private by default. Declining location still lets you browse RunSphere,
+              but activity recording and nearby quests remain unavailable.
             </Text>
             {state.location !== 'granted' ? (
               <PrimaryButton label="Allow location" onPress={() => void requestLocation()} />
@@ -346,8 +353,8 @@ export function Onboarding({
             <Text style={styles.eyebrow}>LOCATION IS OFF</Text>
             <Text style={styles.onboardingTitle}>You can keep browsing.</Text>
             <Text style={styles.lead}>
-              Without location, activity mapping and nearby quests are unavailable. RunSphere never
-              requests background location in this pilot, and it stores no GPS trace.
+              Without location, activity recording and nearby quests are unavailable. Background
+              location is optional and only requested when you choose screen-lock recording.
             </Text>
             {state.location === 'blocked' && (
               <Text style={styles.privateNote}>
