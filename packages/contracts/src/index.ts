@@ -12,29 +12,33 @@ export const HealthResponseSchema = Type.Object(
   { $id: 'HealthResponse' }
 );
 
+const AccessibilitySchema = Type.Union([
+  Type.Literal('step-free'),
+  Type.Literal('mixed'),
+  Type.Literal('unknown')
+]);
+const OpenHoursSchema = Type.Object(
+  {
+    timezone: Type.String({ minLength: 1, maxLength: 64 }),
+    schedule: Type.String({ minLength: 1, maxLength: 500 }),
+    status: Type.Union([Type.Literal('open'), Type.Literal('limited'), Type.Literal('closed')])
+  },
+  Strict
+);
 export const QuestSummarySchema = Type.Object(
   {
-    id: Type.String({ minLength: 1 }),
-    title: Type.String({ minLength: 1 }),
-    distanceKm: Type.Number({ exclusiveMinimum: 0 }),
-    durationMinutes: Type.Integer({ minimum: 1 }),
-    rewardXp: Type.Integer({ minimum: 0 }),
-    accessibility: Type.Union([Type.Literal('step-free'), Type.Literal('mixed')])
-  },
-  { $id: 'QuestSummary' }
+    id: Type.String({ minLength: 1 }), title: Type.String({ minLength: 1 }),
+    distanceMeters: Type.Integer({ minimum: 1 }), estimatedActiveMinutes: Type.Integer({ minimum: 1 }),
+    accessibility: AccessibilitySchema, openHours: OpenHoursSchema, checkpointCount: Type.Integer({ minimum: 1 })
+  }, { $id: 'QuestSummary' }
 );
-export const QuestListResponseSchema = Type.Object(
-  { data: Type.Array(QuestSummarySchema) },
-  { $id: 'QuestListResponse' }
+export const QuestCheckpointSchema = Type.Object(
+  { id: Type.String({ format: 'uuid' }), kind: Type.Union([Type.Literal('place'), Type.Literal('route'), Type.Literal('area')]), title: Type.String({ minLength: 1 }), geometry: Type.Unknown(), geometryVersion: Type.Integer({ minimum: 1 }), accessibility: AccessibilitySchema, openHours: OpenHoursSchema }, Strict
 );
-export const QuestParamsSchema = Type.Object(
-  { questId: Type.String({ minLength: 1 }) },
-  { $id: 'QuestParams' }
-);
-export const QuestNotFoundResponseSchema = Type.Object(
-  { message: Type.Literal('Quest not found') },
-  { $id: 'QuestNotFoundResponse' }
-);
+export const QuestDetailSchema = Type.Intersect([QuestSummarySchema, Type.Object({ checkpoints: Type.Array(QuestCheckpointSchema, { minItems: 1, maxItems: 20 }), sourceReviewedAt: Type.String({ format: 'date-time' }) })], { $id: 'QuestDetail' });
+export const QuestListResponseSchema = Type.Object({ data: Type.Array(QuestSummarySchema) }, { $id: 'QuestListResponse' });
+export const QuestParamsSchema = Type.Object({ questId: Type.String({ minLength: 1 }) }, { $id: 'QuestParams' });
+export const QuestNotFoundResponseSchema = Type.Object({ message: Type.Literal('Quest not found') }, { $id: 'QuestNotFoundResponse' });
 
 export const ErrorResponseSchema = Type.Object(
   { message: Type.String() },
@@ -100,6 +104,9 @@ export const PrivacyZoneResponseSchema = Type.Object(
   },
   { $id: 'PrivacyZoneResponse' }
 );
+export const WeeklyGoalRequestSchema = Type.Object({ activeMinutes: Type.Optional(Type.Integer({ minimum: 1, maximum: 10_080 })), distanceMeters: Type.Optional(Type.Integer({ minimum: 1, maximum: 1_000_000 })) }, { ...Strict, minProperties: 1, $id: 'WeeklyGoalRequest' });
+export const WeeklyGoalResponseSchema = Type.Object({ weekStartsOn: Type.String({ format: 'date' }), activeMinutes: Type.Object({ goal: Type.Optional(Type.Integer({ minimum: 1 })), actual: Type.Integer({ minimum: 0 }) }, Strict), distanceMeters: Type.Object({ goal: Type.Optional(Type.Integer({ minimum: 1 })), actual: Type.Integer({ minimum: 0 }) }, Strict) }, { $id: 'WeeklyGoalResponse' });
+
 export const ActivityParamsSchema = Type.Object(
   { activityId: UuidSchema },
   { ...Strict, $id: 'ActivityParams' }
@@ -182,6 +189,8 @@ const ActivitySummarySchema = Type.Object(
     distanceMeters: Type.Number({ minimum: 0 }),
     durationSeconds: Type.Number({ minimum: 0 }),
     pointCount: Type.Integer({ minimum: 0 }),
+    rejectedPointCount: Type.Integer({ minimum: 0 }),
+    rejectedGapCount: Type.Integer({ minimum: 0 }),
     privacyTrimmed: Type.Boolean()
   },
   Strict
@@ -207,6 +216,8 @@ export const ActivityStatusResponseSchema = Type.Object(
   {
     id: UuidSchema,
     status: ActivityStatusSchema,
+    movementType: Type.Optional(Type.Union([Type.Literal('walk'), Type.Literal('run'), Type.Literal('hike')])),
+    createdAt: Type.Optional(Type.String({ format: 'date-time' })),
     summary: Type.Optional(ActivitySummarySchema),
     rejectionReason: Type.Optional(Type.String()),
     validationErrors: Type.Optional(Type.Array(Type.String({ maxLength: 160 }), { maxItems: 20 })),
@@ -218,6 +229,8 @@ export const ActivityDetailResponseSchema = Type.Object(
   {
     id: UuidSchema,
     status: ActivityStatusSchema,
+    movementType: Type.Optional(Type.Union([Type.Literal('walk'), Type.Literal('run'), Type.Literal('hike')])),
+    createdAt: Type.Optional(Type.String({ format: 'date-time' })),
     summary: Type.Optional(ActivitySummarySchema),
     rejectionReason: Type.Optional(Type.String()),
     validationErrors: Type.Optional(Type.Array(Type.String({ maxLength: 160 }), { maxItems: 20 })),
@@ -240,6 +253,9 @@ export const ActivityDeleteResponseSchema = Type.Null({ $id: 'ActivityDeleteResp
 
 export type HealthResponse = Static<typeof HealthResponseSchema>;
 export type QuestSummary = Static<typeof QuestSummarySchema>;
+export type QuestDetail = Static<typeof QuestDetailSchema>;
+export type WeeklyGoalRequest = Static<typeof WeeklyGoalRequestSchema>;
+export type WeeklyGoalResponse = Static<typeof WeeklyGoalResponseSchema>;
 export type QuestParams = Static<typeof QuestParamsSchema>;
 export type RegisterRequest = Static<typeof RegisterRequestSchema>;
 export type LoginRequest = Static<typeof LoginRequestSchema>;
