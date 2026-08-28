@@ -161,27 +161,31 @@ export function MapSurface({
     });
   }, [recenterRequest, reduceMotion]);
 
+  // Start following separately from native camera work. Ref updates and native calls must not
+  // run inside a state updater because StrictMode may invoke that updater more than once.
+  useEffect(() => {
+    if (!liveCenter || !initialFollow || hasStartedFollowing.current) return;
+    hasStartedFollowing.current = true;
+    cameraMode.current = 'follow';
+    setCamera((current) =>
+      current.mode === 'follow' ? current : { ...current, mode: 'follow' as const }
+    );
+  }, [initialFollow, liveCenter]);
+
   // Local live centers never enter provider configuration. They only update the native
   // camera while this renderer is already in follow mode.
   useEffect(() => {
-    if (!liveCenter) return;
-    setCamera((current) => {
-      const shouldStartFollowing = initialFollow && !hasStartedFollowing.current;
-      if (shouldStartFollowing) hasStartedFollowing.current = true;
-      const next = shouldStartFollowing ? { ...current, mode: 'follow' as const } : current;
-      if (next.mode !== 'follow') return next;
-      if (reduceMotion)
-        cameraRef.current?.jumpTo({ center: liveCenter, zoom: next.zoom, bearing: next.bearing });
-      else
-        cameraRef.current?.easeTo({
-          center: liveCenter,
-          zoom: next.zoom,
-          bearing: next.bearing,
-          duration: 250
-        });
-      return next;
-    });
-  }, [initialFollow, liveCenter, reduceMotion]);
+    if (!liveCenter || camera.mode !== 'follow') return;
+    if (reduceMotion)
+      cameraRef.current?.jumpTo({ center: liveCenter, zoom: camera.zoom, bearing: camera.bearing });
+    else
+      cameraRef.current?.easeTo({
+        center: liveCenter,
+        zoom: camera.zoom,
+        bearing: camera.bearing,
+        duration: 250
+      });
+  }, [camera, liveCenter, reduceMotion]);
 
   const fallbackMessage =
     fallbackState === 'offline' || lifecycle === 'offline'
@@ -389,6 +393,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     height: 48,
     justifyContent: 'center',
+    minHeight: 48,
+    minWidth: 48,
     width: 48
   },
   controlDisabled: { opacity: 0.5 },

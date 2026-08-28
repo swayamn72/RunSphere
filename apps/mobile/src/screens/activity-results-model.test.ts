@@ -5,6 +5,7 @@ import {
   activityResultPresentation,
   calculatedPace,
   derivedResultRouteLayers,
+  derivedRouteCenter,
   validDerivedRouteGeometry
 } from './activity-results-model.js';
 
@@ -45,8 +46,17 @@ describe('activity Results presentation', () => {
     expect(calculatedPace(derived.summary)).toBe('5:30');
   });
 
+  it('reduces large derived geometry before calculating a render center', () => {
+    const line = Array.from({ length: 10_000 }, (_, index) => [index, index / 2]);
+    expect(derivedRouteCenter({ type: 'LineString', coordinates: line })).toEqual([
+      4999.5, 2499.75
+    ]);
+  });
+
   it('does not create a map for rejected, null, malformed, or non-derived geometry', () => {
     expect(activityResultPresentation({ status: 'rejected' }).state).toBe('rejected');
+    expect(activityResultPresentation(undefined, 'rejected').state).toBe('rejected');
+    expect(activityResultPresentation(undefined, 'deleted').state).toBe('deleted');
     expect(validDerivedRouteGeometry(null)).toBeUndefined();
     expect(
       validDerivedRouteGeometry({ type: 'Point', coordinates: [72.877, 19.076] })

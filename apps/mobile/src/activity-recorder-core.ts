@@ -208,6 +208,8 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
       );
       if (!sampleColumns.some((column) => column.name === 'disposition'))
         await database.execAsync(
+          // SQLite cannot add this CHECK without rebuilding the table; keep the legacy data
+          // additive and validate all new writes through the typed recorder disposition.
           "ALTER TABLE activity_location_samples ADD COLUMN disposition TEXT NOT NULL DEFAULT 'usable';"
         );
       if (!sampleColumns.some((column) => column.name === 'segment_break'))
@@ -283,12 +285,6 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
     if (recovered.state === 'active' || recovered.state === 'resumed')
       await this.transition(recovered.id, accountId, recovered.state, 'paused', at, 'recovered');
     return this.get(recovered.id, accountId);
-  },
-  async recoverAnyActive(): Promise<ActivitySession | undefined> {
-    const row = await database.getFirstAsync<Record<string, unknown>>(
-      `${sessionSelect} WHERE state IN ('active', 'resumed') ORDER BY updated_at DESC LIMIT 1`
-    );
-    return row ? rowToSession(row) : undefined;
   },
   async transition(
     id: string,
@@ -506,7 +502,10 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
     remoteStatus: RemoteActivityStatus
   ): Promise<ActivitySession | undefined> {
     await this.setRemoteStatus(session.id, session.accountId, remoteStatus);
-    if (remoteStatus === 'derived' && ['queued', 'failed'].includes(session.state))
+    if (
+      ['derived', 'rejected', 'deleted'].includes(remoteStatus) &&
+      ['queued', 'failed', 'syncing'].includes(session.state)
+    )
       await this.transition(
         session.id,
         session.accountId,

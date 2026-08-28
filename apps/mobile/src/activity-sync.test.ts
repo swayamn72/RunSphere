@@ -58,7 +58,7 @@ const recorder = (stored: ActivitySession) => ({
   applyRemoteStatus: vi.fn(
     async (_session: ActivitySession, status: ActivitySession['remoteStatus']) => {
       stored.remoteStatus = status;
-      if (status === 'derived') stored.state = 'processed';
+      if (['derived', 'rejected', 'deleted'].includes(status ?? '')) stored.state = 'processed';
       return stored;
     }
   ),
@@ -122,6 +122,17 @@ describe('activity sync coordinator', () => {
     expect(api.createActivity).not.toHaveBeenCalled();
   });
 
+  it.each(['rejected', 'deleted', 'derived'] as const)(
+    'does not create a duplicate remote activity for cached terminal %s status',
+    async (remoteStatus) => {
+      const stored = { ...session, remoteStatus };
+      const api = { createActivity: vi.fn() };
+      const local = recorder(stored);
+      await createActivitySyncCoordinator(api as never, local as never).sync(stored);
+      expect(api.createActivity).not.toHaveBeenCalled();
+    }
+  );
+
   it('persists fetched detail lifecycle status through the refresh/apply path', async () => {
     const stored = { ...session, remoteId: 'remote-1' };
     const api = {
@@ -140,6 +151,25 @@ describe('activity sync coordinator', () => {
     expect(result?.status).toBe('derived');
     expect(local.applyRemoteStatus).toHaveBeenCalledWith(stored, 'derived');
     expect(stored).toMatchObject({ state: 'processed', remoteStatus: 'derived' });
+  });
+
+  it('settles deleted status and skips all terminal rows during bounded refresh', async () => {
+    const deleted = { ...session, remoteId: 'remote-deleted' };
+    const rejected = { ...session, id: 'rejected', remoteStatus: 'rejected' as const };
+    const derived = { ...session, id: 'derived', remoteStatus: 'derived' as const };
+    const stored = { ...deleted };
+    const api = {
+      activityStatus: vi.fn().mockResolvedValue({ id: 'remote-deleted', status: 'deleted' })
+    };
+    const local = recorder(stored);
+    const coordinator = createActivitySyncCoordinator(api as never, local as never);
+
+    await coordinator.refresh(deleted);
+    expect(stored).toMatchObject({ state: 'processed', remoteStatus: 'deleted' });
+
+    local.list.mockResolvedValue([rejected, derived]);
+    await coordinator.syncPending('account-1');
+    expect(local.samples).not.toHaveBeenCalled();
   });
 
   it('does not turn unknown future server statuses into a local failure', async () => {

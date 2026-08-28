@@ -13,15 +13,19 @@ export type ActivityResultDetail = Omit<ActivityDetailResponse, 'id'> & { readon
 
 export type ActivityResultPresentation =
   | { readonly state: 'validated'; readonly detail: ActivityResultDetail }
-  | { readonly state: 'rejected'; readonly detail: ActivityResultDetail }
+  | { readonly state: 'rejected'; readonly detail?: ActivityResultDetail }
+  | { readonly state: 'deleted' }
   | { readonly state: 'pending' };
 
-/** A cached lifecycle status is metadata only; fetched detail plus totals is required to validate. */
+/** A cached lifecycle status never validates totals, but terminal outcomes must remain truthful offline. */
 export const activityResultPresentation = (
-  detail: ActivityResultDetail | undefined
+  detail: ActivityResultDetail | undefined,
+  remoteStatus?: ActivityLifecycleStatus
 ): ActivityResultPresentation => {
   if (detail?.status === 'derived' && detail.summary) return { state: 'validated', detail };
   if (detail?.status === 'rejected') return { state: 'rejected', detail };
+  if (detail?.status === 'deleted' || remoteStatus === 'deleted') return { state: 'deleted' };
+  if (remoteStatus === 'rejected') return { state: 'rejected' };
   return { state: 'pending' };
 };
 
@@ -73,20 +77,48 @@ export const derivedResultRouteLayers = (
   return [{ id: 'server-derived-result-route', kind: 'line', data }];
 };
 
+const RESULT_CENTER_SAMPLE_LIMIT = 1_024;
+
+/**
+ * Reduces untrusted derived geometry before calculating a center so a malformed
+ * large result cannot create an unbounded spread/allocation in the render path.
+ */
 export const derivedRouteCenter = (geometry: Geometry): [number, number] | undefined => {
-  const positions =
+  const lines =
     geometry.type === 'LineString'
-      ? geometry.coordinates
+      ? [geometry.coordinates]
       : geometry.type === 'MultiLineString'
-        ? geometry.coordinates.flat()
+        ? geometry.coordinates
         : [];
-  if (!positions.length) return undefined;
-  const longitudes = positions.map(([longitude]) => longitude!);
-  const latitudes = positions.map(([, latitude]) => latitude!);
-  return [
-    (Math.min(...longitudes) + Math.max(...longitudes)) / 2,
-    (Math.min(...latitudes) + Math.max(...latitudes)) / 2
-  ];
+  let minimumLongitude = Infinity;
+  let maximumLongitude = -Infinity;
+  let minimumLatitude = Infinity;
+  let maximumLatitude = -Infinity;
+  let sampled = 0;
+  for (const line of lines) {
+    const stride = Math.max(1, Math.ceil(line.length / RESULT_CENTER_SAMPLE_LIMIT));
+    const include = (coordinate: Position | undefined) => {
+      if (!coordinate || sampled >= RESULT_CENTER_SAMPLE_LIMIT) return;
+      const [longitude, latitude] = coordinate;
+      if (longitude === undefined || latitude === undefined) return;
+      minimumLongitude = Math.min(minimumLongitude, longitude);
+      maximumLongitude = Math.max(maximumLongitude, longitude);
+      minimumLatitude = Math.min(minimumLatitude, latitude);
+      maximumLatitude = Math.max(maximumLatitude, latitude);
+      sampled += 1;
+    };
+    for (
+      let index = 0;
+      index < line.length && sampled < RESULT_CENTER_SAMPLE_LIMIT - 1;
+      index += stride
+    )
+      include(line[index]);
+    // Include the final vertex so a bounded reduction still represents route extent.
+    include(line.at(-1));
+    if (sampled >= RESULT_CENTER_SAMPLE_LIMIT) break;
+  }
+  if (!sampled) return undefined;
+  return [(minimumLongitude + maximumLongitude) / 2, (minimumLatitude + maximumLatitude) / 2];
 };
 
 export const calculatedPace = (

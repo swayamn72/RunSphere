@@ -420,7 +420,8 @@ export const createAppStyles = (t: SemanticTokens) =>
       borderTopRightRadius: 24,
       gap: 8,
       marginTop: -28,
-      padding: 20
+      padding: 20,
+      paddingBottom: 28
     },
     liveStatus: { backgroundColor: t.background.surfaceInset, borderRadius: 12, padding: 12 },
     liveDistance: {
@@ -428,6 +429,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       fontSize: 48,
       fontWeight: '900',
       letterSpacing: -2,
+      lineHeight: 58,
       marginTop: 28,
       textAlign: 'center'
     },
@@ -443,6 +445,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       backgroundColor: t.scrim.subtle,
       borderRadius: 16,
       flexDirection: 'row',
+      alignItems: 'flex-start',
       flexWrap: 'wrap',
       gap: 12,
       marginTop: 12,

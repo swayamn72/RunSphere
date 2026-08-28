@@ -318,7 +318,7 @@ export function ActivityRecording({
   const styles = useAppStyles();
   const [current, setCurrent] = useState(session);
   const [samples, setSamples] = useState<RecordedLocationSample[]>([]);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
   const [cameraMode, setCameraMode] = useState<'follow' | 'free-pan'>('follow');
   const [recenterRequest, setRecenterRequest] = useState<{ id: number; coordinate: LngLat }>();
   const [subscriptionError, setSubscriptionError] = useState<string>();
@@ -416,6 +416,14 @@ export function ActivityRecording({
     const fresh = await refresh();
     if (fresh) onChange(fresh);
   };
+  const status = classifyLiveGps({ state: current.state, samples, now });
+  const center = useMemo(() => {
+    const latest = latestUsableSample(samples);
+    return latest ? ([latest.longitude, latest.latitude] as LngLat) : undefined;
+  }, [samples]);
+  const layers = useMemo(() => liveRouteLayers(samples), [samples]);
+  const recoveredPause = current.state === 'paused' && current.pauseReason === 'recovered';
+
   if (current.state === 'completed-local')
     return (
       <ActivityResults
@@ -435,17 +443,12 @@ export function ActivityRecording({
         }}
       />
     );
-  if (['queued', 'failed', 'processed'].includes(current.state))
+  if (
+    ['queued', 'failed', 'processed'].includes(current.state) ||
+    ['rejected', 'derived', 'deleted'].includes(current.remoteStatus ?? '')
+  )
     return <ActivityDetail session={current} sync={sync} onExit={onExit} />;
 
-  const status = classifyLiveGps({ state: current.state, samples, now });
-  const latest = latestUsableSample(samples);
-  const center = useMemo(
-    () => (latest ? ([latest.longitude, latest.latitude] as LngLat) : undefined),
-    [latest?.latitude, latest?.longitude]
-  );
-  const layers = useMemo(() => liveRouteLayers(samples), [samples]);
-  const recoveredPause = current.state === 'paused' && current.pauseReason === 'recovered';
   return (
     <View style={styles.liveScreen}>
       <MapSurface
@@ -519,7 +522,35 @@ export function ActivityRecording({
   );
 }
 
-function ActivityDetail({
+const terminalRemoteStatus = (status: ActivitySession['remoteStatus']): boolean =>
+  ['derived', 'rejected', 'deleted'].includes(status ?? '');
+
+const remoteStatusRank = (status: ActivitySession['remoteStatus']): number =>
+  status === 'received'
+    ? 1
+    : status === 'validating'
+      ? 2
+      : status === 'accepted'
+        ? 3
+        : status
+          ? 4
+          : 0;
+
+export const reseedActivityDetailSession = (
+  current: ActivitySession,
+  parent: ActivitySession
+): ActivitySession => {
+  if (current.id !== parent.id || current.accountId !== parent.accountId) return parent;
+  const remoteId = parent.remoteId ?? current.remoteId;
+  const remoteStatus =
+    remoteStatusRank(parent.remoteStatus) >= remoteStatusRank(current.remoteStatus)
+      ? (parent.remoteStatus ?? current.remoteStatus)
+      : current.remoteStatus;
+  if (remoteId === current.remoteId && remoteStatus === current.remoteStatus) return current;
+  return { ...current, remoteId, remoteStatus };
+};
+
+export function ActivityDetail({
   session,
   sync,
   onExit
@@ -533,32 +564,56 @@ function ActivityDetail({
   const [detail, setDetail] = useState<ActivityDetail>();
   const mounted = useRef(true);
   const refreshGeneration = useRef(0);
-  const presentation = useMemo(() => activityResultPresentation(detail), [detail]);
-  const updateFromServer = useCallback(async () => {
-    const generation = ++refreshGeneration.current;
-    try {
-      const next = await sync.refresh(current);
-      const refreshed = await activityRecorder.get(current.id, current.accountId);
-      if (!mounted.current || generation !== refreshGeneration.current) return;
-      if (next) setDetail(next);
-      if (refreshed) setCurrent(refreshed);
-    } catch {
-      // Cached lifecycle metadata never supplies a result detail while offline.
-    }
-  }, [current, sync]);
+  const sessionKey = `${session.accountId}:${session.id}:${session.remoteId ?? ''}:${session.remoteStatus ?? ''}`;
+  const currentKey = `${current.accountId}:${current.id}:${current.remoteId ?? ''}:${current.remoteStatus ?? ''}`;
+  const parentRemoteId = session.remoteId;
+  const parentRemoteStatus = session.remoteStatus;
+  const currentRemoteId = current.remoteId;
+  const presentation = useMemo(
+    () => activityResultPresentation(detail, current.remoteStatus),
+    [current.remoteStatus, detail]
+  );
+
+  useEffect(() => {
+    setCurrent((previous) => reseedActivityDetailSession(previous, session));
+    setDetail((previous) =>
+      currentRemoteId && parentRemoteId && currentRemoteId !== parentRemoteId ? undefined : previous
+    );
+    // sessionKey captures only monotonic identity/status reconciliation, not parent object churn.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionKey, currentRemoteId, parentRemoteId, parentRemoteStatus]);
+
+  const updateFromServer = useCallback(
+    async (activeSession: ActivitySession) => {
+      if (!activeSession.remoteId) return;
+      const generation = ++refreshGeneration.current;
+      try {
+        const next = await sync.refresh(activeSession);
+        const refreshed = await activityRecorder.get(activeSession.id, activeSession.accountId);
+        if (!mounted.current || generation !== refreshGeneration.current) return;
+        if (next) setDetail(next);
+        if (refreshed) setCurrent((previous) => reseedActivityDetailSession(previous, refreshed));
+      } catch {
+        // Cached lifecycle metadata never supplies a result detail while offline.
+      }
+    },
+    [sync]
+  );
   useEffect(() => {
     mounted.current = true;
-    void updateFromServer();
+    if (currentRemoteId) void updateFromServer(current);
     return () => {
       mounted.current = false;
       refreshGeneration.current += 1;
     };
-  }, [updateFromServer]);
+  }, [currentKey, current, currentRemoteId, updateFromServer]);
   const retry = async () => {
-    const next = await sync.sync(current);
+    // Parent reconciliation may have learned a remote ID before its state effect commits.
+    const latest = reseedActivityDetailSession(current, session);
+    const next = await sync.sync(latest);
     if (!mounted.current) return;
-    setCurrent(next.session);
-    if (next.status) void updateFromServer();
+    setCurrent((previous) => reseedActivityDetailSession(previous, next.session));
+    if (next.status) void updateFromServer(next.session);
   };
   const remove = async () => {
     await sync.delete(current);
@@ -568,6 +623,10 @@ function ActivityDetail({
     ? formatDuration(Math.round(current.durationSeconds / (current.distanceMeters / 1_000)))
     : '—';
   const terminalRejected = presentation.state === 'rejected';
+  const terminalDeleted = presentation.state === 'deleted';
+  const canSync = presentation.state === 'pending' && !terminalRemoteStatus(current.remoteStatus);
+  const canRefresh =
+    Boolean(current.remoteId) && !['rejected', 'deleted'].includes(current.remoteStatus ?? '');
   return (
     <View style={styles.recordCard}>
       <Text style={styles.eyebrow}>
@@ -575,25 +634,31 @@ function ActivityDetail({
           ? 'VALIDATED ACTIVITY'
           : terminalRejected
             ? 'SAVED PRIVATELY'
-            : 'PENDING SERVER VALIDATION'}
+            : terminalDeleted
+              ? 'DELETED ON RUNSPHERE'
+              : 'PENDING SERVER VALIDATION'}
       </Text>
       <Text style={styles.recordTitle}>
         {presentation.state === 'validated'
           ? 'Activity validated.'
           : terminalRejected
             ? 'Activity saved privately.'
-            : current.state === 'failed'
-              ? 'Sync paused.'
-              : 'Activity pending.'}
+            : terminalDeleted
+              ? 'Activity deleted.'
+              : current.state === 'failed'
+                ? 'Sync paused.'
+                : 'Activity pending.'}
       </Text>
       <Text style={styles.lead}>
         {presentation.state === 'validated'
           ? 'Validated totals are ready. Your route remains private and uses the server-trimmed result only.'
           : terminalRejected
-            ? (detail?.rejectionReason ??
+            ? (presentation.detail?.rejectionReason ??
               'This activity was saved privately but is not eligible for validated totals.')
-            : (current.syncError ??
-              'Results remain pending until RunSphere validates this activity. Local recording does not count toward validated totals.')}
+            : terminalDeleted
+              ? 'This activity was deleted on RunSphere and is no longer available for validation.'
+              : (current.syncError ??
+                'Results remain pending until RunSphere validates this activity. Local recording does not count toward validated totals.')}
       </Text>
       {presentation.state === 'validated' ? (
         <>
@@ -630,14 +695,18 @@ function ActivityDetail({
           </View>
         </>
       )}
-      {terminalRejected && (
+      {(terminalRejected || terminalDeleted) && (
         <View style={styles.notice} accessibilityLiveRegion="polite">
           <Text style={styles.noticeIcon}>i</Text>
           <View style={styles.flexCopy}>
-            <Text style={styles.noticeTitle}>Saved privately</Text>
+            <Text style={styles.noticeTitle}>
+              {terminalDeleted ? 'Deleted on RunSphere' : 'Saved privately'}
+            </Text>
             <Text style={styles.noticeCopy}>
-              {detail?.validationErrors?.join(' ') ??
-                'This activity is not eligible for validated totals.'}
+              {terminalDeleted
+                ? 'This activity is no longer available for validation.'
+                : (presentation.detail?.validationErrors?.join(' ') ??
+                  'This activity is not eligible for validated totals.')}
             </Text>
           </View>
         </View>
@@ -655,15 +724,17 @@ function ActivityDetail({
           </View>
         </View>
       )}
-      {presentation.state === 'pending' && (
+      {canSync && (
         <PrimaryButton
           label={current.state === 'failed' ? 'Retry sync' : 'Sync now'}
           onPress={() => void retry()}
         />
       )}
-      {current.remoteId && presentation.state === 'pending' && (
-        <Pressable accessibilityRole="button" onPress={() => void updateFromServer()}>
-          <Text style={styles.textButton}>Refresh validation</Text>
+      {canRefresh && (
+        <Pressable accessibilityRole="button" onPress={() => void updateFromServer(current)}>
+          <Text style={styles.textButton}>
+            {current.remoteStatus === 'derived' ? 'Refresh validated result' : 'Refresh validation'}
+          </Text>
         </Pressable>
       )}
       <Pressable accessibilityRole="button" onPress={() => void remove()}>
@@ -675,6 +746,32 @@ function ActivityDetail({
     </View>
   );
 }
+
+export const HISTORY_REFRESH_CONCURRENCY = 3;
+
+export const shouldRefreshHistoryDetail = (session: ActivitySession): boolean =>
+  Boolean(session.remoteId) && !['rejected', 'deleted'].includes(session.remoteStatus ?? '');
+
+/** Bounds history reads and keeps terminal server outcomes from being polled again. */
+export const refreshHistoryDetails = async (
+  sessions: readonly ActivitySession[],
+  sync: Pick<ReturnType<typeof createActivitySyncCoordinator>, 'refresh'>
+): Promise<(ActivityDetail | undefined)[]> => {
+  const results: (ActivityDetail | undefined)[] = Array(sessions.length);
+  let nextIndex = 0;
+  const worker = async () => {
+    while (nextIndex < sessions.length) {
+      const index = nextIndex++;
+      const session = sessions[index];
+      if (!session) continue;
+      results[index] = await sync.refresh(session).catch(() => undefined);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(HISTORY_REFRESH_CONCURRENCY, sessions.length) }, worker)
+  );
+  return results;
+};
 
 export function ActivityHistory({
   accountId,
@@ -690,32 +787,39 @@ export function ActivityHistory({
   const [details, setDetails] = useState<Record<string, ActivityDetail>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
-  const refresh = async () => {
+  const refreshInFlight = useRef(false);
+  const refresh = useCallback(async () => {
+    if (refreshInFlight.current) return;
+    refreshInFlight.current = true;
     setLoading(true);
     setError(undefined);
     try {
       await sync.syncPending(accountId);
       const local = await activityRecorder.list(accountId);
-      const fetched = await Promise.all(
-        local.map((item) => sync.refresh(item).catch(() => undefined))
+      const fetched = await refreshHistoryDetails(local.filter(shouldRefreshHistoryDetail), sync);
+      const refreshedItems = await activityRecorder.list(accountId);
+      const remoteIds = new Set(
+        refreshedItems.flatMap((item) => (item.remoteId ? [item.remoteId] : []))
       );
-      setDetails(
-        Object.fromEntries(
+      setDetails((current) => ({
+        ...Object.fromEntries(Object.entries(current).filter(([id]) => remoteIds.has(id))),
+        ...Object.fromEntries(
           fetched
             .filter((detail): detail is ActivityDetail => Boolean(detail))
             .map((detail) => [detail.id, detail])
         )
-      );
-      setItems(await activityRecorder.list(accountId));
+      }));
+      setItems(refreshedItems);
     } catch {
       setError('Your local history is still safe. Connect to refresh validation results.');
     } finally {
+      refreshInFlight.current = false;
       setLoading(false);
     }
-  };
+  }, [accountId, sync]);
   useEffect(() => {
     void refresh();
-  }, [accountId]);
+  }, [refresh]);
   return (
     <View style={styles.history}>
       <View style={styles.sectionHeader}>
