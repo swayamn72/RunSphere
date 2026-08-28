@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="RunSphere M2 synthetic fixture" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata><name>gps-gap-61s</name><desc>Synthetic GPS loss boundary: 61 seconds between valid fixes.</desc></metadata>
+  <trk><name>GPS gap and recovery</name><trkseg>
+    <trkpt lat="19.070000" lon="72.870000"><time>2026-08-28T06:20:00Z</time><hdop>1.0</hdop></trkpt>
+    <trkpt lat="19.070000" lon="72.870500"><time>2026-08-28T06:20:05Z</time><hdop>1.0</hdop></trkpt>
+    <trkpt lat="19.070000" lon="72.871000"><time>2026-08-28T06:20:10Z</time><hdop>1.0</hdop></trkpt>
+    <trkpt lat="19.070000" lon="72.871500"><time>2026-08-28T06:20:15Z</time><hdop>1.0</hdop></trkpt>
+    <trkpt lat="19.070000" lon="72.872000"><time>2026-08-28T06:21:16Z</time><hdop>1.0</hdop></trkpt>
+    <trkpt lat="19.070000" lon="72.872500"><time>2026-08-28T06:21:21Z</time><hdop>1.0</hdop></trkpt>
+    <trkpt lat="19.070000" lon="72.873000"><time>2026-08-28T06:21:26Z</time><hdop>1.0</hdop></trkpt>
+  </trkseg></trk>
+</gpx>

@@ -124,34 +124,63 @@ export const ActivityChunkRequestSchema = Type.Object(
   },
   { ...Strict, $id: 'ActivityChunkRequest' }
 );
+export const ActivityChunkHeadersSchema = Type.Object(
+  {
+    'content-encoding': Type.Optional(Type.Literal('identity')),
+    'x-chunk-checksum': Type.String({ pattern: '^[a-f0-9]{64}$' })
+  },
+  { $id: 'ActivityChunkHeaders' }
+);
 export const ActivityFinalizeRequestSchema = Type.Object(
-  { expectedChunkCount: Type.Integer({ minimum: 1, maximum: 10000 }) },
+  {
+    expectedChunkCount: Type.Integer({ minimum: 1, maximum: 10000 }),
+    checksum: Type.String({ pattern: '^[a-f0-9]{64}$' })
+  },
   { ...Strict, $id: 'ActivityFinalizeRequest' }
 );
+const ActivitySummarySchema = Type.Object(
+  {
+    distanceMeters: Type.Number({ minimum: 0 }),
+    durationSeconds: Type.Number({ minimum: 0 }),
+    pointCount: Type.Integer({ minimum: 0 }),
+    privacyTrimmed: Type.Boolean()
+  },
+  Strict
+);
+const ActivityStatusSchema = Type.Union([
+  Type.Literal('received'),
+  Type.Literal('validating'),
+  Type.Literal('accepted'),
+  Type.Literal('rejected'),
+  Type.Literal('derived'),
+  Type.Literal('deleted')
+]);
 export const ActivityStatusResponseSchema = Type.Object(
   {
     id: UuidSchema,
-    status: Type.Union([
-      Type.Literal('received'),
-      Type.Literal('validating'),
-      Type.Literal('accepted'),
-      Type.Literal('rejected'),
-      Type.Literal('derived')
-    ]),
-    summary: Type.Optional(
+    status: ActivityStatusSchema,
+    summary: Type.Optional(ActivitySummarySchema),
+    rejectionReason: Type.Optional(Type.String()),
+    validationErrors: Type.Optional(Type.Array(Type.String({ maxLength: 160 }), { maxItems: 20 })),
+    missingSequences: Type.Optional(Type.Array(Type.Integer({ minimum: 0 }), { maxItems: 10000 })),
+    geometry: Type.Optional(Type.Union([Type.Null(), Type.Unknown()])),
+    provenance: Type.Optional(
       Type.Object(
         {
-          distanceMeters: Type.Number({ minimum: 0 }),
-          durationSeconds: Type.Number({ minimum: 0 }),
-          pointCount: Type.Integer({ minimum: 0 }),
-          privacyTrimmed: Type.Boolean()
+          policyVersion: Type.String(),
+          algorithmVersion: Type.String(),
+          removedPointCount: Type.Integer({ minimum: 0 }),
+          outcome: Type.String()
         },
         Strict
       )
-    ),
-    rejectionReason: Type.Optional(Type.String())
+    )
   },
   { $id: 'ActivityStatusResponse' }
+);
+export const ActivityListResponseSchema = Type.Object(
+  { data: Type.Array(ActivityStatusResponseSchema) },
+  { $id: 'ActivityListResponse' }
 );
 
 export type HealthResponse = Static<typeof HealthResponseSchema>;
@@ -163,4 +192,5 @@ export type RefreshRequest = Static<typeof RefreshRequestSchema>;
 export type PrivacyZoneRequest = Static<typeof PrivacyZoneRequestSchema>;
 export type ActivityCreateRequest = Static<typeof ActivityCreateRequestSchema>;
 export type ActivityChunkRequest = Static<typeof ActivityChunkRequestSchema>;
+export type ActivityChunkHeaders = Static<typeof ActivityChunkHeadersSchema>;
 export type ActivityFinalizeRequest = Static<typeof ActivityFinalizeRequestSchema>;

@@ -18,6 +18,10 @@ import {
 import { colors } from '@runsphere/ui';
 import { clearAccountData } from './src/account-cleanup';
 import { activityQueue } from './src/activity-queue.native';
+import { accountScopeFor } from './src/account-scope';
+import { activityRecorder } from './src/activity-recorder.native';
+import type { ActivitySession, MovementType, RecordingState } from './src/activity-recorder-core';
+import { recordingLocationAdapter } from './src/location-adapter';
 import { MobileApiClient } from './src/api-client';
 import { AuthFailure } from './src/auth-failure';
 import { authStorage } from './src/auth-storage.native';
@@ -40,14 +44,20 @@ export default function App() {
   const [onboarding, dispatch] = useReducer(onboardingReducer, initialOnboardingState);
   const [activeTab, setActiveTab] = useState<Tab>('Home');
   const [activityStarted, setActivityStarted] = useState(false);
+  const [recording, setRecording] = useState<ActivitySession>();
+  const [accountId, setAccountId] = useState<string>();
   const [restoring, setRestoring] = useState(true);
 
   useEffect(() => {
-    void activityQueue.initialize();
+    void Promise.all([activityQueue.initialize(), activityRecorder.initialize()]);
     void authStorage
       .read()
-      .then((session) => {
-        if (session) dispatch({ type: 'restoreSession' });
+      .then(async (session) => {
+        if (!session) return;
+        const scope = accountScopeFor(session);
+        setAccountId(scope);
+        setRecording(await activityRecorder.recover(scope));
+        dispatch({ type: 'restoreSession' });
       })
       .finally(() => setRestoring(false));
   }, []);
@@ -62,14 +72,20 @@ export default function App() {
         {activeTab === 'Home' ? (
           <Home
             activityStarted={activityStarted}
+            recording={recording}
+            accountId={accountId}
             onStart={() => setActivityStarted(true)}
+            onRecordingChange={setRecording}
             onOpenProfile={() => setActiveTab('You')}
           />
         ) : activeTab === 'You' ? (
           <Profile
+            accountId={accountId}
             onLogoutComplete={() => {
               setActiveTab('Home');
               setActivityStarted(false);
+              setRecording(undefined);
+              setAccountId(undefined);
               dispatch({ type: 'logoutComplete' });
             }}
           />
@@ -424,14 +440,25 @@ function Onboarding({
 
 function Home({
   activityStarted,
+  recording,
+  accountId,
   onStart,
+  onRecordingChange,
   onOpenProfile
 }: {
   activityStarted: boolean;
+  recording: ActivitySession | undefined;
+  accountId: string | undefined;
   onStart: () => void;
+  onRecordingChange: (session: ActivitySession | undefined) => void;
   onOpenProfile: () => void;
 }) {
   const { dailyPath, member, nearbyQuest } = homeModel;
+  if (recording && accountId) {
+    return (
+      <ActivityRecording session={recording} accountId={accountId} onChange={onRecordingChange} />
+    );
+  }
   return (
     <>
       <View style={styles.header}>
@@ -494,19 +521,301 @@ function Home({
         </View>
       </View>
       <PrimaryButton
-        label={activityStarted ? 'Activity setup ready' : 'Start activity'}
+        label={activityStarted ? 'Choose activity' : 'Start activity'}
         onPress={onStart}
       />
-      {activityStarted && (
-        <Text accessibilityLiveRegion="polite" style={styles.confirmation}>
-          Activity recording and queue upload are deferred. No route trace is stored yet.
-        </Text>
+      {activityStarted && accountId && (
+        <ActivityPreparation accountId={accountId} onChange={onRecordingChange} />
+      )}
+      {activityStarted && !accountId && (
+        <Text style={styles.errorText}>Sign in again before recording an activity.</Text>
       )}
     </>
   );
 }
 
-function Profile({ onLogoutComplete }: { onLogoutComplete: () => void }) {
+function ActivityPreparation({
+  accountId,
+  onChange
+}: {
+  accountId: string;
+  onChange: (session: ActivitySession) => void;
+}) {
+  const [movement, setMovement] = useState<MovementType>('walk');
+  const [busy, setBusy] = useState(false);
+  const begin = async () => {
+    setBusy(true);
+    try {
+      const foreground = await Location.requestForegroundPermissionsAsync();
+      if (!foreground.granted) {
+        Alert.alert('Location needed', 'Allow precise location to record an activity.');
+        return;
+      }
+      // This is intentionally the sole background-location request, initiated by the explicit recording action.
+      const background = await recordingLocationAdapter.requestLockedScreenPermission();
+      if (!background.granted) {
+        Alert.alert(
+          'Screen-lock recording unavailable',
+          'Recording will stay active while RunSphere remains open.'
+        );
+      }
+      const now = new Date().toISOString();
+      const id = `activity-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      await activityRecorder.create({
+        id,
+        accountId,
+        movementType: movement,
+        state: 'prepare',
+        startedAt: now,
+        updatedAt: now,
+        lastHeartbeatAt: now
+      });
+      await activityRecorder.transition(id, accountId, 'prepare', 'acquiring', now);
+      if (background.granted) await recordingLocationAdapter.start();
+      await activityRecorder.transition(
+        id,
+        accountId,
+        'acquiring',
+        'active',
+        new Date().toISOString()
+      );
+      const session = await activityRecorder.get(id, accountId);
+      if (session) onChange(session);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <View style={styles.recordCard}>
+      <Text style={styles.eyebrow}>START AN ACTIVITY</Text>
+      <Text style={styles.recordTitle}>Move at your own pace.</Text>
+      <Text style={styles.lead}>
+        Choose a movement. Location continues with a visible Android recording notification when you
+        allow screen-lock recording.
+      </Text>
+      <View style={styles.choiceGrid}>
+        {(['walk', 'run', 'hike'] as MovementType[]).map((type) => (
+          <Pressable
+            key={type}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: movement === type }}
+            onPress={() => setMovement(type)}
+            style={[styles.choice, movement === type && styles.choiceSelected]}
+          >
+            <Text style={styles.choiceTitle}>{type.charAt(0).toUpperCase() + type.slice(1)}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <PrimaryButton
+        label={busy ? 'Preparing…' : 'Start recording'}
+        disabled={busy}
+        onPress={() => void begin()}
+      />
+    </View>
+  );
+}
+
+function ActivityRecording({
+  session,
+  accountId,
+  onChange
+}: {
+  session: ActivitySession;
+  accountId: string;
+  onChange: (session: ActivitySession | undefined) => void;
+}) {
+  const [current, setCurrent] = useState(session);
+  const [gpsWeak, setGpsWeak] = useState(false);
+  useEffect(() => {
+    let subscription: Location.LocationSubscription | undefined;
+    if (['active', 'resumed'].includes(current.state)) {
+      void recordingLocationAdapter
+        .subscribe(async (sample) => {
+          const accepted = await activityRecorder.appendSample(current.id, accountId, sample);
+          setGpsWeak(!accepted);
+          const fresh = await activityRecorder.get(current.id, accountId);
+          if (fresh) setCurrent(fresh);
+        })
+        .then((next) => {
+          subscription = next;
+        });
+    }
+    return () => subscription?.remove();
+  }, [accountId, current.id, current.state]);
+  useEffect(() => {
+    if (!['active', 'resumed'].includes(current.state)) return;
+    const interval = setInterval(() => {
+      void activityRecorder
+        .heartbeat(
+          current.id,
+          accountId,
+          new Date().toISOString(),
+          Math.floor((Date.now() - Date.parse(current.startedAt)) / 1000)
+        )
+        .then(async () => {
+          const fresh = await activityRecorder.get(current.id, accountId);
+          if (fresh) setCurrent(fresh);
+        });
+    }, 15_000);
+    return () => clearInterval(interval);
+  }, [accountId, current]);
+  const transition = async (to: RecordingState) => {
+    const from = current.state;
+    const at = new Date().toISOString();
+    await activityRecorder.transition(current.id, accountId, from, to, at);
+    const fresh = await activityRecorder.get(current.id, accountId);
+    if (fresh) {
+      setCurrent(fresh);
+      onChange(fresh);
+    }
+  };
+  const finish = async () => {
+    const at = new Date().toISOString();
+    const durationSeconds = Math.floor((Date.now() - Date.parse(current.startedAt)) / 1000);
+    await activityRecorder.heartbeat(current.id, accountId, at, durationSeconds);
+    await activityRecorder.transition(current.id, accountId, current.state, 'finishing', at);
+    await activityRecorder.transition(
+      current.id,
+      accountId,
+      'finishing',
+      'completed-local',
+      new Date().toISOString()
+    );
+    await recordingLocationAdapter.stop();
+    const fresh = await activityRecorder.get(current.id, accountId);
+    if (fresh) {
+      setCurrent(fresh);
+      onChange(fresh);
+    }
+  };
+  const duration = formatDuration(
+    current.durationSeconds || Math.floor((Date.now() - Date.parse(current.startedAt)) / 1000)
+  );
+  const pace =
+    current.distanceMeters > 0
+      ? formatDuration(Math.round(current.durationSeconds / (current.distanceMeters / 1000)))
+      : '—';
+  if (current.state === 'completed-local')
+    return (
+      <ActivityResults
+        session={current}
+        onQueue={async () => {
+          await transition('queued');
+        }}
+        onDiscard={async () => {
+          await transition('discarded');
+          onChange(undefined);
+        }}
+      />
+    );
+  if (current.state === 'queued')
+    return (
+      <View style={styles.recordCard}>
+        <Text style={styles.eyebrow}>OFFLINE · SAVED ON THIS DEVICE</Text>
+        <Text style={styles.recordTitle}>Activity queued.</Text>
+        <Text style={styles.lead}>
+          Your local result is safe. Sync starts only when the account service supports activity
+          uploads.
+        </Text>
+        <PrimaryButton label="Back to home" onPress={() => onChange(undefined)} />
+      </View>
+    );
+  if (gpsWeak)
+    return (
+      <GpsRecovery onRetry={() => setGpsWeak(false)} onPause={() => void transition('paused')} />
+    );
+  const paused = current.state === 'paused';
+  return (
+    <View style={styles.liveCard}>
+      <View style={styles.liveTop}>
+        <Text style={styles.eyebrow}>
+          {current.movementType.toUpperCase()} · {duration}
+        </Text>
+        <Text style={styles.gpsStrong}>● GPS strong</Text>
+      </View>
+      <Text style={styles.liveDistance}>
+        {(current.distanceMeters / 1000).toFixed(2)} <Text style={styles.unit}>km</Text>
+      </Text>
+      <Text style={styles.provisional}>PROVISIONAL DISTANCE · accuracy-filtered</Text>
+      <View style={styles.liveStats}>
+        <Stat label="AVG PACE /KM" value={pace} detail="Provisional" />
+        <Stat label="SAMPLES" value={`${current.acceptedSamples}`} detail="Accepted GPS points" />
+      </View>
+      <PrimaryButton
+        label={paused ? 'Resume activity' : 'Pause activity'}
+        onPress={() => void transition(paused ? 'resumed' : 'paused')}
+      />
+      <Pressable accessibilityRole="button" onPress={() => void finish()}>
+        <Text style={styles.textButton}>Finish activity</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function GpsRecovery({ onRetry, onPause }: { onRetry: () => void; onPause: () => void }) {
+  return (
+    <View style={styles.recordCard}>
+      <Text style={styles.gpsError}>!</Text>
+      <Text style={styles.recordTitle}>We can’t get a clear GPS signal</Text>
+      <Text style={styles.lead}>Your activity is paused so distance stays accurate.</Text>
+      <Text
+        style={styles.recovery}
+      >{`1  Move away from tall buildings or dense cover.\n2  Keep RunSphere open and location enabled.\n3  Wait a moment while we reconnect.`}</Text>
+      <Text style={styles.provisional}>Looking for GPS… Last strong signal was recent.</Text>
+      <PrimaryButton label="Try again" onPress={onRetry} />
+      <Pressable onPress={onPause}>
+        <Text style={styles.textButton}>Keep activity paused</Text>
+      </Pressable>
+    </View>
+  );
+}
+function ActivityResults({
+  session,
+  onQueue,
+  onDiscard
+}: {
+  session: ActivitySession;
+  onQueue: () => void;
+  onDiscard: () => void;
+}) {
+  const pace = session.distanceMeters
+    ? formatDuration(Math.round(session.durationSeconds / (session.distanceMeters / 1000)))
+    : '—';
+  return (
+    <View style={styles.recordCard}>
+      <Text style={styles.eyebrow}>ACTIVITY COMPLETE · LOCAL RESULT</Text>
+      <Text style={styles.recordTitle}>New ground covered</Text>
+      <Text style={styles.lead}>
+        Saved on this device. Distance, time, and pace are provisional until processing.
+      </Text>
+      <View style={styles.resultStats}>
+        <Stat label="KM" value={(session.distanceMeters / 1000).toFixed(2)} detail="Provisional" />
+        <Stat label="TIME" value={formatDuration(session.durationSeconds)} detail="Recorded" />
+        <Stat label="PACE /KM" value={pace} detail="Provisional" />
+      </View>
+      <PrimaryButton label="Save activity" onPress={onQueue} />
+      <Pressable onPress={onDiscard}>
+        <Text style={styles.textButton}>Discard local activity</Text>
+      </Pressable>
+    </View>
+  );
+}
+const formatDuration = (seconds: number) =>
+  `${Math.floor(seconds / 3600)
+    .toString()
+    .padStart(2, '0')}:${Math.floor((seconds / 60) % 60)
+    .toString()
+    .padStart(2, '0')}:${Math.floor(seconds % 60)
+    .toString()
+    .padStart(2, '0')}`;
+
+function Profile({
+  accountId,
+  onLogoutComplete
+}: {
+  accountId: string | undefined;
+  onLogoutComplete: () => void;
+}) {
   const confirmLogout = () =>
     Alert.alert('Log out', 'This clears local secure tokens and queued activity metadata.', [
       { text: 'Cancel', style: 'cancel' },
@@ -514,7 +823,14 @@ function Profile({ onLogoutComplete }: { onLogoutComplete: () => void }) {
         text: 'Log out',
         style: 'destructive',
         onPress: () => {
-          void coordinateLogout({ api: apiClient, auth: authStorage, queue: activityQueue })
+          void coordinateLogout({
+            api: apiClient,
+            auth: authStorage,
+            queue: activityQueue,
+            ...(accountId
+              ? { recorder: { clear: () => activityRecorder.clearAccount(accountId) } }
+              : {})
+          })
             .then(onLogoutComplete)
             .catch(() => {
               Alert.alert(
@@ -535,7 +851,11 @@ function Profile({ onLogoutComplete }: { onLogoutComplete: () => void }) {
           text: 'Delete account',
           style: 'destructive',
           onPress: () => {
-            void clearAccountData(activityQueue, authStorage).then(() => {
+            void clearAccountData(
+              activityQueue,
+              authStorage,
+              accountId ? { clear: () => activityRecorder.clearAccount(accountId) } : undefined
+            ).then(() => {
               Alert.alert('Local data cleared', 'Secure tokens and queued metadata were removed.');
             });
           }
@@ -1200,5 +1520,70 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     textAlign: 'right'
   },
-  destructive: { color: '#B83220' }
+  destructive: { color: '#B83220' },
+  recordCard: {
+    backgroundColor: colors.card,
+    borderColor: colors.line,
+    borderRadius: 22,
+    borderWidth: 1,
+    marginTop: 12,
+    padding: 20
+  },
+  recordTitle: {
+    color: colors.ink,
+    fontSize: 27,
+    fontWeight: '900',
+    letterSpacing: -0.7,
+    marginBottom: 10,
+    marginTop: 7
+  },
+  liveCard: { backgroundColor: colors.moss, borderRadius: 22, marginTop: 12, padding: 20 },
+  liveTop: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  gpsStrong: { color: colors.lime, fontSize: 11, fontWeight: '900' },
+  liveDistance: {
+    color: '#fff',
+    fontSize: 48,
+    fontWeight: '900',
+    letterSpacing: -2,
+    marginTop: 28,
+    textAlign: 'center'
+  },
+  unit: { color: '#D5E4DB', fontSize: 20, letterSpacing: 0 },
+  provisional: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginTop: 8,
+    textAlign: 'center'
+  },
+  liveStats: {
+    backgroundColor: '#FFFFFF18',
+    borderRadius: 16,
+    flexDirection: 'row',
+    marginTop: 24,
+    padding: 14
+  },
+  gpsError: {
+    alignSelf: 'center',
+    backgroundColor: colors.orange,
+    borderRadius: 24,
+    color: '#fff',
+    fontSize: 25,
+    fontWeight: '900',
+    height: 48,
+    overflow: 'hidden',
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    width: 48
+  },
+  recovery: { color: colors.ink, fontSize: 15, lineHeight: 27, marginBottom: 14 },
+  resultStats: {
+    backgroundColor: colors.cream,
+    borderRadius: 16,
+    flexDirection: 'row',
+    marginBottom: 10,
+    marginTop: 8,
+    padding: 14
+  }
 });

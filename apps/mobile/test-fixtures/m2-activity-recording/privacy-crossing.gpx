@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="RunSphere M2 synthetic fixture" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata><name>privacy-crossing</name><desc>Synthetic trace crossing the 200m privacy zone centered at 19.076500,72.877700.</desc></metadata>
+  <trk><name>Privacy crossing</name><trkseg>
+    <trkpt lat="19.076500" lon="72.874500"><time>2026-08-28T06:10:00Z</time></trkpt>
+    <trkpt lat="19.076500" lon="72.875100"><time>2026-08-28T06:10:05Z</time></trkpt>
+    <trkpt lat="19.076500" lon="72.875700"><time>2026-08-28T06:10:10Z</time></trkpt>
+    <trkpt lat="19.076500" lon="72.876300"><time>2026-08-28T06:10:15Z</time></trkpt>
+    <trkpt lat="19.076500" lon="72.876900"><time>2026-08-28T06:10:20Z</time></trkpt>
+    <trkpt lat="19.076500" lon="72.877700"><time>2026-08-28T06:10:25Z</time></trkpt>
+    <trkpt lat="19.076500" lon="72.878500"><time>2026-08-28T06:10:30Z</time></trkpt>
+    <trkpt lat="19.076500" lon="72.879100"><time>2026-08-28T06:10:35Z</time></trkpt>
+    <trkpt lat="19.076500" lon="72.879700"><time>2026-08-28T06:10:40Z</time></trkpt>
+    <trkpt lat="19.076500" lon="72.880300"><time>2026-08-28T06:10:45Z</time></trkpt>
+    <trkpt lat="19.076500" lon="72.880900"><time>2026-08-28T06:10:50Z</time></trkpt>
+  </trkseg></trk>
+</gpx>

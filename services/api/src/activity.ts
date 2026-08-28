@@ -13,8 +13,17 @@ interface ZoneProvenance {
   geometry_version: number;
 }
 
+const canonicalJson = (value: unknown): string => {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
+    .join(',')}}`;
+};
 export const chunkHash = (chunk: ActivityChunkRequest) =>
-  createHash('sha256').update(JSON.stringify(chunk)).digest('hex');
+  createHash('sha256').update(canonicalJson(chunk)).digest('hex');
 const radians = (degrees: number) => degrees * (Math.PI / 180);
 export const distanceMeters = (a: TracePoint, b: TracePoint) => {
   const earth = 6_371_000;
@@ -49,7 +58,8 @@ export const loadPoints = async (db: Database, activityId: string): Promise<Trac
 
 export const processActivity = async (db: Database, activityId: string): Promise<void> => {
   const activity = await db.query<{ account_id: string; source_checksum: string }>(
-    'SELECT account_id, source_checksum FROM activity_submissions WHERE id = $1 AND status = $2',
+    `SELECT account_id, source_checksum FROM activity_submissions
+     WHERE id = $1 AND status = $2 AND deleted_at IS NULL`,
     [activityId, 'validating']
   );
   if (!activity.rows[0]) return;
@@ -100,7 +110,9 @@ export const processActivity = async (db: Database, activityId: string): Promise
   const summary = { ...summarize(points), privacyTrimmed: keptIndexes.size !== points.length };
   await db.query(
     `INSERT INTO activity_derivations (activity_id, shareable_route, source_checksum, route_checksum, policy_version, algorithm_version, applied_zone_ids, applied_zones, removed_point_count, outcome)
-     VALUES ($1, CASE WHEN $2::jsonb IS NULL THEN NULL ELSE ST_SetSRID(ST_GeomFromGeoJSON($2), 4326) END, $3, $4, 'm1-privacy-200m', 'm1-canonical-v2', $5::uuid[], $6::jsonb, $7, $8)
+     SELECT $1, CASE WHEN $2::jsonb IS NULL THEN NULL ELSE ST_SetSRID(ST_GeomFromGeoJSON($2), 4326) END,
+       $3, $4, 'm2-privacy-200m', 'm2-canonical-v1', $5::uuid[], $6::jsonb, $7, $8
+     WHERE EXISTS (SELECT 1 FROM activity_submissions WHERE id = $1 AND status = 'validating' AND deleted_at IS NULL)
      ON CONFLICT (activity_id) DO NOTHING`,
     [
       activityId,
@@ -116,7 +128,8 @@ export const processActivity = async (db: Database, activityId: string): Promise
     ]
   );
   await db.query(
-    'UPDATE activity_submissions SET status = $1, processed_at = now(), summary = $2 WHERE id = $3',
+    `UPDATE activity_submissions SET status = $1, processed_at = now(), summary = $2
+     WHERE id = $3 AND status = 'validating' AND deleted_at IS NULL`,
     ['derived', JSON.stringify(summary), activityId]
   );
 };

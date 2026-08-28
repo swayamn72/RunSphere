@@ -14,12 +14,13 @@ const config: ExpoConfig = {
       'android.permission.ACCESS_COARSE_LOCATION',
       'android.permission.ACCESS_FINE_LOCATION',
       'android.permission.ACTIVITY_RECOGNITION',
+      'android.permission.ACCESS_BACKGROUND_LOCATION',
+      'android.permission.FOREGROUND_SERVICE',
+      'android.permission.FOREGROUND_SERVICE_LOCATION',
       'android.permission.INTERNET',
       'android.permission.VIBRATE'
     ],
     blockedPermissions: [
-      'android.permission.ACCESS_BACKGROUND_LOCATION',
-      'android.permission.FOREGROUND_SERVICE_LOCATION',
       'android.permission.SYSTEM_ALERT_WINDOW',
       'android.permission.READ_EXTERNAL_STORAGE',
       'android.permission.WRITE_EXTERNAL_STORAGE'
@@ -35,7 +36,9 @@ const config: ExpoConfig = {
       'expo-location',
       {
         locationWhenInUsePermission:
-          'Allow RunSphere to use your location while you use the app to map activities and nearby quests.'
+          'Allow RunSphere to use your location while you record an activity.',
+        locationAlwaysAndWhenInUsePermission:
+          'Allow RunSphere to record your activity while the screen is locked. This is requested only when you start recording.'
       }
     ],
     [

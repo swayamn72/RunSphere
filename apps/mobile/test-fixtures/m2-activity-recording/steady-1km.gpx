@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="RunSphere M2 synthetic fixture" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata><name>steady-1km</name><desc>Synthetic approximate 1 km eastbound trace, 5-second cadence.</desc></metadata>
+  <trk><name>Steady synthetic walk</name><trkseg>
+    <trkpt lat="19.076000" lon="72.877000"><time>2026-08-28T06:00:00Z</time><hdop>1.0</hdop></trkpt>
+    <trkpt lat="19.076000" lon="72.877830"><time>2026-08-28T06:00:05Z</time><hdop>1.0</hdop></trkpt>
+    <trkpt lat="19.076000" lon="72.878660"><time>2026-08-28T06:00:10Z</time><hdop>1.0</hdop></trkpt>
+    <trkpt lat="19.076000" lon="72.879490"><time>2026-08-28T06:00:15Z</time><hdop>1.0</hdop></trkpt>
+    <trkpt lat="19.076000" lon="72.880320"><time>2026-08-28T06:00:20Z</time><hdop>1.0</hdop></trkpt>
+    <trkpt lat="19.076000" lon="72.881150"><time>2026-08-28T06:00:25Z</time><hdop>1.0</hdop></trkpt>
+    <trkpt lat="19.076000" lon="72.881980"><time>2026-08-28T06:00:30Z</time><hdop>1.0</hdop></trkpt>
+    <trkpt lat="19.076000" lon="72.882810"><time>2026-08-28T06:00:35Z</time><hdop>1.0</hdop></trkpt>
+    <trkpt lat="19.076000" lon="72.883640"><time>2026-08-28T06:00:40Z</time><hdop>1.0</hdop></trkpt>
+    <trkpt lat="19.076000" lon="72.884470"><time>2026-08-28T06:00:45Z</time><hdop>1.0</hdop></trkpt>
+    <trkpt lat="19.076000" lon="72.885300"><time>2026-08-28T06:00:50Z</time><hdop>1.0</hdop></trkpt>
+    <trkpt lat="19.076000" lon="72.886130"><time>2026-08-28T06:00:55Z</time><hdop>1.0</hdop></trkpt>
+    <trkpt lat="19.076000" lon="72.886960"><time>2026-08-28T06:01:00Z</time><hdop>1.0</hdop></trkpt>
+  </trkseg></trk>
+</gpx>
