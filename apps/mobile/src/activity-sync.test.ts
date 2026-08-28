@@ -67,6 +67,100 @@ describe('activity sync coordinator', () => {
     expect(api.finalizeActivity).toHaveBeenCalledWith('remote-1', samplesToChunks(samples));
     expect(result.session.state).toBe('queued');
   });
+  it('does not upload or finalize an activity already validating remotely', async () => {
+    const stored = { ...session };
+    const api = {
+      createActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'received' }),
+      recoverActivitySync: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'validating' }),
+      uploadActivityChunk: vi.fn(),
+      finalizeActivity: vi.fn()
+    };
+    const recorder = {
+      samples: vi.fn().mockResolvedValue(samples),
+      transition: vi.fn(async (_id: string, _account: string, from: string, to: string) => {
+        if (stored.state === from) stored.state = to as typeof stored.state;
+        return true;
+      }),
+      setRemote: vi.fn(async (_id: string, _account: string, remoteId: string) => {
+        stored.remoteId = remoteId;
+      }),
+      get: vi.fn(async () => stored),
+      markSyncFailure: vi.fn(),
+      list: vi.fn()
+    };
+
+    const result = await createActivitySyncCoordinator(api as never, recorder as never).sync(session);
+
+    expect(result.status?.status).toBe('validating');
+    expect(result.session.state).toBe('queued');
+    expect(api.uploadActivityChunk).not.toHaveBeenCalled();
+    expect(api.finalizeActivity).not.toHaveBeenCalled();
+  });
+
+  it('keeps a rejected result available without retrying or uploading chunks', async () => {
+    const stored = { ...session };
+    const api = {
+      createActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'received' }),
+      recoverActivitySync: vi.fn().mockResolvedValue({
+        id: 'remote-1',
+        status: 'rejected',
+        rejectionReason: 'GPS samples could not be validated.'
+      }),
+      uploadActivityChunk: vi.fn(),
+      finalizeActivity: vi.fn()
+    };
+    const recorder = {
+      samples: vi.fn().mockResolvedValue(samples),
+      transition: vi.fn(async (_id: string, _account: string, from: string, to: string) => {
+        if (stored.state === from) stored.state = to as typeof stored.state;
+        return true;
+      }),
+      setRemote: vi.fn(async (_id: string, _account: string, remoteId: string) => {
+        stored.remoteId = remoteId;
+      }),
+      get: vi.fn(async () => stored),
+      markSyncFailure: vi.fn(),
+      list: vi.fn()
+    };
+
+    const result = await createActivitySyncCoordinator(api as never, recorder as never).sync(session);
+
+    expect(result.status?.status).toBe('rejected');
+    expect(result.session.state).toBe('processed');
+    expect(api.uploadActivityChunk).not.toHaveBeenCalled();
+    expect(api.finalizeActivity).not.toHaveBeenCalled();
+  });
+
+  it('ignores out-of-range missing chunk sequences', async () => {
+    const stored = { ...session };
+    const api = {
+      createActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'received' }),
+      recoverActivitySync: vi
+        .fn()
+        .mockResolvedValue({ id: 'remote-1', status: 'received', missingSequences: [-1, 0, 1, 99] }),
+      uploadActivityChunk: vi.fn(),
+      finalizeActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'validating' })
+    };
+    const recorder = {
+      samples: vi.fn().mockResolvedValue(samples),
+      transition: vi.fn(async (_id: string, _account: string, from: string, to: string) => {
+        if (stored.state === from) stored.state = to as typeof stored.state;
+        return true;
+      }),
+      setRemote: vi.fn(async (_id: string, _account: string, remoteId: string) => {
+        stored.remoteId = remoteId;
+      }),
+      get: vi.fn(async () => stored),
+      markSyncFailure: vi.fn(),
+      list: vi.fn()
+    };
+
+    await createActivitySyncCoordinator(api as never, recorder as never).sync(session);
+
+    expect(api.uploadActivityChunk).toHaveBeenCalledOnce();
+    expect(api.uploadActivityChunk).toHaveBeenCalledWith('remote-1', samplesToChunks(samples)[0]);
+  });
+
   it('marks network failures and leaves activity available for retry', async () => {
     const recorder = {
       transition: vi.fn().mockResolvedValue(true),

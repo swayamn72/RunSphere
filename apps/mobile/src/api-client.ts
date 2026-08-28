@@ -1,16 +1,22 @@
 import type {
+  AccountDeletionResponse,
+  AccountExportResponse,
   LoginRequest,
   PrivacyZoneRequest,
+  PrivacyZoneResponse,
   QuestDetail,
   QuestSummary,
   RegisterRequest,
   SafetyContactRequest,
+  SafetyContactResponse,
+  SafetyShareReadResponse,
   SafetyShareRequest,
+  SafetyShareResponse,
   VisibilityRequest,
+  VisibilityResponse,
   WeeklyGoalRequest,
   WeeklyGoalResponse
 } from '@runsphere/contracts';
-
 import type { AuthSession, AuthStorage } from './auth-storage-core';
 import { getApiBaseUrl } from './api-config';
 import { canonicalJson, sha256 } from './activity-checksum';
@@ -22,35 +28,7 @@ import {
 } from './auth-failure';
 
 export type { AuthSession } from './auth-storage-core';
-type Coordinates = { latitude: number; longitude: number };
-type AccountDeletionResponse = { status: 'scheduled' };
-type AccountExportResponse = {
-  status: 'ready';
-  generatedAt: string;
-  rawTraceAvailability: 'available-within-retention-window';
-  data: {
-    profile: { email: string; activityVisibility: 'private' | 'followers' };
-    privacyZones: Array<PrivacyZoneResponse>;
-    activities: Array<{ id: string; rawTraceAvailable: boolean }>;
-  };
-};
-type PrivacyZoneResponse = {
-  id: string;
-  name: string;
-  center: Coordinates;
-  radiusMeters: 200;
-  geometryVersion: number;
-};
-export type SafetyContactResponse = { id: string; email: string; status: 'pending' | 'accepted' };
-type SafetyShareResponse = {
-  id: string;
-  safetyContactId: string;
-  status: 'active' | 'revoked' | 'expired';
-  delayMinutes: 15;
-  tileSizeMeters: 500;
-  expiresAt: string;
-};
-type VisibilityResponse = { activityVisibility: 'private' | 'followers' };
+export type { SafetyContactResponse } from '@runsphere/contracts';
 export type ActivityMovement = 'walk' | 'run' | 'hike';
 export interface ActivityPoint {
   latitude: number;
@@ -119,7 +97,12 @@ export class MobileApiClient {
 
   async listQuests(): Promise<readonly QuestSummary[]> {
     if (!this.baseUrl) return [];
-    const response = await this.fetcher(`${this.baseUrl}/v1/quests`);
+    let response: Response;
+    try {
+      response = await this.fetcher(`${this.baseUrl}/v1/quests`);
+    } catch (error) {
+      throw classifyTransportFailure(error);
+    }
     if (!response.ok) throw new Error(`Unable to load quests (${response.status}).`);
     return ((await response.json()) as { data: QuestSummary[] }).data;
   }
@@ -138,6 +121,9 @@ export class MobileApiClient {
   async updateVisibility(visibility: VisibilityRequest): Promise<VisibilityResponse> {
     return this.request('/v1/account/visibility', { method: 'PUT', body: visibility });
   }
+  async requestEmailVerification(): Promise<void> {
+    await this.request('/v1/account/email-verification', { method: 'POST' });
+  }
   async listSafetyContacts(): Promise<readonly SafetyContactResponse[]> {
     return (await this.request<{ data: SafetyContactResponse[] }>('/v1/safety-contacts', { method: 'GET' }))
       .data;
@@ -145,11 +131,17 @@ export class MobileApiClient {
   async inviteSafetyContact(contact: SafetyContactRequest): Promise<SafetyContactResponse> {
     return this.request('/v1/safety-contacts', { method: 'POST', body: contact });
   }
+  async acceptSafetyContact(id: string): Promise<void> {
+    await this.request(`/v1/safety-contacts/${encodeURIComponent(id)}/accept`, { method: 'POST' });
+  }
   async startSafetyShare(share: SafetyShareRequest): Promise<SafetyShareResponse> {
     return this.request('/v1/safety-shares', { method: 'POST', body: share });
   }
   async stopSafetyShare(id: string): Promise<void> {
     await this.request(`/v1/safety-shares/${encodeURIComponent(id)}`, { method: 'DELETE', empty: true });
+  }
+  async readDelayedSafetyShare(id: string): Promise<SafetyShareReadResponse> {
+    return this.request(`/v1/safety-shares/${encodeURIComponent(id)}/updates`, { method: 'GET' });
   }
   async exportAccount(): Promise<AccountExportResponse> {
     return this.request('/v1/account/export', { method: 'GET' });
