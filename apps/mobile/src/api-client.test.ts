@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MobileApiClient } from './api-client.js';
 import { createAuthStorage, type SecureKeyValueStore } from './auth-storage-core.js';
+import { AuthFailure } from './auth-failure.js';
 
 class MemorySecureStore implements SecureKeyValueStore {
   private readonly values = new Map<string, string>();
@@ -35,6 +36,42 @@ describe('mobile API auth client', () => {
       })
     ).resolves.toEqual(session);
     await expect(storage.read()).resolves.toEqual(session);
+  });
+
+  it('classifies duplicate registration without exposing the server response body', async () => {
+    const client = new MobileApiClient(
+      'https://api.runsphere.test',
+      async () =>
+        new Response(JSON.stringify({ message: 'sensitive server detail' }), { status: 409 })
+    );
+
+    await expect(
+      client.register({
+        email: 'maya@example.com',
+        password: 'long-enough-password',
+        ageAssertion: true,
+        policyVersion: 'm1'
+      })
+    ).rejects.toMatchObject({
+      name: 'AuthFailure',
+      kind: 'account-exists',
+      status: 409,
+      message:
+        'An account may already exist for this email. Sign in instead, or use a different email.'
+    });
+  });
+
+  it.each([
+    [new TypeError('Network request failed'), 'network'],
+    [new Error('SSLHandshakeException: Trust anchor not found'), 'tls']
+  ])('classifies transport failures safely', async (transportError, expectedKind) => {
+    const client = new MobileApiClient('https://api.runsphere.test', async () => {
+      throw transportError;
+    });
+
+    const request = client.login({ email: 'maya@example.com', password: 'long-enough-password' });
+    await expect(request).rejects.toBeInstanceOf(AuthFailure);
+    await expect(request).rejects.toMatchObject({ kind: expectedKind });
   });
 
   it('does not clear secure storage until account-scoped cleanup runs', async () => {

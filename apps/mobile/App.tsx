@@ -17,6 +17,7 @@ import { colors } from '@runsphere/ui';
 import { clearAccountData } from './src/account-cleanup';
 import { activityQueue } from './src/activity-queue.native';
 import { MobileApiClient } from './src/api-client';
+import { AuthFailure } from './src/auth-failure';
 import { authStorage } from './src/auth-storage.native';
 import { homeModel } from './src/models';
 import {
@@ -84,10 +85,12 @@ function Onboarding({
 }) {
   const [authStatus, setAuthStatus] = useState<AuthStatus>('idle');
   const [authError, setAuthError] = useState<string>();
+  const [authFailureKind, setAuthFailureKind] = useState<AuthFailure['kind']>();
   const authenticate = async () => {
     if (!canSubmitAccount(state)) return;
     setAuthStatus('loading');
     setAuthError(undefined);
+    setAuthFailureKind(undefined);
     try {
       if (state.accountMode === 'login')
         await apiClient.login({ email: state.email.trim(), password: state.password });
@@ -101,6 +104,7 @@ function Onboarding({
       dispatch({ type: 'authenticationSucceeded' });
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : 'Unable to complete authentication.');
+      setAuthFailureKind(error instanceof AuthFailure ? error.kind : 'unknown');
       setAuthStatus('error');
       return;
     }
@@ -231,6 +235,20 @@ function Onboarding({
               <Text accessibilityLiveRegion="polite" style={styles.errorText}>
                 {authError}
               </Text>
+            )}
+            {authFailureKind === 'account-exists' && (
+              <Pressable
+                accessibilityRole="button"
+                disabled={authStatus === 'loading'}
+                onPress={() => {
+                  setAuthError(undefined);
+                  setAuthFailureKind(undefined);
+                  setAuthStatus('idle');
+                  dispatch({ type: 'startAccount', mode: 'login' });
+                }}
+              >
+                <Text style={styles.textButton}>Sign in with this email</Text>
+              </Pressable>
             )}
             <PrimaryButton
               label={
