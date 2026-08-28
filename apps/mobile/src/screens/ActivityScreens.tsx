@@ -1,6 +1,6 @@
 import * as Location from 'expo-location';
-import { useEffect, useState } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { AppState, Linking, Pressable, Text, View } from 'react-native';
 import { activityRecorder } from '../activity-recorder.native';
 import {
   isWeakGpsSample,
@@ -9,109 +9,274 @@ import {
   type RecordingState
 } from '../activity-recorder-core';
 import { recordingLocationAdapter } from '../location-adapter';
+import {
+  ACQUISITION_TIMEOUT_MS,
+  cancelAcquisition,
+  type AcquisitionState
+} from '../activity-acquisition';
+import {
+  acquisitionStatusCopy,
+  beginPreparationAcquisition,
+  preparationFix,
+  preparationTimeout
+} from '../activity-preparation-model';
+import {
+  getRecordingLocationPermissionState,
+  type RecordingLocationPermissionState
+} from '../location-permission';
 import { type createActivitySyncCoordinator } from '../activity-sync';
 import type { ActivityStatus } from '../api-client';
-import { PrimaryButton, Stat } from '../components/primitives';
+import { MovementChoice, PrimaryButton, Stat } from '../components/primitives';
 import { useAppStyles } from '../components/styles';
 
 export function ActivityPreparation({
   accountId,
   initialMovement,
+  originLabel,
   onChange,
   onExit
 }: {
   accountId: string;
   initialMovement: MovementType;
+  originLabel?: string;
   onChange: (session: ActivitySession) => void;
   onExit: () => void;
 }) {
   const styles = useAppStyles();
   const [movement, setMovement] = useState<MovementType>(initialMovement);
-  const [busy, setBusy] = useState(false);
-  const [backgroundOptIn, setBackgroundOptIn] = useState(false);
-  const begin = async () => {
-    setBusy(true);
+  const [permission, setPermission] = useState<RecordingLocationPermissionState>('unrequested');
+  const [acquisition, setAcquisition] = useState<AcquisitionState>();
+  const [message, setMessage] = useState<string>();
+  const mounted = useRef(false);
+  const starting = useRef(false);
+  const activationStarted = useRef(false);
+  const acquisitionState = useRef<AcquisitionState | undefined>(undefined);
+  const acquisitionGeneration = useRef(0);
+  const subscription = useRef<Location.LocationSubscription | undefined>(undefined);
+  const timeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const cleanup = () => {
+    acquisitionGeneration.current += 1;
+    subscription.current?.remove();
+    subscription.current = undefined;
+    if (timeout.current) clearTimeout(timeout.current);
+    timeout.current = undefined;
+  };
+  const showAcquisition = (next: AcquisitionState) => {
+    acquisitionState.current = next;
+    setAcquisition(next);
+  };
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      cleanup();
+    };
+  }, []);
+  useEffect(() => {
+    const appState = AppState.addEventListener('change', (state) => {
+      if (state !== 'active' || permission !== 'blocked') return;
+      void Location.getForegroundPermissionsAsync()
+        .then((current) => {
+          if (!mounted.current) return;
+          const next = getRecordingLocationPermissionState(current);
+          setPermission(next);
+          if (next === 'precise') setMessage(undefined);
+        })
+        .catch(() => mounted.current && setPermission('failure'));
+    });
+    return () => appState.remove();
+  }, [permission]);
+
+  const cancelAcquiring = () => {
+    cleanup();
+    activationStarted.current = false;
+    if (acquisitionState.current) showAcquisition(cancelAcquisition(acquisitionState.current));
+    starting.current = false;
+  };
+  const activateAfterGate = async () => {
+    if (!starting.current || activationStarted.current) return;
+    activationStarted.current = true;
+    cleanup();
+    const now = new Date().toISOString();
+    const id = `activity-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     try {
-      const foreground = await Location.requestForegroundPermissionsAsync();
-      if (!foreground.granted) {
-        Alert.alert('Location needed', 'Allow precise location to record an activity.');
-        return;
-      }
-      let backgroundGranted = false;
-      if (backgroundOptIn) {
-        const background = await recordingLocationAdapter.requestBackgroundPermission();
-        backgroundGranted = background.granted;
-        if (!backgroundGranted)
-          Alert.alert(
-            'Screen-lock recording unavailable',
-            'Recording will stay active while RunSphere remains open.'
-          );
-      }
-      const now = new Date().toISOString();
-      const id = `activity-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      // Deliberate M1 deviation: preparation remains in-memory until the acquisition gate passes.
+      // No pre-route row or acquisition fix can enter recovery/history; legacy rows are discarded at init.
       await activityRecorder.create({
         id,
         accountId,
         movementType: movement,
-        state: 'prepare',
+        state: 'active',
         startedAt: now,
         updatedAt: now,
         lastHeartbeatAt: now
       });
-      await activityRecorder.transition(id, accountId, 'prepare', 'acquiring', now);
-      if (backgroundGranted) await recordingLocationAdapter.startBackground();
-      await activityRecorder.transition(
-        id,
-        accountId,
-        'acquiring',
-        'active',
-        new Date().toISOString()
-      );
       const session = await activityRecorder.get(id, accountId);
-      if (session) onChange(session);
+      if (!mounted.current || !session) {
+        await activityRecorder.remove(id, accountId);
+        return;
+      }
+      onChange(session);
+    } catch {
+      if (mounted.current) {
+        setPermission('failure');
+        setMessage('Recording could not start. No route or distance was created. Try again.');
+      }
     } finally {
-      setBusy(false);
+      activationStarted.current = false;
+      starting.current = false;
     }
   };
+  const beginAcquisition = async () => {
+    const generation = ++acquisitionGeneration.current;
+    const initial = beginPreparationAcquisition(Date.now());
+    showAcquisition(initial);
+    setMessage(undefined);
+    try {
+      const nextSubscription = await recordingLocationAdapter.subscribe((sample) => {
+        if (!mounted.current || generation !== acquisitionGeneration.current) return;
+        const current = acquisitionState.current;
+        if (!current) return;
+        const next = preparationFix(current, sample, Date.now());
+        showAcquisition(next);
+        if (next.status === 'ready' && current.status === 'acquiring') void activateAfterGate();
+      });
+      if (!mounted.current || !starting.current || generation !== acquisitionGeneration.current) {
+        nextSubscription.remove();
+        return;
+      }
+      subscription.current = nextSubscription;
+      timeout.current = setTimeout(() => {
+        if (!mounted.current || generation !== acquisitionGeneration.current) return;
+        const current = acquisitionState.current;
+        if (!current) return;
+        const next = preparationTimeout(current, Date.now());
+        showAcquisition(next);
+        if (next.status === 'timed-out') {
+          cleanup();
+          starting.current = false;
+          setMessage(
+            'We did not get three clear fixes in 30 seconds. No route or distance was created.'
+          );
+        }
+      }, ACQUISITION_TIMEOUT_MS);
+    } catch {
+      starting.current = false;
+      if (mounted.current) {
+        setPermission('failure');
+        setMessage('We could not read your location. No route or distance was created. Try again.');
+      }
+    }
+  };
+  const begin = async () => {
+    if (starting.current) return;
+    starting.current = true;
+    setPermission('requesting');
+    setMessage(undefined);
+    try {
+      const current = await Location.getForegroundPermissionsAsync();
+      const currentState = getRecordingLocationPermissionState(current);
+      const response =
+        currentState === 'precise' ? current : await Location.requestForegroundPermissionsAsync();
+      const next = getRecordingLocationPermissionState(response);
+      if (!mounted.current) return;
+      setPermission(next);
+      if (next !== 'precise') {
+        starting.current = false;
+        setMessage(
+          next === 'approximate'
+            ? 'Recording needs precise location. No route or distance was created.'
+            : 'Location was not granted. No route or distance was created.'
+        );
+        return;
+      }
+      await beginAcquisition();
+    } catch {
+      starting.current = false;
+      if (mounted.current) {
+        setPermission('failure');
+        setMessage(
+          'We could not check location permission. No route or distance was created. Try again.'
+        );
+      }
+    }
+  };
+  const retry = () => {
+    cleanup();
+    acquisitionState.current = undefined;
+    activationStarted.current = false;
+    starting.current = false;
+    void begin();
+  };
+  const isAcquiring = acquisition?.status === 'acquiring';
+  const isActivating = acquisition?.status === 'ready';
+  const needsSettings = permission === 'blocked';
   return (
     <View style={styles.recordCard}>
-      <Text style={styles.eyebrow}>START AN ACTIVITY</Text>
-      <Text style={styles.recordTitle}>Move at your own pace.</Text>
+      <Text style={styles.eyebrow}>FREE ACTIVITY</Text>
+      <Text style={styles.recordTitle}>Prepare your private activity.</Text>
       <Text style={styles.lead}>
-        Foreground recording works while RunSphere is open. Screen-lock recording is an optional,
-        separate permission.
+        Current location is used only while RunSphere is open to build a private route and distance.
+        It is retained on this device only after recording starts. No background location is
+        requested.
       </Text>
-      <Pressable
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: backgroundOptIn }}
-        onPress={() => setBackgroundOptIn((value) => !value)}
-        style={styles.checkRow}
-      >
-        <View style={[styles.checkbox, backgroundOptIn && styles.checkboxChecked]}>
-          {backgroundOptIn && <Text style={styles.checkMark}>✓</Text>}
+      {originLabel && <Text style={styles.privateNote}>Started from {originLabel}</Text>}
+      <MovementChoice selected={movement} onChoose={setMovement} />
+      {isAcquiring && (
+        <View style={styles.notice} accessibilityLiveRegion="polite">
+          <View style={styles.flexCopy}>
+            <Text style={styles.noticeTitle}>Finding a clear GPS signal</Text>
+            <Text style={styles.noticeCopy}>{acquisitionStatusCopy(acquisition)}</Text>
+          </View>
         </View>
-        <Text style={styles.checkCopy}>Keep recording when the screen locks</Text>
-      </Pressable>
-      <View style={styles.choiceGrid}>
-        {(['walk', 'run', 'hike'] as MovementType[]).map((type) => (
-          <Pressable
-            key={type}
-            accessibilityRole="radio"
-            accessibilityState={{ selected: movement === type }}
-            onPress={() => setMovement(type)}
-            style={[styles.choice, movement === type && styles.choiceSelected]}
-          >
-            <Text style={styles.choiceTitle}>{type.charAt(0).toUpperCase() + type.slice(1)}</Text>
-          </Pressable>
-        ))}
-      </View>
-      <PrimaryButton
-        label={busy ? 'Preparing…' : 'Start recording'}
-        disabled={busy}
-        onPress={() => void begin()}
-      />
-      <Pressable accessibilityRole="button" onPress={onExit}>
-        <Text style={styles.textButton}>Not now</Text>
+      )}
+      {message && (
+        <View style={[styles.notice, styles.warningNotice]} accessibilityLiveRegion="polite">
+          <View style={styles.flexCopy}>
+            <Text style={styles.noticeTitle}>
+              {needsSettings ? 'Location is blocked' : 'Location needs attention'}
+            </Text>
+            <Text style={styles.noticeCopy}>{message}</Text>
+          </View>
+        </View>
+      )}
+      {needsSettings ? (
+        <PrimaryButton label="Open location settings" onPress={() => void Linking.openSettings()} />
+      ) : (
+        <PrimaryButton
+          label={
+            permission === 'requesting'
+              ? 'Checking location…'
+              : isAcquiring
+                ? 'Finding GPS…'
+                : 'Start recording'
+          }
+          disabled={permission === 'requesting' || isAcquiring || isActivating}
+          onPress={() => void begin()}
+        />
+      )}
+      {(permission === 'denied' ||
+        permission === 'approximate' ||
+        permission === 'failure' ||
+        acquisition?.status === 'timed-out') && (
+        <Pressable accessibilityRole="button" onPress={retry}>
+          <Text style={styles.textButton}>Retry location</Text>
+        </Pressable>
+      )}
+      {isAcquiring && (
+        <Pressable accessibilityRole="button" onPress={cancelAcquiring}>
+          <Text style={styles.textButton}>Cancel GPS check</Text>
+        </Pressable>
+      )}
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => {
+          cancelAcquiring();
+          onExit();
+        }}
+      >
+        <Text style={styles.textButton}>{originLabel ? `Back to ${originLabel}` : 'Not now'}</Text>
       </Pressable>
     </View>
   );
@@ -191,7 +356,6 @@ export function ActivityRecording({
       'completed-local',
       new Date().toISOString()
     );
-    await recordingLocationAdapter.stopBackground();
     const fresh = await activityRecorder.get(current.id, accountId);
     if (fresh) {
       setCurrent(fresh);

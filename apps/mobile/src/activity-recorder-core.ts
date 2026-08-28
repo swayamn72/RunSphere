@@ -179,6 +179,18 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
         'ALTER TABLE recorded_activities ADD COLUMN remote_id TEXT; ALTER TABLE recorded_activities ADD COLUMN sync_error TEXT;'
       );
     await database.execAsync(activityRecorderSchema);
+    // Preparation is now in-memory. Safely discard pre-route rows left by older builds so they
+    // cannot become orphaned recovery/history entries; recording never reached route retention.
+    await database.runAsync(
+      "DELETE FROM recorded_activities WHERE state IN ('prepare', 'acquiring')"
+    );
+  },
+  async discardLegacyPreparation(accountId: string): Promise<number> {
+    const result = await database.runAsync(
+      "DELETE FROM recorded_activities WHERE account_id = ? AND state IN ('prepare', 'acquiring')",
+      accountId
+    );
+    return result.changes;
   },
   async create(
     session: Omit<ActivitySession, 'durationSeconds' | 'distanceMeters' | 'acceptedSamples'>
@@ -207,7 +219,7 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
   },
   async recover(accountId: string): Promise<ActivitySession | undefined> {
     const row = await database.getFirstAsync<Record<string, unknown>>(
-      `${sessionSelect} WHERE account_id = ? AND state IN ('prepare', 'acquiring', 'active', 'paused', 'resumed', 'finishing') ORDER BY updated_at DESC LIMIT 1`,
+      `${sessionSelect} WHERE account_id = ? AND state IN ('active', 'paused', 'resumed', 'finishing') ORDER BY updated_at DESC LIMIT 1`,
       accountId
     );
     return row ? rowToSession(row) : undefined;
@@ -303,7 +315,7 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
   },
   async list(accountId: string): Promise<ActivitySession[]> {
     const rows = await database.getAllAsync<Record<string, unknown>>(
-      `${sessionSelect} WHERE account_id = ? AND state != 'discarded' ORDER BY updated_at DESC`,
+      `${sessionSelect} WHERE account_id = ? AND state NOT IN ('prepare', 'acquiring', 'discarded') ORDER BY updated_at DESC`,
       accountId
     );
     return rows.map(rowToSession);

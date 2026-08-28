@@ -15,7 +15,13 @@ import { PrimaryButton } from './src/components/primitives';
 import { useAppStyles } from './src/components/styles';
 import { coordinateLogout } from './src/logout-coordinator';
 import { TabBar } from './src/navigation/TabBar';
-import { exitActivityFlow, isTabBarVisible, selectAppShell } from './src/navigation/app-shell';
+import { isTabBarVisible, selectAppShell } from './src/navigation/app-shell';
+import {
+  activityFlowReducer,
+  activityOriginReturn,
+  initialActivityRoute,
+  routeOrigin
+} from './src/activity-flow';
 import type { Tab } from './src/navigation/types';
 import { initialOnboardingState, onboardingReducer } from './src/onboarding';
 import {
@@ -47,19 +53,22 @@ function RunSphereApp() {
   const styles = useAppStyles();
   const [onboarding, dispatch] = useReducer(onboardingReducer, initialOnboardingState);
   const [activeTab, setActiveTab] = useState<Tab>('Home');
-  const [activityStarted, setActivityStarted] = useState(false);
+  const [activityRoute, dispatchActivityRoute] = useReducer(
+    activityFlowReducer,
+    initialActivityRoute
+  );
   const [movement, setMovement] = useState<MovementType>('walk');
   const [recording, setRecording] = useState<ActivitySession>();
   const [accountId, setAccountId] = useState<string>();
-  const [restoring, setRestoring] = useState(true);
-  const [storageError, setStorageError] = useState(false);
+  const [initializationState, setInitializationState] = useState<
+    'loading' | 'ready' | 'storage-failure'
+  >('loading');
   const [selectedQuest, setSelectedQuest] = useState<QuestSummary>();
   const [storageAttempt, retryStorage] = useReducer((attempt: number) => attempt + 1, 0);
 
   useEffect(() => {
     let mounted = true;
-    setRestoring(true);
-    setStorageError(false);
+    setInitializationState('loading');
     void (async () => {
       try {
         await Promise.all([activityQueue.initialize(), activityRecorder.initialize()]);
@@ -67,16 +76,21 @@ function RunSphereApp() {
         if (!session) return;
         const scope = accountIdFromSession(session);
         await activityRecorder.rekeyLegacyScopes(scope, legacyAccountScopesFor(session));
+        // M1 keeps acquisition in memory; discard only legacy pre-route rows after account scope is known.
+        await activityRecorder.discardLegacyPreparation(scope);
         const recovered = await activityRecorder.recover(scope);
         if (!mounted) return;
         setAccountId(scope);
         setRecording(recovered);
+        if (recovered)
+          dispatchActivityRoute({ type: 'restore-recording', origin: { kind: 'home' } });
         dispatch({ type: 'restoreSession' });
       } catch (error) {
         console.error('Unable to initialize encrypted activity storage', error);
-        if (mounted) setStorageError(true);
+        if (mounted) setInitializationState('storage-failure');
       } finally {
-        if (mounted) setRestoring(false);
+        if (mounted)
+          setInitializationState((state) => (state === 'storage-failure' ? state : 'ready'));
       }
     })();
     return () => {
@@ -87,7 +101,7 @@ function RunSphereApp() {
   const finishSession = useCallback(() => {
     setActiveTab('Home');
     setSelectedQuest(undefined);
-    setActivityStarted(false);
+    dispatchActivityRoute({ type: 'logout' });
     setRecording(undefined);
     setAccountId(undefined);
     dispatch({ type: 'logoutComplete' });
@@ -100,9 +114,9 @@ function RunSphereApp() {
       ...(accountId ? { recorder: { clear: () => activityRecorder.clearAccount(accountId) } } : {})
     }).then(finishSession);
   }, [accountId, finishSession]);
-  if (restoring)
+  if (initializationState === 'loading')
     return <SafeAreaView style={[styles.screen, { backgroundColor: tokens.background.canvas }]} />;
-  if (storageError)
+  if (initializationState === 'storage-failure')
     return (
       <SafeAreaView style={[styles.screen, { backgroundColor: tokens.background.canvas }]}>
         <View style={styles.loading}>
@@ -125,38 +139,63 @@ function RunSphereApp() {
       />
     );
 
-  const openActivity = () => {
+  const openActivity = (origin: 'home' | 'explore' | 'quest-detail') => {
+    const capturedOrigin =
+      origin === 'quest-detail' && selectedQuest
+        ? { kind: 'quest-detail' as const, quest: selectedQuest }
+        : { kind: origin === 'home' ? ('home' as const) : ('explore' as const) };
+    dispatchActivityRoute({ type: 'start-free', origin: capturedOrigin });
     setSelectedQuest(undefined);
-    setActivityStarted(true);
-    setActiveTab('Home');
   };
   const exitActivity = () => {
-    setSelectedQuest(undefined);
-    const next = exitActivityFlow(activeTab);
-    setActivityStarted(next.activityStarted);
-    setRecording(next.recording);
-    setActiveTab(next.activeTab);
+    const origin = routeOrigin(activityRoute);
+    dispatchActivityRoute({ type: 'exit' });
+    setRecording(undefined);
+    if (origin) {
+      const destination = activityOriginReturn(origin);
+      setActiveTab(destination.activeTab);
+      setSelectedQuest(destination.selectedQuest);
+    }
   };
+  const origin = routeOrigin(activityRoute);
+  const originLabel =
+    origin?.kind === 'quest-detail'
+      ? origin.quest.title
+      : origin?.kind === 'explore'
+        ? 'Explore'
+        : origin?.kind === 'home'
+          ? 'Home'
+          : undefined;
   const shell = selectAppShell({
-    activityStarted: activityStarted || Boolean(selectedQuest),
+    activityRoute: activityRoute.screen,
     hasRecording: Boolean(recording),
+    hasSelectedQuest: Boolean(selectedQuest),
     liveInteractive: false,
-    exploreInteractive: activeTab === 'Explore' && !selectedQuest && !activityStarted && !recording
+    exploreInteractive:
+      activeTab === 'Explore' && !selectedQuest && activityRoute.screen === 'idle' && !recording
   });
   const content =
     recording && accountId ? (
       <ActivityRecording
         session={recording}
         accountId={accountId}
-        onChange={setRecording}
+        onChange={(session) => {
+          if (session?.state === 'completed-local')
+            dispatchActivityRoute({ type: 'recording-finished' });
+          setRecording(session);
+        }}
         onExit={exitActivity}
         sync={activitySync}
       />
-    ) : activityStarted && accountId ? (
+    ) : activityRoute.screen === 'prepare' && accountId ? (
       <ActivityPreparation
         accountId={accountId}
         initialMovement={movement}
-        onChange={setRecording}
+        {...(originLabel ? { originLabel } : {})}
+        onChange={(session) => {
+          dispatchActivityRoute({ type: 'recording-active' });
+          setRecording(session);
+        }}
         onExit={exitActivity}
       />
     ) : activeTab === 'Home' ? (
@@ -164,7 +203,7 @@ function RunSphereApp() {
         api={apiClient}
         movement={movement}
         onMovementChange={setMovement}
-        onStart={openActivity}
+        onStart={() => openActivity('home')}
         onOpenQuests={() => setActiveTab('Explore')}
         onOpenProfile={() => setActiveTab('You')}
         onSessionExpired={expireSession}
@@ -174,13 +213,13 @@ function RunSphereApp() {
         api={apiClient}
         quest={selectedQuest}
         onBack={() => setSelectedQuest(undefined)}
-        onStart={openActivity}
+        onStart={() => openActivity('quest-detail')}
       />
     ) : activeTab === 'Explore' ? (
       <ExploreScreen
         api={apiClient}
         onSelectQuest={setSelectedQuest}
-        onStart={openActivity}
+        onStart={() => openActivity('explore')}
         onSessionExpired={expireSession}
       />
     ) : activeTab === 'Clubs' ? (
@@ -212,7 +251,7 @@ function RunSphereApp() {
         <TabBar
           activeTab={activeTab}
           onChange={(tab) => {
-            setActivityStarted(false);
+            dispatchActivityRoute({ type: 'select-tab' });
             setSelectedQuest(undefined);
             setActiveTab(tab);
           }}

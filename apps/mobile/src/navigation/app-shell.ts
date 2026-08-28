@@ -1,29 +1,26 @@
+import type { ActivityRoute } from '../activity-flow';
+
 export type AppShell = 'tab-scroll' | 'tab-map' | 'focused-scroll' | 'focused-flex';
 
-/** Selects a gesture-owning Explore map shell without hiding the tab bar. */
+/** Selects scroll/flex ownership from the explicit activity route. */
 export const selectAppShell = ({
-  activityStarted,
+  activityRoute,
   hasRecording,
+  hasSelectedQuest,
   liveInteractive,
   exploreInteractive
 }: {
-  activityStarted: boolean;
+  activityRoute: ActivityRoute['screen'];
   hasRecording: boolean;
+  hasSelectedQuest: boolean;
   liveInteractive: boolean;
   exploreInteractive: boolean;
 }): AppShell => {
   if (hasRecording && liveInteractive) return 'focused-flex';
-  if (activityStarted || hasRecording) return 'focused-scroll';
+  if (activityRoute !== 'idle' || hasSelectedQuest || hasRecording) return 'focused-scroll';
   if (exploreInteractive) return 'tab-map';
   return 'tab-scroll';
 };
 
 export const isTabBarVisible = (shell: AppShell): boolean =>
   shell === 'tab-scroll' || shell === 'tab-map';
-
-/** Returns a focused activity flow to its tab-owned origin. */
-export const exitActivityFlow = <T>(origin: T) => ({
-  activityStarted: false,
-  recording: undefined as undefined,
-  activeTab: origin
-});

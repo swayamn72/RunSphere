@@ -153,6 +153,29 @@ Remaining approved milestones:
 
 After every milestone: run focused tests plus root format/lint/typecheck/test/build, `verify:maplibre`, native debug build and permission audit when applicable; update `docs/HANDOFF.md`; make a small commit; push; and require green PR #6 CI for the exact SHA. Never enable territory, exact live-location sharing, photos, nearby runners, speed pressure, client checkpoint authority, or unapproved public map endpoints. Production map provider/attribution terms and authenticated Redroid evidence remain open blockers.
 
+## Activity Preparation milestone — 2026-08-28
+
+The continuation work remains on `vorflux/full-android-product`. PR #6 merged at `2d6937c`; future exact-head gates must use a continuation pull request targeting `main`, because merged PR #6 cannot receive later commits.
+
+Implemented explicit Home/Explore/quest-detail activity origin state, precise foreground-location recovery, inline denial/blocked/settings states, and an in-memory start gate requiring three usable fixes (`accuracy <= 50 m`) within 30 seconds. Acquisition observations are never persisted. Legacy `prepare`/`acquiring` rows are discarded during encrypted-recorder initialization so pre-route attempts do not leak into history or recovery. Background-location and foreground-service request paths and permissions were removed.
+
+Validation passed for this milestone:
+
+- focused preparation suite: 8 files, 28 tests;
+- root Prettier, lint, typecheck, test, build, MapLibre compatibility, and `git diff --check`;
+- fresh universal debug APK assembly and APK permission audit;
+- Android 15 Redroid install and cold launch.
+
+The permission audit confirmed absence of `ACCESS_BACKGROUND_LOCATION`, `ACCESS_WIFI_STATE`, overlays, storage/media, biometric, and fingerprint permissions.
+
+Device-level authenticated preparation flows remain blocked by the documented HTTPS tunnel behavior that does not preserve bearer `Authorization`. The evidence below proves build/install/pre-auth launch only, not authenticated preparation behavior:
+
+- `/code/.generated_artifacts/apk/runsphere-activity-preparation-debug.apk`
+- `/code/.generated_artifacts/images/runsphere-preparation-fresh-launch.png`
+- `/code/.generated_artifacts/images/runsphere-preparation-account-form.png`
+- `/code/.generated_artifacts/images/runsphere-preparation-account-submit.png`
+- `/code/.generated_artifacts/recordings/runsphere-activity-preparation-onboarding.mp4`
+
 ## Confirmed validation still pending
 
 The latest Android test report is **partial**, not failed. The corrected universal APK builds, installs, launches, and excludes `ACCESS_BACKGROUND_LOCATION` and `SYSTEM_ALERT_WINDOW`. Workspace checks and 17 PostGIS API integration tests passed.

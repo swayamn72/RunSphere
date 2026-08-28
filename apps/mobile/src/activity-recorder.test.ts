@@ -23,6 +23,11 @@ class MemoryDatabase implements RecorderDatabase {
     this.schema = sql;
   }
   async runAsync(sql: string, ...params: unknown[]) {
+    if (sql.startsWith("DELETE FROM recorded_activities WHERE state IN ('prepare', 'acquiring')")) {
+      const changes = this.session && ['prepare', 'acquiring'].includes(this.session.state) ? 1 : 0;
+      if (changes) this.session = undefined;
+      return { changes };
+    }
     if (sql.startsWith('INSERT INTO recorded_activities')) {
       const [
         id,
@@ -90,10 +95,20 @@ class MemoryDatabase implements RecorderDatabase {
     if (sql.includes('activity_location_samples')) return (this.samples.at(-1) ?? null) as T | null;
     const requestedAccount = sql.includes('WHERE id = ?') ? params[1] : params[0];
     if (sql.includes('account_id') && requestedAccount !== this.session?.accountId) return null;
+    if (
+      sql.includes("state IN ('active', 'paused', 'resumed', 'finishing')") &&
+      !['active', 'paused', 'resumed', 'finishing'].includes(this.session?.state ?? '')
+    )
+      return null;
     return (this.session ?? null) as T | null;
   }
   async getAllAsync<T>(sql: string, ...params: unknown[]): Promise<T[]> {
     if (sql.includes('activity_location_samples')) return this.samples as T[];
+    if (
+      sql.includes("state NOT IN ('prepare', 'acquiring', 'discarded')") &&
+      ['prepare', 'acquiring', 'discarded'].includes(this.session?.state ?? '')
+    )
+      return [];
     if (sql.includes('WHERE account_id = ?') && params[0] === this.session?.accountId)
       return [this.session] as T[];
     return [];
@@ -118,6 +133,12 @@ describe('activity recorder', () => {
     expect(database.schema).toContain('journal_mode = WAL');
     expect(database.schema).toContain(`user_version = ${ACTIVITY_RECORDER_SCHEMA_VERSION}`);
     await recorder.create(base);
+    await expect(recorder.recover('account-a')).resolves.toBeUndefined();
+    await expect(recorder.list('account-a')).resolves.toEqual([]);
+    await expect(recorder.discardLegacyPreparation('account-a')).resolves.toBe(1);
+    await recorder.create(base);
+    await recorder.transition(base.id, base.accountId, 'prepare', 'acquiring', base.startedAt);
+    await recorder.transition(base.id, base.accountId, 'acquiring', 'active', base.startedAt);
     await expect(recorder.recover('account-a')).resolves.toMatchObject({ id: 'activity-1' });
     await expect(recorder.recover('account-b')).resolves.toBeUndefined();
   });
@@ -151,7 +172,7 @@ describe('activity recorder', () => {
       altitude: 11
     };
     await recorder.appendSample(base.id, base.accountId, duplicate);
-    // Foreground watcher and Android TaskManager may overlap during an app transition; a stable sample key must not inflate distance.
+    // Duplicate foreground watcher callbacks must not inflate distance.
     await expect(recorder.appendSample(base.id, base.accountId, duplicate)).resolves.toBe(false);
     await expect(recorder.get(base.id, base.accountId)).resolves.toMatchObject({
       acceptedSamples: 2,
