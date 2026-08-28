@@ -484,6 +484,7 @@ export type ActivityDetailResponse = Static<typeof ActivityDetailResponseSchema>
 
 export * from './social.js';
 export * from './account-lifecycle.js';
+export * from './achievement.js';
 export * from './notifications.js';
 export * from './progression.js';
 export * from './challenge.js';

@@ -2,6 +2,9 @@ import { TypeSystem } from '@sinclair/typebox/system';
 import { Value } from '@sinclair/typebox/value';
 import { describe, expect, it } from 'vitest';
 import {
+  AchievementListResponseSchema,
+  AchievementStatusSchema,
+  AchievementSyncResponseSchema,
   ChallengeLengthDaysSchema,
   InboxEntrySchema,
   LevelInfoSchema,
@@ -80,6 +83,35 @@ describe('gamification contracts', () => {
     expect(Value.Check(LevelInfoSchema, { level: 3, xpInLevel: 40, nextLevelAt: 250 })).toBe(true);
     expect(Value.Check(LevelInfoSchema, { level: 10, xpInLevel: 0 })).toBe(true);
     expect(Value.Check(LevelInfoSchema, { level: 0, xpInLevel: 0 })).toBe(false);
+  });
+
+  it('AchievementStatusSchema reflects earned state and bounds rewardXp', () => {
+    const base = {
+      key: 'first_steps',
+      ruleVersion: '2026-08',
+      title: 'First Steps',
+      description: 'Complete a validated activity.',
+      rewardXp: 25,
+      earned: true,
+      awardedAt: new Date().toISOString()
+    };
+    expect(Value.Check(AchievementStatusSchema, base)).toBe(true);
+    expect(
+      Value.Check(AchievementStatusSchema, { ...base, earned: false, awardedAt: undefined })
+    ).toBe(true);
+    expect(Value.Check(AchievementStatusSchema, { ...base, rewardXp: -1 })).toBe(false);
+    expect(
+      Value.Check(AchievementListResponseSchema, { data: [base, { ...base, key: 'x' }] })
+    ).toBe(true);
+  });
+
+  it('AchievementSyncResponseSchema carries a non-negative newlyAwarded count', () => {
+    expect(Value.Check(AchievementSyncResponseSchema, { status: 'synced', newlyAwarded: 2 })).toBe(
+      true
+    );
+    expect(Value.Check(AchievementSyncResponseSchema, { status: 'synced', newlyAwarded: -1 })).toBe(
+      false
+    );
   });
 
   it('ProgressionSummarySchema accepts an optional level', () => {

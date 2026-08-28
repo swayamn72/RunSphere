@@ -4,17 +4,14 @@ import {
   ErrorResponseSchema,
   ProgressionSummarySchema,
   ProgressionSyncResponseSchema,
-  type ProgressionRule,
+  type AchievementAward,
   type ProgressionSummary,
   type ProgressionSyncResponse,
   type WeeklyConsistency
 } from '@runsphere/contracts';
 import type { Database } from '@runsphere/db';
 import {
-  MILLIS_PER_DAY,
   kolkataDate,
-  parseProgressionRule,
-  weeklyConsistency,
   weeklyPeriodStart,
   weeklyXpGrants,
   xpLevel,
@@ -22,6 +19,14 @@ import {
   type XpGrant
 } from '@runsphere/domain';
 import { verifyAccessToken } from './auth.js';
+import {
+  currentWeek,
+  derivedActivitiesInWindow,
+  loadActiveProgressionRule,
+  persistedXpExcludingCurrentActivity,
+  projectedWeekXp,
+  weeklyConsistencyFor
+} from './progression-core.js';
 
 /**
  * Cosmetic progression XP (ADR-0005). XP is finalized per Asia/Kolkata week
@@ -35,19 +40,16 @@ export interface ProgressionRouteDeps {
   authSecret: string;
 }
 
-interface RuleRow {
-  version: number;
-  definition: unknown;
-}
-
-interface LoadedRule {
-  version: number;
-  rule: ProgressionRule;
-}
-
 interface ActivityRow {
   active_duration_seconds: number;
   processed_at: Date;
+}
+
+interface AwardRow {
+  id: string;
+  achievement_key: string;
+  rule_version: string;
+  awarded_at: Date;
 }
 
 const accountIdFrom = (request: FastifyRequest, secret: string): string | undefined => {
@@ -65,46 +67,13 @@ const requireAccount = (
   return accountId;
 };
 
-const loadRule = async (database: Database): Promise<LoadedRule | undefined> => {
-  const result = await database.query<RuleRow>(
-    `SELECT version, definition
-     FROM rule_versions
-     WHERE kind = 'progression' AND superseded_at IS NULL
-     ORDER BY version DESC
-     LIMIT 1`
-  );
-  const row = result.rows[0];
-  if (!row) return undefined;
-  return { version: row.version, rule: parseProgressionRule(row.definition) };
-};
-
-const scoredActivities = (rows: readonly ActivityRow[]): ScoredActivity[] =>
+const awardsFrom = (rows: readonly AwardRow[]): AchievementAward[] =>
   rows.map((row) => ({
-    activeDurationSeconds: row.active_duration_seconds,
-    endedAt: row.processed_at
+    id: row.id,
+    achievementKey: row.achievement_key,
+    ruleVersion: row.rule_version,
+    awardedAt: row.awarded_at.toISOString()
   }));
-
-/** Load the week's derived activities within the inclusive/exclusive boundary. */
-const activitiesInWindow = async (
-  database: Database,
-  accountId: string,
-  start: Date,
-  end: Date
-): Promise<ScoredActivity[]> => {
-  const result = await database.query<ActivityRow>(
-    `SELECT output.active_duration_seconds, submission.processed_at
-     FROM activity_submissions submission
-     JOIN activity_validation_outputs output ON output.activity_id = submission.id
-     WHERE submission.account_id = $1
-       AND submission.status = 'derived'
-       AND submission.deleted_at IS NULL
-       AND submission.processed_at >= $2
-       AND submission.processed_at < $3
-     ORDER BY submission.processed_at`,
-    [accountId, start, end]
-  );
-  return scoredActivities(result.rows);
-};
 
 const insertGrant = async (
   database: Database,
@@ -117,6 +86,16 @@ const insertGrant = async (
      VALUES ($1, $2, $3, $4, $5, $6::date)
      ON CONFLICT (account_id, dedupe_key) DO NOTHING`,
     [accountId, grant.source, grant.amount, String(version), grant.dedupeKey, grant.periodStart]
+  );
+};
+
+/** Ensure the immutable weekly period record exists for a week being closed. */
+const ensureWeeklyPeriod = async (database: Database, periodStart: string): Promise<void> => {
+  await database.query(
+    `INSERT INTO weekly_periods (period_start, period_end)
+     VALUES ($1::date, $1::date + 7)
+     ON CONFLICT (period_start) DO NOTHING`,
+    [periodStart]
   );
 };
 
@@ -143,46 +122,30 @@ export const registerProgressionRoutes = ({
       const accountId = requireAccount(request, reply, authSecret);
       if (!accountId) return;
 
-      const loaded = await loadRule(database);
+      const loaded = await loadActiveProgressionRule(database);
       const now = new Date();
-      const weekStart = weeklyPeriodStart(now);
-      const currentPeriodStart = kolkataDate(weekStart);
+      const { weekStart, weekEnd, periodStart } = currentWeek(now);
 
-      const persisted = await database.query<{ total_xp: string }>(
-        `SELECT coalesce(sum(amount), 0)::bigint::text AS total_xp
-         FROM xp_entries
-         WHERE account_id = $1 AND period_start < $2::date`,
-        [accountId, currentPeriodStart]
-      );
-      const persistedXp = Number(persisted.rows[0]?.total_xp ?? 0);
+      const persisted = await persistedXpExcludingCurrentActivity(database, accountId, periodStart);
 
-      let projectedXp = 0;
+      let totalXp = persisted;
       let consistency: WeeklyConsistency | undefined;
       if (loaded) {
-        const activities = await activitiesInWindow(
-          database,
-          accountId,
-          weekStart,
-          new Date(weekStart.getTime() + 7 * MILLIS_PER_DAY)
-        );
-        projectedXp = weeklyXpGrants(activities, loaded.rule, weekStart).reduce(
-          (total, grant) => total + grant.amount,
-          0
-        );
-        consistency = weeklyConsistency(activities, {
-          now,
-          periodStart: weekStart,
-          dailyCapMinutes: loaded.rule.dailyCapMinutes,
-          minMinutesPerActiveDay: loaded.rule.minMinutesPerActiveDay,
-          goalActiveDays: loaded.rule.goalActiveDays
-        });
+        const activities = await derivedActivitiesInWindow(database, accountId, weekStart, weekEnd);
+        totalXp = persisted + projectedWeekXp(activities, loaded.rule, weekStart);
+        consistency = weeklyConsistencyFor(activities, loaded.rule, now, weekStart);
       }
 
-      const totalXp = persistedXp + projectedXp;
+      const awards = await database.query<AwardRow>(
+        `SELECT id, achievement_key, rule_version, awarded_at
+         FROM achievement_awards WHERE account_id = $1 ORDER BY awarded_at DESC`,
+        [accountId]
+      );
+
       const summary: ProgressionSummary = {
         totalXp,
         questsCompleted: 0,
-        achievements: [],
+        achievements: awardsFrom(awards.rows),
         ...(consistency ? { weeklyConsistency: consistency } : {})
       };
       if (loaded) {
@@ -210,7 +173,7 @@ export const registerProgressionRoutes = ({
       const accountId = requireAccount(request, reply, authSecret);
       if (!accountId) return;
 
-      const loaded = await loadRule(database);
+      const loaded = await loadActiveProgressionRule(database);
       if (!loaded) return reply.code(503).send({ message: 'Progression rule unavailable' });
 
       // Only closed weeks are immutable; the current (open) week stays a live
@@ -241,7 +204,9 @@ export const registerProgressionRoutes = ({
 
       const grants: XpGrant[] = [];
       for (const [weekStart, activities] of byWeek) {
-        grants.push(...weeklyXpGrants(activities, loaded.rule, new Date(weekStart)));
+        const start = new Date(weekStart);
+        grants.push(...weeklyXpGrants(activities, loaded.rule, start));
+        await ensureWeeklyPeriod(database, kolkataDate(start));
       }
       for (const grant of grants) {
         await insertGrant(database, accountId, loaded.version, grant);
