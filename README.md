@@ -16,7 +16,7 @@ RunSphere is a privacy-first outdoor movement app for adults in the Mumbai Metro
 
 ### Prerequisites
 
-- Node.js 22 or later
+- Node.js 22.0.0 through 22.x (CI uses 22.21.0)
 - pnpm 10.12.1 or later
 - Docker Engine with the Compose plugin and GNU Make for local PostGIS
 

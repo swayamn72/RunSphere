@@ -39,7 +39,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 22.21.0
           cache: pnpm
 
       - name: Install dependencies
@@ -57,6 +57,9 @@ jobs:
           sudo apt-get install --yes postgresql-client
           psql "$DATABASE_URL" --set=ON_ERROR_STOP=1 --command 'CREATE EXTENSION IF NOT EXISTS postgis;'
           ./scripts/infra/healthcheck-postgis.sh
+
+      - name: Verify MapLibre New Architecture compatibility
+        run: pnpm verify:maplibre
 
       - name: Lint
         run: pnpm lint
