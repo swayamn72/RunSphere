@@ -93,6 +93,21 @@ export const BlockResponseSchema = Type.Object(
   { $id: 'BlockResponse' }
 );
 
+export const FriendRequestParamsSchema = Type.Object(
+  { requestId: UuidSchema },
+  { ...Strict, $id: 'FriendRequestParams' }
+);
+
+export const FriendRequestListResponseSchema = Type.Object(
+  { data: Type.Array(FriendRequestSchema, { maxItems: 200 }) },
+  { $id: 'FriendRequestListResponse' }
+);
+
+export const BlockParamsSchema = Type.Object(
+  { accountId: UuidSchema },
+  { ...Strict, $id: 'BlockParams' }
+);
+
 export const FriendNotFoundResponseSchema = Type.Object(
   { message: Type.Literal('Friend not found') },
   { $id: 'FriendNotFoundResponse' }
@@ -106,3 +121,6 @@ export type FriendRequestRespondRequest = Static<typeof FriendRequestRespondRequ
 export type FriendListResponse = Static<typeof FriendListResponseSchema>;
 export type BlockCreateRequest = Static<typeof BlockCreateRequestSchema>;
 export type BlockResponse = Static<typeof BlockResponseSchema>;
+export type FriendRequestParams = Static<typeof FriendRequestParamsSchema>;
+export type FriendRequestListResponse = Static<typeof FriendRequestListResponseSchema>;
+export type BlockParams = Static<typeof BlockParamsSchema>;

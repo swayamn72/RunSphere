@@ -71,6 +71,7 @@ import {
 import { sha256, withTransaction, type Database } from '@runsphere/db';
 import Fastify, { type FastifyBaseLogger, type FastifyRequest } from 'fastify';
 import { chunkHash } from './activity.js';
+import { registerGamificationRoutes } from './gamification-routes.js';
 import {
   hashPassword,
   issueSession,
@@ -1573,6 +1574,9 @@ export const buildApp = ({
           : reply.code(404).send({ message: 'Activity not found' });
       }
     );
+
+    registerGamificationRoutes({ routes, database, authSecret });
+
     done();
   });
   return app;
