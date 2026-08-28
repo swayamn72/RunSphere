@@ -93,6 +93,7 @@ class MemoryDatabase implements RecorderDatabase {
     return (this.session ?? null) as T | null;
   }
   async getAllAsync<T>(sql: string, ...params: unknown[]): Promise<T[]> {
+    if (sql.includes('activity_location_samples')) return this.samples as T[];
     if (sql.includes('WHERE account_id = ?') && params[0] === this.session?.accountId)
       return [this.session] as T[];
     return [];
@@ -185,7 +186,12 @@ describe('activity recorder', () => {
       recorder.rekeyLegacyScopes('8e7b0924-12fe-48d7-9bca-2ab3c055fa10', ['account:legacy-token-hash'])
     ).resolves.toBe(1);
   });
-  it('excludes pauses and gaps longer than one minute from durable local totals', () => {
+  it('retains a private sample after a gap while excluding its segment from eligible totals', async () => {
+    const database = new MemoryDatabase();
+    const recorder = createActivityRecorder(database);
+    await recorder.create(base);
+    await recorder.transition(base.id, base.accountId, 'prepare', 'acquiring', base.startedAt);
+    await recorder.transition(base.id, base.accountId, 'acquiring', 'active', base.startedAt);
     const initial = {
       recordedAt: '2026-08-28T10:00:00Z',
       latitude: 19.076,
@@ -194,6 +200,19 @@ describe('activity recorder', () => {
       altitude: null
     };
     const afterGap = { ...initial, recordedAt: '2026-08-28T10:01:01Z', latitude: 19.077 };
+
+    await recorder.appendSample(base.id, base.accountId, initial);
+    await recorder.appendSample(base.id, base.accountId, afterGap);
+
+    expect(await recorder.samples(base.id, base.accountId)).toEqual([
+      { ...initial, activityId: base.id },
+      { ...afterGap, activityId: base.id }
+    ]);
+    await expect(recorder.get(base.id, base.accountId)).resolves.toMatchObject({
+      acceptedSamples: 2,
+      distanceMeters: 0,
+      durationSeconds: 0
+    });
     expect(acceptedSegment(initial, afterGap)).toEqual({ distanceMeters: 0, durationSeconds: 0 });
   });
   it('accepts only durable lifecycle transitions', async () => {
