@@ -1,23 +1,25 @@
 {
-  "name": "@runsphere/worker",
+  "name": "@runsphere/db",
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
     "build": "rm -rf dist && tsc -b --force",
-    "dev": "tsx watch src/index.ts",
     "lint": "eslint src",
-    "start": "node dist/index.js",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@runsphere/api": "workspace:*",
-    "@runsphere/db": "workspace:*",
-    "@runsphere/observability": "workspace:*"
+    "pg": "8.16.3"
   },
   "devDependencies": {
-    "tsx": "4.21.0",
+    "@types/pg": "8.15.5",
     "vitest": "4.1.11"
   }
 }

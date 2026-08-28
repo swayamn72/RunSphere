@@ -9,6 +9,10 @@
     "noEmit": true,
     "allowImportingTsExtensions": true
   },
-  "references": [{ "path": "../../packages/domain" }, { "path": "../../packages/ui" }],
+  "references": [
+    { "path": "../../packages/contracts" },
+    { "path": "../../packages/domain" },
+    { "path": "../../packages/ui" }
+  ],
   "include": ["App.tsx", "src"]
 }

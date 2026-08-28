@@ -1,3 +1,3 @@
-import { startWorker } from './worker.js';
+import { runWorker } from './worker.js';
 
-startWorker();
+await runWorker();

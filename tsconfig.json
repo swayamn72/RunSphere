@@ -4,6 +4,7 @@
     { "path": "./packages/config" },
     { "path": "./packages/contracts" },
     { "path": "./packages/domain" },
+    { "path": "./packages/db" },
     { "path": "./packages/observability" },
     { "path": "./packages/ui" },
     { "path": "./services/api" },

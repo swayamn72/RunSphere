@@ -29,6 +29,8 @@ jobs:
           --health-retries 6
     env:
       DATABASE_URL: postgresql://runsphere:runsphere_test@localhost:5432/runsphere_test
+      AUTH_TOKEN_SECRET: ci-auth-token-secret-with-at-least-32-characters
+      RUN_POSTGIS_INTEGRATION: '1'
       CI: 'true'
     steps:
       - uses: actions/checkout@v4
