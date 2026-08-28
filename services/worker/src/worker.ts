@@ -20,6 +20,81 @@ const safeWorkerError = (error: unknown): string => {
     .slice(0, 500);
 };
 
+export const purgeExpiredRawTraces = async (db: Database): Promise<number> => {
+  const expired = await db.query<{ id: string }>(
+    `WITH due AS (
+       SELECT id FROM activity_submissions
+       WHERE deleted_at IS NULL AND raw_trace_purged_at IS NULL AND raw_trace_retention_until <= now()
+     ), purged AS (
+       DELETE FROM activity_chunks WHERE activity_id IN (SELECT id FROM due)
+     )
+     UPDATE activity_submissions submission SET raw_trace_purged_at = now()
+     WHERE submission.id IN (SELECT id FROM due)
+     RETURNING submission.id`
+  );
+  return expired.rows.length;
+};
+
+/** Converges user-requested deletion by removing all personal records and retaining only an abuse tombstone. */
+export const convergeAccountDeletion = async (db: Database): Promise<number> => {
+  const accounts = await db.query<{ id: string }>(
+    `SELECT id FROM accounts WHERE deletion_requested_at IS NOT NULL AND deleted_at IS NULL
+     ORDER BY deletion_requested_at LIMIT 25`
+  );
+  for (const account of accounts.rows) {
+    await db.query(
+      `INSERT INTO account_deletion_tombstones (account_id, deleted_at)
+       VALUES ($1, now()) ON CONFLICT (account_id) DO NOTHING`,
+      [account.id]
+    );
+    await db.query(
+      `DELETE FROM outbox_events WHERE aggregate_id IN
+       (SELECT id FROM activity_submissions WHERE account_id = $1)`,
+      [account.id]
+    );
+    await db.query('DELETE FROM activity_submissions WHERE account_id = $1', [account.id]);
+    await db.query(
+      `DELETE FROM safety_share_updates WHERE share_session_id IN
+       (SELECT id FROM safety_share_sessions WHERE account_id = $1)`,
+      [account.id]
+    );
+    await db.query('DELETE FROM safety_share_sessions WHERE account_id = $1', [account.id]);
+    await db.query('DELETE FROM safety_contacts WHERE account_id = $1', [account.id]);
+    await db.query('DELETE FROM account_export_requests WHERE account_id = $1', [account.id]);
+    await db.query('DELETE FROM data_export_requests WHERE account_id = $1', [account.id]);
+    await db.query('DELETE FROM account_deletion_requests WHERE account_id = $1', [account.id]);
+    await db.query(
+      'DELETE FROM account_audit_events WHERE account_id = $1 OR actor_account_id = $1',
+      [account.id]
+    );
+    await db.query(
+      'DELETE FROM privacy_audit_events WHERE account_id = $1 OR actor_account_id = $1',
+      [account.id]
+    );
+    await db.query('DELETE FROM privacy_zones WHERE account_id = $1', [account.id]);
+    await db.query('DELETE FROM consent_history WHERE account_id = $1', [account.id]);
+    await db.query('DELETE FROM accounts WHERE id = $1', [account.id]);
+  }
+  return accounts.rows.length;
+};
+
+export const expireSafetyShares = async (db: Database): Promise<number> => {
+  const expired = await db.query<{ id: string }>(
+    `UPDATE safety_share_sessions SET status = 'expired'
+     WHERE status = 'active' AND expires_at <= now() RETURNING id`
+  );
+  return expired.rows.length;
+};
+
+export const processMaintenance = async (db: Database): Promise<number> => {
+  const [purgedTraces, deletedAccounts, expiredShares] = await Promise.all([
+    purgeExpiredRawTraces(db),
+    convergeAccountDeletion(db),
+    expireSafetyShares(db)
+  ]);
+  return purgedTraces + deletedAccounts + expiredShares;
+};
+
 export const processNextActivity = async (db: Database): Promise<boolean> => {
   const event = await db.query<{ id: string; aggregate_id: string }>(
     `UPDATE outbox_events SET claimed_at = now(), attempts = attempts + 1, last_error = NULL
@@ -58,6 +133,7 @@ export const runWorker = async (): Promise<void> => {
   const once = process.env.WORKER_ONCE === 'true';
   try {
     do {
+      await processMaintenance(db);
       if (!(await processNextActivity(db))) await sleep(pollMilliseconds);
     } while (!once);
   } finally {
