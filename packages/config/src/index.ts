@@ -67,6 +67,7 @@ export interface ApiConfig {
   host: string;
   port: number;
   allowedOrigins: readonly string[];
+  staffReviewAccountIds: readonly string[];
 }
 
 export const loadApiConfig = (environment: NodeJS.ProcessEnv): ApiConfig => {
@@ -84,10 +85,16 @@ export const loadApiConfig = (environment: NodeJS.ProcessEnv): ApiConfig => {
     throw new Error('CORS_ALLOWED_ORIGINS must contain one or more valid origins.');
   }
 
+  const staffReviewAccountIds = (environment.STAFF_REVIEW_ACCOUNT_IDS ?? '')
+    .split(',')
+    .map((accountId) => accountId.trim())
+    .filter(Boolean);
+
   return {
     host: environment.HOST ?? '0.0.0.0',
     port,
-    allowedOrigins
+    allowedOrigins,
+    staffReviewAccountIds
   };
 };
 

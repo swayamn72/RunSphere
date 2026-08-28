@@ -22,17 +22,29 @@ describe('API routes', () => {
     expect(response.json().timestamp).toEqual(expect.any(String));
   });
 
-  it('lists deterministic starter quests', async () => {
-    const response = await createApp().inject({ method: 'GET', url: '/v1/quests' });
-    expect(response.statusCode).toBe(200);
-    expect(response.json().data).toHaveLength(3);
-    expect(response.json().data[0]).toMatchObject({ id: 'riverside-rings', rewardXp: 80 });
+  it('returns not-ready without a database and publishes low-cardinality metrics', async () => {
+    const app = createApp();
+    const ready = await app.inject({ method: 'GET', url: '/ready' });
+    const metrics = await app.inject({ method: 'GET', url: '/metrics' });
+
+    expect(ready.statusCode).toBe(503);
+    expect(ready.json()).toEqual({ status: 'not_ready', service: 'api' });
+    expect(metrics.statusCode).toBe(200);
+    expect(metrics.headers['content-type']).toContain('text/plain');
+    expect(metrics.body).toContain(
+      'runsphere_http_requests_total{service="api",status_code="503"} 1'
+    );
   });
 
-  it('returns a useful 404 when a quest does not exist', async () => {
+  it('requires the reviewed quest catalog database rather than serving demo or XP data', async () => {
+    const response = await createApp().inject({ method: 'GET', url: '/v1/quests' });
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({ message: 'Service unavailable' });
+  });
+
+  it('does not claim an unknown quest exists while the catalog is unavailable', async () => {
     const response = await createApp().inject({ method: 'GET', url: '/v1/quests/not-a-quest' });
-    expect(response.statusCode).toBe(404);
-    expect(response.json()).toEqual({ message: 'Quest not found' });
+    expect(response.statusCode).toBe(503);
   });
 
   it('only permits configured browser origins, including a public admin preview', async () => {
@@ -56,12 +68,14 @@ describe('API routes', () => {
     expect(rejected.headers['access-control-allow-origin']).toBeUndefined();
   });
 
-  it('publishes health and quests in the OpenAPI document', async () => {
+  it('publishes health, readiness, quests, and staff review in the OpenAPI document', async () => {
     const app = createApp();
     await app.ready();
     const document = app.swagger();
     expect(document.paths).toHaveProperty('/health');
+    expect(document.paths).toHaveProperty('/ready');
     expect(document.paths).toHaveProperty('/v1/quests');
+    expect(document.paths).toHaveProperty('/v1/staff/activity-review-queue');
   });
 });
 

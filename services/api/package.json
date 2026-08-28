@@ -28,6 +28,7 @@
     "@runsphere/contracts": "workspace:*",
     "@runsphere/db": "workspace:*",
     "@runsphere/domain": "workspace:*",
+    "@runsphere/observability": "workspace:*",
     "argon2": "^0.45.1",
     "fastify": "5.12.1"
   },
