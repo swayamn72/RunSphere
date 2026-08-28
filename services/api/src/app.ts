@@ -400,7 +400,9 @@ export const buildApp = ({
              quest.open_hours, count(link.checkpoint_id)::text AS checkpoint_count
            FROM published_quest_versions quest
            JOIN quest_version_checkpoints link ON link.quest_version_id = quest.id
-           GROUP BY quest.id ORDER BY quest.published_at DESC LIMIT 100`
+           GROUP BY quest.id, quest.title, quest.distance_meters, quest.estimated_active_minutes,
+             quest.accessibility, quest.open_hours, quest.published_at
+           ORDER BY quest.published_at DESC LIMIT 100`
         );
         return {
           data: quests.rows.map((quest) => ({
