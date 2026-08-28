@@ -57,7 +57,7 @@ class MemoryDatabase implements RecorderDatabase {
         acceptedSamples: 0,
         lastHeartbeatAt
       };
-    } else if (sql.startsWith('INSERT INTO activity_location_samples')) {
+    } else if (sql.startsWith('INSERT OR IGNORE INTO activity_location_samples')) {
       const [activityId, recordedAt, latitude, longitude, accuracy, altitude] = params as [
         string,
         string,
@@ -134,13 +134,16 @@ describe('activity recorder', () => {
       accuracy: 8,
       altitude: 10
     });
-    await recorder.appendSample(base.id, base.accountId, {
+    const duplicate = {
       recordedAt: '2026-08-28T10:01:00Z',
       latitude: 19.0762,
       longitude: 72.8777,
       accuracy: 8,
       altitude: 11
-    });
+    };
+    await recorder.appendSample(base.id, base.accountId, duplicate);
+    // Foreground watcher and Android TaskManager may overlap during an app transition; a stable sample key must not inflate distance.
+    await expect(recorder.appendSample(base.id, base.accountId, duplicate)).resolves.toBe(false);
     await expect(recorder.get(base.id, base.accountId)).resolves.toMatchObject({
       acceptedSamples: 2,
       distanceMeters: expect.any(Number)

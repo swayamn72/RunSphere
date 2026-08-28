@@ -1,6 +1,7 @@
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import type { LocationSample } from './activity-recorder-core';
+import { parseSyntheticNdjson, replaySamples } from './location-adapter-core';
 import { activityRecorder } from './activity-recorder.native';
 
 export const LOCATION_TASK_NAME = 'runsphere-activity-location';
@@ -41,29 +42,39 @@ export const nativeLocationAdapter: LocationAdapter = {
     )
 };
 
-/** Development-only source for deterministic component and device checks; production cannot synthesize tracks. */
-export const syntheticLocationAdapter: LocationAdapter | undefined = isSyntheticLocationEnabled
-  ? {
-      requestLockedScreenPermission: () =>
-        Promise.resolve({
-          status: 'granted',
-          granted: true,
-          canAskAgain: false,
-          expires: 'never'
-        } as Location.PermissionResponse),
-      start: async () => undefined,
-      stop: async () => undefined,
-      subscribe: async (onSample) => {
-        onSample({
-          recordedAt: new Date().toISOString(),
+/** Dev-only seam accepts injected deterministic location arrays or NDJSON; production has no synthetic provider. */
+const configuredSyntheticSamples = (): LocationSample[] => {
+  if (!isSyntheticLocationEnabled) return [];
+  const source = process.env.EXPO_PUBLIC_SYNTHETIC_LOCATION_NDJSON;
+  return source
+    ? parseSyntheticNdjson(source)
+    : [
+        {
+          recordedAt: '2026-08-28T06:00:00.000Z',
           latitude: 19.076,
           longitude: 72.8777,
           accuracy: 8,
           altitude: 12
-        });
-        return { remove: () => undefined } as Location.LocationSubscription;
-      }
-    }
+        }
+      ];
+};
+export const createSyntheticLocationAdapter = (
+  samples: readonly LocationSample[]
+): LocationAdapter => ({
+  requestLockedScreenPermission: () =>
+    Promise.resolve({
+      status: 'granted',
+      granted: true,
+      canAskAgain: false,
+      expires: 'never'
+    } as Location.PermissionResponse),
+  start: async () => undefined,
+  stop: async () => undefined,
+  subscribe: async (onSample) =>
+    ({ remove: replaySamples(samples, onSample) }) as Location.LocationSubscription
+});
+export const syntheticLocationAdapter: LocationAdapter | undefined = isSyntheticLocationEnabled
+  ? createSyntheticLocationAdapter(configuredSyntheticSamples())
   : undefined;
 
 export const recordingLocationAdapter = syntheticLocationAdapter ?? nativeLocationAdapter;

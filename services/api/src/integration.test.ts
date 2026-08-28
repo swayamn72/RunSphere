@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { activityFinalizeChecksumInput } from '@runsphere/contracts';
 import { createDatabase, defaultDatabaseUrl, migrate } from '@runsphere/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
@@ -13,10 +14,9 @@ const app = buildApp({ db, authSecret: 'integration-test-secret' });
 const sha256Chunks = (chunks: Array<{ sequence: number; points: unknown[] }>) =>
   createHash('sha256')
     .update(
-      chunks
-        .sort((a, b) => a.sequence - b.sequence)
-        .map(chunkHash)
-        .join('')
+      activityFinalizeChecksumInput(
+        chunks.map((chunk) => ({ sequence: chunk.sequence, checksum: chunkHash(chunk) }))
+      )
     )
     .digest('hex');
 
@@ -252,6 +252,15 @@ describePostgis('M1 PostGIS activity flow', () => {
         })
       ).json()
     ).toMatchObject({ missingSequences: [1] });
+    expect(
+      (
+        await app.inject({
+          method: 'GET',
+          url: `/v1/activities/${id}/sync?expectedChunkCount=3`,
+          headers: { authorization: `Bearer ${owner.accessToken}` }
+        })
+      ).json()
+    ).toMatchObject({ status: 'received', missingSequences: [1] });
     const middle = chunks[1]!;
     await app.inject({
       method: 'PUT',

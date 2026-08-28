@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { ActivityChunkRequest } from '@runsphere/contracts';
+import { canonicalJson, type ActivityChunkRequest } from '@runsphere/contracts';
 import type { Database } from '@runsphere/db';
 
 export interface TracePoint {
@@ -13,15 +13,6 @@ interface ZoneProvenance {
   geometry_version: number;
 }
 
-const canonicalJson = (value: unknown): string => {
-  if (value === null || typeof value !== 'object') return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  const record = value as Record<string, unknown>;
-  return `{${Object.keys(record)
-    .sort()
-    .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
-    .join(',')}}`;
-};
 export const chunkHash = (chunk: ActivityChunkRequest) =>
   createHash('sha256').update(canonicalJson(chunk)).digest('hex');
 const radians = (degrees: number) => degrees * (Math.PI / 180);

@@ -22,6 +22,7 @@ import { accountScopeFor } from './src/account-scope';
 import { activityRecorder } from './src/activity-recorder.native';
 import type { ActivitySession, MovementType, RecordingState } from './src/activity-recorder-core';
 import { recordingLocationAdapter } from './src/location-adapter';
+import { createActivitySyncCoordinator } from './src/activity-sync';
 import { MobileApiClient } from './src/api-client';
 import { AuthFailure } from './src/auth-failure';
 import { authStorage } from './src/auth-storage.native';
@@ -39,6 +40,7 @@ type Tab = 'Home' | 'Explore' | 'Season' | 'Clubs' | 'You';
 type AuthStatus = 'idle' | 'loading' | 'error';
 const tabs: readonly Tab[] = ['Home', 'Explore', 'Season', 'Clubs', 'You'];
 const apiClient = new MobileApiClient(undefined, fetch, authStorage);
+const activitySync = createActivitySyncCoordinator(apiClient, activityRecorder);
 
 export default function App() {
   const [onboarding, dispatch] = useReducer(onboardingReducer, initialOnboardingState);
@@ -76,19 +78,25 @@ export default function App() {
             accountId={accountId}
             onStart={() => setActivityStarted(true)}
             onRecordingChange={setRecording}
+            sync={activitySync}
             onOpenProfile={() => setActiveTab('You')}
           />
         ) : activeTab === 'You' ? (
-          <Profile
-            accountId={accountId}
-            onLogoutComplete={() => {
-              setActiveTab('Home');
-              setActivityStarted(false);
-              setRecording(undefined);
-              setAccountId(undefined);
-              dispatch({ type: 'logoutComplete' });
-            }}
-          />
+          <>
+            {accountId && (
+              <ActivityHistory accountId={accountId} sync={activitySync} onOpen={setRecording} />
+            )}
+            <Profile
+              accountId={accountId}
+              onLogoutComplete={() => {
+                setActiveTab('Home');
+                setActivityStarted(false);
+                setRecording(undefined);
+                setAccountId(undefined);
+                dispatch({ type: 'logoutComplete' });
+              }}
+            />
+          </>
         ) : (
           <View style={styles.comingSoon}>
             <Text style={styles.eyebrow}>{activeTab.toUpperCase()}</Text>
@@ -444,6 +452,7 @@ function Home({
   accountId,
   onStart,
   onRecordingChange,
+  sync,
   onOpenProfile
 }: {
   activityStarted: boolean;
@@ -451,12 +460,18 @@ function Home({
   accountId: string | undefined;
   onStart: () => void;
   onRecordingChange: (session: ActivitySession | undefined) => void;
+  sync: ReturnType<typeof createActivitySyncCoordinator>;
   onOpenProfile: () => void;
 }) {
   const { dailyPath, member, nearbyQuest } = homeModel;
   if (recording && accountId) {
     return (
-      <ActivityRecording session={recording} accountId={accountId} onChange={onRecordingChange} />
+      <ActivityRecording
+        session={recording}
+        accountId={accountId}
+        onChange={onRecordingChange}
+        sync={sync}
+      />
     );
   }
   return (
@@ -618,11 +633,13 @@ function ActivityPreparation({
 function ActivityRecording({
   session,
   accountId,
-  onChange
+  onChange,
+  sync
 }: {
   session: ActivitySession;
   accountId: string;
   onChange: (session: ActivitySession | undefined) => void;
+  sync: ReturnType<typeof createActivitySyncCoordinator>;
 }) {
   const [current, setCurrent] = useState(session);
   const [gpsWeak, setGpsWeak] = useState(false);
@@ -701,6 +718,12 @@ function ActivityRecording({
         session={current}
         onQueue={async () => {
           await transition('queued');
+          const refreshed = await activityRecorder.get(current.id, accountId);
+          if (refreshed) {
+            const result = await sync.sync(refreshed);
+            setCurrent(result.session);
+            onChange(result.session);
+          }
         }}
         onDiscard={async () => {
           await transition('discarded');
@@ -708,18 +731,8 @@ function ActivityRecording({
         }}
       />
     );
-  if (current.state === 'queued')
-    return (
-      <View style={styles.recordCard}>
-        <Text style={styles.eyebrow}>OFFLINE · SAVED ON THIS DEVICE</Text>
-        <Text style={styles.recordTitle}>Activity queued.</Text>
-        <Text style={styles.lead}>
-          Your local result is safe. Sync starts only when the account service supports activity
-          uploads.
-        </Text>
-        <PrimaryButton label="Back to home" onPress={() => onChange(undefined)} />
-      </View>
-    );
+  if (['queued', 'failed', 'processed'].includes(current.state))
+    return <ActivityDetail session={current} sync={sync} onChange={onChange} />;
   if (gpsWeak)
     return (
       <GpsRecovery onRetry={() => setGpsWeak(false)} onPause={() => void transition('paused')} />
@@ -748,6 +761,128 @@ function ActivityRecording({
       <Pressable accessibilityRole="button" onPress={() => void finish()}>
         <Text style={styles.textButton}>Finish activity</Text>
       </Pressable>
+    </View>
+  );
+}
+
+function ActivityDetail({
+  session,
+  sync,
+  onChange
+}: {
+  session: ActivitySession;
+  sync: ReturnType<typeof createActivitySyncCoordinator>;
+  onChange: (session: ActivitySession | undefined) => void;
+}) {
+  const [current, setCurrent] = useState(session);
+  const isProcessed = current.state === 'processed';
+  const retry = async () => {
+    const next = await sync.sync(current);
+    setCurrent(next.session);
+  };
+  const remove = async () => {
+    await sync.delete(current);
+    onChange(undefined);
+  };
+  return (
+    <View style={styles.recordCard}>
+      <Text style={styles.eyebrow}>
+        {isProcessed
+          ? 'ACTIVITY PROCESSED'
+          : current.state === 'failed'
+            ? 'SYNC NEEDS ATTENTION'
+            : 'OFFLINE · SAVED ON THIS DEVICE'}
+      </Text>
+      <Text style={styles.recordTitle}>
+        {isProcessed
+          ? 'Activity ready.'
+          : current.state === 'failed'
+            ? 'Sync paused.'
+            : 'Activity queued.'}
+      </Text>
+      <Text style={styles.lead}>
+        {isProcessed
+          ? 'Processed results are available in your private history.'
+          : (current.syncError ??
+            'Your local result is safe and will resume when connectivity returns.')}
+      </Text>
+      <View style={styles.resultStats}>
+        <Stat label="KM" value={(current.distanceMeters / 1000).toFixed(2)} detail="Local" />
+        <Stat label="TIME" value={formatDuration(current.durationSeconds)} detail="Recorded" />
+        <Stat label="STATUS" value={current.state.toUpperCase()} detail="Private" />
+      </View>
+      {!isProcessed && (
+        <PrimaryButton
+          label={current.state === 'failed' ? 'Retry sync' : 'Sync now'}
+          onPress={() => void retry()}
+        />
+      )}
+      <Pressable accessibilityRole="button" onPress={() => void remove()}>
+        <Text style={[styles.textButton, styles.destructive]}>Delete activity</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" onPress={() => onChange(undefined)}>
+        <Text style={styles.textButton}>Back to home</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function ActivityHistory({
+  accountId,
+  sync,
+  onOpen
+}: {
+  accountId: string;
+  sync: ReturnType<typeof createActivitySyncCoordinator>;
+  onOpen: (session: ActivitySession) => void;
+}) {
+  const [items, setItems] = useState<ActivitySession[]>([]);
+  const [loading, setLoading] = useState(false);
+  const refresh = async () => {
+    setLoading(true);
+    await sync.syncPending(accountId);
+    const local = await activityRecorder.list(accountId);
+    await Promise.all(local.map((item) => sync.refresh(item).catch(() => undefined)));
+    setItems(await activityRecorder.list(accountId));
+    setLoading(false);
+  };
+  useEffect(() => {
+    void refresh();
+  }, [accountId]);
+  if (!items.length) return null;
+  return (
+    <View style={styles.history}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Activity history</Text>
+        <Pressable accessibilityRole="button" onPress={() => void refresh()}>
+          <Text style={styles.link}>{loading ? 'Refreshing…' : 'Refresh'}</Text>
+        </Pressable>
+      </View>
+      {items.map((item) => (
+        <Pressable
+          key={item.id}
+          accessibilityRole="button"
+          onPress={() => onOpen(item)}
+          style={styles.historyRow}
+        >
+          <View style={styles.flexCopy}>
+            <Text style={styles.rowTitle}>
+              {item.movementType.charAt(0).toUpperCase() + item.movementType.slice(1)} ·{' '}
+              {(item.distanceMeters / 1000).toFixed(2)} km
+            </Text>
+            <Text style={styles.rowDetail}>
+              {item.state === 'processed'
+                ? 'Processed'
+                : item.state === 'failed'
+                  ? 'Sync failed — refresh to retry'
+                  : item.state === 'queued'
+                    ? 'Queued / processing'
+                    : 'Local activity'}
+            </Text>
+          </View>
+          <Text style={styles.link}>View ›</Text>
+        </Pressable>
+      ))}
     </View>
   );
 }
@@ -1584,6 +1719,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginBottom: 10,
     marginTop: 8,
+    padding: 14
+  },
+  history: { marginTop: 24 },
+  historyRow: {
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderColor: colors.line,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: 'row',
+    marginBottom: 8,
     padding: 14
   }
 });

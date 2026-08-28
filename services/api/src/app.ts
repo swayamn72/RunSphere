@@ -2,13 +2,22 @@ import cors from '@fastify/cors';
 import swagger from '@fastify/swagger';
 import type { ApiConfig } from '@runsphere/config';
 import {
+  ActivityAuthorizationHeadersSchema,
   ActivityChunkHeadersSchema,
   ActivityChunkRequestSchema,
+  ActivityChunkResponseSchema,
+  ActivityCreateHeadersSchema,
   ActivityCreateRequestSchema,
+  ActivityCreateResponseSchema,
+  ActivityDeleteResponseSchema,
+  ActivityDetailResponseSchema,
   ActivityFinalizeRequestSchema,
+  ActivityFinalizeResponseSchema,
   ActivityListResponseSchema,
   ActivityParamsSchema,
-  ActivityStatusResponseSchema,
+  ActivitySyncQuerySchema,
+  ActivitySyncStatusResponseSchema,
+  activityFinalizeChecksumInput,
   AuthResponseSchema,
   ErrorResponseSchema,
   HealthResponseSchema,
@@ -339,16 +348,13 @@ export const buildApp = ({
       {
         schema: {
           body: ActivityCreateRequestSchema,
-          headers: {
-            type: 'object',
-            required: ['idempotency-key'],
-            properties: { 'idempotency-key': { type: 'string', minLength: 1, maxLength: 128 } }
-          },
+          headers: ActivityCreateHeadersSchema,
           response: {
-            201: ActivityStatusResponseSchema,
-            200: ActivityStatusResponseSchema,
+            201: ActivityCreateResponseSchema,
+            200: ActivityCreateResponseSchema,
             401: ErrorResponseSchema,
-            409: ErrorResponseSchema
+            409: ErrorResponseSchema,
+            503: ErrorResponseSchema
           }
         }
       },
@@ -390,7 +396,7 @@ export const buildApp = ({
           headers: ActivityChunkHeadersSchema,
           body: ActivityChunkRequestSchema,
           response: {
-            204: { type: 'null' },
+            204: ActivityChunkResponseSchema,
             400: ErrorResponseSchema,
             401: ErrorResponseSchema,
             404: ErrorResponseSchema,
@@ -447,9 +453,10 @@ export const buildApp = ({
       {
         schema: {
           params: ActivityParamsSchema,
+          headers: ActivityAuthorizationHeadersSchema,
           body: ActivityFinalizeRequestSchema,
           response: {
-            202: ActivityStatusResponseSchema,
+            202: ActivityFinalizeResponseSchema,
             400: ErrorResponseSchema,
             401: ErrorResponseSchema,
             404: ErrorResponseSchema,
@@ -481,15 +488,19 @@ export const buildApp = ({
           }
           const chunks = await client.query<{
             count: string;
-            checksum: string;
+            payload_hashes: string[];
             minimum: number | null;
             maximum: number | null;
           }>(
-            `SELECT count(*)::text AS count, coalesce(string_agg(payload_hash, '' ORDER BY sequence), '') AS checksum,
+            `SELECT count(*)::text AS count, coalesce(array_agg(payload_hash ORDER BY sequence), ARRAY[]::text[]) AS payload_hashes,
               min(sequence) AS minimum, max(sequence) AS maximum FROM activity_chunks WHERE activity_id = $1`,
             [request.params.activityId]
           );
-          const aggregateChecksum = sha256(chunks.rows[0]!.checksum);
+          const aggregateChecksum = sha256(
+            activityFinalizeChecksumInput(
+              chunks.rows[0]!.payload_hashes.map((checksum, sequence) => ({ sequence, checksum }))
+            )
+          );
           const ordered =
             Number(chunks.rows[0]?.count) === request.body.expectedChunkCount &&
             chunks.rows[0]?.minimum === 0 &&
@@ -545,10 +556,45 @@ export const buildApp = ({
       }
     );
 
+    routes.get<{ Params: { activityId: string }; Querystring: { expectedChunkCount: number } }>(
+      '/v1/activities/:activityId/sync',
+      {
+        schema: {
+          params: ActivityParamsSchema,
+          querystring: ActivitySyncQuerySchema,
+          headers: ActivityAuthorizationHeadersSchema,
+          response: {
+            200: ActivitySyncStatusResponseSchema,
+            401: ErrorResponseSchema,
+            404: ErrorResponseSchema,
+            503: ErrorResponseSchema
+          }
+        }
+      },
+      async (request, reply) => {
+        if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+        const accountId = requireAccount(request, reply, authSecret);
+        if (!accountId) return;
+        const result = await database.query<ActivityRow>(
+          `SELECT id, status, summary, rejection_reason, validation_errors, expected_chunk_count
+           FROM activity_submissions WHERE id = $1 AND account_id = $2 AND deleted_at IS NULL`,
+          [request.params.activityId, accountId]
+        );
+        const row = result.rows[0];
+        if (!row) return reply.code(404).send({ message: 'Activity not found' });
+        const missing = await missingSequences(database, row.id, request.query.expectedChunkCount);
+        return {
+          ...(await statusResponse(database, row)),
+          ...(row.status === 'received' ? { missingSequences: missing } : {})
+        };
+      }
+    );
+
     routes.get(
       '/v1/activities',
       {
         schema: {
+          headers: ActivityAuthorizationHeadersSchema,
           response: {
             200: ActivityListResponseSchema,
             401: ErrorResponseSchema,
@@ -576,8 +622,9 @@ export const buildApp = ({
       {
         schema: {
           params: ActivityParamsSchema,
+          headers: ActivityAuthorizationHeadersSchema,
           response: {
-            200: ActivityStatusResponseSchema,
+            200: ActivityDetailResponseSchema,
             401: ErrorResponseSchema,
             404: ErrorResponseSchema
           }
@@ -628,7 +675,12 @@ export const buildApp = ({
       {
         schema: {
           params: ActivityParamsSchema,
-          response: { 204: { type: 'null' }, 401: ErrorResponseSchema, 404: ErrorResponseSchema }
+          headers: ActivityAuthorizationHeadersSchema,
+          response: {
+            204: ActivityDeleteResponseSchema,
+            401: ErrorResponseSchema,
+            404: ErrorResponseSchema
+          }
         }
       },
       async (request, reply) => {
