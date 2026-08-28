@@ -33,11 +33,13 @@ type AuthStatus = 'idle' | 'loading' | 'error';
 export function Onboarding({
   state,
   dispatch,
-  api
+  api,
+  onAuthenticated
 }: {
   state: typeof initialOnboardingState;
   api: MobileApiClient;
   dispatch: React.Dispatch<Parameters<typeof onboardingReducer>[1]>;
+  onAuthenticated: (session: Awaited<ReturnType<MobileApiClient['login']>>) => void;
 }) {
   const [authStatus, setAuthStatus] = useState<AuthStatus>('idle');
   const [authError, setAuthError] = useState<string>();
@@ -48,15 +50,16 @@ export function Onboarding({
     setAuthError(undefined);
     setAuthFailureKind(undefined);
     try {
-      if (state.accountMode === 'login')
-        await api.login({ email: state.email.trim(), password: state.password });
-      else
-        await api.register({
-          email: state.email.trim(),
-          password: state.password,
-          ageAssertion: true,
-          policyVersion: 'm1-private-pilot'
-        });
+      const session =
+        state.accountMode === 'login'
+          ? await api.login({ email: state.email.trim(), password: state.password })
+          : await api.register({
+              email: state.email.trim(),
+              password: state.password,
+              ageAssertion: true,
+              policyVersion: 'm1-private-pilot'
+            });
+      onAuthenticated(session);
       dispatch({ type: 'authenticationSucceeded' });
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : 'Unable to complete authentication.');

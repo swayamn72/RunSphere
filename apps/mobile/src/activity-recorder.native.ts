@@ -10,10 +10,17 @@ const recorder = createActivityRecorder(database);
  * The activity key stays in Android Keystore-backed SecureStore, never in SQLite or app config.
  * Legacy scope re-keying is an in-place row update and must run before any future database copy.
  */
+let initialization: Promise<void> | undefined;
+
 export const activityRecorder = {
   ...recorder,
-  async initialize(): Promise<void> {
-    await prepareEncryptedDatabase(database, encryptionKeyName);
-    await recorder.initialize();
+  initialize(): Promise<void> {
+    initialization ??= prepareEncryptedDatabase(database, encryptionKeyName)
+      .then(() => recorder.initialize())
+      .catch((error: unknown) => {
+        initialization = undefined;
+        throw error;
+      });
+    return initialization;
   }
 };

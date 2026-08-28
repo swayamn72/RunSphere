@@ -2,7 +2,12 @@ import * as Location from 'expo-location';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
 import { activityRecorder } from '../activity-recorder.native';
-import type { ActivitySession, MovementType, RecordingState } from '../activity-recorder-core';
+import {
+  isWeakGpsSample,
+  type ActivitySession,
+  type MovementType,
+  type RecordingState
+} from '../activity-recorder-core';
 import { recordingLocationAdapter } from '../location-adapter';
 import { type createActivitySyncCoordinator } from '../activity-sync';
 import type { ActivityStatus } from '../api-client';
@@ -121,32 +126,43 @@ export function ActivityRecording({
   const [gpsWeak, setGpsWeak] = useState(false);
   useEffect(() => {
     let subscription: Location.LocationSubscription | undefined;
+    let cancelled = false;
     if (['active', 'resumed'].includes(current.state)) {
       void recordingLocationAdapter
         .subscribe(async (sample) => {
           const accepted = await activityRecorder.appendSample(current.id, accountId, sample);
-          setGpsWeak(!accepted);
+          if (cancelled) return;
+          setGpsWeak(isWeakGpsSample(sample));
+          if (!accepted) return;
           const fresh = await activityRecorder.get(current.id, accountId);
-          if (fresh) setCurrent(fresh);
+          if (fresh && !cancelled) setCurrent(fresh);
         })
         .then((next) => {
-          subscription = next;
+          if (cancelled) next.remove();
+          else subscription = next;
+        })
+        .catch((error) => {
+          if (!cancelled) console.warn('Unable to start activity location watcher', error);
         });
     }
-    return () => subscription?.remove();
+    return () => {
+      cancelled = true;
+      subscription?.remove();
+    };
   }, [accountId, current.id, current.state]);
   useEffect(() => {
     if (!['active', 'resumed'].includes(current.state)) return;
+    const { id } = current;
     const interval = setInterval(() => {
       void activityRecorder
-        .heartbeat(current.id, accountId, new Date().toISOString())
+        .heartbeat(id, accountId, new Date().toISOString())
         .then(async () => {
-          const fresh = await activityRecorder.get(current.id, accountId);
+          const fresh = await activityRecorder.get(id, accountId);
           if (fresh) setCurrent(fresh);
         });
     }, 15_000);
     return () => clearInterval(interval);
-  }, [accountId, current]);
+  }, [accountId, current.id, current.state]);
   const transition = async (to: RecordingState) => {
     const from = current.state;
     const at = new Date().toISOString();

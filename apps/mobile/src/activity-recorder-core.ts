@@ -118,6 +118,8 @@ const elapsedSeconds = (earlier: string, later: string): number =>
 export const isUsableSample = (sample: LocationSample): boolean =>
   sample.accuracy !== null && sample.accuracy >= 0 && sample.accuracy <= MAX_SAMPLE_ACCURACY_METERS;
 
+export const isWeakGpsSample = (sample: LocationSample): boolean => !isUsableSample(sample);
+
 export const acceptedSegment = (
   previous: LocationSample | undefined,
   sample: LocationSample

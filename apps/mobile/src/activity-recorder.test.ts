@@ -3,6 +3,7 @@ import {
   ACTIVITY_RECORDER_SCHEMA_VERSION,
   acceptedSegment,
   createActivityRecorder,
+  isWeakGpsSample,
   type ActivitySession,
   type RecorderDatabase
 } from './activity-recorder-core.js';
@@ -155,6 +156,26 @@ describe('activity recorder', () => {
       acceptedSamples: 2,
       distanceMeters: expect.any(Number)
     });
+  });
+  it('only treats weak-accuracy samples as weak GPS, not duplicate or speed-rejected samples', () => {
+    expect(
+      isWeakGpsSample({
+        recordedAt: base.startedAt,
+        latitude: 19.076,
+        longitude: 72.8777,
+        accuracy: 80,
+        altitude: null
+      })
+    ).toBe(true);
+    expect(
+      isWeakGpsSample({
+        recordedAt: base.startedAt,
+        latitude: 19.076,
+        longitude: 72.8777,
+        accuracy: 8,
+        altitude: null
+      })
+    ).toBe(false);
   });
   it('re-keys legacy local rows to the stable server account UUID with count/checksum verification', async () => {
     const database = new MemoryDatabase();

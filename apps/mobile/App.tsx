@@ -5,6 +5,7 @@ import { activityQueue } from './src/activity-queue.native';
 import { accountScopeFor, legacyAccountScopesFor } from './src/account-scope';
 import { activityRecorder } from './src/activity-recorder.native';
 import type { ActivitySession, MovementType } from './src/activity-recorder-core';
+import type { AuthSession } from './src/auth-storage-core';
 import { createActivitySyncCoordinator } from './src/activity-sync';
 import { MobileApiClient } from './src/api-client';
 import { authStorage } from './src/auth-storage.native';
@@ -30,6 +31,8 @@ import {
 const apiClient = new MobileApiClient(undefined, fetch, authStorage);
 const activitySync = createActivitySyncCoordinator(apiClient, activityRecorder);
 
+const accountIdFromSession = (session: AuthSession): string => accountScopeFor(session);
+
 export default function App() {
   const [onboarding, dispatch] = useReducer(onboardingReducer, initialOnboardingState);
   const [activeTab, setActiveTab] = useState<Tab>('Home');
@@ -40,23 +43,40 @@ export default function App() {
   const [restoring, setRestoring] = useState(true);
 
   useEffect(() => {
-    void Promise.all([activityQueue.initialize(), activityRecorder.initialize()]);
-    void authStorage
-      .read()
-      .then(async (session) => {
+    let mounted = true;
+    void (async () => {
+      try {
+        await Promise.all([activityQueue.initialize(), activityRecorder.initialize()]);
+        const session = await authStorage.read();
         if (!session) return;
-        const scope = accountScopeFor(session);
+        const scope = accountIdFromSession(session);
         await activityRecorder.rekeyLegacyScopes(scope, legacyAccountScopesFor(session));
+        const recovered = await activityRecorder.recover(scope);
+        if (!mounted) return;
         setAccountId(scope);
-        setRecording(await activityRecorder.recover(scope));
+        setRecording(recovered);
         dispatch({ type: 'restoreSession' });
-      })
-      .finally(() => setRestoring(false));
+      } catch (error) {
+        console.error('Unable to initialize encrypted activity storage', error);
+      } finally {
+        if (mounted) setRestoring(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   if (restoring) return <SafeAreaView style={styles.screen} />;
   if (onboarding.step !== 'complete')
-    return <Onboarding state={onboarding} dispatch={dispatch} api={apiClient} />;
+    return (
+      <Onboarding
+        state={onboarding}
+        dispatch={dispatch}
+        api={apiClient}
+        onAuthenticated={(session) => setAccountId(accountIdFromSession(session))}
+      />
+    );
 
   const openActivity = () => {
     setActivityStarted(true);
