@@ -46,9 +46,16 @@ export function AdminShell() {
         <div>
           <span>RUNSPHERE / OPERATIONS</span>
           <h1>Activity review</h1>
-          <p>Authenticated staff access. Raw GPS, account contact details, and territory controls are unavailable here.</p>
+          <p>
+            Authenticated staff access. Raw GPS, account contact details, and territory controls are
+            unavailable here.
+          </p>
         </div>
-        {accessToken ? <div className="status">Staff session active</div> : <div className="status neutral">Sign in required</div>}
+        {accessToken ? (
+          <div className="status">Staff session active</div>
+        ) : (
+          <div className="status neutral">Sign in required</div>
+        )}
       </header>
       {!accessToken ? (
         <section className="panel sign-in-panel">
@@ -61,13 +68,25 @@ export function AdminShell() {
           <form onSubmit={handleSignIn}>
             <label>
               Email
-              <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+              />
             </label>
             <label>
               Password
-              <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+              <input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+              />
             </label>
-            <button type="submit" disabled={loading}>{loading ? 'Signing in…' : 'Sign in'}</button>
+            <button type="submit" disabled={loading}>
+              {loading ? 'Signing in…' : 'Sign in'}
+            </button>
           </form>
         </section>
       ) : (
@@ -81,7 +100,11 @@ export function AdminShell() {
               {loading ? 'Refreshing…' : 'Refresh queue'}
             </button>
           </div>
-          {error ? <p className="error" role="alert">{error}</p> : null}
+          {error ? (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          ) : null}
           <table>
             <thead>
               <tr>
@@ -94,18 +117,33 @@ export function AdminShell() {
             <tbody>
               {items.map((item) => (
                 <tr key={item.id}>
-                  <td><code>{item.id}</code></td>
-                  <td><span className="tag">{readableStatus(item.status)}</span></td>
+                  <td>
+                    <code>{item.id}</code>
+                  </td>
+                  <td>
+                    <span className="tag">{readableStatus(item.status)}</span>
+                  </td>
                   <td>{new Date(item.submittedAt).toLocaleString()}</td>
-                  <td>{item.rejectionReason ?? (item.validationErrors.join(', ') || 'Awaiting validation')}</td>
+                  <td>
+                    {item.rejectionReason ??
+                      (item.validationErrors.join(', ') || 'Awaiting validation')}
+                  </td>
                 </tr>
               ))}
-              {!loading && items.length === 0 ? <tr><td colSpan={4}>No activities currently require review.</td></tr> : null}
+              {!loading && items.length === 0 ? (
+                <tr>
+                  <td colSpan={4}>No activities currently require review.</td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </section>
       )}
-      {error && !accessToken ? <p className="error" role="alert">{error}</p> : null}
+      {error && !accessToken ? (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      ) : null}
       <footer>Every queue read is audited. Territory remains off.</footer>
     </main>
   );

@@ -19,10 +19,7 @@ vi.mock('expo-location', () => ({
 vi.mock('expo-task-manager', () => ({ defineTask: vi.fn() }));
 vi.mock('./activity-recorder.native', () => ({ activityRecorder: {} }));
 
-import {
-  nativeLocationAdapter,
-  persistBackgroundLocations
-} from './location-adapter.js';
+import { nativeLocationAdapter, persistBackgroundLocations } from './location-adapter.js';
 import { parseSyntheticNdjson } from './location-adapter-core.js';
 
 describe('synthetic location fixture seam', () => {

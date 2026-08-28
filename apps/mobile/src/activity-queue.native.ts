@@ -6,10 +6,20 @@ const database = SQLite.openDatabaseSync('runsphere-activity-queue.db');
 const queue = createActivityQueue(database);
 
 /** Durable metadata queue protected by its own Keystore-backed SQLCipher key. */
+let initialization: Promise<void> | undefined;
+
 export const activityQueue = {
   ...queue,
-  async initialize(): Promise<void> {
-    await prepareEncryptedDatabase(database, 'runsphere.activity-queue.sqlcipher-key.v1');
-    await queue.initialize();
+  initialize(): Promise<void> {
+    initialization ??= prepareEncryptedDatabase(
+      database,
+      'runsphere.activity-queue.sqlcipher-key.v1'
+    )
+      .then(() => queue.initialize())
+      .catch((error: unknown) => {
+        initialization = undefined;
+        throw error;
+      });
+    return initialization;
   }
 };

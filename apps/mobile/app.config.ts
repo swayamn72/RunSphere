@@ -5,7 +5,7 @@ const config: ExpoConfig = {
   slug: 'runsphere',
   version: '0.1.0',
   orientation: 'portrait',
-  userInterfaceStyle: 'light',
+  userInterfaceStyle: 'automatic',
   newArchEnabled: true,
   android: {
     package: 'com.runsphere.app',
@@ -17,11 +17,16 @@ const config: ExpoConfig = {
       'android.permission.FOREGROUND_SERVICE',
       'android.permission.FOREGROUND_SERVICE_LOCATION',
       'android.permission.INTERNET',
+      'android.permission.ACCESS_NETWORK_STATE',
       'android.permission.VIBRATE'
     ],
     blockedPermissions: [
+      'android.permission.ACCESS_BACKGROUND_LOCATION',
+      'android.permission.ACCESS_WIFI_STATE',
       'android.permission.SYSTEM_ALERT_WINDOW',
       'android.permission.READ_EXTERNAL_STORAGE',
+      'android.permission.USE_BIOMETRIC',
+      'android.permission.USE_FINGERPRINT',
       'android.permission.WRITE_EXTERNAL_STORAGE'
     ]
   },
@@ -46,13 +51,17 @@ const config: ExpoConfig = {
         motionPermission:
           'Allow RunSphere to access motion and fitness data to improve activity estimates.'
       }
-    ]
+    ],
+    ['@maplibre/maplibre-react-native', { android: { nativeVariant: 'opengl' } }]
   ],
   experiments: {
     typedRoutes: false
   },
   extra: {
-    apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL ?? ''
+    apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL ?? '',
+    mapStyleUrl: process.env.EXPO_PUBLIC_MAP_STYLE_URL ?? '',
+    mapStyleOrigins: process.env.EXPO_PUBLIC_MAP_STYLE_ORIGINS ?? '',
+    mapAttribution: process.env.EXPO_PUBLIC_MAP_ATTRIBUTION ?? ''
   }
 };
 

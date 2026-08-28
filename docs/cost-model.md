@@ -33,11 +33,11 @@ Nominatim is used only through the server proxy/cache described in [architecture
 
 Use separate provider projects/accounts and immutable cost-centre tags (`environment=staging` and `environment=production`) so staging cannot consume production contingency. The initial monthly allocation is intentionally below the cap to absorb metering variance:
 
-| Environment | API/worker | Database + backup | Storage/maps/observability/auth | Reserved variance | Total (₹) |
-| ----------- | ---------: | ----------------: | ------------------------------: | ----------------: | --------: |
-| Staging     |        150 |               150 |                             100 |                 0 |       400 |
-| Production  |        650 |               600 |                             950 |               400 |     2,600 |
-| **Combined**|    **800** |           **750** |                       **1,050** |           **400** | **3,000** |
+| Environment  | API/worker | Database + backup | Storage/maps/observability/auth | Reserved variance | Total (₹) |
+| ------------ | ---------: | ----------------: | ------------------------------: | ----------------: | --------: |
+| Staging      |        150 |               150 |                             100 |                 0 |       400 |
+| Production   |        650 |               600 |                             950 |               400 |     2,600 |
+| **Combined** |    **800** |           **750** |                       **1,050** |           **400** | **3,000** |
 
 Provision only a single MMR-region production stack: a small API/worker runtime, one managed Postgres/PostGIS primary with daily backup and restore validation, object storage with lifecycle deletion, cache-first place lookup, and sampled/scrubbed logs. Staging uses the same migration and readiness checks but autosuspends outside release windows. Martin, Valhalla, replicas, and territory are excluded from this spike; enabling any of them requires an approved amended forecast.
 

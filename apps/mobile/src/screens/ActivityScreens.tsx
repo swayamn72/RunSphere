@@ -12,17 +12,20 @@ import { recordingLocationAdapter } from '../location-adapter';
 import { type createActivitySyncCoordinator } from '../activity-sync';
 import type { ActivityStatus } from '../api-client';
 import { PrimaryButton, Stat } from '../components/primitives';
-import { styles } from '../components/styles';
+import { useAppStyles } from '../components/styles';
 
 export function ActivityPreparation({
   accountId,
   initialMovement,
-  onChange
+  onChange,
+  onExit
 }: {
   accountId: string;
   initialMovement: MovementType;
   onChange: (session: ActivitySession) => void;
+  onExit: () => void;
 }) {
+  const styles = useAppStyles();
   const [movement, setMovement] = useState<MovementType>(initialMovement);
   const [busy, setBusy] = useState(false);
   const [backgroundOptIn, setBackgroundOptIn] = useState(false);
@@ -107,6 +110,9 @@ export function ActivityPreparation({
         disabled={busy}
         onPress={() => void begin()}
       />
+      <Pressable accessibilityRole="button" onPress={onExit}>
+        <Text style={styles.textButton}>Not now</Text>
+      </Pressable>
     </View>
   );
 }
@@ -115,13 +121,16 @@ export function ActivityRecording({
   session,
   accountId,
   onChange,
+  onExit,
   sync
 }: {
   session: ActivitySession;
   accountId: string;
   onChange: (session: ActivitySession | undefined) => void;
+  onExit: () => void;
   sync: ReturnType<typeof createActivitySyncCoordinator>;
 }) {
+  const styles = useAppStyles();
   const [current, setCurrent] = useState(session);
   const [gpsWeak, setGpsWeak] = useState(false);
   useEffect(() => {
@@ -154,12 +163,10 @@ export function ActivityRecording({
     if (!['active', 'resumed'].includes(current.state)) return;
     const { id } = current;
     const interval = setInterval(() => {
-      void activityRecorder
-        .heartbeat(id, accountId, new Date().toISOString())
-        .then(async () => {
-          const fresh = await activityRecorder.get(id, accountId);
-          if (fresh) setCurrent(fresh);
-        });
+      void activityRecorder.heartbeat(id, accountId, new Date().toISOString()).then(async () => {
+        const fresh = await activityRecorder.get(id, accountId);
+        if (fresh) setCurrent(fresh);
+      });
     }, 15_000);
     return () => clearInterval(interval);
   }, [accountId, current.id, current.state]);
@@ -211,12 +218,12 @@ export function ActivityRecording({
         }}
         onDiscard={async () => {
           await transition('discarded');
-          onChange(undefined);
+          onExit();
         }}
       />
     );
   if (['queued', 'failed', 'processed'].includes(current.state))
-    return <ActivityDetail session={current} sync={sync} onChange={onChange} />;
+    return <ActivityDetail session={current} sync={sync} onExit={onExit} />;
   if (gpsWeak)
     return (
       <GpsRecovery onRetry={() => setGpsWeak(false)} onPause={() => void transition('paused')} />
@@ -252,12 +259,13 @@ export function ActivityRecording({
 function ActivityDetail({
   session,
   sync,
-  onChange
+  onExit
 }: {
   session: ActivitySession;
   sync: ReturnType<typeof createActivitySyncCoordinator>;
-  onChange: (session: ActivitySession | undefined) => void;
+  onExit: () => void;
 }) {
+  const styles = useAppStyles();
   const [current, setCurrent] = useState(session);
   const [remote, setRemote] = useState<ActivityStatus>();
   const isProcessed = current.state === 'processed';
@@ -274,7 +282,7 @@ function ActivityDetail({
   }, [session, sync]);
   const remove = async () => {
     await sync.delete(current);
-    onChange(undefined);
+    onExit();
   };
   return (
     <View style={styles.recordCard}>
@@ -348,7 +356,7 @@ function ActivityDetail({
       <Pressable accessibilityRole="button" onPress={() => void remove()}>
         <Text style={[styles.textButton, styles.destructive]}>Delete activity</Text>
       </Pressable>
-      <Pressable accessibilityRole="button" onPress={() => onChange(undefined)}>
+      <Pressable accessibilityRole="button" onPress={onExit}>
         <Text style={styles.textButton}>Back to home</Text>
       </Pressable>
     </View>
@@ -364,6 +372,7 @@ export function ActivityHistory({
   sync: ReturnType<typeof createActivitySyncCoordinator>;
   onOpen: (session: ActivitySession) => void;
 }) {
+  const styles = useAppStyles();
   const [items, setItems] = useState<ActivitySession[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
@@ -406,7 +415,9 @@ export function ActivityHistory({
           <Text style={styles.noticeIcon}>⌁</Text>
           <View style={styles.flexCopy}>
             <Text style={styles.noticeTitle}>No activities yet</Text>
-            <Text style={styles.noticeCopy}>Your completed activities will appear here privately.</Text>
+            <Text style={styles.noticeCopy}>
+              Your completed activities will appear here privately.
+            </Text>
           </View>
         </View>
       )}
@@ -440,6 +451,7 @@ export function ActivityHistory({
 }
 
 function GpsRecovery({ onRetry, onPause }: { onRetry: () => void; onPause: () => void }) {
+  const styles = useAppStyles();
   return (
     <View style={styles.recordCard}>
       <Text style={styles.gpsError}>!</Text>
@@ -465,6 +477,7 @@ function ActivityResults({
   onQueue: () => void;
   onDiscard: () => void;
 }) {
+  const styles = useAppStyles();
   const pace = session.distanceMeters
     ? formatDuration(Math.round(session.durationSeconds / (session.distanceMeters / 1000)))
     : '—';

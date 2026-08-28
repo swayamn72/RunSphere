@@ -21,7 +21,8 @@ const createDatabase = (): Database & { statements: string[] } => {
         const version = String(values?.[0]);
         return { rows: appliedVersions.has(version) ? [{ version }] : [] };
       }
-      if (text.startsWith('INSERT INTO schema_migrations')) appliedVersions.add(String(values?.[0]));
+      if (text.startsWith('INSERT INTO schema_migrations'))
+        appliedVersions.add(String(values?.[0]));
       return { rows: [] };
     },
     release: () => undefined

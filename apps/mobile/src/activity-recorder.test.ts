@@ -183,7 +183,9 @@ describe('activity recorder', () => {
     const recorder = createActivityRecorder(database);
     await recorder.create({ ...base, accountId: 'account:legacy-token-hash' });
     await expect(
-      recorder.rekeyLegacyScopes('8e7b0924-12fe-48d7-9bca-2ab3c055fa10', ['account:legacy-token-hash'])
+      recorder.rekeyLegacyScopes('8e7b0924-12fe-48d7-9bca-2ab3c055fa10', [
+        'account:legacy-token-hash'
+      ])
     ).resolves.toBe(1);
   });
   it('retains a private sample after a gap while excluding its segment from eligible totals', async () => {

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { accountScopeFor, legacyAccountScopesFor } from './account-scope.js';
 
-const encoded = (value: unknown) => globalThis.btoa(JSON.stringify(value)).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
+const encoded = (value: unknown) =>
+  globalThis
+    .btoa(JSON.stringify(value))
+    .replaceAll('+', '-')
+    .replaceAll('/', '_')
+    .replaceAll('=', '');
 const session = {
   accessToken: `${encoded({ sub: '8e7b0924-12fe-48d7-9bca-2ab3c055fa10' })}.signature`,
   refreshToken: 'legacy-refresh-token',

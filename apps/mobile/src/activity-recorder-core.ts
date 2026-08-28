@@ -158,12 +158,15 @@ const sessionSelect = `SELECT id, account_id AS accountId, movement_type AS move
   paused_at AS pausedAt, completed_at AS completedAt, duration_seconds AS durationSeconds, distance_meters AS distanceMeters,
   accepted_samples AS acceptedSamples, last_heartbeat_at AS lastHeartbeatAt, remote_id AS remoteId, sync_error AS syncError FROM recorded_activities`;
 
-const migrationChecksum = (rows: readonly Pick<ActivitySession, 'id' | 'remoteId' | 'updatedAt'>[]): string => {
+const migrationChecksum = (
+  rows: readonly Pick<ActivitySession, 'id' | 'remoteId' | 'updatedAt'>[]
+): string => {
   let hash = 2_166_136_261;
   for (const character of rows
     .map((row) => `${row.id}:${row.remoteId ?? ''}:${row.updatedAt}`)
     .sort()
-    .join('|')) hash = Math.imul(hash ^ character.charCodeAt(0), 16_777_619);
+    .join('|'))
+    hash = Math.imul(hash ^ character.charCodeAt(0), 16_777_619);
   return (hash >>> 0).toString(16);
 };
 
@@ -263,7 +266,11 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
     )
       return false;
     const segment = acceptedSegment(previous ?? undefined, sample);
-    if (previous && segment.durationSeconds === 0 && elapsedSeconds(previous.recordedAt, sample.recordedAt) <= EXCLUDED_GAP_SECONDS)
+    if (
+      previous &&
+      segment.durationSeconds === 0 &&
+      elapsedSeconds(previous.recordedAt, sample.recordedAt) <= EXCLUDED_GAP_SECONDS
+    )
       return false;
     const inserted = await database.runAsync(
       'INSERT OR IGNORE INTO activity_location_samples (activity_id, recorded_at, latitude, longitude, accuracy, altitude) VALUES (?, ?, ?, ?, ?, ?)',
@@ -325,14 +332,18 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
         accountId
       );
       const destinationChecksum = migrationChecksum(
-        destinationRows.map(rowToSession).filter((row) => sourceRows.some((source) => source.id === row.id))
+        destinationRows
+          .map(rowToSession)
+          .filter((row) => sourceRows.some((source) => source.id === row.id))
       );
       if (
         result.changes !== sourceRows.length ||
         Number(sourceRemaining?.count ?? 0) !== 0 ||
         destinationChecksum !== sourceChecksum
       )
-        throw new Error('Local activity account-scope migration count/checksum verification failed.');
+        throw new Error(
+          'Local activity account-scope migration count/checksum verification failed.'
+        );
       moved += result.changes;
     }
     return moved;
@@ -355,7 +366,11 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
     );
   },
   async remove(id: string, accountId: string): Promise<void> {
-    await database.runAsync('DELETE FROM recorded_activities WHERE id = ? AND account_id = ?', id, accountId);
+    await database.runAsync(
+      'DELETE FROM recorded_activities WHERE id = ? AND account_id = ?',
+      id,
+      accountId
+    );
   },
   async clearAccount(accountId: string): Promise<void> {
     await database.runAsync('DELETE FROM recorded_activities WHERE account_id = ?', accountId);

@@ -1,16 +1,21 @@
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useReducer, useState } from 'react';
-import { SafeAreaView } from 'react-native';
+import { useCallback, useEffect, useReducer, useState } from 'react';
+import { SafeAreaView, Text, View } from 'react-native';
 import { activityQueue } from './src/activity-queue.native';
 import { accountScopeFor, legacyAccountScopesFor } from './src/account-scope';
 import { activityRecorder } from './src/activity-recorder.native';
 import type { ActivitySession, MovementType } from './src/activity-recorder-core';
+import type { QuestSummary } from '@runsphere/contracts';
 import type { AuthSession } from './src/auth-storage-core';
 import { createActivitySyncCoordinator } from './src/activity-sync';
 import { MobileApiClient } from './src/api-client';
 import { authStorage } from './src/auth-storage.native';
-import { styles } from './src/components/styles';
+import { FocusedFlexShell, FocusedScrollShell, TabScrollShell } from './src/components/ScreenShell';
+import { PrimaryButton } from './src/components/primitives';
+import { useAppStyles } from './src/components/styles';
+import { coordinateLogout } from './src/logout-coordinator';
 import { TabBar } from './src/navigation/TabBar';
+import { exitActivityFlow, isTabBarVisible, selectAppShell } from './src/navigation/app-shell';
 import type { Tab } from './src/navigation/types';
 import { initialOnboardingState, onboardingReducer } from './src/onboarding';
 import {
@@ -19,21 +24,27 @@ import {
   ActivityRecording
 } from './src/screens/ActivityScreens';
 import { Onboarding } from './src/screens/OnboardingScreen';
-import {
-  ClubsScreen,
-  HomeScreen,
-  ProductScroll,
-  ProfileScreen,
-  QuestScreen,
-  SeasonScreen
-} from './src/screens/ProductScreens';
+import { HomeScreen } from './src/screens/HomeScreen';
+import { ClubsScreen, ProfileScreen, SeasonScreen } from './src/screens/ProductScreens';
+import { ExploreScreen } from './src/screens/ExploreScreen';
+import { QuestDetailScreen } from './src/screens/QuestDetailScreen';
+import { ThemeProvider, useAppTheme } from './src/theme/theme';
 
 const apiClient = new MobileApiClient(undefined, fetch, authStorage);
 const activitySync = createActivitySyncCoordinator(apiClient, activityRecorder);
-
 const accountIdFromSession = (session: AuthSession): string => accountScopeFor(session);
 
 export default function App() {
+  return (
+    <ThemeProvider>
+      <RunSphereApp />
+    </ThemeProvider>
+  );
+}
+
+function RunSphereApp() {
+  const { colorScheme, tokens } = useAppTheme();
+  const styles = useAppStyles();
   const [onboarding, dispatch] = useReducer(onboardingReducer, initialOnboardingState);
   const [activeTab, setActiveTab] = useState<Tab>('Home');
   const [activityStarted, setActivityStarted] = useState(false);
@@ -41,9 +52,14 @@ export default function App() {
   const [recording, setRecording] = useState<ActivitySession>();
   const [accountId, setAccountId] = useState<string>();
   const [restoring, setRestoring] = useState(true);
+  const [storageError, setStorageError] = useState(false);
+  const [selectedQuest, setSelectedQuest] = useState<QuestSummary>();
+  const [storageAttempt, retryStorage] = useReducer((attempt: number) => attempt + 1, 0);
 
   useEffect(() => {
     let mounted = true;
+    setRestoring(true);
+    setStorageError(false);
     void (async () => {
       try {
         await Promise.all([activityQueue.initialize(), activityRecorder.initialize()]);
@@ -58,6 +74,7 @@ export default function App() {
         dispatch({ type: 'restoreSession' });
       } catch (error) {
         console.error('Unable to initialize encrypted activity storage', error);
+        if (mounted) setStorageError(true);
       } finally {
         if (mounted) setRestoring(false);
       }
@@ -65,9 +82,39 @@ export default function App() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [storageAttempt]);
 
-  if (restoring) return <SafeAreaView style={styles.screen} />;
+  const finishSession = useCallback(() => {
+    setActiveTab('Home');
+    setSelectedQuest(undefined);
+    setActivityStarted(false);
+    setRecording(undefined);
+    setAccountId(undefined);
+    dispatch({ type: 'logoutComplete' });
+  }, []);
+  const expireSession = useCallback(() => {
+    void coordinateLogout({
+      api: apiClient,
+      auth: authStorage,
+      queue: activityQueue,
+      ...(accountId ? { recorder: { clear: () => activityRecorder.clearAccount(accountId) } } : {})
+    }).then(finishSession);
+  }, [accountId, finishSession]);
+  if (restoring)
+    return <SafeAreaView style={[styles.screen, { backgroundColor: tokens.background.canvas }]} />;
+  if (storageError)
+    return (
+      <SafeAreaView style={[styles.screen, { backgroundColor: tokens.background.canvas }]}>
+        <View style={styles.loading}>
+          <Text style={styles.onboardingTitle}>Secure storage unavailable</Text>
+          <Text style={styles.lead}>
+            RunSphere could not unlock encrypted activity data. Recording stays disabled to protect
+            your local data.
+          </Text>
+          <PrimaryButton label="Try again" onPress={retryStorage} />
+        </View>
+      </SafeAreaView>
+    );
   if (onboarding.step !== 'complete')
     return (
       <Onboarding
@@ -79,15 +126,30 @@ export default function App() {
     );
 
   const openActivity = () => {
+    setSelectedQuest(undefined);
     setActivityStarted(true);
     setActiveTab('Home');
   };
+  const exitActivity = () => {
+    setSelectedQuest(undefined);
+    const next = exitActivityFlow(activeTab);
+    setActivityStarted(next.activityStarted);
+    setRecording(next.recording);
+    setActiveTab(next.activeTab);
+  };
+  const shell = selectAppShell({
+    activityStarted: activityStarted || Boolean(selectedQuest),
+    hasRecording: Boolean(recording),
+    liveInteractive: false,
+    exploreInteractive: activeTab === 'Explore' && !selectedQuest && !activityStarted && !recording
+  });
   const content =
     recording && accountId ? (
       <ActivityRecording
         session={recording}
         accountId={accountId}
         onChange={setRecording}
+        onExit={exitActivity}
         sync={activitySync}
       />
     ) : activityStarted && accountId ? (
@@ -95,6 +157,7 @@ export default function App() {
         accountId={accountId}
         initialMovement={movement}
         onChange={setRecording}
+        onExit={exitActivity}
       />
     ) : activeTab === 'Home' ? (
       <HomeScreen
@@ -104,9 +167,22 @@ export default function App() {
         onStart={openActivity}
         onOpenQuests={() => setActiveTab('Explore')}
         onOpenProfile={() => setActiveTab('You')}
+        onSessionExpired={expireSession}
+      />
+    ) : selectedQuest ? (
+      <QuestDetailScreen
+        api={apiClient}
+        quest={selectedQuest}
+        onBack={() => setSelectedQuest(undefined)}
+        onStart={openActivity}
       />
     ) : activeTab === 'Explore' ? (
-      <QuestScreen api={apiClient} onStart={openActivity} />
+      <ExploreScreen
+        api={apiClient}
+        onSelectQuest={setSelectedQuest}
+        onStart={openActivity}
+        onSessionExpired={expireSession}
+      />
     ) : activeTab === 'Clubs' ? (
       <ClubsScreen />
     ) : activeTab === 'Season' ? (
@@ -116,31 +192,32 @@ export default function App() {
         {accountId && (
           <ActivityHistory accountId={accountId} sync={activitySync} onOpen={setRecording} />
         )}
-        <ProfileScreen
-          api={apiClient}
-          accountId={accountId}
-          onLogoutComplete={() => {
-            setActiveTab('Home');
-            setActivityStarted(false);
-            setRecording(undefined);
-            setAccountId(undefined);
-            dispatch({ type: 'logoutComplete' });
-          }}
-        />
+        <ProfileScreen api={apiClient} accountId={accountId} onLogoutComplete={finishSession} />
       </>
     );
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <StatusBar style="dark" />
-      <ProductScroll>{content}</ProductScroll>
-      <TabBar
-        activeTab={activeTab}
-        onChange={(tab) => {
-          setActivityStarted(false);
-          setActiveTab(tab);
-        }}
-      />
+    <SafeAreaView style={[styles.screen, { backgroundColor: tokens.background.canvas }]}>
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      {shell === 'tab-scroll' ? (
+        <TabScrollShell>{content}</TabScrollShell>
+      ) : shell === 'tab-map' ? (
+        <FocusedFlexShell>{content}</FocusedFlexShell>
+      ) : shell === 'focused-scroll' ? (
+        <FocusedScrollShell>{content}</FocusedScrollShell>
+      ) : (
+        <FocusedFlexShell>{content}</FocusedFlexShell>
+      )}
+      {isTabBarVisible(shell) && (
+        <TabBar
+          activeTab={activeTab}
+          onChange={(tab) => {
+            setActivityStarted(false);
+            setSelectedQuest(undefined);
+            setActiveTab(tab);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }

@@ -18,13 +18,23 @@ The intended UI is represented by the approved [permissions and privacy](design/
 
 Permission explanations name the capability, purpose, retention path, and decline outcome before the OS dialog. Consent changes take effect on the next applicable action; revocation stops new collection and surfaces what remains saved.
 
+## Map connectivity and provider privacy
+
+Android includes `ACCESS_NETWORK_STATE`, a normal non-prompting permission, solely so the map renderer can distinguish unavailable connectivity from a map-style failure and present recoverable offline behavior. It does not expose network identifiers, request location, or broaden data collection. `ACCESS_WIFI_STATE` remains blocked. Background location, storage/media, overlay, biometric, and fingerprint permissions remain blocked; the Android manifest explicitly removes biometric permissions because the current native dependency graph declares them.
+
+Map providers are opt-in through an approved HTTPS style origin and exact provider attribution wording. When configuration is absent, invalid, rejected, offline, or fails to load, the app uses its own fallback surface and plain product copy. It does not select an unapproved public style or tile endpoint.
+
+Style and tile requests may contain only provider resource URLs, ordinary tile coordinates, and provider-required non-user-specific authentication. Account IDs, activity IDs, route samples, checkpoints, and other coordinate-bearing product data must never appear in provider URLs, query parameters, headers, referrers, telemetry, analytics, or logs. Route and checkpoint GeoJSON remains local to the renderer.
+
+Provider attribution must remain visible and accessible at 12sp or larger. The selected provider’s required attribution URL/tappable behavior is a release-setup requirement and must be recorded after provider approval; no unapproved attribution links are embedded in the app.
+
 ## Location handling and 200 m privacy blur
 
 Raw GPS is sensitive operational data. The client records only while an activity is active and the granted capability permits it. It stores pending submissions in an Expo SQLite database compiled with SQLCipher; the database key is generated on-device and held only in Android Keystore-backed SecureStore, then transmits over TLS for server validation.
 
 ## Android encrypted-storage upgrade
 
-Activity databases are opened with `PRAGMA key` before *any* schema or data access. The upgrade re-keys legacy local account partitions (the historic token-hash scope and the prior `account:<UUID>` scope) to the server account UUID by updating the encrypted database in place—there is no plaintext database copy. Before completing the migration, the recorder compares source/destination row counts and a deterministic checksum of stable row fields; any mismatch aborts recovery.
+Activity databases are opened with `PRAGMA key` before _any_ schema or data access. The upgrade re-keys legacy local account partitions (the historic token-hash scope and the prior `account:<UUID>` scope) to the server account UUID by updating the encrypted database in place—there is no plaintext database copy. Before completing the migration, the recorder compares source/destination row counts and a deterministic checksum of stable row fields; any mismatch aborts recovery.
 
 SQLCipher is enabled through the Expo SQLite config plugin and therefore applies app-wide to every database opened through `expo-sqlite`, not only the activity recorder. A native rebuild is required after changing this plugin setting, and every app-owned Expo SQLite database must be opened with its own key before it is accessed. Do not add a new `expo-sqlite` database without registering and testing its key lifecycle.
 

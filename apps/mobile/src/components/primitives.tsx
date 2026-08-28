@@ -1,7 +1,7 @@
 import type React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import type { MovementPreference } from '../onboarding';
-import { styles } from './styles';
+import { useAppStyles } from './styles';
 
 export function MovementChoice({
   selected,
@@ -10,6 +10,7 @@ export function MovementChoice({
   selected: MovementPreference;
   onChoose: (movement: MovementPreference) => void;
 }) {
+  const styles = useAppStyles();
   const labels: Record<MovementPreference, [string, string]> = {
     walk: ['Walk', 'Every step counts'],
     run: ['Run', 'Find your pace'],
@@ -35,6 +36,7 @@ export function MovementChoice({
 }
 
 export function StepHeader({ step, onBack }: { step: string; onBack: () => void }) {
+  const styles = useAppStyles();
   return (
     <View style={styles.stepHeader}>
       <Pressable
@@ -62,6 +64,7 @@ export function PermissionCard({
   detail: string;
   badge: string;
 }) {
+  const styles = useAppStyles();
   return (
     <View style={styles.permissionCard}>
       <Text style={styles.permissionIcon}>{icon}</Text>
@@ -83,6 +86,7 @@ export function PrimaryButton({
   onPress: () => void;
   disabled?: boolean;
 }) {
+  const styles = useAppStyles();
   return (
     <Pressable
       accessibilityRole="button"
@@ -112,6 +116,7 @@ export function Stat({
   suffix?: string;
   detail: string;
 }) {
+  const styles = useAppStyles();
   return (
     <View style={styles.stat}>
       <Text style={styles.statLabel}>{label}</Text>
@@ -125,6 +130,7 @@ export function Stat({
 }
 
 export function SettingsGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  const styles = useAppStyles();
   return (
     <View style={styles.settingsGroup}>
       <Text style={styles.settingsTitle}>{title}</Text>
@@ -146,6 +152,7 @@ export function Setting({
   destructive?: boolean;
   disabled?: boolean;
 }) {
+  const styles = useAppStyles();
   return (
     <Pressable
       accessibilityRole="button"

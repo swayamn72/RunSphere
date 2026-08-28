@@ -89,7 +89,9 @@ describe('activity sync coordinator', () => {
       list: vi.fn()
     };
 
-    const result = await createActivitySyncCoordinator(api as never, recorder as never).sync(session);
+    const result = await createActivitySyncCoordinator(api as never, recorder as never).sync(
+      session
+    );
 
     expect(result.status?.status).toBe('validating');
     expect(result.session.state).toBe('queued');
@@ -123,7 +125,9 @@ describe('activity sync coordinator', () => {
       list: vi.fn()
     };
 
-    const result = await createActivitySyncCoordinator(api as never, recorder as never).sync(session);
+    const result = await createActivitySyncCoordinator(api as never, recorder as never).sync(
+      session
+    );
 
     expect(result.status?.status).toBe('rejected');
     expect(result.session.state).toBe('processed');
@@ -135,9 +139,11 @@ describe('activity sync coordinator', () => {
     const stored = { ...session };
     const api = {
       createActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'received' }),
-      recoverActivitySync: vi
-        .fn()
-        .mockResolvedValue({ id: 'remote-1', status: 'received', missingSequences: [-1, 0, 1, 99] }),
+      recoverActivitySync: vi.fn().mockResolvedValue({
+        id: 'remote-1',
+        status: 'received',
+        missingSequences: [-1, 0, 1, 99]
+      }),
       uploadActivityChunk: vi.fn(),
       finalizeActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'validating' })
     };

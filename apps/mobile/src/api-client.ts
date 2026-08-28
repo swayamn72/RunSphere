@@ -30,6 +30,18 @@ import {
 export type { AuthSession } from './auth-storage-core';
 export type { SafetyContactResponse } from '@runsphere/contracts';
 export type ActivityMovement = 'walk' | 'run' | 'hike';
+
+/** Typed non-auth API failure for product state decisions without parsing error strings. */
+export class ApiFailure extends Error {
+  constructor(
+    public readonly status: number,
+    message: string
+  ) {
+    super(message);
+    this.name = 'ApiFailure';
+  }
+}
+
 export interface ActivityPoint {
   latitude: number;
   longitude: number;
@@ -96,18 +108,25 @@ export class MobileApiClient {
   }
 
   async listQuests(): Promise<readonly QuestSummary[]> {
-    if (!this.baseUrl) return [];
+    if (!this.baseUrl) throw new AuthFailure('configuration');
     let response: Response;
     try {
       response = await this.fetcher(`${this.baseUrl}/v1/quests`);
     } catch (error) {
       throw classifyTransportFailure(error);
     }
-    if (!response.ok) throw new Error(`Unable to load quests (${response.status}).`);
+    if (response.status === 401 || response.status === 403)
+      throw new AuthFailure('invalid-credentials', response.status);
+    if (!response.ok)
+      throw new ApiFailure(response.status, `Unable to load quests (${response.status}).`);
     return ((await response.json()) as { data: QuestSummary[] }).data;
   }
   async getQuest(id: string): Promise<QuestDetail> {
-    return this.request<QuestDetail>(`/v1/quests/${encodeURIComponent(id)}`, { method: 'GET' }, false);
+    return this.request<QuestDetail>(
+      `/v1/quests/${encodeURIComponent(id)}`,
+      { method: 'GET' },
+      false
+    );
   }
   async getWeeklyGoal(): Promise<WeeklyGoalResponse> {
     return this.request('/v1/goals/weekly', { method: 'GET' });
@@ -125,8 +144,11 @@ export class MobileApiClient {
     await this.request('/v1/account/email-verification', { method: 'POST' });
   }
   async listSafetyContacts(): Promise<readonly SafetyContactResponse[]> {
-    return (await this.request<{ data: SafetyContactResponse[] }>('/v1/safety-contacts', { method: 'GET' }))
-      .data;
+    return (
+      await this.request<{ data: SafetyContactResponse[] }>('/v1/safety-contacts', {
+        method: 'GET'
+      })
+    ).data;
   }
   async inviteSafetyContact(contact: SafetyContactRequest): Promise<SafetyContactResponse> {
     return this.request('/v1/safety-contacts', { method: 'POST', body: contact });
@@ -138,7 +160,10 @@ export class MobileApiClient {
     return this.request('/v1/safety-shares', { method: 'POST', body: share });
   }
   async stopSafetyShare(id: string): Promise<void> {
-    await this.request(`/v1/safety-shares/${encodeURIComponent(id)}`, { method: 'DELETE', empty: true });
+    await this.request(`/v1/safety-shares/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      empty: true
+    });
   }
   async readDelayedSafetyShare(id: string): Promise<SafetyShareReadResponse> {
     return this.request(`/v1/safety-shares/${encodeURIComponent(id)}/updates`, { method: 'GET' });
@@ -184,7 +209,8 @@ export class MobileApiClient {
     );
   }
   async listActivities(): Promise<ActivityStatus[]> {
-    return (await this.request<{ data: ActivityStatus[] }>('/v1/activities', { method: 'GET' })).data;
+    return (await this.request<{ data: ActivityStatus[] }>('/v1/activities', { method: 'GET' }))
+      .data;
   }
   async deleteActivity(id: string): Promise<void> {
     await this.request(`/v1/activities/${id}`, { method: 'DELETE', empty: true });
@@ -198,7 +224,7 @@ export class MobileApiClient {
   ): Promise<T> {
     if (!this.baseUrl) throw new AuthFailure('configuration');
     const session = authenticated ? await this.auth?.read() : undefined;
-    if (authenticated && !session) throw new Error('No signed-in session is available.');
+    if (authenticated && !session) throw new AuthFailure('invalid-credentials');
     let response: Response;
     try {
       response = await this.fetcher(`${this.baseUrl}${path}`, {
@@ -217,7 +243,9 @@ export class MobileApiClient {
       await this.refresh();
       return this.request(path, request, authenticated, true);
     }
-    if (!response.ok) throw new Error(await responseMessage(response, path));
+    if (response.status === 401 || response.status === 403)
+      throw new AuthFailure('invalid-credentials', response.status);
+    if (!response.ok) throw new ApiFailure(response.status, await responseMessage(response, path));
     return (request.empty ? undefined : await response.json()) as T;
   }
 
