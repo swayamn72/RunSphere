@@ -1,4 +1,10 @@
-import { createDatabase, defaultDatabaseUrl, migrate, withTransaction, type Database } from '@runsphere/db';
+import {
+  createDatabase,
+  defaultDatabaseUrl,
+  migrate,
+  withTransaction,
+  type Database
+} from '@runsphere/db';
 import { createLogger, type Logger } from '@runsphere/observability';
 import { processActivity } from '@runsphere/api/activity';
 
@@ -27,6 +33,9 @@ export const purgeExpiredRawTraces = async (db: Database): Promise<number> => {
        WHERE deleted_at IS NULL AND raw_trace_purged_at IS NULL AND raw_trace_retention_until <= now()
      ), purged AS (
        DELETE FROM activity_chunks WHERE activity_id IN (SELECT id FROM due)
+     ), raw_objects AS (
+       UPDATE raw_trace_objects SET purged_at = now()
+       WHERE activity_id IN (SELECT id FROM due) AND purged_at IS NULL
      )
      UPDATE activity_submissions submission SET raw_trace_purged_at = now()
      WHERE submission.id IN (SELECT id FROM due)
@@ -66,10 +75,12 @@ export const convergeAccountDeletion = async (db: Database): Promise<number> => 
         [account.id]
       );
       await client.query('DELETE FROM safety_share_sessions WHERE account_id = $1', [account.id]);
-      await client.query('DELETE FROM safety_contacts WHERE account_id = $1', [account.id]);
+      await client.query(
+        `DELETE FROM safety_contacts
+         WHERE account_id = $1 OR lower(email) = (SELECT lower(email) FROM accounts WHERE id = $1)`,
+        [account.id]
+      );
       await client.query('DELETE FROM account_export_requests WHERE account_id = $1', [account.id]);
-      await client.query('DELETE FROM data_export_requests WHERE account_id = $1', [account.id]);
-      await client.query('DELETE FROM account_deletion_requests WHERE account_id = $1', [account.id]);
       await client.query(
         'DELETE FROM account_audit_events WHERE account_id = $1 OR actor_account_id = $1',
         [account.id]
@@ -79,7 +90,7 @@ export const convergeAccountDeletion = async (db: Database): Promise<number> => 
         [account.id]
       );
       await client.query('DELETE FROM privacy_zones WHERE account_id = $1', [account.id]);
-      await client.query('DELETE FROM consent_history WHERE account_id = $1', [account.id]);
+      await client.query("SELECT set_config('runsphere.account_erasure', 'on', true)");
       await client.query('DELETE FROM accounts WHERE id = $1', [account.id]);
     });
   }
@@ -135,13 +146,19 @@ export const startWorker = (logger: Logger = createLogger('worker')): WorkerStar
 };
 export const runWorker = async (): Promise<void> => {
   const db = createDatabase(defaultDatabaseUrl(process.env));
+  const logger = createLogger('worker');
   await migrate(db);
-  startWorker(createLogger('worker'));
+  startWorker(logger);
   const once = process.env.WORKER_ONCE === 'true';
   try {
     do {
-      await processMaintenance(db);
-      if (!(await processNextActivity(db))) await sleep(pollMilliseconds);
+      try {
+        await processMaintenance(db);
+        if (!(await processNextActivity(db))) await sleep(pollMilliseconds);
+      } catch (error) {
+        logger.error('worker.iteration_failed', { error: safeWorkerError(error) });
+        if (!once) await sleep(pollMilliseconds);
+      }
     } while (!once);
   } finally {
     await db.end();

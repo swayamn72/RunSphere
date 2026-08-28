@@ -27,6 +27,7 @@ describe('privacy maintenance', () => {
     const query = vi.fn().mockResolvedValue({ rows: [{ id: 'activity-id' }] });
     await expect(purgeExpiredRawTraces({ query } as never)).resolves.toBe(1);
     expect(query.mock.calls[0]![0]).toContain('raw_trace_retention_until <= now()');
+    expect(query.mock.calls[0]![0]).toContain('UPDATE raw_trace_objects SET purged_at = now()');
     expect(query.mock.calls[0]![0]).toContain('UPDATE activity_submissions');
   });
 

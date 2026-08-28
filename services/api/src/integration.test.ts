@@ -1,6 +1,6 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { activityFinalizeChecksumInput } from '@runsphere/contracts';
-import { createDatabase, defaultDatabaseUrl, migrate } from '@runsphere/db';
+import { createDatabase, defaultDatabaseUrl, migrate, withTransaction } from '@runsphere/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
 import { processActivity, chunkHash } from './activity.js';
@@ -130,12 +130,20 @@ describePostgis('M1 PostGIS activity flow', () => {
     );
     expect(derived.rows[0]?.route).toContain('MultiLineString');
     expect(derived.rows[0]?.applied_zones).toEqual([]);
+    expect(
+      (
+        await db.query(
+          'SELECT source_checksum, validation_policy_version FROM activity_validation_runs WHERE activity_id = $1',
+          [id]
+        )
+      ).rows
+    ).toHaveLength(1);
 
     const zone = await app.inject({
       method: 'POST',
       url: '/v1/privacy-zones',
       headers: { authorization: `Bearer ${auth.accessToken}` },
-      payload: { name: 'start', geometry: { type: 'Point', coordinates: [72.8777, 19.076] } }
+      payload: { name: 'start', center: { latitude: 19.076, longitude: 72.8777 } }
     });
     expect(zone.statusCode).toBe(201);
     const second = await app.inject({
@@ -171,6 +179,163 @@ describePostgis('M1 PostGIS activity flow', () => {
     expect(trimmed.rows[0]?.route).not.toContain('72.8777');
     expect(trimmed.rows[0]?.applied_zones[0]?.id).toBe((zone.json() as { id: string }).id);
     expect(trimmed.rows[0]?.applied_zones[0]?.geometryVersion).toBe(1);
+  });
+
+  it('enforces governance migration invariants for account deletion and raw trace custody', async () => {
+    const register = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/register',
+      payload: {
+        email: `governance-${randomUUID()}@example.test`,
+        password: 'a-safe-pilot-password',
+        ageAssertion: true,
+        policyVersion: 'm2'
+      }
+    });
+    const auth = register.json() as { accessToken: string };
+    expect(register.statusCode).toBe(201);
+    const accountId = JSON.parse(
+      Buffer.from(auth.accessToken.split('.')[0]!, 'base64url').toString()
+    ).sub as string;
+    await expect(db.query('DELETE FROM accounts WHERE id = $1', [accountId])).rejects.toThrow(
+      'consent_history is append-only'
+    );
+    await withTransaction(db, async (client) => {
+      await client.query("SELECT set_config('runsphere.account_erasure', 'on', true)");
+      await client.query('DELETE FROM accounts WHERE id = $1', [accountId]);
+    });
+    expect((await db.query('SELECT id FROM accounts WHERE id = $1', [accountId])).rows).toEqual([]);
+    expect(
+      (
+        await db.query(
+          `SELECT delete_rule FROM information_schema.referential_constraints
+           WHERE constraint_name = 'staff_audit_events_staff_account_id_fkey'`,
+          []
+        )
+      ).rows
+    ).toEqual([{ delete_rule: 'SET NULL' }]);
+  });
+
+  it('completes verified safety acceptance and exposes only delayed coarse updates', async () => {
+    const register = async (email: string) => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/register',
+        payload: {
+          email,
+          password: 'a-safe-pilot-password',
+          ageAssertion: true,
+          policyVersion: 'm2'
+        }
+      });
+      expect(response.statusCode).toBe(201);
+      return response.json() as { accessToken: string };
+    };
+    const owner = await register(`safety-owner-${randomUUID()}@example.test`);
+    const recipient = await register(`safety-recipient-${randomUUID()}@example.test`);
+    const outsider = await register(`safety-outsider-${randomUUID()}@example.test`);
+    const ownerId = JSON.parse(
+      Buffer.from(owner.accessToken.split('.')[0]!, 'base64url').toString()
+    ).sub as string;
+    const recipientId = JSON.parse(
+      Buffer.from(recipient.accessToken.split('.')[0]!, 'base64url').toString()
+    ).sub as string;
+    const token = randomBytes(32).toString('base64url');
+    await db.query(
+      `INSERT INTO email_verification_tokens (account_id, token_hash, expires_at)
+       VALUES ($1, encode(digest($2, 'sha256'), 'hex'), now() + interval '1 hour')`,
+      [ownerId, token]
+    );
+    expect(
+      (
+        await app.inject({
+          method: 'POST',
+          url: '/v1/account/email-verification/complete',
+          payload: { token }
+        })
+      ).statusCode
+    ).toBe(204);
+    await db.query(
+      `UPDATE accounts SET email_verified_at = now(), email_verification_status = 'verified',
+       trust_established_at = now() WHERE id = $1`,
+      [recipientId]
+    );
+    const recipientEmail = (
+      await db.query<{ email: string }>('SELECT email FROM accounts WHERE id = $1', [recipientId])
+    ).rows[0]!.email;
+    const contact = await app.inject({
+      method: 'POST',
+      url: '/v1/safety-contacts',
+      headers: { authorization: `Bearer ${owner.accessToken}` },
+      payload: { email: recipientEmail }
+    });
+    expect(contact.statusCode).toBe(201);
+    const contactId = (contact.json() as { id: string }).id;
+    expect(
+      (
+        await app.inject({
+          method: 'POST',
+          url: `/v1/safety-contacts/${contactId}/accept`,
+          headers: { authorization: `Bearer ${recipient.accessToken}` }
+        })
+      ).statusCode
+    ).toBe(200);
+    const share = await app.inject({
+      method: 'POST',
+      url: '/v1/safety-shares',
+      headers: { authorization: `Bearer ${owner.accessToken}` },
+      payload: { safetyContactId: contactId, durationMinutes: 15 }
+    });
+    expect(share.statusCode).toBe(201);
+    const shareId = (share.json() as { id: string }).id;
+    expect(
+      (
+        await app.inject({
+          method: 'POST',
+          url: `/v1/safety-shares/${shareId}/updates`,
+          headers: { authorization: `Bearer ${owner.accessToken}` },
+          payload: {
+            latitude: 19.076,
+            longitude: 72.8777,
+            observedAt: '2999-01-01T00:00:00.000Z'
+          }
+        })
+      ).statusCode
+    ).toBe(204);
+    const beforeDelay = await app.inject({
+      method: 'GET',
+      url: `/v1/safety-shares/${shareId}/updates`,
+      headers: { authorization: `Bearer ${recipient.accessToken}` }
+    });
+    expect(beforeDelay.statusCode).toBe(200);
+    expect(beforeDelay.json()).toMatchObject({
+      delayMinutes: 15,
+      tileSizeMeters: 500,
+      updates: []
+    });
+    expect(
+      (
+        await app.inject({
+          method: 'GET',
+          url: `/v1/safety-shares/${shareId}/updates`,
+          headers: { authorization: `Bearer ${outsider.accessToken}` }
+        })
+      ).statusCode
+    ).toBe(404);
+    await db.query(
+      `UPDATE safety_share_updates SET available_at = now() - interval '1 second'
+       WHERE share_session_id = $1`,
+      [shareId]
+    );
+    const afterDelay = await app.inject({
+      method: 'GET',
+      url: `/v1/safety-shares/${shareId}/updates`,
+      headers: { authorization: `Bearer ${recipient.accessToken}` }
+    });
+    expect(afterDelay.statusCode).toBe(200);
+    expect(afterDelay.json()).toMatchObject({
+      updates: [{ tileX: 15334, tileY: 4218 }]
+    });
   });
 
   it('resumes reordered chunks, rejects gaps, and exposes only trimmed history to its owner', async () => {

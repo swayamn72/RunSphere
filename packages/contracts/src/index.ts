@@ -207,6 +207,22 @@ export const SafetyContactListResponseSchema = Type.Object(
   { data: Type.Array(SafetyContactResponseSchema, { maxItems: 50 }) },
   { $id: 'SafetyContactListResponse' }
 );
+export const EmailVerificationCompleteRequestSchema = Type.Object(
+  { token: Type.String({ minLength: 32, maxLength: 1024 }) },
+  { ...Strict, $id: 'EmailVerificationCompleteRequest' }
+);
+export const EmailVerificationRequestResponseSchema = Type.Object(
+  { status: Type.Literal('requested') },
+  { $id: 'EmailVerificationRequestResponse' }
+);
+export const SafetyContactAcceptResponseSchema = Type.Object(
+  { status: Type.Literal('accepted') },
+  { $id: 'SafetyContactAcceptResponse' }
+);
+export const SafetyContactParamsSchema = Type.Object(
+  { safetyContactId: UuidSchema },
+  { ...Strict, $id: 'SafetyContactParams' }
+);
 export const SafetyShareRequestSchema = Type.Object(
   {
     safetyContactId: UuidSchema,
@@ -237,6 +253,25 @@ export const SafetyShareUpdateRequestSchema = Type.Object(
     observedAt: Type.String({ format: 'date-time' })
   },
   { ...Strict, $id: 'SafetyShareUpdateRequest' }
+);
+export const SafetyShareReadResponseSchema = Type.Object(
+  {
+    status: Type.Union([Type.Literal('active'), Type.Literal('revoked'), Type.Literal('expired')]),
+    delayMinutes: Type.Literal(15),
+    tileSizeMeters: Type.Literal(500),
+    updates: Type.Array(
+      Type.Object(
+        {
+          tileX: Type.Integer(),
+          tileY: Type.Integer(),
+          observedAt: Type.String({ format: 'date-time' })
+        },
+        Strict
+      ),
+      { maxItems: 100 }
+    )
+  },
+  { $id: 'SafetyShareReadResponse' }
 );
 export const AccountExportResponseSchema = Type.Object(
   {
@@ -427,9 +462,13 @@ export type VisibilityRequest = Static<typeof VisibilityRequestSchema>;
 export type VisibilityResponse = Static<typeof VisibilityResponseSchema>;
 export type SafetyContactRequest = Static<typeof SafetyContactRequestSchema>;
 export type SafetyContactResponse = Static<typeof SafetyContactResponseSchema>;
+export type EmailVerificationCompleteRequest = Static<
+  typeof EmailVerificationCompleteRequestSchema
+>;
 export type SafetyShareRequest = Static<typeof SafetyShareRequestSchema>;
 export type SafetyShareResponse = Static<typeof SafetyShareResponseSchema>;
 export type SafetyShareUpdateRequest = Static<typeof SafetyShareUpdateRequestSchema>;
+export type SafetyShareReadResponse = Static<typeof SafetyShareReadResponseSchema>;
 export type AccountExportResponse = Static<typeof AccountExportResponseSchema>;
 export type AccountDeletionResponse = Static<typeof AccountDeletionResponseSchema>;
 export type ActivityCreateRequest = Static<typeof ActivityCreateRequestSchema>;

@@ -68,6 +68,7 @@ export interface ApiConfig {
   port: number;
   allowedOrigins: readonly string[];
   staffReviewAccountIds: readonly string[];
+  metricsCollectorToken?: string;
 }
 
 export const loadApiConfig = (environment: NodeJS.ProcessEnv): ApiConfig => {
@@ -89,12 +90,14 @@ export const loadApiConfig = (environment: NodeJS.ProcessEnv): ApiConfig => {
     .split(',')
     .map((accountId) => accountId.trim())
     .filter(Boolean);
+  const metricsCollectorToken = environment.METRICS_COLLECTOR_TOKEN?.trim() || undefined;
 
   return {
     host: environment.HOST ?? '0.0.0.0',
     port,
     allowedOrigins,
-    staffReviewAccountIds
+    staffReviewAccountIds,
+    ...(metricsCollectorToken ? { metricsCollectorToken } : {})
   };
 };
 

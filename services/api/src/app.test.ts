@@ -22,18 +22,29 @@ describe('API routes', () => {
     expect(response.json().timestamp).toEqual(expect.any(String));
   });
 
-  it('returns not-ready without a database and publishes low-cardinality metrics', async () => {
-    const app = createApp();
+  it('protects low-cardinality metrics with a collector token', async () => {
+    const app = buildApp({ config: { metricsCollectorToken: 'collector-token' } });
+    apps.push(app);
     const ready = await app.inject({ method: 'GET', url: '/ready' });
-    const metrics = await app.inject({ method: 'GET', url: '/metrics' });
+    const rejected = await app.inject({ method: 'GET', url: '/metrics' });
+    const metrics = await app.inject({
+      method: 'GET',
+      url: '/metrics',
+      headers: { authorization: 'Bearer collector-token' }
+    });
 
     expect(ready.statusCode).toBe(503);
-    expect(ready.json()).toEqual({ status: 'not_ready', service: 'api' });
+    expect(rejected.statusCode).toBe(401);
     expect(metrics.statusCode).toBe(200);
     expect(metrics.headers['content-type']).toContain('text/plain');
     expect(metrics.body).toContain(
       'runsphere_http_requests_total{service="api",status_code="503"} 1'
     );
+  });
+
+  it('does not expose metrics when no collector token is configured', async () => {
+    const response = await createApp().inject({ method: 'GET', url: '/metrics' });
+    expect(response.statusCode).toBe(404);
   });
 
   it('requires the reviewed quest catalog database rather than serving demo or XP data', async () => {

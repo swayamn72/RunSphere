@@ -5,7 +5,9 @@
  * Usage: DATABASE_URL=... node scripts/data/import-reviewed-quests.mjs reviewed-quests.json
  */
 import { readFile } from 'node:fs/promises';
-import { Client } from '../../packages/db/node_modules/pg/esm/index.mjs';
+import pg from 'pg';
+
+const { Client } = pg;
 
 const [input] = process.argv.slice(2);
 if (!input || !process.env.DATABASE_URL) {
@@ -21,14 +23,36 @@ await client.connect();
 try {
   await client.query('BEGIN');
   for (const quest of payload.quests) {
-    if (!quest.reviewedAt || !Array.isArray(quest.checkpoints) || quest.checkpoints.length === 0)
+    if (
+      !quest.key ||
+      !Number.isInteger(quest.version) ||
+      !quest.title ||
+      !Number.isInteger(quest.distanceMeters) ||
+      !Number.isInteger(quest.estimatedActiveMinutes) ||
+      !['step-free', 'mixed', 'unknown'].includes(quest.accessibility) ||
+      !quest.openHours ||
+      !quest.provenance ||
+      !quest.reviewedAt ||
+      !Array.isArray(quest.checkpoints) ||
+      quest.checkpoints.length === 0
+    )
       throw new Error(
         `Quest ${quest.key ?? '<unknown>'} is missing review evidence or checkpoints.`
       );
+    await client.query(
+      `UPDATE quest_versions SET unpublished_at = now()
+       WHERE quest_key = $1 AND published_at IS NOT NULL AND unpublished_at IS NULL AND version <> $2`,
+      [quest.key, quest.version]
+    );
     const version = await client.query(
       `INSERT INTO quest_versions
-       (quest_key, version, title, distance_meters, estimated_active_minutes, accessibility, open_hours, source_reviewed_at, provenance, published_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9::jsonb, now())
+       (quest_key, version, title, distance_meters, estimated_active_minutes, accessibility, open_hours, source_reviewed_at, provenance, published_at, unpublished_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9::jsonb, now(), NULL)
+       ON CONFLICT (quest_key, version) DO UPDATE SET title = EXCLUDED.title,
+         distance_meters = EXCLUDED.distance_meters, estimated_active_minutes = EXCLUDED.estimated_active_minutes,
+         accessibility = EXCLUDED.accessibility, open_hours = EXCLUDED.open_hours,
+         source_reviewed_at = EXCLUDED.source_reviewed_at, provenance = EXCLUDED.provenance,
+         published_at = now(), unpublished_at = NULL
        RETURNING id`,
       [
         quest.key,
@@ -42,6 +66,9 @@ try {
         JSON.stringify(quest.provenance)
       ]
     );
+    await client.query('DELETE FROM quest_version_checkpoints WHERE quest_version_id = $1', [
+      version.rows[0].id
+    ]);
     for (const [position, checkpoint] of quest.checkpoints.entries()) {
       if (!checkpoint.reviewedAt || !checkpoint.provenance || !checkpoint.geometry)
         throw new Error(`Quest ${quest.key} has an unreviewed checkpoint.`);

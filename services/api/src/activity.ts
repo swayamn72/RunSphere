@@ -184,6 +184,25 @@ export const processActivity = async (db: Database, activityId: string): Promise
     ]
   );
   await db.query(
+    `INSERT INTO activity_validation_runs
+      (activity_id, source_checksum, validation_policy_version, validation_algorithm_version, outcome,
+       accepted_segment_count, excluded_gap_seconds, details)
+     VALUES ($1, $2, 'm2-privacy-200m', 'product-core-validation-v1', $3, $4, $5, $6::jsonb)`,
+    [
+      activityId,
+      activity.rows[0].source_checksum,
+      route ? 'accepted' : 'partial',
+      routeSegments.length,
+      validation.rejectedGapCount * maximumContinuousGapSeconds,
+      JSON.stringify({
+        acceptedPointCount: validation.acceptedPointCount,
+        rejectedPointCount: validation.rejectedPointCount,
+        rejectedGapCount: validation.rejectedGapCount,
+        removedPointCount: points.length - keptIndexes.size
+      })
+    ]
+  );
+  await db.query(
     `UPDATE activity_submissions SET status = $1, processed_at = now(), summary = $2
      WHERE id = $3 AND status = 'validating' AND deleted_at IS NULL`,
     ['derived', JSON.stringify(summary), activityId]
