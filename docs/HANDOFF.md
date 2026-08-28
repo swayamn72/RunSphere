@@ -95,6 +95,31 @@ Artifact:
 
 Android map interaction evidence remains pending until the primitives are mounted in Explore/Live/Results. Task 3 deliberately added no product-screen consumer; fallback/provider rendering, map gestures, sheet interaction, attribution, local GeoJSON, and map TalkBack behavior will be validated in those integration milestones.
 
+## Redesign milestone: truthful Home
+
+Checkpoint scope completed on 2026-08-28:
+
+- extracted Home into a dedicated themed screen and removed fabricated identity, city/date, daily path, streak, fallback quest, proximity, and reward claims;
+- added movement-aware Start, server-validated weekly active-minute/distance goal presentation, and fetched `QuestSummary` cards with explicit route-length labels;
+- added loading, no-goal, ready, configuration, offline, error, quest-empty, and expired-session handling with request-generation/unmount guards;
+- added restrained Loop loading/empty/offline guidance, progressbar semantics, one live status region, large-font-safe layout, and Home state tests;
+- updated the design reference to remove the obsolete Daily Path direction.
+
+Validation completed:
+
+- root format, lint, typecheck, test, build, `verify:maplibre`, and `git diff --check` passed;
+- mobile suite passed with 85 tests across 25 files;
+- fresh universal debug APK built, installed, launched, and reached authenticated onboarding using seeded API data.
+
+Android Home evidence is blocked by test infrastructure: the public Redroid tunnel overwrites bearer `Authorization`, while direct `10.0.2.2:3001` routing timed out. The real Home therefore logs out on its first authenticated request. Do not treat onboarding captures as Home evidence. Production auth behavior was not weakened for testing.
+
+Artifacts:
+
+- `/code/.generated_artifacts/images/runsphere_home_fresh_install.png`
+- `/code/.generated_artifacts/images/runsphere_home_after_login.png`
+- `/code/.generated_artifacts/recordings/runsphere_home_walkthrough.mp4`
+- `/code/.generated_artifacts/apk/runsphere-home-redesign-debug.apk`
+
 ## Confirmed validation still pending
 
 The latest Android test report is **partial**, not failed. The corrected universal APK builds, installs, launches, and excludes `ACCESS_BACKGROUND_LOCATION` and `SYSTEM_ALERT_WINDOW`. Workspace checks and 17 PostGIS API integration tests passed.

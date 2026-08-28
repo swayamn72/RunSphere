@@ -96,13 +96,15 @@ export class MobileApiClient {
   }
 
   async listQuests(): Promise<readonly QuestSummary[]> {
-    if (!this.baseUrl) return [];
+    if (!this.baseUrl) throw new AuthFailure('configuration');
     let response: Response;
     try {
       response = await this.fetcher(`${this.baseUrl}/v1/quests`);
     } catch (error) {
       throw classifyTransportFailure(error);
     }
+    if (response.status === 401 || response.status === 403)
+      throw new AuthFailure('invalid-credentials', response.status);
     if (!response.ok) throw new Error(`Unable to load quests (${response.status}).`);
     return ((await response.json()) as { data: QuestSummary[] }).data;
   }
@@ -209,7 +211,7 @@ export class MobileApiClient {
   ): Promise<T> {
     if (!this.baseUrl) throw new AuthFailure('configuration');
     const session = authenticated ? await this.auth?.read() : undefined;
-    if (authenticated && !session) throw new Error('No signed-in session is available.');
+    if (authenticated && !session) throw new AuthFailure('invalid-credentials');
     let response: Response;
     try {
       response = await this.fetcher(`${this.baseUrl}${path}`, {
@@ -228,6 +230,8 @@ export class MobileApiClient {
       await this.refresh();
       return this.request(path, request, authenticated, true);
     }
+    if (response.status === 401 || response.status === 403)
+      throw new AuthFailure('invalid-credentials', response.status);
     if (!response.ok) throw new Error(await responseMessage(response, path));
     return (request.empty ? undefined : await response.json()) as T;
   }

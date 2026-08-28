@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useReducer, useState } from 'react';
+import { useCallback, useEffect, useReducer, useState } from 'react';
 import { SafeAreaView, Text, View } from 'react-native';
 import { activityQueue } from './src/activity-queue.native';
 import { accountScopeFor, legacyAccountScopesFor } from './src/account-scope';
@@ -12,6 +12,7 @@ import { authStorage } from './src/auth-storage.native';
 import { FocusedFlexShell, FocusedScrollShell, TabScrollShell } from './src/components/ScreenShell';
 import { PrimaryButton } from './src/components/primitives';
 import { useAppStyles } from './src/components/styles';
+import { coordinateLogout } from './src/logout-coordinator';
 import { TabBar } from './src/navigation/TabBar';
 import { exitActivityFlow, isTabBarVisible, selectAppShell } from './src/navigation/app-shell';
 import type { Tab } from './src/navigation/types';
@@ -22,9 +23,9 @@ import {
   ActivityRecording
 } from './src/screens/ActivityScreens';
 import { Onboarding } from './src/screens/OnboardingScreen';
+import { HomeScreen } from './src/screens/HomeScreen';
 import {
   ClubsScreen,
-  HomeScreen,
   ProfileScreen,
   QuestScreen,
   SeasonScreen
@@ -84,6 +85,21 @@ function RunSphereApp() {
     };
   }, [storageAttempt]);
 
+  const finishSession = useCallback(() => {
+    setActiveTab('Home');
+    setActivityStarted(false);
+    setRecording(undefined);
+    setAccountId(undefined);
+    dispatch({ type: 'logoutComplete' });
+  }, []);
+  const expireSession = useCallback(() => {
+    void coordinateLogout({
+      api: apiClient,
+      auth: authStorage,
+      queue: activityQueue,
+      ...(accountId ? { recorder: { clear: () => activityRecorder.clearAccount(accountId) } } : {})
+    }).then(finishSession);
+  }, [accountId, finishSession]);
   if (restoring)
     return <SafeAreaView style={[styles.screen, { backgroundColor: tokens.background.canvas }]} />;
   if (storageError)
@@ -148,6 +164,7 @@ function RunSphereApp() {
         onStart={openActivity}
         onOpenQuests={() => setActiveTab('Explore')}
         onOpenProfile={() => setActiveTab('You')}
+        onSessionExpired={expireSession}
       />
     ) : activeTab === 'Explore' ? (
       <QuestScreen api={apiClient} onStart={openActivity} />
@@ -160,17 +177,7 @@ function RunSphereApp() {
         {accountId && (
           <ActivityHistory accountId={accountId} sync={activitySync} onOpen={setRecording} />
         )}
-        <ProfileScreen
-          api={apiClient}
-          accountId={accountId}
-          onLogoutComplete={() => {
-            setActiveTab('Home');
-            setActivityStarted(false);
-            setRecording(undefined);
-            setAccountId(undefined);
-            dispatch({ type: 'logoutComplete' });
-          }}
-        />
+        <ProfileScreen api={apiClient} accountId={accountId} onLogoutComplete={finishSession} />
       </>
     );
 

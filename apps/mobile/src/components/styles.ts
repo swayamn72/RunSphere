@@ -205,24 +205,12 @@ export const createAppStyles = (t: SemanticTokens) =>
       padding: 13
     },
     privateNote: { color: t.text.secondary, fontSize: 12, lineHeight: 18, marginTop: 10 },
-    mascotGuide: {
-      alignItems: 'center',
-      backgroundColor: t.background.surfaceInset,
-      borderColor: t.border.subtle,
-      borderRadius: 16,
-      borderWidth: 1,
-      flexDirection: 'row',
-      gap: 12,
-      marginBottom: 12,
-      padding: 12
-    },
     header: {
       alignItems: 'center',
       flexDirection: 'row',
       height: 76,
       justifyContent: 'space-between'
     },
-    greeting: { color: t.text.primary, fontSize: 19, fontWeight: '800', marginTop: 5 },
     homeTitle: {
       color: t.text.primary,
       fontSize: 31,
@@ -257,18 +245,6 @@ export const createAppStyles = (t: SemanticTokens) =>
       paddingHorizontal: 9,
       paddingVertical: 5
     },
-    activityBadge: {
-      backgroundColor: t.background.surfaceInset,
-      borderRadius: 12,
-      color: t.action.primary,
-      fontSize: 18,
-      fontWeight: '900',
-      overflow: 'hidden',
-      paddingHorizontal: 10,
-      paddingVertical: 6
-    },
-    cardAction: { color: t.text.inverse, fontSize: 12, fontWeight: '900' },
-    verified: { color: t.status.success, fontSize: 12, fontWeight: '800', marginTop: 7 },
     filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
     filterChip: {
       backgroundColor: t.background.surfaceInset,
@@ -318,53 +294,8 @@ export const createAppStyles = (t: SemanticTokens) =>
       textAlign: 'center'
     },
 
-    avatar: {
-      alignItems: 'center',
-      backgroundColor: t.action.primary,
-      borderRadius: 21,
-      height: 42,
-      justifyContent: 'center',
-      width: 42
-    },
-    avatarText: { color: t.text.inverse, fontWeight: '900' },
-    dailyCard: {
-      backgroundColor: t.action.primary,
-      borderRadius: 22,
-      minHeight: 200,
-      overflow: 'hidden',
-      padding: 20
-    },
     cardTopline: { flexDirection: 'row', justifyContent: 'space-between' },
-    cardEyebrow: { color: t.action.primary, fontSize: 11, fontWeight: '900', letterSpacing: 1.3 },
-    cardTitle: { color: t.text.inverse, fontSize: 21, fontWeight: '900', marginTop: 5 },
-    cardCopy: { color: t.text.inverse, lineHeight: 21, marginTop: 16, maxWidth: '80%' },
-    progressTrack: {
-      backgroundColor: t.border.strong,
-      borderRadius: 10,
-      height: 8,
-      marginTop: 20,
-      overflow: 'hidden'
-    },
-    progressFill: {
-      backgroundColor: t.action.primary,
-      borderRadius: 10,
-      height: '100%',
-      width: '66%'
-    },
-    progressMeta: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 9 },
-    progressStrong: { color: t.text.inverse, fontSize: 12, fontWeight: '800' },
-    cardMuted: { color: t.text.inverse, fontSize: 12 },
-    statsRow: {
-      backgroundColor: t.background.surface,
-      borderColor: t.border.subtle,
-      borderRadius: 18,
-      borderWidth: 1,
-      flexDirection: 'row',
-      marginTop: 18,
-      padding: 17
-    },
     stat: { flex: 1 },
-    divider: { backgroundColor: t.border.subtle, marginHorizontal: 14, width: 1 },
     statLabel: { color: t.text.secondary, fontSize: 10, fontWeight: '900', letterSpacing: 1 },
     statValueLine: { alignItems: 'baseline', flexDirection: 'row', marginTop: 5 },
     statValue: { color: t.text.primary, fontSize: 24, fontWeight: '900' },
@@ -379,44 +310,7 @@ export const createAppStyles = (t: SemanticTokens) =>
     },
     sectionTitle: { color: t.text.primary, fontSize: 18, fontWeight: '900' },
     link: { color: t.action.primary, fontWeight: '800' },
-    questCard: {
-      alignItems: 'center',
-      backgroundColor: t.background.surface,
-      borderColor: t.border.subtle,
-      borderRadius: 18,
-      borderWidth: 1,
-      flexDirection: 'row',
-      minHeight: 112,
-      padding: 10
-    },
-    terrain: {
-      alignItems: 'center',
-      backgroundColor: t.background.surfaceInset,
-      borderRadius: 13,
-      height: 90,
-      justifyContent: 'center',
-      width: 88
-    },
-    distanceBadge: {
-      backgroundColor: t.background.surface,
-      borderRadius: 12,
-      color: t.text.primary,
-      fontSize: 12,
-      fontWeight: '900',
-      overflow: 'hidden',
-      paddingHorizontal: 8,
-      paddingVertical: 5
-    },
-    questCopy: { flex: 1, marginLeft: 13 },
-    questTitle: { color: t.text.primary, fontSize: 16, fontWeight: '900', marginBottom: 4 },
     muted: { color: t.text.secondary, fontSize: 13 },
-    reward: { color: t.status.success, fontSize: 12, fontWeight: '800', marginTop: 7 },
-    confirmation: {
-      color: t.status.success,
-      fontWeight: '700',
-      marginTop: 16,
-      textAlign: 'center'
-    },
     comingSoon: { flex: 1, justifyContent: 'center', minHeight: 480, paddingHorizontal: 22 },
     comingSoonTitle: { color: t.text.primary, fontSize: 32, fontWeight: '900', marginTop: 8 },
     comingSoonCopy: { color: t.text.secondary, fontSize: 16, lineHeight: 24, marginTop: 14 },

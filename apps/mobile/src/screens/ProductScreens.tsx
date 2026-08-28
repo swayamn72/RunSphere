@@ -12,36 +12,15 @@ import { clearAccountData } from '../account-cleanup';
 import { activityQueue } from '../activity-queue.native';
 import { activityRecorder } from '../activity-recorder.native';
 import { authStorage } from '../auth-storage.native';
-import {
-  MovementChoice,
-  PrimaryButton,
-  Setting,
-  SettingsGroup,
-  Stat
-} from '../components/primitives';
-import { LoopMascot } from '../components/Mascot';
+import { PrimaryButton, Setting, SettingsGroup, Stat } from '../components/primitives';
 import { useAppTheme } from '../theme/theme';
 import { useAppStyles } from '../components/styles';
 import { coordinateLogout } from '../logout-coordinator';
-import { homeModel } from '../models';
-import type { MovementType } from '../activity-recorder-core';
-import { AuthFailure } from '../auth-failure';
+import { homeErrorState, type HomeRemoteState, weeklyGoalState } from './home-state';
 
-const fallbackQuests: readonly QuestSummary[] = [homeModel.nearbyQuest];
-type RemoteState = 'loading' | 'ready' | 'empty' | 'offline' | 'error';
+const fallbackQuests: readonly QuestSummary[] = [];
+type RemoteState = HomeRemoteState;
 
-const progress = (actual: number, goal: number | undefined) =>
-  goal ? Math.min(100, Math.round((actual / goal) * 100)) : 0;
-const goalLabel = (goal: WeeklyGoalResponse) => {
-  const distance = goal.distanceMeters;
-  const minutes = goal.activeMinutes;
-  if (distance.goal)
-    return `${(distance.actual / 1000).toFixed(1)} of ${(distance.goal / 1000).toFixed(1)} km`;
-  if (minutes.goal) return `${minutes.actual} of ${minutes.goal} active min`;
-  return 'Set a gentle weekly goal';
-};
-const isOffline = (error: unknown) =>
-  error instanceof AuthFailure && ['network', 'tls'].includes(error.kind);
 const useWeeklyGoal = (api: MobileApiClient) => {
   const [goal, setGoal] = useState<WeeklyGoalResponse>();
   const [state, setState] = useState<RemoteState>('loading');
@@ -50,9 +29,9 @@ const useWeeklyGoal = (api: MobileApiClient) => {
     try {
       const next = await api.getWeeklyGoal();
       setGoal(next);
-      setState(next.activeMinutes.goal || next.distanceMeters.goal ? 'ready' : 'empty');
+      setState(weeklyGoalState(next));
     } catch (error) {
-      setState(isOffline(error) ? 'offline' : 'error');
+      setState(homeErrorState(error) === 'offline' ? 'offline' : 'error');
     }
   };
   useEffect(() => {
@@ -61,173 +40,20 @@ const useWeeklyGoal = (api: MobileApiClient) => {
   return { goal, state, load, setGoal, setState };
 };
 
-export function HomeScreen({
-  api,
-  movement,
-  onMovementChange,
-  onStart,
-  onOpenQuests,
-  onOpenProfile
-}: {
-  api: MobileApiClient;
-  movement: MovementType;
-  onMovementChange: (movement: MovementType) => void;
-  onStart: () => void;
-  onOpenQuests: () => void;
-  onOpenProfile: () => void;
-}) {
-  const styles = useAppStyles();
-  const { dailyPath, member, nearbyQuest } = homeModel;
-  const { goal, state: goalState } = useWeeklyGoal(api);
-  const completed = goal
-    ? Math.max(
-        progress(goal.activeMinutes.actual, goal.activeMinutes.goal),
-        progress(goal.distanceMeters.actual, goal.distanceMeters.goal)
-      )
-    : 0;
-  return (
-    <>
-      <View style={styles.header}>
-        <View style={styles.flexCopy}>
-          <Text style={styles.eyebrow}>{homeModel.dateLabel}</Text>
-          <Text style={styles.homeTitle}>Where will you{`\n`}move today?</Text>
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Open profile"
-          onPress={onOpenProfile}
-          style={styles.avatar}
-        >
-          <Text style={styles.avatarText}>{member.initials}</Text>
-        </Pressable>
-      </View>
-      <Text style={styles.mvpLabel}>MVP · ANDROID V1</Text>
-      <MovementChoice selected={movement} onChoose={onMovementChange} />
-      {goalState === 'loading' && (
-        <View style={styles.mascotGuide}>
-          <LoopMascot
-            variant="loading"
-            accessibility={{
-              mode: 'meaningful',
-              label: 'Loop is here while your weekly progress loads.'
-            }}
-            size={48}
-          />
-          <Text style={styles.rowDetail}>Getting your weekly progress ready.</Text>
-        </View>
-      )}
-      <View style={styles.dailyCard}>
-        <Text style={styles.cardEyebrow}>THIS WEEK</Text>
-        <Text style={styles.cardTitle}>{goal ? goalLabel(goal) : 'Your progress'}</Text>
-        <Text style={styles.cardCopy}>
-          {goalState === 'loading'
-            ? 'Loading private, validated progress…'
-            : goalState === 'offline'
-              ? 'Progress is unavailable offline. Your recorded activity remains on this device.'
-              : goalState === 'empty'
-                ? 'Choose a distance or active-time goal that feels good for you.'
-                : 'Only validated activities count. Pace never changes your progress.'}
-        </Text>
-        <View
-          style={styles.progressTrack}
-          accessibilityLabel={`${completed}% of weekly goal complete`}
-        >
-          <View style={[styles.progressFill, { width: `${completed}%` }]} />
-        </View>
-        <View style={styles.progressMeta}>
-          <Text style={styles.progressStrong}>
-            {goalState === 'ready' ? `${completed}% complete` : 'Private by default'}
-          </Text>
-          <Pressable accessibilityRole="button" onPress={onOpenProfile}>
-            <Text style={styles.cardAction}>
-              {goalState === 'empty' ? 'Set goal ›' : 'View goals ›'}
-            </Text>
-          </Pressable>
-        </View>
-      </View>
-      <View style={styles.recordCard}>
-        <View style={styles.cardTopline}>
-          <View>
-            <Text style={styles.eyebrow}>TODAY'S QUEST</Text>
-            <Text style={styles.sectionTitle}>{dailyPath.title}</Text>
-          </View>
-          <Text style={styles.activityBadge}>⌖</Text>
-        </View>
-        <Text style={styles.rowDetail}>
-          Visit 3 green spaces. Any comfortable pace, any safe public path.
-        </Text>
-        <View style={styles.progressTrack}>
-          <View
-            style={[
-              styles.progressFill,
-              { width: `${(dailyPath.found / dailyPath.total) * 100}%` }
-            ]}
-          />
-        </View>
-        <View style={styles.progressMeta}>
-          <Text style={styles.rowTitle}>
-            {dailyPath.found} of {dailyPath.total} places
-          </Text>
-          <Pressable accessibilityRole="button" onPress={onOpenQuests}>
-            <Text style={styles.link}>View quest ›</Text>
-          </Pressable>
-        </View>
-      </View>
-      <View style={styles.recordCard}>
-        <View style={styles.cardTopline}>
-          <View>
-            <Text style={styles.eyebrow}>FREE ACTIVITY</Text>
-            <Text style={styles.sectionTitle}>Move your own way</Text>
-          </View>
-          <Text style={styles.activityBadge}>↗</Text>
-        </View>
-        <Text style={styles.rowDetail}>
-          Records on this device first. Your exact route stays private.
-        </Text>
-        <PrimaryButton label={`Start ${movement}`} onPress={onStart} />
-      </View>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Nearby for you</Text>
-        <Pressable accessibilityRole="button" onPress={onOpenQuests}>
-          <Text style={styles.link}>See all</Text>
-        </Pressable>
-      </View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`View ${nearbyQuest.title} quest`}
-        onPress={onOpenQuests}
-        style={styles.questCard}
-      >
-        <View style={styles.terrain}>
-          <Text style={styles.distanceBadge}>
-            {(nearbyQuest.distanceMeters / 1000).toFixed(1)} km
-          </Text>
-        </View>
-        <View style={styles.questCopy}>
-          <Text style={styles.questTitle}>{nearbyQuest.title}</Text>
-          <Text style={styles.muted}>
-            {nearbyQuest.accessibility} · {nearbyQuest.estimatedActiveMinutes} min ·{' '}
-            {nearbyQuest.openHours.status}
-          </Text>
-          <Text style={styles.verified}>Verified public places · any pace</Text>
-        </View>
-      </Pressable>
-    </>
-  );
-}
-
 export function QuestScreen({ api, onStart }: { api: MobileApiClient; onStart: () => void }) {
   const styles = useAppStyles();
   const [quests, setQuests] = useState<readonly QuestSummary[]>(fallbackQuests);
   const [state, setState] = useState<RemoteState>('loading');
   const [selected, setSelected] = useState<QuestSummary>();
   const load = async () => {
+    setQuests([]);
     setState('loading');
     try {
       const result = await api.listQuests();
       setQuests(result);
       setState(result.length ? 'ready' : 'empty');
     } catch {
+      setQuests([]);
       setState('error');
     }
   };
@@ -283,12 +109,7 @@ export function QuestScreen({ api, onStart }: { api: MobileApiClient; onStart: (
           copy="Connect to discover reviewed public places, or start a private free activity."
         />
       )}
-      {state === 'error' && (
-        <ErrorState
-          copy="We couldn't refresh quests. Saved recommendations remain available."
-          onRetry={load}
-        />
-      )}
+      {state === 'error' && <ErrorState copy="Verified quests are unavailable." onRetry={load} />}
       {quests.map((quest, index) => (
         <QuestCard
           key={quest.id}
