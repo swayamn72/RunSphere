@@ -1,6 +1,7 @@
 export const androidPermissionAllowlist = [
   'android.permission.ACCESS_COARSE_LOCATION',
   'android.permission.ACCESS_FINE_LOCATION',
+  'android.permission.ACCESS_NETWORK_STATE',
   'android.permission.ACTIVITY_RECOGNITION',
   'android.permission.FOREGROUND_SERVICE',
   'android.permission.FOREGROUND_SERVICE_LOCATION',
@@ -10,8 +11,11 @@ export const androidPermissionAllowlist = [
 
 export const blockedAndroidPermissions = [
   'android.permission.ACCESS_BACKGROUND_LOCATION',
+  'android.permission.ACCESS_WIFI_STATE',
   'android.permission.SYSTEM_ALERT_WINDOW',
   'android.permission.READ_EXTERNAL_STORAGE',
+  'android.permission.USE_BIOMETRIC',
+  'android.permission.USE_FINGERPRINT',
   'android.permission.WRITE_EXTERNAL_STORAGE'
 ] as const;
 

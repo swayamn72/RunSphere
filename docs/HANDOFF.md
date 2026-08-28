@@ -70,6 +70,31 @@ Runtime evidence:
 
 Authenticated Home/mascot, all-tab interaction, Start → Not now, focused-shell, and large-font device walkthroughs remain unverified because the clean install had no authenticated fixture/session. Their pure navigation/theme behavior is covered by unit tests, but device evidence remains open.
 
+## Redesign milestone: interactive map foundation
+
+Checkpoint scope completed on 2026-08-28:
+
+- added pinned MapLibre React Native `11.3.7` with Expo plugin, Android OpenGL variant, and New Architecture compatibility verification;
+- added approved HTTPS-origin map style configuration with exact attribution and no silent public endpoint fallback;
+- added reusable dark/light map, local-only GeoJSON, camera/follow/free-pan, compass/recenter, lifecycle, retry, fallback, and accessible map/list sheet primitives;
+- kept route/checkpoint/sample geometry renderer-local and excluded account/activity/coordinate-bearing app data from provider configuration requests;
+- allowed normal non-prompting `ACCESS_NETWORK_STATE` for supported MapLibre connectivity handling while continuing to block background location, Wi-Fi state, storage/media, overlays, biometric, and fingerprint permissions;
+- documented provider privacy, local setup, fallback behavior, and the unresolved production attribution-link/terms gate.
+
+Validation completed:
+
+- root format, lint, typecheck, test, build, `verify:maplibre`, and `git diff --check` passed;
+- mobile suite passed with 81 tests across 25 files;
+- universal debug APK assembled with MapLibre native libraries for all four Android ABIs;
+- APK permission audit passed and Android 15 process remained stable across Wi-Fi changes, background/foreground, and dark/light switching;
+- provider variables were intentionally unset, so the current source classification is **fallback only**.
+
+Artifact:
+
+- `/code/.generated_artifacts/apk/runsphere-map-foundation-debug.apk`
+
+Android map interaction evidence remains pending until the primitives are mounted in Explore/Live/Results. Task 3 deliberately added no product-screen consumer; fallback/provider rendering, map gestures, sheet interaction, attribution, local GeoJSON, and map TalkBack behavior will be validated in those integration milestones.
+
 ## Confirmed validation still pending
 
 The latest Android test report is **partial**, not failed. The corrected universal APK builds, installs, launches, and excludes `ACCESS_BACKGROUND_LOCATION` and `SYSTEM_ALERT_WINDOW`. Workspace checks and 17 PostGIS API integration tests passed.
