@@ -22,6 +22,7 @@ import { MobileApiClient } from './src/api-client';
 import { AuthFailure } from './src/auth-failure';
 import { authStorage } from './src/auth-storage.native';
 import { getLocationPermissionState } from './src/location-permission';
+import { coordinateLogout } from './src/logout-coordinator';
 import { homeModel } from './src/models';
 import {
   canSubmitAccount,
@@ -65,7 +66,13 @@ export default function App() {
             onOpenProfile={() => setActiveTab('You')}
           />
         ) : activeTab === 'You' ? (
-          <Profile />
+          <Profile
+            onLogoutComplete={() => {
+              setActiveTab('Home');
+              setActivityStarted(false);
+              dispatch({ type: 'logoutComplete' });
+            }}
+          />
         ) : (
           <View style={styles.comingSoon}>
             <Text style={styles.eyebrow}>{activeTab.toUpperCase()}</Text>
@@ -359,19 +366,29 @@ function Onboarding({
             {state.location !== 'granted' ? (
               <PrimaryButton label="Allow location" onPress={() => void requestLocation()} />
             ) : (
-              <PrimaryButton
-                label="Continue to RunSphere"
-                onPress={() => dispatch({ type: 'finish' })}
-              />
+              <>
+                {state.motion === 'idle' && (
+                  <Pressable accessibilityRole="button" onPress={() => void requestMotion()}>
+                    <Text style={styles.textButton}>Allow motion & fitness (optional)</Text>
+                  </Pressable>
+                )}
+                {state.motion !== 'idle' && (
+                  <Text accessibilityLiveRegion="polite" style={styles.privateNote}>
+                    Motion & fitness is {state.motion === 'granted' ? 'allowed' : 'not allowed'}.
+                    This optional choice does not block RunSphere.
+                  </Text>
+                )}
+                <PrimaryButton
+                  label="Continue to RunSphere"
+                  onPress={() => dispatch({ type: 'finish' })}
+                />
+              </>
             )}
-            {state.location === 'granted' && state.motion === 'idle' && (
-              <Pressable accessibilityRole="button" onPress={() => void requestMotion()}>
-                <Text style={styles.textButton}>Allow motion & fitness (optional)</Text>
+            {state.location !== 'granted' && (
+              <Pressable accessibilityRole="button" onPress={() => dispatch({ type: 'finish' })}>
+                <Text style={styles.textButton}>Continue without location</Text>
               </Pressable>
             )}
-            <Pressable accessibilityRole="button" onPress={() => dispatch({ type: 'finish' })}>
-              <Text style={styles.textButton}>Continue without location</Text>
-            </Pressable>
           </>
         )}
         {state.step === 'location-denied' && (
@@ -489,28 +506,38 @@ function Home({
   );
 }
 
-function Profile() {
-  const clearLocalAccountData = (action: 'Log out' | 'Delete account') =>
+function Profile({ onLogoutComplete }: { onLogoutComplete: () => void }) {
+  const confirmLogout = () =>
+    Alert.alert('Log out', 'This clears local secure tokens and queued activity metadata.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Log out',
+        style: 'destructive',
+        onPress: () => {
+          void coordinateLogout({ api: apiClient, auth: authStorage, queue: activityQueue })
+            .then(onLogoutComplete)
+            .catch(() => {
+              Alert.alert(
+                'Unable to log out',
+                'RunSphere could not clear all local account data. Please try again.'
+              );
+            });
+        }
+      }
+    ]);
+  const confirmDeleteAccount = () =>
     Alert.alert(
-      action,
+      'Delete account',
       'This clears local secure tokens and queued activity metadata. Account deletion remains a pilot-only placeholder.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: action,
+          text: 'Delete account',
           style: 'destructive',
           onPress: () => {
-            void (async () => {
-              try {
-                if (action === 'Log out') await apiClient.logout();
-              } finally {
-                await clearAccountData(activityQueue, authStorage);
-                Alert.alert(
-                  'Local data cleared',
-                  'Secure tokens and queued metadata were removed.'
-                );
-              }
-            })();
+            void clearAccountData(activityQueue, authStorage).then(() => {
+              Alert.alert('Local data cleared', 'Secure tokens and queued metadata were removed.');
+            });
           }
         }
       ]
@@ -549,16 +576,12 @@ function Profile() {
       </SettingsGroup>
       <SettingsGroup title="Data">
         <Setting label="Export your data" value="Pilot placeholder" disabled />
-        <Setting
-          label="Log out"
-          value="Clear this device"
-          onPress={() => clearLocalAccountData('Log out')}
-        />
+        <Setting label="Log out" value="Clear this device" onPress={confirmLogout} />
         <Setting
           label="Delete account"
           value="Pilot placeholder"
           destructive
-          onPress={() => clearLocalAccountData('Delete account')}
+          onPress={confirmDeleteAccount}
         />
       </SettingsGroup>
     </>

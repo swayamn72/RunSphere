@@ -45,6 +45,7 @@ export type OnboardingAction =
   | { type: 'retryLocation' }
   | { type: 'continueWithoutLocation' }
   | { type: 'finish' }
+  | { type: 'logoutComplete' }
   | { type: 'back' };
 
 const hasValidEmail = (email: string): boolean => /^\S+@\S+\.\S+$/.test(email.trim());
@@ -84,12 +85,14 @@ export const onboardingReducer = (
       if (action.status === 'granted') return { ...state, location: 'granted', step: 'privacy' };
       return { ...state, location: 'idle' };
     case 'setMotion':
-      return { ...state, motion: action.status };
+      return { ...state, motion: action.status === 'denied' ? 'skipped' : action.status };
     case 'retryLocation':
       return { ...state, location: 'idle', step: 'privacy' };
     case 'continueWithoutLocation':
     case 'finish':
       return { ...state, step: 'complete' };
+    case 'logoutComplete':
+      return initialOnboardingState;
     case 'back':
       if (state.step === 'account') return { ...state, step: 'welcome' };
       if (state.step === 'privacy') return { ...state, step: 'account' };
