@@ -2,6 +2,7 @@ import * as Location from 'expo-location';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Linking, Pressable, Text, View } from 'react-native';
 import type { LngLat } from '@maplibre/maplibre-react-native';
+import type { Geometry } from 'geojson';
 import { activityRecorder } from '../activity-recorder.native';
 import {
   type ActivitySession,
@@ -25,7 +26,15 @@ import {
   type RecordingLocationPermissionState
 } from '../location-permission';
 import { type createActivitySyncCoordinator } from '../activity-sync';
-import type { ActivityStatus } from '../api-client';
+import type { ActivityDetail } from '../api-client';
+import {
+  activityHistoryLabel,
+  activityHistoryMetric,
+  activityResultPresentation,
+  calculatedPace,
+  derivedResultRouteLayers,
+  derivedRouteCenter
+} from './activity-results-model';
 import { MovementChoice, PrimaryButton, Stat } from '../components/primitives';
 import { useAppStyles } from '../components/styles';
 import { MapSurface } from '../maps/MapSurface';
@@ -521,91 +530,141 @@ function ActivityDetail({
 }) {
   const styles = useAppStyles();
   const [current, setCurrent] = useState(session);
-  const [remote, setRemote] = useState<ActivityStatus>();
-  const isProcessed = current.state === 'processed';
+  const [detail, setDetail] = useState<ActivityDetail>();
+  const mounted = useRef(true);
+  const refreshGeneration = useRef(0);
+  const presentation = useMemo(() => activityResultPresentation(detail), [detail]);
+  const updateFromServer = useCallback(async () => {
+    const generation = ++refreshGeneration.current;
+    try {
+      const next = await sync.refresh(current);
+      const refreshed = await activityRecorder.get(current.id, current.accountId);
+      if (!mounted.current || generation !== refreshGeneration.current) return;
+      if (next) setDetail(next);
+      if (refreshed) setCurrent(refreshed);
+    } catch {
+      // Cached lifecycle metadata never supplies a result detail while offline.
+    }
+  }, [current, sync]);
+  useEffect(() => {
+    mounted.current = true;
+    void updateFromServer();
+    return () => {
+      mounted.current = false;
+      refreshGeneration.current += 1;
+    };
+  }, [updateFromServer]);
   const retry = async () => {
     const next = await sync.sync(current);
+    if (!mounted.current) return;
     setCurrent(next.session);
-    setRemote(next.status);
+    if (next.status) void updateFromServer();
   };
-  useEffect(() => {
-    void sync
-      .refresh(session)
-      .then((status) => status && setRemote(status))
-      .catch(() => undefined);
-  }, [session, sync]);
   const remove = async () => {
     await sync.delete(current);
-    onExit();
+    if (mounted.current) onExit();
   };
+  const localPace = current.distanceMeters
+    ? formatDuration(Math.round(current.durationSeconds / (current.distanceMeters / 1_000)))
+    : '—';
+  const terminalRejected = presentation.state === 'rejected';
   return (
     <View style={styles.recordCard}>
       <Text style={styles.eyebrow}>
-        {isProcessed
-          ? 'ACTIVITY PROCESSED'
-          : current.state === 'failed'
-            ? 'SYNC NEEDS ATTENTION'
-            : 'OFFLINE · SAVED ON THIS DEVICE'}
+        {presentation.state === 'validated'
+          ? 'VALIDATED ACTIVITY'
+          : terminalRejected
+            ? 'SAVED PRIVATELY'
+            : 'PENDING SERVER VALIDATION'}
       </Text>
       <Text style={styles.recordTitle}>
-        {isProcessed
-          ? 'Activity ready.'
-          : current.state === 'failed'
-            ? 'Sync paused.'
-            : 'Activity queued.'}
+        {presentation.state === 'validated'
+          ? 'Activity validated.'
+          : terminalRejected
+            ? 'Activity saved privately.'
+            : current.state === 'failed'
+              ? 'Sync paused.'
+              : 'Activity pending.'}
       </Text>
       <Text style={styles.lead}>
-        {isProcessed
-          ? 'Validation is complete. Your processed result stays private in your activity history.'
-          : remote?.status === 'rejected'
-            ? (remote.rejectionReason ?? 'This activity did not pass validation.')
+        {presentation.state === 'validated'
+          ? 'Validated totals are ready. Your route remains private and uses the server-trimmed result only.'
+          : terminalRejected
+            ? (detail?.rejectionReason ??
+              'This activity was saved privately but is not eligible for validated totals.')
             : (current.syncError ??
-              'Your local result is safe and will resume when connectivity returns.')}
+              'Results remain pending until RunSphere validates this activity. Local recording does not count toward validated totals.')}
       </Text>
-      <View style={styles.resultStats}>
-        <Stat
-          label="KM"
-          value={((remote?.summary?.distanceMeters ?? current.distanceMeters) / 1000).toFixed(2)}
-          detail={remote?.summary ? 'Validated' : 'Local'}
-        />
-        <Stat
-          label="TIME"
-          value={formatDuration(remote?.summary?.durationSeconds ?? current.durationSeconds)}
-          detail={remote?.summary ? 'Validated' : 'Recorded'}
-        />
-        <Stat
-          label="STATUS"
-          value={(remote?.status ?? current.state).toUpperCase()}
-          detail={remote?.summary?.privacyTrimmed ? '200 m zones applied' : 'Private'}
-        />
-      </View>
-      {remote?.status === 'rejected' && remote.validationErrors?.length ? (
-        <View style={[styles.notice, styles.warningNotice]} accessibilityLiveRegion="polite">
-          <Text style={styles.noticeIcon}>!</Text>
-          <View style={styles.flexCopy}>
-            <Text style={styles.noticeTitle}>Validation needs attention</Text>
-            <Text style={styles.noticeCopy}>{remote.validationErrors.join(' ')}</Text>
+      {presentation.state === 'validated' ? (
+        <>
+          <DerivedResultMap presentation={presentation} />
+          <View style={styles.resultStats}>
+            <Stat
+              label="KM"
+              value={(presentation.detail.summary!.distanceMeters / 1_000).toFixed(2)}
+              detail="Validated"
+            />
+            <Stat
+              label="TIME"
+              value={formatDuration(presentation.detail.summary!.durationSeconds)}
+              detail="Validated"
+            />
+            <Stat
+              label="PACE /KM"
+              value={calculatedPace(presentation.detail.summary!)}
+              detail="Calculated from validated totals"
+            />
           </View>
-        </View>
-      ) : null}
-      {isProcessed && (
+        </>
+      ) : (
+        <>
+          <MapUnavailable />
+          <View style={styles.resultStats}>
+            <Stat
+              label="KM"
+              value={(current.distanceMeters / 1_000).toFixed(2)}
+              detail="Provisional"
+            />
+            <Stat label="TIME" value={formatDuration(current.durationSeconds)} detail="Recorded" />
+            <Stat label="PACE /KM" value={localPace} detail="Provisional" />
+          </View>
+        </>
+      )}
+      {terminalRejected && (
         <View style={styles.notice} accessibilityLiveRegion="polite">
-          <Text style={styles.noticeIcon}>✓</Text>
+          <Text style={styles.noticeIcon}>i</Text>
           <View style={styles.flexCopy}>
-            <Text style={styles.noticeTitle}>Validation complete</Text>
+            <Text style={styles.noticeTitle}>Saved privately</Text>
             <Text style={styles.noticeCopy}>
-              {remote?.summary?.privacyTrimmed
-                ? 'Start, finish, and route fragments inside saved privacy zones were removed.'
-                : 'No shareable map is created unless your privacy settings allow one.'}
+              {detail?.validationErrors?.join(' ') ??
+                'This activity is not eligible for validated totals.'}
             </Text>
           </View>
         </View>
       )}
-      {!isProcessed && (
+      {presentation.state === 'validated' && (
+        <View style={styles.notice} accessibilityLiveRegion="polite">
+          <Text style={styles.noticeIcon}>✓</Text>
+          <View style={styles.flexCopy}>
+            <Text style={styles.noticeTitle}>Validated by RunSphere</Text>
+            <Text style={styles.noticeCopy}>
+              {presentation.detail.summary!.privacyTrimmed
+                ? 'Start, finish, and route fragments inside saved privacy zones were removed.'
+                : 'The validated route is shown only when RunSphere returned safe route geometry.'}
+            </Text>
+          </View>
+        </View>
+      )}
+      {presentation.state === 'pending' && (
         <PrimaryButton
           label={current.state === 'failed' ? 'Retry sync' : 'Sync now'}
           onPress={() => void retry()}
         />
+      )}
+      {current.remoteId && presentation.state === 'pending' && (
+        <Pressable accessibilityRole="button" onPress={() => void updateFromServer()}>
+          <Text style={styles.textButton}>Refresh validation</Text>
+        </Pressable>
       )}
       <Pressable accessibilityRole="button" onPress={() => void remove()}>
         <Text style={[styles.textButton, styles.destructive]}>Delete activity</Text>
@@ -628,6 +687,7 @@ export function ActivityHistory({
 }) {
   const styles = useAppStyles();
   const [items, setItems] = useState<ActivitySession[]>([]);
+  const [details, setDetails] = useState<Record<string, ActivityDetail>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
   const refresh = async () => {
@@ -636,7 +696,16 @@ export function ActivityHistory({
     try {
       await sync.syncPending(accountId);
       const local = await activityRecorder.list(accountId);
-      await Promise.all(local.map((item) => sync.refresh(item).catch(() => undefined)));
+      const fetched = await Promise.all(
+        local.map((item) => sync.refresh(item).catch(() => undefined))
+      );
+      setDetails(
+        Object.fromEntries(
+          fetched
+            .filter((detail): detail is ActivityDetail => Boolean(detail))
+            .map((detail) => [detail.id, detail])
+        )
+      );
       setItems(await activityRecorder.list(accountId));
     } catch {
       setError('Your local history is still safe. Connect to refresh validation results.');
@@ -675,34 +744,74 @@ export function ActivityHistory({
           </View>
         </View>
       )}
-      {items.map((item) => (
-        <Pressable
-          key={item.id}
-          accessibilityRole="button"
-          onPress={() => onOpen(item)}
-          style={styles.historyRow}
-        >
-          <View style={styles.flexCopy}>
-            <Text style={styles.rowTitle}>
-              {item.movementType.charAt(0).toUpperCase() + item.movementType.slice(1)} ·{' '}
-              {(item.distanceMeters / 1000).toFixed(2)} km
-            </Text>
-            <Text style={styles.rowDetail}>
-              {item.state === 'processed'
-                ? 'Processed'
-                : item.state === 'failed'
-                  ? 'Sync failed — refresh to retry'
-                  : item.state === 'queued'
-                    ? 'Queued / processing'
-                    : 'Local activity'}
-            </Text>
-          </View>
-          <Text style={styles.link}>View ›</Text>
-        </Pressable>
-      ))}
+      {items.map((item) => {
+        const metric = activityHistoryMetric(item, details[item.remoteId ?? '']);
+        return (
+          <Pressable
+            key={item.id}
+            accessibilityRole="button"
+            onPress={() => onOpen(item)}
+            style={styles.historyRow}
+          >
+            <View style={styles.flexCopy}>
+              <Text style={styles.rowTitle}>
+                {item.movementType.charAt(0).toUpperCase() + item.movementType.slice(1)} ·{' '}
+                {(metric.distanceMeters / 1_000).toFixed(2)} km
+              </Text>
+              <Text style={styles.rowDetail}>
+                {item.state === 'failed' && !item.remoteStatus
+                  ? 'Sync failed — refresh to retry · provisional local distance'
+                  : `${activityHistoryLabel(item.remoteStatus)} · ${metric.detail}`}
+              </Text>
+            </View>
+            <Text style={styles.link}>View ›</Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
+
+function DerivedResultMap({
+  presentation
+}: {
+  presentation: ReturnType<typeof activityResultPresentation>;
+}) {
+  const route = useMemo(() => derivedResultRouteLayers(presentation), [presentation]);
+  const center = useMemo(() => {
+    const geometry = route[0]?.data.features[0]?.geometry;
+    return geometry ? derivedRouteCenter(geometry as Geometry) : undefined;
+  }, [route]);
+  if (!route.length || !center) return <MapUnavailable />;
+  return (
+    <View style={stylesForResultMap.container}>
+      <MapSurface
+        localLayers={route}
+        accessibilityLabel="Server-derived private activity route."
+        initialCenter={center as LngLat}
+        recenterEnabled={false}
+        showAttribution
+      />
+    </View>
+  );
+}
+
+function MapUnavailable() {
+  const styles = useAppStyles();
+  return (
+    <View style={stylesForResultMap.unavailable} accessibilityLiveRegion="polite">
+      <Text style={styles.noticeTitle}>Map unavailable</Text>
+      <Text style={styles.noticeCopy}>
+        A map is shown only when RunSphere returns safe derived route geometry.
+      </Text>
+    </View>
+  );
+}
+
+const stylesForResultMap = {
+  container: { height: 240, marginBottom: 12, overflow: 'hidden' as const },
+  unavailable: { height: 240, justifyContent: 'center' as const, padding: 16 }
+};
 
 function ActivityResults({
   session,

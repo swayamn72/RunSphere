@@ -1,6 +1,8 @@
 import type {
   AccountDeletionResponse,
   AccountExportResponse,
+  ActivityDetailResponse,
+  ActivityStatusResponse,
   LoginRequest,
   PrivacyZoneRequest,
   PrivacyZoneResponse,
@@ -52,21 +54,8 @@ export interface ActivityChunk {
   sequence: number;
   points: ActivityPoint[];
 }
-export interface ActivityStatus {
-  id: string;
-  status: 'received' | 'validating' | 'accepted' | 'rejected' | 'derived' | 'deleted';
-  missingSequences?: number[];
-  summary?: {
-    distanceMeters: number;
-    durationSeconds: number;
-    pointCount: number;
-    rejectedPointCount?: number;
-    rejectedGapCount?: number;
-    privacyTrimmed: boolean;
-  };
-  rejectionReason?: string;
-  validationErrors?: string[];
-}
+export type ActivityStatus = ActivityStatusResponse;
+export type ActivityDetail = ActivityDetailResponse;
 export const chunkChecksum = (chunk: ActivityChunk) => sha256(canonicalJson(chunk));
 export const aggregateChecksum = (chunks: readonly ActivityChunk[]) =>
   sha256(
@@ -199,7 +188,8 @@ export class MobileApiClient {
       body: { expectedChunkCount: chunks.length, checksum: aggregateChecksum(chunks) }
     });
   }
-  async activityStatus(id: string): Promise<ActivityStatus> {
+  /** The activity detail GET is the single server-truth read for Results and sync refresh. */
+  async activityStatus(id: string): Promise<ActivityDetail> {
     return this.request(`/v1/activities/${id}`, { method: 'GET' });
   }
   async recoverActivitySync(id: string, expectedChunkCount: number): Promise<ActivityStatus> {

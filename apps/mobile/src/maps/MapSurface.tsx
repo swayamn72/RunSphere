@@ -41,6 +41,8 @@ export interface MapSurfaceProps {
   /** Lets a host surface independently observed offline/style/tile failures. */
   readonly fallbackState?: Extract<MapLifecycleState, 'offline' | 'style-error' | 'tile-error'>;
   readonly accessibilityLabel: string;
+  /** Keep attribution visible for non-full-screen product map embeds. */
+  readonly showAttribution?: boolean;
 }
 
 /**
@@ -57,7 +59,8 @@ export function MapSurface({
   onEnterFreePan,
   onRequestRecenter,
   fallbackState,
-  accessibilityLabel
+  accessibilityLabel,
+  showAttribution = true
 }: MapSurfaceProps) {
   const { tokens, reduceMotion } = useAppTheme();
   const providerConfig = useMemo(() => resolveMapRenderPlan(), []);
@@ -231,7 +234,7 @@ export function MapSurface({
           recenterDisabled={!(recenterEnabled ?? Boolean(onRequestRecenter))}
         />
       )}
-      {isProviderMap && providerConfig.kind === 'provider' && (
+      {showAttribution && isProviderMap && providerConfig.kind === 'provider' && (
         <Text
           accessible
           accessibilityLabel={`Map attribution: ${providerConfig.provider.attribution}`}

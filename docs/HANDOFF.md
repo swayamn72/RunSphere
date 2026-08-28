@@ -193,6 +193,27 @@ Authenticated Live device flows remain blocked by the same authorization-strippi
 
 Still pending after an approved authenticated route exists: record/pause/resume/finish, pan/recenter, weak and 61+ second gap recovery, fallback map, background/foreground and process recovery, TalkBack, large text, theme, and reduced-motion evidence.
 
+## Results milestone — 2026-08-28
+
+Implemented one Results presentation boundary where only a freshly fetched `status === 'derived'` detail with a server summary is validated. Local, queued, received, validating, accepted, offline, and cached-status states remain provisional/pending; rejected results stay private and use non-punitive copy. Pending/rejected screens retain explicitly labeled provisional recorded metrics. Only valid server-derived line geometry is mapped renderer-locally; null, malformed, rejected, and non-derived geometry produces no route map, and local recorder samples never enter Results.
+
+Encrypted recorder schema v8 adds nullable, non-sensitive `remote_status` metadata through an additive, metadata-checked migration. It supports truthful offline lifecycle labels without treating cached status alone as validation; legacy `processed` rows remain unknown until refreshed. Home weekly progress continues to reload from `GET /v1/goals/weekly` when Home remounts.
+
+Validation passed for this milestone:
+
+- mobile Results/recorder/sync suite: 117 tests;
+- shared contract tests;
+- API/PostGIS integration: 17 tests across four files, including non-derived detail projection;
+- root Prettier, lint, typecheck, test, build, MapLibre compatibility, and `git diff --check`;
+- fresh universal debug APK assembly, Android 15 install/cold launch, and APK permission audit.
+
+Authenticated Results device states remain blocked by the authorization-stripping HTTPS route. The following artifacts prove build/install/pre-auth launch only:
+
+- `/code/.generated_artifacts/apk/runsphere-results-debug.apk`
+- `/code/.generated_artifacts/images/runsphere-results-fresh-launch.png`
+
+Still pending after an approved authenticated route exists: queued/processing/accepted/rejected/derived presentation; server-derived valid, discontinuous privacy-trimmed, and null route states; offline/relaunch reconciliation; Home/history refresh; TalkBack and large-text evidence.
+
 ## Confirmed validation still pending
 
 The latest Android test report is **partial**, not failed. The corrected universal APK builds, installs, launches, and excludes `ACCESS_BACKGROUND_LOCATION` and `SYSTEM_ALERT_WINDOW`. Workspace checks and 17 PostGIS API integration tests passed.

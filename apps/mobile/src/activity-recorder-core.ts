@@ -1,3 +1,5 @@
+import type { ActivityLifecycleStatus } from '@runsphere/contracts';
+
 export type MovementType = 'walk' | 'run' | 'hike';
 export type RecordingState =
   | 'prepare'
@@ -44,8 +46,12 @@ export interface ActivitySession {
   acceptedSamples: number;
   lastHeartbeatAt: string;
   remoteId?: string | undefined;
+  /** Last server lifecycle status; null/undefined is deliberately unknown until refreshed. */
+  remoteStatus?: RemoteActivityStatus | undefined;
   syncError?: string | undefined;
 }
+
+export type RemoteActivityStatus = ActivityLifecycleStatus;
 
 export interface RecorderDatabase {
   execAsync(sql: string): Promise<void>;
@@ -54,7 +60,7 @@ export interface RecorderDatabase {
   getAllAsync<T>(sql: string, ...params: unknown[]): Promise<T[]>;
 }
 
-export const ACTIVITY_RECORDER_SCHEMA_VERSION = 7;
+export const ACTIVITY_RECORDER_SCHEMA_VERSION = 8;
 export const MAX_SAMPLE_ACCURACY_METERS = 50;
 export const MAX_SEGMENT_SPEED_METERS_PER_SECOND = 25_000 / 3_600;
 export const EXCLUDED_GAP_SECONDS = 60;
@@ -77,6 +83,7 @@ export const activityRecorderSchema = `
     accepted_samples INTEGER NOT NULL DEFAULT 0,
     last_heartbeat_at TEXT NOT NULL,
     remote_id TEXT,
+    remote_status TEXT CHECK (remote_status IN ('received', 'validating', 'accepted', 'rejected', 'derived', 'deleted')),
     sync_error TEXT
   );
   CREATE TABLE IF NOT EXISTS activity_location_samples (
@@ -111,6 +118,7 @@ const rowToSession = (row: Record<string, unknown>): ActivitySession => ({
   acceptedSamples: Number(row.acceptedSamples),
   lastHeartbeatAt: row.lastHeartbeatAt as string,
   remoteId: (row.remoteId as string | null) ?? undefined,
+  remoteStatus: (row.remoteStatus as RemoteActivityStatus | null) ?? undefined,
   syncError: (row.syncError as string | null) ?? undefined
 });
 
@@ -169,7 +177,7 @@ const canTransition = (from: RecordingState, to: RecordingState): boolean => {
 
 const sessionSelect = `SELECT id, account_id AS accountId, movement_type AS movementType, state, started_at AS startedAt, updated_at AS updatedAt,
   paused_at AS pausedAt, pause_reason AS pauseReason, completed_at AS completedAt, duration_seconds AS durationSeconds, distance_meters AS distanceMeters,
-  accepted_samples AS acceptedSamples, last_heartbeat_at AS lastHeartbeatAt, remote_id AS remoteId, sync_error AS syncError FROM recorded_activities`;
+  accepted_samples AS acceptedSamples, last_heartbeat_at AS lastHeartbeatAt, remote_id AS remoteId, remote_status AS remoteStatus, sync_error AS syncError FROM recorded_activities`;
 
 const migrationChecksum = (
   rows: readonly Pick<ActivitySession, 'id' | 'remoteId' | 'updatedAt'>[]
@@ -209,6 +217,17 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
       if (!activityColumns.some((column) => column.name === 'pause_reason'))
         await database.execAsync(
           "ALTER TABLE recorded_activities ADD COLUMN pause_reason TEXT CHECK (pause_reason IN ('manual', 'recovered'));"
+        );
+    }
+    if (current > 0 && current < 8) {
+      const activityColumns = await database.getAllAsync<{ name: string }>(
+        'PRAGMA table_info(recorded_activities)'
+      );
+      // Additive and metadata-checked so an interrupted upgrade can safely run again.
+      // Existing processed rows intentionally remain unknown until a server refresh.
+      if (!activityColumns.some((column) => column.name === 'remote_status'))
+        await database.execAsync(
+          "ALTER TABLE recorded_activities ADD COLUMN remote_status TEXT CHECK (remote_status IN ('received', 'validating', 'accepted', 'rejected', 'derived', 'deleted'));"
         );
     }
     await database.execAsync(activityRecorderSchema);
@@ -330,7 +349,13 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
     )
       return false;
 
-    if (sample.accuracy === null || sample.accuracy < 0 || sample.accuracy > 100) return false;
+    if (
+      sample.accuracy === null ||
+      sample.accuracy < 0 ||
+      sample.accuracy > 100 ||
+      (sample.altitude !== null && !Number.isFinite(sample.altitude))
+    )
+      return false;
     if (previous && Date.parse(sample.recordedAt) <= Date.parse(previous.recordedAt)) return false;
     const weak = sample.accuracy > MAX_SAMPLE_ACCURACY_METERS;
     const elapsed = previous ? elapsedSeconds(previous.recordedAt, sample.recordedAt) : 0;
@@ -366,7 +391,7 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
       sample.latitude,
       sample.longitude,
       sample.accuracy,
-      sample.altitude,
+      sample.altitude === null ? null : sample.altitude,
       disposition,
       segmentBreak ? 1 : 0
     );
@@ -450,13 +475,46 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
     }
     return moved;
   },
-  async setRemote(id: string, accountId: string, remoteId: string): Promise<void> {
+  async setRemote(
+    id: string,
+    accountId: string,
+    remoteId: string,
+    remoteStatus?: RemoteActivityStatus
+  ): Promise<void> {
     await database.runAsync(
-      'UPDATE recorded_activities SET remote_id = ?, sync_error = NULL WHERE id = ? AND account_id = ?',
+      'UPDATE recorded_activities SET remote_id = ?, remote_status = coalesce(?, remote_status), sync_error = NULL WHERE id = ? AND account_id = ?',
       remoteId,
+      remoteStatus ?? null,
       id,
       accountId
     );
+  },
+  async setRemoteStatus(
+    id: string,
+    accountId: string,
+    remoteStatus: RemoteActivityStatus
+  ): Promise<void> {
+    await database.runAsync(
+      'UPDATE recorded_activities SET remote_status = ? WHERE id = ? AND account_id = ?',
+      remoteStatus,
+      id,
+      accountId
+    );
+  },
+  async applyRemoteStatus(
+    session: ActivitySession,
+    remoteStatus: RemoteActivityStatus
+  ): Promise<ActivitySession | undefined> {
+    await this.setRemoteStatus(session.id, session.accountId, remoteStatus);
+    if (remoteStatus === 'derived' && ['queued', 'failed'].includes(session.state))
+      await this.transition(
+        session.id,
+        session.accountId,
+        session.state,
+        'processed',
+        new Date().toISOString()
+      );
+    return this.get(session.id, session.accountId);
   },
   async markSyncFailure(id: string, accountId: string, at: string, message: string): Promise<void> {
     await database.runAsync(

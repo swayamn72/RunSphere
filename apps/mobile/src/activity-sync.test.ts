@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createActivitySyncCoordinator, samplesToChunks } from './activity-sync.js';
 import type { ActivitySession } from './activity-recorder-core.js';
+import { createActivitySyncCoordinator, samplesToChunks } from './activity-sync.js';
 
 const session: ActivitySession = {
   id: 'local-1',
@@ -32,8 +32,45 @@ const samples = [
   }
 ];
 
+const recorder = (stored: ActivitySession) => ({
+  samples: vi.fn().mockResolvedValue(samples),
+  transition: vi.fn(async (_id: string, _account: string, from: string, to: string) => {
+    if (stored.state !== from) return false;
+    stored.state = to as ActivitySession['state'];
+    return true;
+  }),
+  setRemote: vi.fn(
+    async (
+      _id: string,
+      _account: string,
+      remoteId: string,
+      remoteStatus?: ActivitySession['remoteStatus']
+    ) => {
+      stored.remoteId = remoteId;
+      stored.remoteStatus = remoteStatus;
+    }
+  ),
+  setRemoteStatus: vi.fn(
+    async (_id: string, _account: string, status: ActivitySession['remoteStatus']) => {
+      stored.remoteStatus = status;
+    }
+  ),
+  applyRemoteStatus: vi.fn(
+    async (_session: ActivitySession, status: ActivitySession['remoteStatus']) => {
+      stored.remoteStatus = status;
+      if (status === 'derived') stored.state = 'processed';
+      return stored;
+    }
+  ),
+  get: vi.fn(async () => stored),
+  markSyncFailure: vi.fn(async () => {
+    stored.state = 'failed';
+  }),
+  list: vi.fn()
+});
+
 describe('activity sync coordinator', () => {
-  it('uploads only missing sequences, finalizes canonical chunks, and remains resumable', async () => {
+  it('persists received/validating lifecycle metadata while uploading canonical chunks', async () => {
     const stored = { ...session };
     const api = {
       createActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'received' }),
@@ -43,146 +80,80 @@ describe('activity sync coordinator', () => {
       uploadActivityChunk: vi.fn(),
       finalizeActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'validating' })
     };
-    const recorder = {
-      samples: vi.fn().mockResolvedValue(samples),
-      transition: vi.fn(async (_id: string, _account: string, from: string, to: string) => {
-        if (stored.state === from) {
-          stored.state = to as typeof stored.state;
-          return true;
-        }
-        return false;
-      }),
-      setRemote: vi.fn(async (_id: string, _account: string, remoteId: string) => {
-        stored.remoteId = remoteId;
-      }),
-      get: vi.fn(async () => stored),
-      markSyncFailure: vi.fn(),
-      list: vi.fn()
-    };
-    const result = await createActivitySyncCoordinator(api as never, recorder as never).sync(
-      session
-    );
+    const local = recorder(stored);
+    const result = await createActivitySyncCoordinator(api as never, local as never).sync(session);
+
     expect(api.recoverActivitySync).toHaveBeenCalledWith('remote-1', 1);
-    expect(api.uploadActivityChunk).toHaveBeenCalledOnce();
-    expect(api.finalizeActivity).toHaveBeenCalledWith('remote-1', samplesToChunks(samples));
-    expect(result.session.state).toBe('queued');
-  });
-  it('does not upload or finalize an activity already validating remotely', async () => {
-    const stored = { ...session };
-    const api = {
-      createActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'received' }),
-      recoverActivitySync: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'validating' }),
-      uploadActivityChunk: vi.fn(),
-      finalizeActivity: vi.fn()
-    };
-    const recorder = {
-      samples: vi.fn().mockResolvedValue(samples),
-      transition: vi.fn(async (_id: string, _account: string, from: string, to: string) => {
-        if (stored.state === from) stored.state = to as typeof stored.state;
-        return true;
-      }),
-      setRemote: vi.fn(async (_id: string, _account: string, remoteId: string) => {
-        stored.remoteId = remoteId;
-      }),
-      get: vi.fn(async () => stored),
-      markSyncFailure: vi.fn(),
-      list: vi.fn()
-    };
-
-    const result = await createActivitySyncCoordinator(api as never, recorder as never).sync(
-      session
-    );
-
-    expect(result.status?.status).toBe('validating');
-    expect(result.session.state).toBe('queued');
-    expect(api.uploadActivityChunk).not.toHaveBeenCalled();
-    expect(api.finalizeActivity).not.toHaveBeenCalled();
-  });
-
-  it('keeps a rejected result available without retrying or uploading chunks', async () => {
-    const stored = { ...session };
-    const api = {
-      createActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'received' }),
-      recoverActivitySync: vi.fn().mockResolvedValue({
-        id: 'remote-1',
-        status: 'rejected',
-        rejectionReason: 'GPS samples could not be validated.'
-      }),
-      uploadActivityChunk: vi.fn(),
-      finalizeActivity: vi.fn()
-    };
-    const recorder = {
-      samples: vi.fn().mockResolvedValue(samples),
-      transition: vi.fn(async (_id: string, _account: string, from: string, to: string) => {
-        if (stored.state === from) stored.state = to as typeof stored.state;
-        return true;
-      }),
-      setRemote: vi.fn(async (_id: string, _account: string, remoteId: string) => {
-        stored.remoteId = remoteId;
-      }),
-      get: vi.fn(async () => stored),
-      markSyncFailure: vi.fn(),
-      list: vi.fn()
-    };
-
-    const result = await createActivitySyncCoordinator(api as never, recorder as never).sync(
-      session
-    );
-
-    expect(result.status?.status).toBe('rejected');
-    expect(result.session.state).toBe('processed');
-    expect(api.uploadActivityChunk).not.toHaveBeenCalled();
-    expect(api.finalizeActivity).not.toHaveBeenCalled();
-  });
-
-  it('ignores out-of-range missing chunk sequences', async () => {
-    const stored = { ...session };
-    const api = {
-      createActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'received' }),
-      recoverActivitySync: vi.fn().mockResolvedValue({
-        id: 'remote-1',
-        status: 'received',
-        missingSequences: [-1, 0, 1, 99]
-      }),
-      uploadActivityChunk: vi.fn(),
-      finalizeActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'validating' })
-    };
-    const recorder = {
-      samples: vi.fn().mockResolvedValue(samples),
-      transition: vi.fn(async (_id: string, _account: string, from: string, to: string) => {
-        if (stored.state === from) stored.state = to as typeof stored.state;
-        return true;
-      }),
-      setRemote: vi.fn(async (_id: string, _account: string, remoteId: string) => {
-        stored.remoteId = remoteId;
-      }),
-      get: vi.fn(async () => stored),
-      markSyncFailure: vi.fn(),
-      list: vi.fn()
-    };
-
-    await createActivitySyncCoordinator(api as never, recorder as never).sync(session);
-
-    expect(api.uploadActivityChunk).toHaveBeenCalledOnce();
     expect(api.uploadActivityChunk).toHaveBeenCalledWith('remote-1', samplesToChunks(samples)[0]);
+    expect(api.finalizeActivity).toHaveBeenCalledWith('remote-1', samplesToChunks(samples));
+    expect(local.setRemoteStatus).toHaveBeenLastCalledWith('local-1', 'account-1', 'validating');
+    expect(result.session).toMatchObject({ state: 'queued', remoteStatus: 'validating' });
   });
 
-  it('marks network failures and leaves activity available for retry', async () => {
-    const recorder = {
-      transition: vi.fn().mockResolvedValue(true),
-      samples: vi.fn().mockResolvedValue(samples),
-      setRemote: vi.fn(),
-      get: vi.fn().mockResolvedValue({ ...session, state: 'failed' }),
-      markSyncFailure: vi.fn(),
-      list: vi.fn()
-    };
+  it.each(['rejected', 'derived'] as const)(
+    'settles terminal %s server status locally',
+    async (status) => {
+      const stored = { ...session };
+      const api = {
+        createActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'received' }),
+        recoverActivitySync: vi.fn().mockResolvedValue({ id: 'remote-1', status }),
+        uploadActivityChunk: vi.fn(),
+        finalizeActivity: vi.fn()
+      };
+      const local = recorder(stored);
+      const result = await createActivitySyncCoordinator(api as never, local as never).sync(
+        session
+      );
+
+      expect(result.session).toMatchObject({ state: 'processed', remoteStatus: status });
+      expect(api.uploadActivityChunk).not.toHaveBeenCalled();
+    }
+  );
+
+  it('does not retry an already rejected local lifecycle result', async () => {
+    const stored = { ...session, state: 'processed' as const, remoteStatus: 'rejected' as const };
+    const api = { createActivity: vi.fn() };
+    const local = recorder(stored);
+    await expect(
+      createActivitySyncCoordinator(api as never, local as never).sync(stored)
+    ).resolves.toEqual({
+      session: stored
+    });
+    expect(api.createActivity).not.toHaveBeenCalled();
+  });
+
+  it('persists fetched detail lifecycle status through the refresh/apply path', async () => {
+    const stored = { ...session, remoteId: 'remote-1' };
     const api = {
-      createActivity: vi.fn().mockRejectedValue(new TypeError('Network request failed'))
+      activityStatus: vi.fn().mockResolvedValue({
+        id: 'remote-1',
+        status: 'derived',
+        summary: { distanceMeters: 100, durationSeconds: 60, pointCount: 2, privacyTrimmed: false },
+        geometry: null
+      })
     };
-    const result = await createActivitySyncCoordinator(api as never, recorder as never).sync(
-      session
+    const local = recorder(stored);
+    const result = await createActivitySyncCoordinator(api as never, local as never).refresh(
+      stored
     );
-    expect(recorder.markSyncFailure).toHaveBeenCalledOnce();
-    expect(result.session.state).toBe('failed');
+
+    expect(result?.status).toBe('derived');
+    expect(local.applyRemoteStatus).toHaveBeenCalledWith(stored, 'derived');
+    expect(stored).toMatchObject({ state: 'processed', remoteStatus: 'derived' });
+  });
+
+  it('does not turn unknown future server statuses into a local failure', async () => {
+    const stored = { ...session };
+    const api = {
+      createActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'received' }),
+      recoverActivitySync: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'future-status' }),
+      uploadActivityChunk: vi.fn(),
+      finalizeActivity: vi.fn()
+    };
+    const local = recorder(stored);
+    const result = await createActivitySyncCoordinator(api as never, local as never).sync(session);
+
+    expect(result.session.state).toBe('queued');
+    expect(local.markSyncFailure).not.toHaveBeenCalled();
   });
 });

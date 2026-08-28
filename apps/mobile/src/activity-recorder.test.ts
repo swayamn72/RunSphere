@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   ACTIVITY_RECORDER_SCHEMA_VERSION,
   acceptedSegment,
@@ -160,6 +160,50 @@ describe('activity recorder', () => {
     expect(calls.join(' ')).toContain('pause_reason');
     expect(calls.join(' ')).toContain('resume-anchor');
   });
+  it('adds nullable remote status metadata once without backfilling processed activity', async () => {
+    const database = new MemoryDatabase();
+    const calls: string[] = [];
+    let remoteStatusAdded = false;
+    database.getFirstAsync = async (sql) =>
+      sql === 'PRAGMA user_version' ? ({ user_version: 7 } as never) : null;
+    database.getAllAsync = async (sql) =>
+      (sql.includes('recorded_activities')
+        ? [{ name: 'id' }, ...(remoteStatusAdded ? [{ name: 'remote_status' }] : [])]
+        : []) as never;
+    database.execAsync = async (sql) => {
+      calls.push(sql);
+      if (sql.includes('ADD COLUMN remote_status')) remoteStatusAdded = true;
+    };
+
+    const recorder = createActivityRecorder(database);
+    await recorder.initialize();
+    await recorder.initialize();
+
+    expect(calls.filter((sql) => sql.includes('ADD COLUMN remote_status'))).toHaveLength(1);
+    expect(calls.join(' ')).toContain("remote_status TEXT CHECK (remote_status IN ('received'");
+    expect((await recorder.get(base.id, base.accountId))?.remoteStatus).toBeUndefined();
+  });
+  it('writes server lifecycle metadata with account-scoped predicates', async () => {
+    const database = new MemoryDatabase();
+    const run = vi.spyOn(database, 'runAsync');
+    const recorder = createActivityRecorder(database);
+    await recorder.setRemote(base.id, base.accountId, 'remote-1', 'received');
+    await recorder.setRemoteStatus(base.id, base.accountId, 'derived');
+
+    expect(run).toHaveBeenCalledWith(
+      expect.stringContaining('remote_id = ?, remote_status'),
+      'remote-1',
+      'received',
+      base.id,
+      base.accountId
+    );
+    expect(run).toHaveBeenCalledWith(
+      expect.stringContaining('remote_status = ? WHERE id = ? AND account_id = ?'),
+      'derived',
+      base.id,
+      base.accountId
+    );
+  });
   it('creates WAL-backed versioned account-scoped recording storage', async () => {
     const database = new MemoryDatabase();
     const recorder = createActivityRecorder(database);
@@ -230,6 +274,21 @@ describe('activity recorder', () => {
       acceptedSamples: 0,
       distanceMeters: 0
     });
+  });
+  it('rejects malformed altitude values before they can enter encrypted storage', async () => {
+    const database = new MemoryDatabase();
+    const recorder = createActivityRecorder(database);
+    await recorder.create({ ...base, state: 'active' });
+    await expect(
+      recorder.appendSample(base.id, base.accountId, {
+        recordedAt: base.startedAt,
+        latitude: 19.076,
+        longitude: 72.8777,
+        accuracy: 8,
+        altitude: Number.NaN
+      })
+    ).resolves.toBe(false);
+    expect(database.samples).toEqual([]);
   });
   it('classifies 50–100m samples as weak GPS while unknown accuracy is not retained', () => {
     expect(

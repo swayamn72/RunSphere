@@ -426,6 +426,15 @@ describePostgis('M1 PostGIS activity flow', () => {
         })
       ).json()
     ).toMatchObject({ status: 'received', missingSequences: [1] });
+    const pendingDetail = (
+      await app.inject({
+        method: 'GET',
+        url: `/v1/activities/${id}`,
+        headers: { authorization: `Bearer ${owner.accessToken}` }
+      })
+    ).json() as Record<string, unknown>;
+    expect(pendingDetail).not.toHaveProperty('geometry');
+    expect(pendingDetail).not.toHaveProperty('provenance');
     const middle = chunks[1]!;
     await app.inject({
       method: 'PUT',
