@@ -9,28 +9,58 @@
 
 ## Milestones
 
-| Milestone                                | Outcome                                                                                                | Key exit criteria                                                                                                                                                                              |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| M0 — Rulebook and foundations            | Product, privacy, architecture, ADRs, metrics/event schema, and MMR data contract agreed               | This documentation reviewed; no Android v1 or iOS v1.1 behavior contradicts approved decisions or design traceability.                                                                         |
-| M1 — Android v1 private-pilot foundation | Account eligibility, consent, local activity queue, server ingestion, validated/private saved activity | 18+ assertion; foreground location decline path; optional motion permission path; 200 m server trim; provenance; crash coordinate scrubber; offline reconciliation; gated synthetic test mode. |
-| M2 — Android v1 quest pilot              | Curated MMR quest supply and adaptive recommendations                                                  | POI/checkpoint provenance; closed/unavailable state; initial adaptation telemetry; field GPS/distance/battery study started; quest completion not dependent on photos.                         |
-| M3 — Android v1 territory pilot          | Optional 6–8 week season, enrollment and divisions                                                     | No-season and non-enrolled UI states; server H3 traversal; best-60-minute rule; fairness/concentration monitoring; security and abuse review; season rollback plan.                            |
-| M4 — Android v1 launch                   | MMR public Android release                                                                             | Android v1 gate table passes; baseline-freeze decisions documented; cost forecast ≤₹3,000/month; operational runbook and support flow approved.                                                |
-| M5 — iOS v1.1                            | iOS parity for approved v1 capabilities                                                                | iOS v1.1 gate table passes independently; permission, background behavior, privacy trim, offline/reconciliation, and season scoring parity verified.                                           |
+| Milestone                                | Outcome                                                                                                | Key exit criteria                                                                                                                                                                                                  |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| M0 — Rulebook and foundations            | Product, privacy, architecture, ADRs, metrics/event schema, and MMR data contract agreed               | This documentation reviewed; no Android v1 or iOS v1.1 behavior contradicts approved decisions or design traceability.                                                                                             |
+| M1 — Android v1 private-pilot foundation | Account eligibility, consent, local activity queue, server ingestion, validated/private saved activity | 18+ assertion; foreground location decline path; optional motion permission path; 200 m server trim; provenance; crash coordinate scrubber; offline reconciliation; gated synthetic test mode.                     |
+| M2 — Android v1 quest pilot              | Curated MMR quest supply and adaptive recommendations                                                  | POI/checkpoint provenance; closed/unavailable state; initial adaptation telemetry; field GPS/distance/battery study started; quest completion not dependent on photos.                                             |
+| M3 — Android v1 territory pilot          | Optional 6–8 week season, enrollment and divisions                                                     | No-season and non-enrolled UI states; server H3 traversal; best-60-minute rule; fairness/concentration monitoring; security and abuse review; season rollback plan.                                                |
+| M4 — Android v1 launch                   | MMR public Android release                                                                             | Android v1 gate table passes; baseline-freeze decisions documented; cost forecast sits in an approved operating band ([₹3,000 soft target](../docs/cost-model.md)); operational runbook and support flow approved. |
+| M5 — iOS v1.1                            | iOS parity for approved v1 capabilities                                                                | iOS v1.1 gate table passes independently; permission, background behavior, privacy trim, offline/reconciliation, and season scoring parity verified.                                                               |
+
+## Gamification rollout gates
+
+The expansion follows the sequence in [`gameplay.md`](gameplay.md). Each phase is
+gated independently; no later phase depends on shipping a rejected earlier one,
+and no gameplay feature ships before the account, notification, and legal
+foundations it needs.
+
+- **Foundation gate** — safe substrate: modular contracts/routes/jobs compile and
+  typecheck; migration applies cleanly and is reversible; event fan-out is
+  transactional; account email lifecycle, deletion, and export converge; staff
+  RBAC has least-privilege audit; no raw coordinates in analytics/logs; legal
+  versions and consent records exist.
+- **MVP gate** — no scoring from rejected/pending activity; deterministic caps
+  and resets; mutual-friend authorization; notification privacy; email
+  lifecycle; deletion/export coverage; no raw coordinates in analytics/logs;
+  private-beta abuse drill.
+- **Community gate** — moderation/report/block flows exercised; global
+  opt-in/privacy and club membership isolation proven; club and campaign audit
+  trails complete; unsubscribe/suppression proven; competition rules and
+  cancellation tested; forecast and observed spend sit in an approved operating
+  band.
+- **Territory gate** — physical-device field study complete; eligible-cell
+  capacity ≥10 cells per target participant; H3/privacy replay tests green;
+  top-10% and top-user concentration guardrails green; season rollback
+  rehearsed; base/growth forecasts, alerts, graceful controls, and any justified
+  overage approval are recorded.
+- **Public gate** — Android authenticated device matrix, accessibility, restore,
+  deletion, provider failure, abuse, fairness, and legal/store disclosures all
+  match actual behavior.
 
 ## Android v1 release gate
 
-| Gate                    | Acceptance condition                                                                                                                                             |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Product                 | Walk/run/hike activity, free activity, adaptive quest flow, and explicit quest unavailable state function in MMR. No photo upload UI/endpoint is enabled.        |
-| Eligibility and consent | Age assertion is mandatory; foreground location permission is requestable in context; denied location and denied optional motion paths are usable and tested.    |
-| Privacy                 | 200 m privacy zones are trimmed server-side; provenance record is written; exports/shares do not reveal trimmed geometry; crash reports are coordinate-scrubbed. |
-| Safety                  | Safety contacts use symmetric terms; delayed coarse sharing is opt-in, visibly delayed, capped, and revocable; no emergency-service claim.                       |
-| Activity quality        | Field study meets or explicitly revises the distance and battery freeze criteria in [architecture](architecture.md#gps-quality-load-and-distance-baselines).     |
-| Territory               | Only launch if M3 fair-scoring, division, concentration, and anti-abuse review are green. Otherwise ship quests without a season.                                |
-| Data                    | Published MMR catalog has reviewed provenance, checkpoint geometry, freshness, and closure handling.                                                             |
-| Operations              | Monthly forecast and observed steady-state spend are ≤₹3,000; alerts, restore test, deletion workflow, and support escalation are exercised.                     |
-| Reliability             | Automated unit/integration checks, staging smoke test, and production canary health checks are green; rollback is rehearsed.                                     |
+| Gate                    | Acceptance condition                                                                                                                                                                    |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Product                 | Walk/run/hike activity, free activity, adaptive quest flow, and explicit quest unavailable state function in MMR. No photo upload UI/endpoint is enabled.                               |
+| Eligibility and consent | Age assertion is mandatory; foreground location permission is requestable in context; denied location and denied optional motion paths are usable and tested.                           |
+| Privacy                 | 200 m privacy zones are trimmed server-side; provenance record is written; exports/shares do not reveal trimmed geometry; crash reports are coordinate-scrubbed.                        |
+| Safety                  | Safety contacts use symmetric terms; delayed coarse sharing is opt-in, visibly delayed, capped, and revocable; no emergency-service claim.                                              |
+| Activity quality        | Field study meets or explicitly revises the distance and battery freeze criteria in [architecture](architecture.md#gps-quality-load-and-distance-baselines).                            |
+| Territory               | Only launch if M3 fair-scoring, division, concentration, and anti-abuse review are green. Otherwise ship quests without a season.                                                       |
+| Data                    | Published MMR catalog has reviewed provenance, checkpoint geometry, freshness, and closure handling.                                                                                    |
+| Operations              | Monthly forecast and observed steady-state spend sit in an approved operating band (soft ₹3,000 target); alerts, restore test, deletion workflow, and support escalation are exercised. |
+| Reliability             | Automated unit/integration checks, staging smoke test, and production canary health checks are green; rollback is rehearsed.                                                            |
 
 ## iOS v1.1 release gate
 
@@ -43,7 +73,7 @@ iOS is not enabled merely because Android is live. Before iOS v1.1, verify all A
 5. delayed/coarse/revocable safety sharing and coordinate-scrubbed crash reporting;
 6. iOS battery and distance field-study results meeting the frozen target or a documented, reviewed platform-specific replacement;
 7. App Store privacy disclosures matching the actual collection/retention design;
-8. cumulative operating forecast remaining within ₹3,000/month, or a separately approved budget change.
+8. cumulative operating forecast remaining within an approved operating band (soft ₹3,000 target), or a separately approved budget change.
 
 ## Frequent green push protocol
 

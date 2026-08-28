@@ -1,8 +1,14 @@
 # Product and gameplay rulebook
 
-**Status:** Approved product decisions for v1 / v1.1 planning  
+**Status:** Approved product decisions for v1 / v1.1 planning and the gamified expansion
 **Market:** Mumbai Metropolitan Region (MMR)  
 **Audience:** Adults only (18+)
+
+The gamification expansion — progression, achievements, weekly consistency,
+friend challenges, clubs, opt-in leaderboards, scheduled competitions, and
+territory — is codified in [`gameplay.md`](gameplay.md). This document retains
+the core loop, quests, and the summary of territory seasons; the full season
+rules live in [ADR-0008](adr/0008-seasonal-territory-weekly-resets.md).
 
 ## Product promise
 
@@ -75,6 +81,8 @@ Territory is an **optional** competitive mode. Seasons run for a published 6–8
 - Time outside the best 60-minute window can remain in the person’s private activity history but adds no territory score that day.
 - A minimum quality requirement applies equally to all: GPS samples must satisfy the published accuracy, continuity, and anti-spoof checks. Failure produces a non-punitive “not eligible for territory” result with a reason.
 - No individual live location, raw trace, or exact start/finish is exposed by territory maps or leaderboards.
+- A participant contributes at most once per cell per local day, up to a published daily eligible-cell cap. Season ladder points use capped control-days, not uncapped cell volume.
+- Cells reset to unclaimed each week while season points and cosmetic ladder progress continue. Weekly cell control is recomputed into immutable snapshots; upload or worker order never decides control. See [ADR-0008](adr/0008-seasonal-territory-weekly-resets.md).
 
 ### Divisions and winner concentration
 

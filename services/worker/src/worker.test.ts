@@ -4,6 +4,7 @@ import type { Logger } from '@runsphere/observability';
 import {
   convergeAccountDeletion,
   processMaintenance,
+  processNextDelivery,
   purgeExpiredRawTraces,
   startWorker
 } from './worker.js';
@@ -86,6 +87,66 @@ describe('privacy maintenance', () => {
     };
     await expect(processMaintenance(database as never)).resolves.toBe(1);
     expect(calls).toEqual(['purge:start', 'purge:end', 'delete', 'expire']);
+  });
+});
+
+describe('processNextDelivery', () => {
+  it('claims and completes a fan-out event through the injected delivery handler', async () => {
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          id: 'event-id',
+          topic: 'notification.created',
+          aggregate_id: 'notification-id',
+          payload: { kind: 'friend_request' }
+        }
+      ]
+    });
+    const delivered: Array<{ topic: string; aggregateId: string; payload: unknown }> = [];
+    const db = { query } as never;
+
+    const handled = await processNextDelivery(db, async (topic, aggregateId, payload) => {
+      delivered.push({ topic, aggregateId, payload });
+    });
+
+    expect(handled).toBe(true);
+    expect(delivered).toEqual([
+      {
+        topic: 'notification.created',
+        aggregateId: 'notification-id',
+        payload: { kind: 'friend_request' }
+      }
+    ]);
+    expect(query.mock.calls[0]![0]).toContain('topic = ANY($1::text[])');
+    expect(query.mock.calls[1]![0]).toContain('SET processed_at = now()');
+  });
+
+  it('returns false when no fan-out event is pending', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    await expect(processNextDelivery({ query } as never)).resolves.toBe(false);
+  });
+
+  it('records a failure without marking the event processed', async () => {
+    const query = vi.fn().mockResolvedValueOnce({
+      rows: [
+        {
+          id: 'event-id',
+          topic: 'email.transactional',
+          aggregate_id: 'request-id',
+          payload: { kind: 'deletion_verify' }
+        }
+      ]
+    });
+    const db = { query } as never;
+
+    await expect(
+      processNextDelivery(db, async () => {
+        throw new Error('provider unavailable');
+      })
+    ).resolves.toBe(true);
+
+    expect(query.mock.calls[1]![0]).toContain('last_error = $2');
+    expect(query.mock.calls[1]![0]).toContain('failed_at = CASE');
   });
 });
 

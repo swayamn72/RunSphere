@@ -71,6 +71,10 @@ import {
 import { sha256, withTransaction, type Database } from '@runsphere/db';
 import Fastify, { type FastifyBaseLogger, type FastifyRequest } from 'fastify';
 import { chunkHash } from './activity.js';
+import { registerGamificationRoutes } from './gamification-routes.js';
+import { registerAccountLifecycleRoutes } from './account-routes.js';
+import { registerProgressionRoutes } from './progression-routes.js';
+import { registerAchievementRoutes } from './achievement-routes.js';
 import {
   hashPassword,
   issueSession,
@@ -566,6 +570,7 @@ export const buildApp = ({
           response: {
             202: EmailVerificationRequestResponseSchema,
             401: ErrorResponseSchema,
+            429: ErrorResponseSchema,
             503: ErrorResponseSchema
           }
         }
@@ -574,6 +579,8 @@ export const buildApp = ({
         if (!database) return reply.code(503).send({ message: 'Service unavailable' });
         const accountId = requireAccount(request, reply, authSecret);
         if (!accountId) return;
+        if (!allowAuthAttempt(`email-verification:${accountId}`))
+          return reply.code(429).send({ message: 'Too many attempts' });
         const verification = await database.query<{ token: string }>(
           `INSERT INTO email_verification_tokens (account_id, token_hash, expires_at)
            SELECT id, encode(digest($2, 'sha256'), 'hex'), now() + $3::interval
@@ -1573,6 +1580,12 @@ export const buildApp = ({
           : reply.code(404).send({ message: 'Activity not found' });
       }
     );
+
+    registerGamificationRoutes({ routes, database, authSecret });
+    registerAccountLifecycleRoutes({ routes, database, authSecret });
+    registerProgressionRoutes({ routes, database, authSecret });
+    registerAchievementRoutes({ routes, database, authSecret });
+
     done();
   });
   return app;
