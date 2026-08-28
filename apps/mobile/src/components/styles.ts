@@ -556,7 +556,13 @@ export const styles = StyleSheet.create({
     marginBottom: 8,
     padding: 14
   },
-  settingsHint: { color: colors.muted, fontSize: 12, lineHeight: 17, paddingHorizontal: 15, paddingTop: 7 },
+  settingsHint: {
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 17,
+    paddingHorizontal: 15,
+    paddingTop: 7
+  },
   settingStack: { padding: 15 },
   checkpoint: {
     alignItems: 'center',

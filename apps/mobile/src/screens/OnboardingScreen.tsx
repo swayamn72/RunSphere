@@ -279,9 +279,9 @@ export function Onboarding({
             <Text style={styles.eyebrow}>YOU’RE IN CONTROL</Text>
             <Text style={styles.onboardingTitle}>Set up your activity map.</Text>
             <Text style={styles.lead}>
-              Precise location records your activity. GPS samples are encrypted on this device,
-              then uploaded for server validation when you choose to sync. Raw submitted GPS is
-              retained for up to 30 days; eligible maps are trimmed around saved privacy zones.
+              Precise location records your activity. GPS samples are encrypted on this device, then
+              uploaded for server validation when you choose to sync. Raw submitted GPS is retained
+              for up to 30 days; eligible maps are trimmed around saved privacy zones.
             </Text>
             <PermissionCard
               icon="⌖"
@@ -305,7 +305,8 @@ export function Onboarding({
               <View style={styles.flexCopy}>
                 <Text style={styles.rowTitle}>Trim saved places</Text>
                 <Text style={styles.rowDetail}>
-                  Saved privacy zones remove start, finish, and route fragments within 200 m before a map can be shared
+                  Saved privacy zones remove start, finish, and route fragments within 200 m before
+                  a map can be shared
                 </Text>
               </View>
               <Switch
@@ -316,8 +317,8 @@ export function Onboarding({
               />
             </View>
             <Text style={styles.privateNote}>
-              Activities stay private by default. Declining location still lets you browse RunSphere,
-              but activity recording and nearby quests remain unavailable.
+              Activities stay private by default. Declining location still lets you browse
+              RunSphere, but activity recording and nearby quests remain unavailable.
             </Text>
             {state.location !== 'granted' ? (
               <PrimaryButton label="Allow location" onPress={() => void requestLocation()} />

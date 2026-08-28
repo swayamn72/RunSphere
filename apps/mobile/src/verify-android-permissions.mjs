@@ -23,10 +23,16 @@ const required = new Set([
 const verifyPermissions = (permissions, source, exact) => {
   const prohibited = permissions.filter((permission) => blocked.has(permission));
   if (prohibited.length)
-    throw new Error(`${source} has prohibited Android permissions: ${[...new Set(prohibited)].join(', ')}`);
+    throw new Error(
+      `${source} has prohibited Android permissions: ${[...new Set(prohibited)].join(', ')}`
+    );
   if (exact) {
     const unexpected = permissions.filter((permission) => !required.has(permission));
-    if (unexpected.length || permissions.length !== required.size || [...required].some((permission) => !permissions.includes(permission)))
+    if (
+      unexpected.length ||
+      permissions.length !== required.size ||
+      [...required].some((permission) => !permissions.includes(permission))
+    )
       throw new Error(`${source} Android permission allowlist mismatch: ${permissions.join(', ')}`);
   }
 };
@@ -42,11 +48,17 @@ verifyPermissions(manifestPermissions, 'Source manifest', true);
 try {
   await access(apkUrl);
 } catch {
-  globalThis.console.log(`Verified Android source permission allowlist: ${manifestPermissions.join(', ')}`);
+  globalThis.console.log(
+    `Verified Android source permission allowlist: ${manifestPermissions.join(', ')}`
+  );
   process.exit(0);
 }
 
 const { stdout } = await execFile('aapt', ['dump', 'permissions', apkUrl.pathname]);
-const apkPermissions = [...stdout.matchAll(/uses-permission: name='([^']+)'/g)].map((match) => match[1]);
+const apkPermissions = [...stdout.matchAll(/uses-permission: name='([^']+)'/g)].map(
+  (match) => match[1]
+);
 verifyPermissions(apkPermissions, 'Debug APK', false);
-globalThis.console.log(`Verified debug APK excludes blocked permissions: ${[...blocked].join(', ')}`);
+globalThis.console.log(
+  `Verified debug APK excludes blocked permissions: ${[...blocked].join(', ')}`
+);

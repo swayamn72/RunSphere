@@ -24,7 +24,7 @@ Raw GPS is sensitive operational data. The client records only while an activity
 
 ## Android encrypted-storage upgrade
 
-Activity databases are opened with `PRAGMA key` before *any* schema or data access. The upgrade re-keys legacy local account partitions (the historic token-hash scope and the prior `account:<UUID>` scope) to the server account UUID by updating the encrypted database in place—there is no plaintext database copy. Before completing the migration, the recorder compares source/destination row counts and a deterministic checksum of stable row fields; any mismatch aborts recovery.
+Activity databases are opened with `PRAGMA key` before _any_ schema or data access. The upgrade re-keys legacy local account partitions (the historic token-hash scope and the prior `account:<UUID>` scope) to the server account UUID by updating the encrypted database in place—there is no plaintext database copy. Before completing the migration, the recorder compares source/destination row counts and a deterministic checksum of stable row fields; any mismatch aborts recovery.
 
 SQLCipher is enabled through the Expo SQLite config plugin and therefore applies app-wide to every database opened through `expo-sqlite`, not only the activity recorder. A native rebuild is required after changing this plugin setting, and every app-owned Expo SQLite database must be opened with its own key before it is accessed. Do not add a new `expo-sqlite` database without registering and testing its key lifecycle.
 

@@ -107,7 +107,11 @@ export class MobileApiClient {
     return ((await response.json()) as { data: QuestSummary[] }).data;
   }
   async getQuest(id: string): Promise<QuestDetail> {
-    return this.request<QuestDetail>(`/v1/quests/${encodeURIComponent(id)}`, { method: 'GET' }, false);
+    return this.request<QuestDetail>(
+      `/v1/quests/${encodeURIComponent(id)}`,
+      { method: 'GET' },
+      false
+    );
   }
   async getWeeklyGoal(): Promise<WeeklyGoalResponse> {
     return this.request('/v1/goals/weekly', { method: 'GET' });
@@ -125,8 +129,11 @@ export class MobileApiClient {
     await this.request('/v1/account/email-verification', { method: 'POST' });
   }
   async listSafetyContacts(): Promise<readonly SafetyContactResponse[]> {
-    return (await this.request<{ data: SafetyContactResponse[] }>('/v1/safety-contacts', { method: 'GET' }))
-      .data;
+    return (
+      await this.request<{ data: SafetyContactResponse[] }>('/v1/safety-contacts', {
+        method: 'GET'
+      })
+    ).data;
   }
   async inviteSafetyContact(contact: SafetyContactRequest): Promise<SafetyContactResponse> {
     return this.request('/v1/safety-contacts', { method: 'POST', body: contact });
@@ -138,7 +145,10 @@ export class MobileApiClient {
     return this.request('/v1/safety-shares', { method: 'POST', body: share });
   }
   async stopSafetyShare(id: string): Promise<void> {
-    await this.request(`/v1/safety-shares/${encodeURIComponent(id)}`, { method: 'DELETE', empty: true });
+    await this.request(`/v1/safety-shares/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      empty: true
+    });
   }
   async readDelayedSafetyShare(id: string): Promise<SafetyShareReadResponse> {
     return this.request(`/v1/safety-shares/${encodeURIComponent(id)}/updates`, { method: 'GET' });
@@ -184,7 +194,8 @@ export class MobileApiClient {
     );
   }
   async listActivities(): Promise<ActivityStatus[]> {
-    return (await this.request<{ data: ActivityStatus[] }>('/v1/activities', { method: 'GET' })).data;
+    return (await this.request<{ data: ActivityStatus[] }>('/v1/activities', { method: 'GET' }))
+      .data;
   }
   async deleteActivity(id: string): Promise<void> {
     await this.request(`/v1/activities/${id}`, { method: 'DELETE', empty: true });

@@ -154,12 +154,10 @@ export function ActivityRecording({
     if (!['active', 'resumed'].includes(current.state)) return;
     const { id } = current;
     const interval = setInterval(() => {
-      void activityRecorder
-        .heartbeat(id, accountId, new Date().toISOString())
-        .then(async () => {
-          const fresh = await activityRecorder.get(id, accountId);
-          if (fresh) setCurrent(fresh);
-        });
+      void activityRecorder.heartbeat(id, accountId, new Date().toISOString()).then(async () => {
+        const fresh = await activityRecorder.get(id, accountId);
+        if (fresh) setCurrent(fresh);
+      });
     }, 15_000);
     return () => clearInterval(interval);
   }, [accountId, current.id, current.state]);
@@ -406,7 +404,9 @@ export function ActivityHistory({
           <Text style={styles.noticeIcon}>⌁</Text>
           <View style={styles.flexCopy}>
             <Text style={styles.noticeTitle}>No activities yet</Text>
-            <Text style={styles.noticeCopy}>Your completed activities will appear here privately.</Text>
+            <Text style={styles.noticeCopy}>
+              Your completed activities will appear here privately.
+            </Text>
           </View>
         </View>
       )}

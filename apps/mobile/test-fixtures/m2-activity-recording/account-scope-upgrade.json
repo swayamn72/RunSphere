@@ -3,7 +3,11 @@
   "serverAccountId": "8e7b0924-12fe-48d7-9bca-2ab3c055fa10",
   "activities": [
     { "id": "upgrade-fixture-1", "updatedAt": "2026-08-28T06:00:00Z", "remoteId": null },
-    { "id": "upgrade-fixture-2", "updatedAt": "2026-08-28T06:01:00Z", "remoteId": "423cb44f-a4d8-4111-9645-22995e505f30" }
+    {
+      "id": "upgrade-fixture-2",
+      "updatedAt": "2026-08-28T06:01:00Z",
+      "remoteId": "423cb44f-a4d8-4111-9645-22995e505f30"
+    }
   ],
   "expected": "all rows move in place before any encrypted copy; source count is zero and destination count/checksum match"
 }

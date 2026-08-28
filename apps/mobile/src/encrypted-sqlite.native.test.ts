@@ -6,7 +6,9 @@ const setItem = vi.fn<(key: string, value: string) => void>();
 vi.mock('expo-secure-store', () => ({ getItem, setItem }));
 
 const cipherQueries: string[] = [];
-const getFirstAsync: SqlCipherDatabase['getFirstAsync'] = async <T>(sql: string): Promise<T | null> => {
+const getFirstAsync: SqlCipherDatabase['getFirstAsync'] = async <T>(
+  sql: string
+): Promise<T | null> => {
   cipherQueries.push(sql);
   if (sql === 'PRAGMA cipher_version') return { cipher_version: '4.6.0' } as T;
   return null;
@@ -55,7 +57,9 @@ describe('encrypted Expo SQLite setup', () => {
     await expect(
       prepareEncryptedDatabase(unreadableDatabase, 'runsphere.test.sqlcipher-key.v1')
     ).rejects.toThrow('cannot be recovered');
-    expect(unreadableDatabase.execAsync).not.toHaveBeenCalledWith(expect.stringContaining('PRAGMA rekey'));
+    expect(unreadableDatabase.execAsync).not.toHaveBeenCalledWith(
+      expect.stringContaining('PRAGMA rekey')
+    );
     expect(setItem).not.toHaveBeenCalled();
   });
 
