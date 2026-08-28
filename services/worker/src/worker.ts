@@ -139,6 +139,52 @@ export const processNextActivity = async (db: Database): Promise<boolean> => {
   }
   return true;
 };
+export type DeliveryHandler = (
+  topic: string,
+  aggregateId: string,
+  payload: unknown
+) => Promise<void>;
+
+const deliveryTopics = ['notification.created', 'email.transactional'] as const;
+
+// Push (FCM) and transactional email providers are a gated dependency: the
+// Foundation gate proves inbox -> outbox -> worker end to end, but real
+// delivery is wired in later. This default no-ops rather than dropping events.
+const deferredDelivery: DeliveryHandler = (_topic, _aggregateId, _payload) => Promise.resolve();
+
+export const processNextDelivery = async (
+  db: Database,
+  deliver: DeliveryHandler = deferredDelivery
+): Promise<boolean> => {
+  const event = await db.query<{
+    id: string;
+    topic: string;
+    aggregate_id: string;
+    payload: unknown;
+  }>(
+    `UPDATE outbox_events SET claimed_at = now(), attempts = attempts + 1, last_error = NULL
+     WHERE id = (SELECT event.id FROM outbox_events event
+       WHERE event.topic = ANY($1::text[]) AND event.processed_at IS NULL AND event.failed_at IS NULL AND event.attempts < $2
+       AND (event.claimed_at IS NULL OR event.claimed_at < now() - $3::interval)
+       ORDER BY event.created_at FOR UPDATE OF event SKIP LOCKED LIMIT 1)
+     RETURNING id, topic, aggregate_id, payload`,
+    [deliveryTopics, maxAttempts, `${staleClaimSeconds} seconds`]
+  );
+  if (!event.rows[0]) return false;
+  try {
+    await deliver(event.rows[0].topic, event.rows[0].aggregate_id, event.rows[0].payload);
+    await db.query('UPDATE outbox_events SET processed_at = now() WHERE id = $1', [
+      event.rows[0].id
+    ]);
+  } catch (error) {
+    await db.query(
+      'UPDATE outbox_events SET claimed_at = NULL, last_error = $2, failed_at = CASE WHEN attempts >= $3 THEN now() ELSE NULL END WHERE id = $1',
+      [event.rows[0].id, safeWorkerError(error), maxAttempts]
+    );
+  }
+  return true;
+};
+
 export const startWorker = (logger: Logger = createLogger('worker')): WorkerStartupResult => {
   const result: WorkerStartupResult = { service: 'worker', status: 'ready', queuedJobs: 0 };
   logger.info('worker.started', { ...result });
@@ -154,7 +200,9 @@ export const runWorker = async (): Promise<void> => {
     do {
       try {
         await processMaintenance(db);
-        if (!(await processNextActivity(db))) await sleep(pollMilliseconds);
+        const hadActivity = await processNextActivity(db);
+        const hadDelivery = await processNextDelivery(db);
+        if (!hadActivity && !hadDelivery) await sleep(pollMilliseconds);
       } catch (error) {
         logger.error('worker.iteration_failed', { error: safeWorkerError(error) });
         if (!once) await sleep(pollMilliseconds);
