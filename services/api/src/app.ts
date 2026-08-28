@@ -303,7 +303,8 @@ export const buildApp = ({
           response: {
             201: ActivityStatusResponseSchema,
             200: ActivityStatusResponseSchema,
-            401: ErrorResponseSchema
+            401: ErrorResponseSchema,
+            409: ErrorResponseSchema
           }
         }
       },
@@ -312,19 +313,28 @@ export const buildApp = ({
         const accountId = requireAccount(request, reply, authSecret);
         if (!accountId) return;
         const key = request.headers['idempotency-key']!;
+        const fingerprint = sha256(JSON.stringify({ movementType: request.body.movementType }));
         const insert = await database.query<{ id: string; status: 'received' }>(
-          'INSERT INTO activity_submissions (account_id, idempotency_key, movement_type) VALUES ($1, $2, $3) ON CONFLICT (account_id, idempotency_key) DO NOTHING RETURNING id, status',
-          [accountId, key, request.body.movementType]
+          `INSERT INTO activity_submissions (account_id, idempotency_key, movement_type, request_fingerprint)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (account_id, idempotency_key) DO NOTHING RETURNING id, status`,
+          [accountId, key, request.body.movementType, fingerprint]
         );
-        const current =
-          insert.rows[0] ??
-          (
-            await database.query<{ id: string; status: 'received' }>(
-              'SELECT id, status FROM activity_submissions WHERE account_id = $1 AND idempotency_key = $2',
-              [accountId, key]
-            )
-          ).rows[0]!;
-        return reply.code(insert.rows.length ? 201 : 200).send(current);
+        if (insert.rows[0]) return reply.code(201).send(insert.rows[0]);
+        const current = await database.query<{
+          id: string;
+          status: 'received';
+          request_fingerprint: string;
+        }>(
+          'SELECT id, status, request_fingerprint FROM activity_submissions WHERE account_id = $1 AND idempotency_key = $2',
+          [accountId, key]
+        );
+        if (!current.rows[0] || current.rows[0].request_fingerprint !== fingerprint) {
+          return reply
+            .code(409)
+            .send({ message: 'Idempotency key was used with a different request' });
+        }
+        return reply.code(200).send(current.rows[0]);
       }
     );
 

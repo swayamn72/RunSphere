@@ -35,14 +35,49 @@ describePostgis('M1 PostGIS activity flow', () => {
     });
     expect(register.statusCode).toBe(201);
     const auth = register.json() as { accessToken: string; refreshToken: string };
+    const idempotencyKey = randomUUID();
     const activity = await app.inject({
       method: 'POST',
       url: '/v1/activities',
-      headers: { authorization: `Bearer ${auth.accessToken}`, 'idempotency-key': randomUUID() },
+      headers: { authorization: `Bearer ${auth.accessToken}`, 'idempotency-key': idempotencyKey },
       payload: { movementType: 'walk' }
     });
     expect(activity.statusCode).toBe(201);
     const id = (activity.json() as { id: string }).id;
+    const replay = await app.inject({
+      method: 'POST',
+      url: '/v1/activities',
+      headers: { authorization: `Bearer ${auth.accessToken}`, 'idempotency-key': idempotencyKey },
+      payload: { movementType: 'walk' }
+    });
+    expect(replay.statusCode).toBe(200);
+    expect((replay.json() as { id: string }).id).toBe(id);
+    const alteredReplay = await app.inject({
+      method: 'POST',
+      url: '/v1/activities',
+      headers: { authorization: `Bearer ${auth.accessToken}`, 'idempotency-key': idempotencyKey },
+      payload: { movementType: 'run' }
+    });
+    expect(alteredReplay.statusCode).toBe(409);
+    const concurrentKey = randomUUID();
+    const concurrent = await Promise.all([
+      app.inject({
+        method: 'POST',
+        url: '/v1/activities',
+        headers: { authorization: `Bearer ${auth.accessToken}`, 'idempotency-key': concurrentKey },
+        payload: { movementType: 'hike' }
+      }),
+      app.inject({
+        method: 'POST',
+        url: '/v1/activities',
+        headers: { authorization: `Bearer ${auth.accessToken}`, 'idempotency-key': concurrentKey },
+        payload: { movementType: 'hike' }
+      })
+    ]);
+    expect(concurrent.map((response) => response.statusCode).sort()).toEqual([200, 201]);
+    expect((concurrent[0].json() as { id: string }).id).toBe(
+      (concurrent[1].json() as { id: string }).id
+    );
     const chunk = {
       sequence: 0,
       points: [
