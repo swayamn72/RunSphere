@@ -76,8 +76,7 @@ export const validateTrace = (points: TracePoint[]): ValidationOutput => {
     rejectedGapCount
   };
 };
-export const summarize = (points: TracePoint[]) => {
-  const validation = validateTrace(points);
+export const summarize = (points: TracePoint[], validation = validateTrace(points)) => {
   return {
     distanceMeters: validation.distanceMeters,
     durationSeconds: validation.activeDurationSeconds,
@@ -147,7 +146,10 @@ export const processActivity = async (db: Database, activityId: string): Promise
     : null;
   const appliedZones = trim.rows[0]?.applied_zones ?? [];
   const validation = validateTrace(points);
-  const summary = { ...summarize(points), privacyTrimmed: keptIndexes.size !== points.length };
+  const summary = {
+    ...summarize(points, validation),
+    privacyTrimmed: keptIndexes.size !== points.length
+  };
   await db.query(
     `INSERT INTO activity_derivations (activity_id, shareable_route, source_checksum, route_checksum, policy_version, algorithm_version, applied_zone_ids, applied_zones, removed_point_count, outcome)
      SELECT $1, CASE WHEN $2::jsonb IS NULL THEN NULL ELSE ST_SetSRID(ST_GeomFromGeoJSON($2), 4326) END,

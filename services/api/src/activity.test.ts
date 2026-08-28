@@ -22,6 +22,21 @@ describe('canonical activity summaries', () => {
     });
   });
 
+  it('reuses a supplied validation result when creating the authoritative summary', () => {
+    const validation = {
+      activeDurationSeconds: 42,
+      distanceMeters: 123,
+      acceptedPointCount: 2,
+      rejectedPointCount: 0,
+      rejectedGapCount: 0
+    };
+    expect(summarize(points, validation)).toMatchObject({
+      distanceMeters: 123,
+      durationSeconds: 42,
+      pointCount: 2
+    });
+  });
+
   it('uses shared canonical JSON for replay-stable chunk checksums', () => {
     expect(chunkHash({ sequence: 0, points })).toBe(chunkHash({ points, sequence: 0 }));
   });

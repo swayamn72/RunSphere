@@ -1,4 +1,4 @@
-import { createDatabase, defaultDatabaseUrl, migrate, type Database } from '@runsphere/db';
+import { createDatabase, defaultDatabaseUrl, migrate, withTransaction, type Database } from '@runsphere/db';
 import { createLogger, type Logger } from '@runsphere/observability';
 import { processActivity } from '@runsphere/api/activity';
 
@@ -42,38 +42,46 @@ export const convergeAccountDeletion = async (db: Database): Promise<number> => 
      ORDER BY deletion_requested_at LIMIT 25`
   );
   for (const account of accounts.rows) {
-    await db.query(
-      `INSERT INTO account_deletion_tombstones (account_id, deleted_at)
-       VALUES ($1, now()) ON CONFLICT (account_id) DO NOTHING`,
-      [account.id]
-    );
-    await db.query(
-      `DELETE FROM outbox_events WHERE aggregate_id IN
-       (SELECT id FROM activity_submissions WHERE account_id = $1)`,
-      [account.id]
-    );
-    await db.query('DELETE FROM activity_submissions WHERE account_id = $1', [account.id]);
-    await db.query(
-      `DELETE FROM safety_share_updates WHERE share_session_id IN
-       (SELECT id FROM safety_share_sessions WHERE account_id = $1)`,
-      [account.id]
-    );
-    await db.query('DELETE FROM safety_share_sessions WHERE account_id = $1', [account.id]);
-    await db.query('DELETE FROM safety_contacts WHERE account_id = $1', [account.id]);
-    await db.query('DELETE FROM account_export_requests WHERE account_id = $1', [account.id]);
-    await db.query('DELETE FROM data_export_requests WHERE account_id = $1', [account.id]);
-    await db.query('DELETE FROM account_deletion_requests WHERE account_id = $1', [account.id]);
-    await db.query(
-      'DELETE FROM account_audit_events WHERE account_id = $1 OR actor_account_id = $1',
-      [account.id]
-    );
-    await db.query(
-      'DELETE FROM privacy_audit_events WHERE account_id = $1 OR actor_account_id = $1',
-      [account.id]
-    );
-    await db.query('DELETE FROM privacy_zones WHERE account_id = $1', [account.id]);
-    await db.query('DELETE FROM consent_history WHERE account_id = $1', [account.id]);
-    await db.query('DELETE FROM accounts WHERE id = $1', [account.id]);
+    await withTransaction(db, async (client) => {
+      const owned = await client.query<{ id: string }>(
+        `SELECT id FROM accounts WHERE id = $1 AND deletion_requested_at IS NOT NULL
+         AND deleted_at IS NULL FOR UPDATE`,
+        [account.id]
+      );
+      if (!owned.rows[0]) return;
+      await client.query(
+        `INSERT INTO account_deletion_tombstones (account_id, deleted_at)
+         VALUES ($1, now()) ON CONFLICT (account_id) DO NOTHING`,
+        [account.id]
+      );
+      await client.query(
+        `DELETE FROM outbox_events WHERE aggregate_id IN
+         (SELECT id FROM activity_submissions WHERE account_id = $1)`,
+        [account.id]
+      );
+      await client.query('DELETE FROM activity_submissions WHERE account_id = $1', [account.id]);
+      await client.query(
+        `DELETE FROM safety_share_updates WHERE share_session_id IN
+         (SELECT id FROM safety_share_sessions WHERE account_id = $1)`,
+        [account.id]
+      );
+      await client.query('DELETE FROM safety_share_sessions WHERE account_id = $1', [account.id]);
+      await client.query('DELETE FROM safety_contacts WHERE account_id = $1', [account.id]);
+      await client.query('DELETE FROM account_export_requests WHERE account_id = $1', [account.id]);
+      await client.query('DELETE FROM data_export_requests WHERE account_id = $1', [account.id]);
+      await client.query('DELETE FROM account_deletion_requests WHERE account_id = $1', [account.id]);
+      await client.query(
+        'DELETE FROM account_audit_events WHERE account_id = $1 OR actor_account_id = $1',
+        [account.id]
+      );
+      await client.query(
+        'DELETE FROM privacy_audit_events WHERE account_id = $1 OR actor_account_id = $1',
+        [account.id]
+      );
+      await client.query('DELETE FROM privacy_zones WHERE account_id = $1', [account.id]);
+      await client.query('DELETE FROM consent_history WHERE account_id = $1', [account.id]);
+      await client.query('DELETE FROM accounts WHERE id = $1', [account.id]);
+    });
   }
   return accounts.rows.length;
 };
@@ -87,11 +95,10 @@ export const expireSafetyShares = async (db: Database): Promise<number> => {
 };
 
 export const processMaintenance = async (db: Database): Promise<number> => {
-  const [purgedTraces, deletedAccounts, expiredShares] = await Promise.all([
-    purgeExpiredRawTraces(db),
-    convergeAccountDeletion(db),
-    expireSafetyShares(db)
-  ]);
+  // Deletion can remove the same traces and share records touched by the other jobs.
+  const purgedTraces = await purgeExpiredRawTraces(db);
+  const deletedAccounts = await convergeAccountDeletion(db);
+  const expiredShares = await expireSafetyShares(db);
   return purgedTraces + deletedAccounts + expiredShares;
 };
 
