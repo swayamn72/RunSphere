@@ -40,6 +40,13 @@ describe('onboarding state machine', () => {
     const retry = onboardingReducer(denied, { type: 'retryLocation' });
     expect(retry).toMatchObject({ step: 'privacy', location: 'idle' });
     expect(onboardingReducer(denied, { type: 'back' }).step).toBe('privacy');
+
+    const blocked = onboardingReducer(retry, { type: 'setLocation', status: 'blocked' });
+    expect(blocked).toMatchObject({ step: 'location-denied', location: 'blocked' });
+    expect(onboardingReducer(blocked, { type: 'setLocation', status: 'granted' })).toMatchObject({
+      step: 'privacy',
+      location: 'granted'
+    });
   });
 
   it('updates only explicit account fields and restores a durable session to home', () => {

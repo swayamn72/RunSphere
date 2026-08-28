@@ -1,5 +1,5 @@
 export type MovementPreference = 'walk' | 'run' | 'hike';
-export type LocationStatus = 'idle' | 'granted' | 'denied';
+export type LocationStatus = 'idle' | 'granted' | 'denied' | 'blocked';
 export type MotionStatus = 'idle' | 'granted' | 'denied' | 'skipped';
 export type AccountMode = 'register' | 'login';
 
@@ -79,8 +79,8 @@ export const onboardingReducer = (
     case 'setHideStartFinish':
       return { ...state, hideStartFinish: action.value };
     case 'setLocation':
-      if (action.status === 'denied')
-        return { ...state, location: 'denied', step: 'location-denied' };
+      if (action.status === 'denied' || action.status === 'blocked')
+        return { ...state, location: action.status, step: 'location-denied' };
       if (action.status === 'granted') return { ...state, location: 'granted', step: 'privacy' };
       return { ...state, location: 'idle' };
     case 'setMotion':

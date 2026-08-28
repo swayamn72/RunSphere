@@ -1,9 +1,11 @@
 import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
 import { Pedometer } from 'expo-sensors';
-import { useEffect, useReducer, useState } from 'react';
+import { useCallback, useEffect, useReducer, useState } from 'react';
 import {
   Alert,
+  AppState,
+  Linking,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -19,6 +21,7 @@ import { activityQueue } from './src/activity-queue.native';
 import { MobileApiClient } from './src/api-client';
 import { AuthFailure } from './src/auth-failure';
 import { authStorage } from './src/auth-storage.native';
+import { getLocationPermissionState } from './src/location-permission';
 import { homeModel } from './src/models';
 import {
   canSubmitAccount,
@@ -110,13 +113,42 @@ function Onboarding({
     }
     setAuthStatus('idle');
   };
+  const reconcileLocationPermission = useCallback(async () => {
+    const permission = await Location.getForegroundPermissionsAsync();
+    dispatch({ type: 'setLocation', status: getLocationPermissionState(permission) });
+    return permission;
+  }, [dispatch]);
   const requestLocation = async () => {
-    const permission = await Location.requestForegroundPermissionsAsync();
+    const currentPermission = await Location.getForegroundPermissionsAsync();
+    const currentStatus = getLocationPermissionState(currentPermission);
+
+    if (currentStatus === 'granted') {
+      dispatch({ type: 'setLocation', status: 'granted' });
+      return;
+    }
+    if (currentStatus === 'blocked') {
+      dispatch({ type: 'setLocation', status: 'blocked' });
+      await Linking.openSettings();
+      return;
+    }
+
+    const requestedPermission = await Location.requestForegroundPermissionsAsync();
     dispatch({
       type: 'setLocation',
-      status: permission.status === 'granted' ? 'granted' : 'denied'
+      status: getLocationPermissionState(requestedPermission)
     });
   };
+
+  useEffect(() => {
+    if (state.step !== 'privacy' && state.step !== 'location-denied') return;
+
+    void reconcileLocationPermission();
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') void reconcileLocationPermission();
+    });
+    return () => subscription.remove();
+  }, [reconcileLocationPermission, state.step]);
+
   const requestMotion = async () => {
     const permission = await Pedometer.requestPermissionsAsync();
     dispatch({ type: 'setMotion', status: permission.status === 'granted' ? 'granted' : 'denied' });
@@ -351,12 +383,14 @@ function Onboarding({
               Without location, activity mapping and nearby quests are unavailable. RunSphere never
               requests background location in this pilot, and it stores no GPS trace.
             </Text>
+            {state.location === 'blocked' && (
+              <Text style={styles.privateNote}>
+                Location is disabled for RunSphere. Enable it in Android Settings, then return here.
+              </Text>
+            )}
             <PrimaryButton
-              label="Try location again"
-              onPress={() => {
-                dispatch({ type: 'retryLocation' });
-                void requestLocation();
-              }}
+              label={state.location === 'blocked' ? 'Open location settings' : 'Try location again'}
+              onPress={() => void requestLocation()}
             />
             <Pressable
               accessibilityRole="button"
