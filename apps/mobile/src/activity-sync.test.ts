@@ -37,7 +37,7 @@ describe('activity sync coordinator', () => {
     const stored = { ...session };
     const api = {
       createActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'received' }),
-      activityStatus: vi
+      recoverActivitySync: vi
         .fn()
         .mockResolvedValue({ id: 'remote-1', status: 'received', missingSequences: [0] }),
       uploadActivityChunk: vi.fn(),
@@ -62,6 +62,7 @@ describe('activity sync coordinator', () => {
     const result = await createActivitySyncCoordinator(api as never, recorder as never).sync(
       session
     );
+    expect(api.recoverActivitySync).toHaveBeenCalledWith('remote-1', 1);
     expect(api.uploadActivityChunk).toHaveBeenCalledOnce();
     expect(api.finalizeActivity).toHaveBeenCalledWith('remote-1', samplesToChunks(samples));
     expect(result.session.state).toBe('queued');

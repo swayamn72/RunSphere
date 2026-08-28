@@ -19,6 +19,7 @@ export function ActivityPreparation({
 }) {
   const [movement, setMovement] = useState<MovementType>(initialMovement);
   const [busy, setBusy] = useState(false);
+  const [backgroundOptIn, setBackgroundOptIn] = useState(false);
   const begin = async () => {
     setBusy(true);
     try {
@@ -27,13 +28,15 @@ export function ActivityPreparation({
         Alert.alert('Location needed', 'Allow precise location to record an activity.');
         return;
       }
-      // This is intentionally the sole background-location request, initiated by the explicit recording action.
-      const background = await recordingLocationAdapter.requestBackgroundPermission();
-      if (!background.granted) {
-        Alert.alert(
-          'Screen-lock recording unavailable',
-          'Recording will stay active while RunSphere remains open.'
-        );
+      let backgroundGranted = false;
+      if (backgroundOptIn) {
+        const background = await recordingLocationAdapter.requestBackgroundPermission();
+        backgroundGranted = background.granted;
+        if (!backgroundGranted)
+          Alert.alert(
+            'Screen-lock recording unavailable',
+            'Recording will stay active while RunSphere remains open.'
+          );
       }
       const now = new Date().toISOString();
       const id = `activity-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -47,7 +50,7 @@ export function ActivityPreparation({
         lastHeartbeatAt: now
       });
       await activityRecorder.transition(id, accountId, 'prepare', 'acquiring', now);
-      if (background.granted) await recordingLocationAdapter.startBackground();
+      if (backgroundGranted) await recordingLocationAdapter.startBackground();
       await activityRecorder.transition(
         id,
         accountId,
@@ -66,9 +69,20 @@ export function ActivityPreparation({
       <Text style={styles.eyebrow}>START AN ACTIVITY</Text>
       <Text style={styles.recordTitle}>Move at your own pace.</Text>
       <Text style={styles.lead}>
-        Choose a movement. Location continues with a visible Android recording notification when you
-        allow screen-lock recording.
+        Foreground recording works while RunSphere is open. Screen-lock recording is an optional,
+        separate permission.
       </Text>
+      <Pressable
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: backgroundOptIn }}
+        onPress={() => setBackgroundOptIn((value) => !value)}
+        style={styles.checkRow}
+      >
+        <View style={[styles.checkbox, backgroundOptIn && styles.checkboxChecked]}>
+          {backgroundOptIn && <Text style={styles.checkMark}>✓</Text>}
+        </View>
+        <Text style={styles.checkCopy}>Keep recording when the screen locks</Text>
+      </Pressable>
       <View style={styles.choiceGrid}>
         {(['walk', 'run', 'hike'] as MovementType[]).map((type) => (
           <Pressable
@@ -128,7 +142,7 @@ export function ActivityRecording({
           current.id,
           accountId,
           new Date().toISOString(),
-          Math.floor((Date.now() - Date.parse(current.startedAt)) / 1000)
+          current.durationSeconds
         )
         .then(async () => {
           const fresh = await activityRecorder.get(current.id, accountId);
@@ -149,8 +163,7 @@ export function ActivityRecording({
   };
   const finish = async () => {
     const at = new Date().toISOString();
-    const durationSeconds = Math.floor((Date.now() - Date.parse(current.startedAt)) / 1000);
-    await activityRecorder.heartbeat(current.id, accountId, at, durationSeconds);
+    await activityRecorder.heartbeat(current.id, accountId, at, current.durationSeconds);
     await activityRecorder.transition(current.id, accountId, current.state, 'finishing', at);
     await activityRecorder.transition(
       current.id,
@@ -166,9 +179,7 @@ export function ActivityRecording({
       onChange(fresh);
     }
   };
-  const duration = formatDuration(
-    current.durationSeconds || Math.floor((Date.now() - Date.parse(current.startedAt)) / 1000)
-  );
+  const duration = formatDuration(current.durationSeconds);
   const pace =
     current.distanceMeters > 0
       ? formatDuration(Math.round(current.durationSeconds / (current.distanceMeters / 1000)))

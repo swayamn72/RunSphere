@@ -45,12 +45,14 @@ export interface RecorderDatabase {
   getAllAsync<T>(sql: string, ...params: unknown[]): Promise<T[]>;
 }
 
-export const ACTIVITY_RECORDER_SCHEMA_VERSION = 5;
+export const ACTIVITY_RECORDER_SCHEMA_VERSION = 6;
 export const MAX_SAMPLE_ACCURACY_METERS = 50;
-export const MAX_SEGMENT_SPEED_METERS_PER_SECOND = 12;
+export const MAX_SEGMENT_SPEED_METERS_PER_SECOND = 25_000 / 3_600;
+export const EXCLUDED_GAP_SECONDS = 60;
 
 export const activityRecorderSchema = `
   PRAGMA journal_mode = WAL;
+  PRAGMA foreign_keys = ON;
   CREATE TABLE IF NOT EXISTS recorded_activities (
     id TEXT PRIMARY KEY NOT NULL,
     account_id TEXT NOT NULL,
@@ -99,7 +101,7 @@ const rowToSession = (row: Record<string, unknown>): ActivitySession => ({
   syncError: (row.syncError as string | null) ?? undefined
 });
 
-const distanceBetween = (a: LocationSample, b: LocationSample): number => {
+export const distanceBetween = (a: LocationSample, b: LocationSample): number => {
   const radius = 6_371_000;
   const radians = Math.PI / 180;
   const latDelta = (b.latitude - a.latitude) * radians;
@@ -110,8 +112,27 @@ const distanceBetween = (a: LocationSample, b: LocationSample): number => {
   return radius * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
 };
 
+const elapsedSeconds = (earlier: string, later: string): number =>
+  Math.max(0, (Date.parse(later) - Date.parse(earlier)) / 1000);
+
 export const isUsableSample = (sample: LocationSample): boolean =>
   sample.accuracy !== null && sample.accuracy >= 0 && sample.accuracy <= MAX_SAMPLE_ACCURACY_METERS;
+
+export const acceptedSegment = (
+  previous: LocationSample | undefined,
+  sample: LocationSample
+): { distanceMeters: number; durationSeconds: number } => {
+  if (!previous) return { distanceMeters: 0, durationSeconds: 0 };
+  const elapsed = elapsedSeconds(previous.recordedAt, sample.recordedAt);
+  const distance = distanceBetween(previous, sample);
+  if (
+    elapsed <= 0 ||
+    elapsed > EXCLUDED_GAP_SECONDS ||
+    distance / Math.max(elapsed, 1) > MAX_SEGMENT_SPEED_METERS_PER_SECOND
+  )
+    return { distanceMeters: 0, durationSeconds: 0 };
+  return { distanceMeters: distance, durationSeconds: elapsed };
+};
 
 const canTransition = (from: RecordingState, to: RecordingState): boolean => {
   const transitions: Record<RecordingState, readonly RecordingState[]> = {
@@ -123,7 +144,7 @@ const canTransition = (from: RecordingState, to: RecordingState): boolean => {
     finishing: ['completed-local', 'failed'],
     'completed-local': ['queued', 'discarded'],
     queued: ['syncing', 'processed', 'discarded'],
-    syncing: ['processed', 'failed'],
+    syncing: ['processed', 'queued', 'failed'],
     processed: [],
     failed: ['queued', 'processed', 'discarded'],
     discarded: []
@@ -131,14 +152,27 @@ const canTransition = (from: RecordingState, to: RecordingState): boolean => {
   return transitions[from].includes(to);
 };
 
+const sessionSelect = `SELECT id, account_id AS accountId, movement_type AS movementType, state, started_at AS startedAt, updated_at AS updatedAt,
+  paused_at AS pausedAt, completed_at AS completedAt, duration_seconds AS durationSeconds, distance_meters AS distanceMeters,
+  accepted_samples AS acceptedSamples, last_heartbeat_at AS lastHeartbeatAt, remote_id AS remoteId, sync_error AS syncError FROM recorded_activities`;
+
+const migrationChecksum = (rows: readonly Pick<ActivitySession, 'id' | 'remoteId' | 'updatedAt'>[]): string => {
+  let hash = 2_166_136_261;
+  for (const character of rows
+    .map((row) => `${row.id}:${row.remoteId ?? ''}:${row.updatedAt}`)
+    .sort()
+    .join('|')) hash = Math.imul(hash ^ character.charCodeAt(0), 16_777_619);
+  return (hash >>> 0).toString(16);
+};
+
 export const createActivityRecorder = (database: RecorderDatabase) => ({
   async initialize(): Promise<void> {
     const version = await database.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
-    if ((version?.user_version ?? 0) > 0 && (version?.user_version ?? 0) < 5) {
+    const current = version?.user_version ?? 0;
+    if (current > 0 && current < 5)
       await database.execAsync(
         'ALTER TABLE recorded_activities ADD COLUMN remote_id TEXT; ALTER TABLE recorded_activities ADD COLUMN sync_error TEXT;'
       );
-    }
     await database.execAsync(activityRecorderSchema);
   },
   async create(
@@ -160,9 +194,7 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
   },
   async get(id: string, accountId: string): Promise<ActivitySession | undefined> {
     const row = await database.getFirstAsync<Record<string, unknown>>(
-      `SELECT id, account_id AS accountId, movement_type AS movementType, state, started_at AS startedAt, updated_at AS updatedAt,
-       paused_at AS pausedAt, completed_at AS completedAt, duration_seconds AS durationSeconds, distance_meters AS distanceMeters,
-       accepted_samples AS acceptedSamples, last_heartbeat_at AS lastHeartbeatAt, remote_id AS remoteId, sync_error AS syncError FROM recorded_activities WHERE id = ? AND account_id = ?`,
+      `${sessionSelect} WHERE id = ? AND account_id = ?`,
       id,
       accountId
     );
@@ -170,20 +202,14 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
   },
   async recover(accountId: string): Promise<ActivitySession | undefined> {
     const row = await database.getFirstAsync<Record<string, unknown>>(
-      `SELECT id, account_id AS accountId, movement_type AS movementType, state, started_at AS startedAt, updated_at AS updatedAt,
-       paused_at AS pausedAt, completed_at AS completedAt, duration_seconds AS durationSeconds, distance_meters AS distanceMeters,
-       accepted_samples AS acceptedSamples, last_heartbeat_at AS lastHeartbeatAt, remote_id AS remoteId, sync_error AS syncError FROM recorded_activities
-       WHERE account_id = ? AND state IN ('prepare', 'acquiring', 'active', 'paused', 'resumed', 'finishing') ORDER BY updated_at DESC LIMIT 1`,
+      `${sessionSelect} WHERE account_id = ? AND state IN ('prepare', 'acquiring', 'active', 'paused', 'resumed', 'finishing') ORDER BY updated_at DESC LIMIT 1`,
       accountId
     );
     return row ? rowToSession(row) : undefined;
   },
   async recoverAnyActive(): Promise<ActivitySession | undefined> {
     const row = await database.getFirstAsync<Record<string, unknown>>(
-      `SELECT id, account_id AS accountId, movement_type AS movementType, state, started_at AS startedAt, updated_at AS updatedAt,
-       paused_at AS pausedAt, completed_at AS completedAt, duration_seconds AS durationSeconds, distance_meters AS distanceMeters,
-       accepted_samples AS acceptedSamples, last_heartbeat_at AS lastHeartbeatAt, remote_id AS remoteId, sync_error AS syncError FROM recorded_activities
-       WHERE state IN ('active', 'resumed') ORDER BY updated_at DESC LIMIT 1`
+      `${sessionSelect} WHERE state IN ('active', 'resumed') ORDER BY updated_at DESC LIMIT 1`
     );
     return row ? rowToSession(row) : undefined;
   },
@@ -210,17 +236,11 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
     );
     return result.changes === 1;
   },
-  async heartbeat(
-    id: string,
-    accountId: string,
-    at: string,
-    durationSeconds: number
-  ): Promise<void> {
+  async heartbeat(id: string, accountId: string, at: string, durationSeconds: number): Promise<void> {
     await database.runAsync(
-      'UPDATE recorded_activities SET updated_at = ?, last_heartbeat_at = ?, duration_seconds = ? WHERE id = ? AND account_id = ?',
+      'UPDATE recorded_activities SET updated_at = ?, last_heartbeat_at = ? WHERE id = ? AND account_id = ?',
       at,
       at,
-      durationSeconds,
       id,
       accountId
     );
@@ -240,11 +260,9 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
       previous.longitude === sample.longitude
     )
       return false;
-    const segment = previous ? distanceBetween(previous, sample) : 0;
-    const elapsed = previous
-      ? Math.max(1, (Date.parse(sample.recordedAt) - Date.parse(previous.recordedAt)) / 1000)
-      : 1;
-    if (previous && segment / elapsed > MAX_SEGMENT_SPEED_METERS_PER_SECOND) return false;
+    const segment = acceptedSegment(previous ?? undefined, sample);
+    if (previous && segment.durationSeconds === 0 && elapsedSeconds(previous.recordedAt, sample.recordedAt) <= EXCLUDED_GAP_SECONDS)
+      return false;
     const inserted = await database.runAsync(
       'INSERT OR IGNORE INTO activity_location_samples (activity_id, recorded_at, latitude, longitude, accuracy, altitude) VALUES (?, ?, ?, ?, ?, ?)',
       id,
@@ -256,9 +274,9 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
     );
     if (inserted.changes !== 1) return false;
     await database.runAsync(
-      'UPDATE recorded_activities SET distance_meters = distance_meters + ?, accepted_samples = accepted_samples + 1, updated_at = ?, last_heartbeat_at = ? WHERE id = ? AND account_id = ?',
-      segment,
-      sample.recordedAt,
+      'UPDATE recorded_activities SET distance_meters = distance_meters + ?, duration_seconds = duration_seconds + ?, accepted_samples = accepted_samples + 1, updated_at = ?, last_heartbeat_at = ? WHERE id = ? AND account_id = ?',
+      segment.distanceMeters,
+      segment.durationSeconds,
       sample.recordedAt,
       sample.recordedAt,
       id,
@@ -276,10 +294,46 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
   },
   async list(accountId: string): Promise<ActivitySession[]> {
     const rows = await database.getAllAsync<Record<string, unknown>>(
-      `SELECT id, account_id AS accountId, movement_type AS movementType, state, started_at AS startedAt, updated_at AS updatedAt, paused_at AS pausedAt, completed_at AS completedAt, duration_seconds AS durationSeconds, distance_meters AS distanceMeters, accepted_samples AS acceptedSamples, last_heartbeat_at AS lastHeartbeatAt, remote_id AS remoteId, sync_error AS syncError FROM recorded_activities WHERE account_id = ? AND state != 'discarded' ORDER BY updated_at DESC`,
+      `${sessionSelect} WHERE account_id = ? AND state != 'discarded' ORDER BY updated_at DESC`,
       accountId
     );
     return rows.map(rowToSession);
+  },
+  async rekeyLegacyScopes(accountId: string, legacyScopes: readonly string[]): Promise<number> {
+    const scopes = [...new Set(legacyScopes.filter((scope) => scope !== accountId))];
+    let moved = 0;
+    for (const scope of scopes) {
+      const sourceRows = await database.getAllAsync<Record<string, unknown>>(
+        `${sessionSelect} WHERE account_id = ? ORDER BY id`,
+        scope
+      );
+      if (!sourceRows.length) continue;
+      const sourceChecksum = migrationChecksum(sourceRows.map(rowToSession));
+      const result = await database.runAsync(
+        'UPDATE recorded_activities SET account_id = ? WHERE account_id = ?',
+        accountId,
+        scope
+      );
+      const sourceRemaining = await database.getFirstAsync<{ count: number | string }>(
+        'SELECT count(*) AS count FROM recorded_activities WHERE account_id = ?',
+        scope
+      );
+      const destinationRows = await database.getAllAsync<Record<string, unknown>>(
+        `${sessionSelect} WHERE account_id = ? ORDER BY id`,
+        accountId
+      );
+      const destinationChecksum = migrationChecksum(
+        destinationRows.map(rowToSession).filter((row) => sourceRows.some((source) => source.id === row.id))
+      );
+      if (
+        result.changes !== sourceRows.length ||
+        Number(sourceRemaining?.count ?? 0) !== 0 ||
+        destinationChecksum !== sourceChecksum
+      )
+        throw new Error('Local activity account-scope migration count/checksum verification failed.');
+      moved += result.changes;
+    }
+    return moved;
   },
   async setRemote(id: string, accountId: string, remoteId: string): Promise<void> {
     await database.runAsync(
@@ -299,11 +353,7 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
     );
   },
   async remove(id: string, accountId: string): Promise<void> {
-    await database.runAsync(
-      'DELETE FROM recorded_activities WHERE id = ? AND account_id = ?',
-      id,
-      accountId
-    );
+    await database.runAsync('DELETE FROM recorded_activities WHERE id = ? AND account_id = ?', id, accountId);
   },
   async clearAccount(accountId: string): Promise<void> {
     await database.runAsync('DELETE FROM recorded_activities WHERE account_id = ?', accountId);

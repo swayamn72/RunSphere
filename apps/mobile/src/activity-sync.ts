@@ -41,8 +41,9 @@ export const createActivitySyncCoordinator = (
         remoteId = created.id;
         await recorder.setRemote(session.id, session.accountId, remoteId);
       }
-      const remote = await api.activityStatus(remoteId);
-      const pending = remote.missingSequences ?? chunks.map((chunk) => chunk.sequence);
+      // Recovery is authoritative: it has the expected count needed to identify only missing chunks.
+      const remote = await api.recoverActivitySync(remoteId, chunks.length);
+      const pending = remote.missingSequences ?? [];
       for (const sequence of pending) {
         const chunk = chunks[sequence];
         if (chunk) await api.uploadActivityChunk(remoteId, chunk);

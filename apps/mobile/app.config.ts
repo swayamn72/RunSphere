@@ -31,7 +31,7 @@ const config: ExpoConfig = {
   },
   plugins: [
     'expo-secure-store',
-    'expo-sqlite',
+    ['expo-sqlite', { useSQLCipher: true }],
     [
       'expo-location',
       {

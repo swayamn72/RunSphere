@@ -105,6 +105,12 @@ export class MobileApiClient {
   async activityStatus(id: string): Promise<ActivityStatus> {
     return this.activityRequest(`/v1/activities/${id}`, { method: 'GET' });
   }
+  async recoverActivitySync(id: string, expectedChunkCount: number): Promise<ActivityStatus> {
+    return this.activityRequest(
+      `/v1/activities/${id}/sync?expectedChunkCount=${encodeURIComponent(expectedChunkCount)}`,
+      { method: 'GET' }
+    );
+  }
   async listActivities(): Promise<ActivityStatus[]> {
     return (
       await this.activityRequest<{ data: ActivityStatus[] }>('/v1/activities', { method: 'GET' })

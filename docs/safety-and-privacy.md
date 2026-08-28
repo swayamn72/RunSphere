@@ -20,7 +20,13 @@ Permission explanations name the capability, purpose, retention path, and declin
 
 ## Location handling and 200 m privacy blur
 
-Raw GPS is sensitive operational data. The client records only while an activity is active and the granted capability permits it. It stores an encrypted pending submission locally, then transmits over TLS for server validation.
+Raw GPS is sensitive operational data. The client records only while an activity is active and the granted capability permits it. It stores pending submissions in an Expo SQLite database compiled with SQLCipher; the database key is generated on-device and held only in Android Keystore-backed SecureStore, then transmits over TLS for server validation.
+
+## Android encrypted-storage upgrade
+
+Activity databases are opened with `PRAGMA key` before *any* schema or data access. The upgrade re-keys legacy local account partitions (the historic token-hash scope and the prior `account:<UUID>` scope) to the server account UUID by updating the encrypted database in place—there is no plaintext database copy. Before completing the migration, the recorder compares source/destination row counts and a deterministic checksum of stable row fields; any mismatch aborts recovery.
+
+SQLCipher is enabled through the Expo SQLite config plugin and therefore applies app-wide to every database opened through `expo-sqlite`, not only the activity recorder. A native rebuild is required after changing this plugin setting, and every app-owned Expo SQLite database must be opened with its own key before it is accessed. Do not add a new `expo-sqlite` database without registering and testing its key lifecycle.
 
 Before any saved activity is displayed to another person, used in a club feed, or exported for sharing, the server applies privacy zones and removes the start and finish portions that fall within a **200 m radius** of a saved private place. This is a geodesic 200 m radius, not a screen-pixel approximation. The server also removes route fragments inside the zone; it never merely obscures them in the UI. If trimming leaves too little route to safely share, the activity has no map preview.
 

@@ -9,9 +9,9 @@ export const isSyntheticLocationEnabled =
   __DEV__ && process.env.EXPO_PUBLIC_SYNTHETIC_LOCATION === 'true';
 
 export interface LocationAdapter {
-  requestLockedScreenPermission(): Promise<Location.PermissionResponse>;
-  start(): Promise<void>;
-  stop(): Promise<void>;
+  requestBackgroundPermission(): Promise<Location.PermissionResponse>;
+  startBackground(): Promise<void>;
+  stopBackground(): Promise<void>;
   subscribe(onSample: (sample: LocationSample) => void): Promise<Location.LocationSubscription>;
 }
 
@@ -27,9 +27,9 @@ const options: Location.LocationTaskOptions = {
 };
 
 export const nativeLocationAdapter: LocationAdapter = {
-  requestLockedScreenPermission: () => Location.requestBackgroundPermissionsAsync(),
-  start: () => Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, options),
-  stop: () => Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME),
+  requestBackgroundPermission: () => Location.requestBackgroundPermissionsAsync(),
+  startBackground: () => Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, options),
+  stopBackground: () => Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME),
   subscribe: async (onSample) =>
     Location.watchPositionAsync(options, (location) =>
       onSample({
@@ -61,15 +61,15 @@ const configuredSyntheticSamples = (): LocationSample[] => {
 export const createSyntheticLocationAdapter = (
   samples: readonly LocationSample[]
 ): LocationAdapter => ({
-  requestLockedScreenPermission: () =>
+  requestBackgroundPermission: () =>
     Promise.resolve({
       status: 'granted',
       granted: true,
       canAskAgain: false,
       expires: 'never'
     } as Location.PermissionResponse),
-  start: async () => undefined,
-  stop: async () => undefined,
+  startBackground: async () => undefined,
+  stopBackground: async () => undefined,
   subscribe: async (onSample) =>
     ({ remove: replaySamples(samples, onSample) }) as Location.LocationSubscription
 });
