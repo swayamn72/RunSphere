@@ -1,0 +1,31 @@
+{
+  "fixture": "steady-1km.gpx",
+  "chunkSize": 4,
+  "scenarios": [
+    {
+      "id": "ordered",
+      "sendSequences": [0, 1, 2, 3],
+      "expected": "finalize accepted; canonical points and summary exactly once"
+    },
+    {
+      "id": "duplicate-replay",
+      "sendSequences": [0, 1, 1, 2, 3],
+      "expected": "same payload replay succeeds idempotently; no duplicate points or distance"
+    },
+    {
+      "id": "conflicting-duplicate",
+      "sendSequences": [0, "1-altered", 2, 3],
+      "expected": "conflicting replay rejected; original chunk remains authoritative"
+    },
+    {
+      "id": "reordered",
+      "sendSequences": [2, 0, 3, 1],
+      "expected": "finalize accepted; canonical sort is sequence order"
+    },
+    {
+      "id": "missing",
+      "sendSequences": [0, 2, 3],
+      "expected": "finalize rejected or remains incomplete with explicit missing-sequence error; no derived summary"
+    }
+  ]
+}

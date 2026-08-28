@@ -12,14 +12,23 @@ export interface WorkerStartupResult {
 }
 const sleep = (milliseconds: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+const safeWorkerError = (error: unknown): string => {
+  const message = error instanceof Error ? error.message : 'unknown worker error';
+  return message
+    .replace(/(password|token|authorization|cookie)\s*[=:]\s*[^\s,]+/gi, '$1=[REDACTED]')
+    .replace(/-?\d{1,3}\.\d{3,}/g, '[REDACTED]')
+    .slice(0, 500);
+};
 
 export const processNextActivity = async (db: Database): Promise<boolean> => {
   const event = await db.query<{ id: string; aggregate_id: string }>(
     `UPDATE outbox_events SET claimed_at = now(), attempts = attempts + 1, last_error = NULL
-     WHERE id = (SELECT id FROM outbox_events
-       WHERE topic = 'activity.finalized' AND processed_at IS NULL AND failed_at IS NULL AND attempts < $1
-       AND (claimed_at IS NULL OR claimed_at < now() - $2::interval)
-       ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1)
+     WHERE id = (SELECT event.id FROM outbox_events event
+       JOIN activity_submissions submission ON submission.id = event.aggregate_id
+       WHERE event.topic = 'activity.finalized' AND event.processed_at IS NULL AND event.failed_at IS NULL AND event.attempts < $1
+       AND submission.deleted_at IS NULL AND submission.status = 'validating'
+       AND (event.claimed_at IS NULL OR event.claimed_at < now() - $2::interval)
+       ORDER BY event.created_at FOR UPDATE OF event SKIP LOCKED LIMIT 1)
      RETURNING id, aggregate_id`,
     [maxAttempts, `${staleClaimSeconds} seconds`]
   );
@@ -32,11 +41,7 @@ export const processNextActivity = async (db: Database): Promise<boolean> => {
   } catch (error) {
     await db.query(
       'UPDATE outbox_events SET claimed_at = NULL, last_error = $2, failed_at = CASE WHEN attempts >= $3 THEN now() ELSE NULL END WHERE id = $1',
-      [
-        event.rows[0].id,
-        error instanceof Error ? error.message.slice(0, 500) : 'unknown worker error',
-        maxAttempts
-      ]
+      [event.rows[0].id, safeWorkerError(error), maxAttempts]
     );
   }
   return true;

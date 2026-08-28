@@ -1,9 +1,11 @@
 import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
 import { Pedometer } from 'expo-sensors';
-import { useEffect, useReducer, useState } from 'react';
+import { useCallback, useEffect, useReducer, useState } from 'react';
 import {
   Alert,
+  AppState,
+  Linking,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -16,8 +18,16 @@ import {
 import { colors } from '@runsphere/ui';
 import { clearAccountData } from './src/account-cleanup';
 import { activityQueue } from './src/activity-queue.native';
+import { accountScopeFor } from './src/account-scope';
+import { activityRecorder } from './src/activity-recorder.native';
+import type { ActivitySession, MovementType, RecordingState } from './src/activity-recorder-core';
+import { recordingLocationAdapter } from './src/location-adapter';
+import { createActivitySyncCoordinator } from './src/activity-sync';
 import { MobileApiClient } from './src/api-client';
+import { AuthFailure } from './src/auth-failure';
 import { authStorage } from './src/auth-storage.native';
+import { getLocationPermissionState } from './src/location-permission';
+import { coordinateLogout } from './src/logout-coordinator';
 import { homeModel } from './src/models';
 import {
   canSubmitAccount,
@@ -30,19 +40,26 @@ type Tab = 'Home' | 'Explore' | 'Season' | 'Clubs' | 'You';
 type AuthStatus = 'idle' | 'loading' | 'error';
 const tabs: readonly Tab[] = ['Home', 'Explore', 'Season', 'Clubs', 'You'];
 const apiClient = new MobileApiClient(undefined, fetch, authStorage);
+const activitySync = createActivitySyncCoordinator(apiClient, activityRecorder);
 
 export default function App() {
   const [onboarding, dispatch] = useReducer(onboardingReducer, initialOnboardingState);
   const [activeTab, setActiveTab] = useState<Tab>('Home');
   const [activityStarted, setActivityStarted] = useState(false);
+  const [recording, setRecording] = useState<ActivitySession>();
+  const [accountId, setAccountId] = useState<string>();
   const [restoring, setRestoring] = useState(true);
 
   useEffect(() => {
-    void activityQueue.initialize();
+    void Promise.all([activityQueue.initialize(), activityRecorder.initialize()]);
     void authStorage
       .read()
-      .then((session) => {
-        if (session) dispatch({ type: 'restoreSession' });
+      .then(async (session) => {
+        if (!session) return;
+        const scope = accountScopeFor(session);
+        setAccountId(scope);
+        setRecording(await activityRecorder.recover(scope));
+        dispatch({ type: 'restoreSession' });
       })
       .finally(() => setRestoring(false));
   }, []);
@@ -57,11 +74,29 @@ export default function App() {
         {activeTab === 'Home' ? (
           <Home
             activityStarted={activityStarted}
+            recording={recording}
+            accountId={accountId}
             onStart={() => setActivityStarted(true)}
+            onRecordingChange={setRecording}
+            sync={activitySync}
             onOpenProfile={() => setActiveTab('You')}
           />
         ) : activeTab === 'You' ? (
-          <Profile />
+          <>
+            {accountId && (
+              <ActivityHistory accountId={accountId} sync={activitySync} onOpen={setRecording} />
+            )}
+            <Profile
+              accountId={accountId}
+              onLogoutComplete={() => {
+                setActiveTab('Home');
+                setActivityStarted(false);
+                setRecording(undefined);
+                setAccountId(undefined);
+                dispatch({ type: 'logoutComplete' });
+              }}
+            />
+          </>
         ) : (
           <View style={styles.comingSoon}>
             <Text style={styles.eyebrow}>{activeTab.toUpperCase()}</Text>
@@ -84,10 +119,12 @@ function Onboarding({
 }) {
   const [authStatus, setAuthStatus] = useState<AuthStatus>('idle');
   const [authError, setAuthError] = useState<string>();
+  const [authFailureKind, setAuthFailureKind] = useState<AuthFailure['kind']>();
   const authenticate = async () => {
     if (!canSubmitAccount(state)) return;
     setAuthStatus('loading');
     setAuthError(undefined);
+    setAuthFailureKind(undefined);
     try {
       if (state.accountMode === 'login')
         await apiClient.login({ email: state.email.trim(), password: state.password });
@@ -101,18 +138,48 @@ function Onboarding({
       dispatch({ type: 'authenticationSucceeded' });
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : 'Unable to complete authentication.');
+      setAuthFailureKind(error instanceof AuthFailure ? error.kind : 'unknown');
       setAuthStatus('error');
       return;
     }
     setAuthStatus('idle');
   };
+  const reconcileLocationPermission = useCallback(async () => {
+    const permission = await Location.getForegroundPermissionsAsync();
+    dispatch({ type: 'setLocation', status: getLocationPermissionState(permission) });
+    return permission;
+  }, [dispatch]);
   const requestLocation = async () => {
-    const permission = await Location.requestForegroundPermissionsAsync();
+    const currentPermission = await Location.getForegroundPermissionsAsync();
+    const currentStatus = getLocationPermissionState(currentPermission);
+
+    if (currentStatus === 'granted') {
+      dispatch({ type: 'setLocation', status: 'granted' });
+      return;
+    }
+    if (currentStatus === 'blocked') {
+      dispatch({ type: 'setLocation', status: 'blocked' });
+      await Linking.openSettings();
+      return;
+    }
+
+    const requestedPermission = await Location.requestForegroundPermissionsAsync();
     dispatch({
       type: 'setLocation',
-      status: permission.status === 'granted' ? 'granted' : 'denied'
+      status: getLocationPermissionState(requestedPermission)
     });
   };
+
+  useEffect(() => {
+    if (state.step !== 'privacy' && state.step !== 'location-denied') return;
+
+    void reconcileLocationPermission();
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') void reconcileLocationPermission();
+    });
+    return () => subscription.remove();
+  }, [reconcileLocationPermission, state.step]);
+
   const requestMotion = async () => {
     const permission = await Pedometer.requestPermissionsAsync();
     dispatch({ type: 'setMotion', status: permission.status === 'granted' ? 'granted' : 'denied' });
@@ -232,6 +299,20 @@ function Onboarding({
                 {authError}
               </Text>
             )}
+            {authFailureKind === 'account-exists' && (
+              <Pressable
+                accessibilityRole="button"
+                disabled={authStatus === 'loading'}
+                onPress={() => {
+                  setAuthError(undefined);
+                  setAuthFailureKind(undefined);
+                  setAuthStatus('idle');
+                  dispatch({ type: 'startAccount', mode: 'login' });
+                }}
+              >
+                <Text style={styles.textButton}>Sign in with this email</Text>
+              </Pressable>
+            )}
             <PrimaryButton
               label={
                 authStatus === 'loading'
@@ -309,19 +390,29 @@ function Onboarding({
             {state.location !== 'granted' ? (
               <PrimaryButton label="Allow location" onPress={() => void requestLocation()} />
             ) : (
-              <PrimaryButton
-                label="Continue to RunSphere"
-                onPress={() => dispatch({ type: 'finish' })}
-              />
+              <>
+                {state.motion === 'idle' && (
+                  <Pressable accessibilityRole="button" onPress={() => void requestMotion()}>
+                    <Text style={styles.textButton}>Allow motion & fitness (optional)</Text>
+                  </Pressable>
+                )}
+                {state.motion !== 'idle' && (
+                  <Text accessibilityLiveRegion="polite" style={styles.privateNote}>
+                    Motion & fitness is {state.motion === 'granted' ? 'allowed' : 'not allowed'}.
+                    This optional choice does not block RunSphere.
+                  </Text>
+                )}
+                <PrimaryButton
+                  label="Continue to RunSphere"
+                  onPress={() => dispatch({ type: 'finish' })}
+                />
+              </>
             )}
-            {state.location === 'granted' && state.motion === 'idle' && (
-              <Pressable accessibilityRole="button" onPress={() => void requestMotion()}>
-                <Text style={styles.textButton}>Allow motion & fitness (optional)</Text>
+            {state.location !== 'granted' && (
+              <Pressable accessibilityRole="button" onPress={() => dispatch({ type: 'finish' })}>
+                <Text style={styles.textButton}>Continue without location</Text>
               </Pressable>
             )}
-            <Pressable accessibilityRole="button" onPress={() => dispatch({ type: 'finish' })}>
-              <Text style={styles.textButton}>Continue without location</Text>
-            </Pressable>
           </>
         )}
         {state.step === 'location-denied' && (
@@ -333,12 +424,14 @@ function Onboarding({
               Without location, activity mapping and nearby quests are unavailable. RunSphere never
               requests background location in this pilot, and it stores no GPS trace.
             </Text>
+            {state.location === 'blocked' && (
+              <Text style={styles.privateNote}>
+                Location is disabled for RunSphere. Enable it in Android Settings, then return here.
+              </Text>
+            )}
             <PrimaryButton
-              label="Try location again"
-              onPress={() => {
-                dispatch({ type: 'retryLocation' });
-                void requestLocation();
-              }}
+              label={state.location === 'blocked' ? 'Open location settings' : 'Try location again'}
+              onPress={() => void requestLocation()}
             />
             <Pressable
               accessibilityRole="button"
@@ -355,14 +448,32 @@ function Onboarding({
 
 function Home({
   activityStarted,
+  recording,
+  accountId,
   onStart,
+  onRecordingChange,
+  sync,
   onOpenProfile
 }: {
   activityStarted: boolean;
+  recording: ActivitySession | undefined;
+  accountId: string | undefined;
   onStart: () => void;
+  onRecordingChange: (session: ActivitySession | undefined) => void;
+  sync: ReturnType<typeof createActivitySyncCoordinator>;
   onOpenProfile: () => void;
 }) {
   const { dailyPath, member, nearbyQuest } = homeModel;
+  if (recording && accountId) {
+    return (
+      <ActivityRecording
+        session={recording}
+        accountId={accountId}
+        onChange={onRecordingChange}
+        sync={sync}
+      />
+    );
+  }
   return (
     <>
       <View style={styles.header}>
@@ -425,40 +536,463 @@ function Home({
         </View>
       </View>
       <PrimaryButton
-        label={activityStarted ? 'Activity setup ready' : 'Start activity'}
+        label={activityStarted ? 'Choose activity' : 'Start activity'}
         onPress={onStart}
       />
-      {activityStarted && (
-        <Text accessibilityLiveRegion="polite" style={styles.confirmation}>
-          Activity recording and queue upload are deferred. No route trace is stored yet.
-        </Text>
+      {activityStarted && accountId && (
+        <ActivityPreparation accountId={accountId} onChange={onRecordingChange} />
+      )}
+      {activityStarted && !accountId && (
+        <Text style={styles.errorText}>Sign in again before recording an activity.</Text>
       )}
     </>
   );
 }
 
-function Profile() {
-  const clearLocalAccountData = (action: 'Log out' | 'Delete account') =>
+function ActivityPreparation({
+  accountId,
+  onChange
+}: {
+  accountId: string;
+  onChange: (session: ActivitySession) => void;
+}) {
+  const [movement, setMovement] = useState<MovementType>('walk');
+  const [busy, setBusy] = useState(false);
+  const begin = async () => {
+    setBusy(true);
+    try {
+      const foreground = await Location.requestForegroundPermissionsAsync();
+      if (!foreground.granted) {
+        Alert.alert('Location needed', 'Allow precise location to record an activity.');
+        return;
+      }
+      // This is intentionally the sole background-location request, initiated by the explicit recording action.
+      const background = await recordingLocationAdapter.requestLockedScreenPermission();
+      if (!background.granted) {
+        Alert.alert(
+          'Screen-lock recording unavailable',
+          'Recording will stay active while RunSphere remains open.'
+        );
+      }
+      const now = new Date().toISOString();
+      const id = `activity-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      await activityRecorder.create({
+        id,
+        accountId,
+        movementType: movement,
+        state: 'prepare',
+        startedAt: now,
+        updatedAt: now,
+        lastHeartbeatAt: now
+      });
+      await activityRecorder.transition(id, accountId, 'prepare', 'acquiring', now);
+      if (background.granted) await recordingLocationAdapter.start();
+      await activityRecorder.transition(
+        id,
+        accountId,
+        'acquiring',
+        'active',
+        new Date().toISOString()
+      );
+      const session = await activityRecorder.get(id, accountId);
+      if (session) onChange(session);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <View style={styles.recordCard}>
+      <Text style={styles.eyebrow}>START AN ACTIVITY</Text>
+      <Text style={styles.recordTitle}>Move at your own pace.</Text>
+      <Text style={styles.lead}>
+        Choose a movement. Location continues with a visible Android recording notification when you
+        allow screen-lock recording.
+      </Text>
+      <View style={styles.choiceGrid}>
+        {(['walk', 'run', 'hike'] as MovementType[]).map((type) => (
+          <Pressable
+            key={type}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: movement === type }}
+            onPress={() => setMovement(type)}
+            style={[styles.choice, movement === type && styles.choiceSelected]}
+          >
+            <Text style={styles.choiceTitle}>{type.charAt(0).toUpperCase() + type.slice(1)}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <PrimaryButton
+        label={busy ? 'Preparing…' : 'Start recording'}
+        disabled={busy}
+        onPress={() => void begin()}
+      />
+    </View>
+  );
+}
+
+function ActivityRecording({
+  session,
+  accountId,
+  onChange,
+  sync
+}: {
+  session: ActivitySession;
+  accountId: string;
+  onChange: (session: ActivitySession | undefined) => void;
+  sync: ReturnType<typeof createActivitySyncCoordinator>;
+}) {
+  const [current, setCurrent] = useState(session);
+  const [gpsWeak, setGpsWeak] = useState(false);
+  useEffect(() => {
+    let subscription: Location.LocationSubscription | undefined;
+    if (['active', 'resumed'].includes(current.state)) {
+      void recordingLocationAdapter
+        .subscribe(async (sample) => {
+          const accepted = await activityRecorder.appendSample(current.id, accountId, sample);
+          setGpsWeak(!accepted);
+          const fresh = await activityRecorder.get(current.id, accountId);
+          if (fresh) setCurrent(fresh);
+        })
+        .then((next) => {
+          subscription = next;
+        });
+    }
+    return () => subscription?.remove();
+  }, [accountId, current.id, current.state]);
+  useEffect(() => {
+    if (!['active', 'resumed'].includes(current.state)) return;
+    const interval = setInterval(() => {
+      void activityRecorder
+        .heartbeat(
+          current.id,
+          accountId,
+          new Date().toISOString(),
+          Math.floor((Date.now() - Date.parse(current.startedAt)) / 1000)
+        )
+        .then(async () => {
+          const fresh = await activityRecorder.get(current.id, accountId);
+          if (fresh) setCurrent(fresh);
+        });
+    }, 15_000);
+    return () => clearInterval(interval);
+  }, [accountId, current]);
+  const transition = async (to: RecordingState) => {
+    const from = current.state;
+    const at = new Date().toISOString();
+    await activityRecorder.transition(current.id, accountId, from, to, at);
+    const fresh = await activityRecorder.get(current.id, accountId);
+    if (fresh) {
+      setCurrent(fresh);
+      onChange(fresh);
+    }
+  };
+  const finish = async () => {
+    const at = new Date().toISOString();
+    const durationSeconds = Math.floor((Date.now() - Date.parse(current.startedAt)) / 1000);
+    await activityRecorder.heartbeat(current.id, accountId, at, durationSeconds);
+    await activityRecorder.transition(current.id, accountId, current.state, 'finishing', at);
+    await activityRecorder.transition(
+      current.id,
+      accountId,
+      'finishing',
+      'completed-local',
+      new Date().toISOString()
+    );
+    await recordingLocationAdapter.stop();
+    const fresh = await activityRecorder.get(current.id, accountId);
+    if (fresh) {
+      setCurrent(fresh);
+      onChange(fresh);
+    }
+  };
+  const duration = formatDuration(
+    current.durationSeconds || Math.floor((Date.now() - Date.parse(current.startedAt)) / 1000)
+  );
+  const pace =
+    current.distanceMeters > 0
+      ? formatDuration(Math.round(current.durationSeconds / (current.distanceMeters / 1000)))
+      : '—';
+  if (current.state === 'completed-local')
+    return (
+      <ActivityResults
+        session={current}
+        onQueue={async () => {
+          await transition('queued');
+          const refreshed = await activityRecorder.get(current.id, accountId);
+          if (refreshed) {
+            const result = await sync.sync(refreshed);
+            setCurrent(result.session);
+            onChange(result.session);
+          }
+        }}
+        onDiscard={async () => {
+          await transition('discarded');
+          onChange(undefined);
+        }}
+      />
+    );
+  if (['queued', 'failed', 'processed'].includes(current.state))
+    return <ActivityDetail session={current} sync={sync} onChange={onChange} />;
+  if (gpsWeak)
+    return (
+      <GpsRecovery onRetry={() => setGpsWeak(false)} onPause={() => void transition('paused')} />
+    );
+  const paused = current.state === 'paused';
+  return (
+    <View style={styles.liveCard}>
+      <View style={styles.liveTop}>
+        <Text style={styles.eyebrow}>
+          {current.movementType.toUpperCase()} · {duration}
+        </Text>
+        <Text style={styles.gpsStrong}>● GPS strong</Text>
+      </View>
+      <Text style={styles.liveDistance}>
+        {(current.distanceMeters / 1000).toFixed(2)} <Text style={styles.unit}>km</Text>
+      </Text>
+      <Text style={styles.provisional}>PROVISIONAL DISTANCE · accuracy-filtered</Text>
+      <View style={styles.liveStats}>
+        <Stat label="AVG PACE /KM" value={pace} detail="Provisional" />
+        <Stat label="SAMPLES" value={`${current.acceptedSamples}`} detail="Accepted GPS points" />
+      </View>
+      <PrimaryButton
+        label={paused ? 'Resume activity' : 'Pause activity'}
+        onPress={() => void transition(paused ? 'resumed' : 'paused')}
+      />
+      <Pressable accessibilityRole="button" onPress={() => void finish()}>
+        <Text style={styles.textButton}>Finish activity</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function ActivityDetail({
+  session,
+  sync,
+  onChange
+}: {
+  session: ActivitySession;
+  sync: ReturnType<typeof createActivitySyncCoordinator>;
+  onChange: (session: ActivitySession | undefined) => void;
+}) {
+  const [current, setCurrent] = useState(session);
+  const isProcessed = current.state === 'processed';
+  const retry = async () => {
+    const next = await sync.sync(current);
+    setCurrent(next.session);
+  };
+  const remove = async () => {
+    await sync.delete(current);
+    onChange(undefined);
+  };
+  return (
+    <View style={styles.recordCard}>
+      <Text style={styles.eyebrow}>
+        {isProcessed
+          ? 'ACTIVITY PROCESSED'
+          : current.state === 'failed'
+            ? 'SYNC NEEDS ATTENTION'
+            : 'OFFLINE · SAVED ON THIS DEVICE'}
+      </Text>
+      <Text style={styles.recordTitle}>
+        {isProcessed
+          ? 'Activity ready.'
+          : current.state === 'failed'
+            ? 'Sync paused.'
+            : 'Activity queued.'}
+      </Text>
+      <Text style={styles.lead}>
+        {isProcessed
+          ? 'Processed results are available in your private history.'
+          : (current.syncError ??
+            'Your local result is safe and will resume when connectivity returns.')}
+      </Text>
+      <View style={styles.resultStats}>
+        <Stat label="KM" value={(current.distanceMeters / 1000).toFixed(2)} detail="Local" />
+        <Stat label="TIME" value={formatDuration(current.durationSeconds)} detail="Recorded" />
+        <Stat label="STATUS" value={current.state.toUpperCase()} detail="Private" />
+      </View>
+      {!isProcessed && (
+        <PrimaryButton
+          label={current.state === 'failed' ? 'Retry sync' : 'Sync now'}
+          onPress={() => void retry()}
+        />
+      )}
+      <Pressable accessibilityRole="button" onPress={() => void remove()}>
+        <Text style={[styles.textButton, styles.destructive]}>Delete activity</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" onPress={() => onChange(undefined)}>
+        <Text style={styles.textButton}>Back to home</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function ActivityHistory({
+  accountId,
+  sync,
+  onOpen
+}: {
+  accountId: string;
+  sync: ReturnType<typeof createActivitySyncCoordinator>;
+  onOpen: (session: ActivitySession) => void;
+}) {
+  const [items, setItems] = useState<ActivitySession[]>([]);
+  const [loading, setLoading] = useState(false);
+  const refresh = async () => {
+    setLoading(true);
+    await sync.syncPending(accountId);
+    const local = await activityRecorder.list(accountId);
+    await Promise.all(local.map((item) => sync.refresh(item).catch(() => undefined)));
+    setItems(await activityRecorder.list(accountId));
+    setLoading(false);
+  };
+  useEffect(() => {
+    void refresh();
+  }, [accountId]);
+  if (!items.length) return null;
+  return (
+    <View style={styles.history}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Activity history</Text>
+        <Pressable accessibilityRole="button" onPress={() => void refresh()}>
+          <Text style={styles.link}>{loading ? 'Refreshing…' : 'Refresh'}</Text>
+        </Pressable>
+      </View>
+      {items.map((item) => (
+        <Pressable
+          key={item.id}
+          accessibilityRole="button"
+          onPress={() => onOpen(item)}
+          style={styles.historyRow}
+        >
+          <View style={styles.flexCopy}>
+            <Text style={styles.rowTitle}>
+              {item.movementType.charAt(0).toUpperCase() + item.movementType.slice(1)} ·{' '}
+              {(item.distanceMeters / 1000).toFixed(2)} km
+            </Text>
+            <Text style={styles.rowDetail}>
+              {item.state === 'processed'
+                ? 'Processed'
+                : item.state === 'failed'
+                  ? 'Sync failed — refresh to retry'
+                  : item.state === 'queued'
+                    ? 'Queued / processing'
+                    : 'Local activity'}
+            </Text>
+          </View>
+          <Text style={styles.link}>View ›</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+function GpsRecovery({ onRetry, onPause }: { onRetry: () => void; onPause: () => void }) {
+  return (
+    <View style={styles.recordCard}>
+      <Text style={styles.gpsError}>!</Text>
+      <Text style={styles.recordTitle}>We can’t get a clear GPS signal</Text>
+      <Text style={styles.lead}>Your activity is paused so distance stays accurate.</Text>
+      <Text
+        style={styles.recovery}
+      >{`1  Move away from tall buildings or dense cover.\n2  Keep RunSphere open and location enabled.\n3  Wait a moment while we reconnect.`}</Text>
+      <Text style={styles.provisional}>Looking for GPS… Last strong signal was recent.</Text>
+      <PrimaryButton label="Try again" onPress={onRetry} />
+      <Pressable onPress={onPause}>
+        <Text style={styles.textButton}>Keep activity paused</Text>
+      </Pressable>
+    </View>
+  );
+}
+function ActivityResults({
+  session,
+  onQueue,
+  onDiscard
+}: {
+  session: ActivitySession;
+  onQueue: () => void;
+  onDiscard: () => void;
+}) {
+  const pace = session.distanceMeters
+    ? formatDuration(Math.round(session.durationSeconds / (session.distanceMeters / 1000)))
+    : '—';
+  return (
+    <View style={styles.recordCard}>
+      <Text style={styles.eyebrow}>ACTIVITY COMPLETE · LOCAL RESULT</Text>
+      <Text style={styles.recordTitle}>New ground covered</Text>
+      <Text style={styles.lead}>
+        Saved on this device. Distance, time, and pace are provisional until processing.
+      </Text>
+      <View style={styles.resultStats}>
+        <Stat label="KM" value={(session.distanceMeters / 1000).toFixed(2)} detail="Provisional" />
+        <Stat label="TIME" value={formatDuration(session.durationSeconds)} detail="Recorded" />
+        <Stat label="PACE /KM" value={pace} detail="Provisional" />
+      </View>
+      <PrimaryButton label="Save activity" onPress={onQueue} />
+      <Pressable onPress={onDiscard}>
+        <Text style={styles.textButton}>Discard local activity</Text>
+      </Pressable>
+    </View>
+  );
+}
+const formatDuration = (seconds: number) =>
+  `${Math.floor(seconds / 3600)
+    .toString()
+    .padStart(2, '0')}:${Math.floor((seconds / 60) % 60)
+    .toString()
+    .padStart(2, '0')}:${Math.floor(seconds % 60)
+    .toString()
+    .padStart(2, '0')}`;
+
+function Profile({
+  accountId,
+  onLogoutComplete
+}: {
+  accountId: string | undefined;
+  onLogoutComplete: () => void;
+}) {
+  const confirmLogout = () =>
+    Alert.alert('Log out', 'This clears local secure tokens and queued activity metadata.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Log out',
+        style: 'destructive',
+        onPress: () => {
+          void coordinateLogout({
+            api: apiClient,
+            auth: authStorage,
+            queue: activityQueue,
+            ...(accountId
+              ? { recorder: { clear: () => activityRecorder.clearAccount(accountId) } }
+              : {})
+          })
+            .then(onLogoutComplete)
+            .catch(() => {
+              Alert.alert(
+                'Unable to log out',
+                'RunSphere could not clear all local account data. Please try again.'
+              );
+            });
+        }
+      }
+    ]);
+  const confirmDeleteAccount = () =>
     Alert.alert(
-      action,
+      'Delete account',
       'This clears local secure tokens and queued activity metadata. Account deletion remains a pilot-only placeholder.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: action,
+          text: 'Delete account',
           style: 'destructive',
           onPress: () => {
-            void (async () => {
-              try {
-                if (action === 'Log out') await apiClient.logout();
-              } finally {
-                await clearAccountData(activityQueue, authStorage);
-                Alert.alert(
-                  'Local data cleared',
-                  'Secure tokens and queued metadata were removed.'
-                );
-              }
-            })();
+            void clearAccountData(
+              activityQueue,
+              authStorage,
+              accountId ? { clear: () => activityRecorder.clearAccount(accountId) } : undefined
+            ).then(() => {
+              Alert.alert('Local data cleared', 'Secure tokens and queued metadata were removed.');
+            });
           }
         }
       ]
@@ -497,16 +1031,12 @@ function Profile() {
       </SettingsGroup>
       <SettingsGroup title="Data">
         <Setting label="Export your data" value="Pilot placeholder" disabled />
-        <Setting
-          label="Log out"
-          value="Clear this device"
-          onPress={() => clearLocalAccountData('Log out')}
-        />
+        <Setting label="Log out" value="Clear this device" onPress={confirmLogout} />
         <Setting
           label="Delete account"
           value="Pilot placeholder"
           destructive
-          onPress={() => clearLocalAccountData('Delete account')}
+          onPress={confirmDeleteAccount}
         />
       </SettingsGroup>
     </>
@@ -1125,5 +1655,81 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     textAlign: 'right'
   },
-  destructive: { color: '#B83220' }
+  destructive: { color: '#B83220' },
+  recordCard: {
+    backgroundColor: colors.card,
+    borderColor: colors.line,
+    borderRadius: 22,
+    borderWidth: 1,
+    marginTop: 12,
+    padding: 20
+  },
+  recordTitle: {
+    color: colors.ink,
+    fontSize: 27,
+    fontWeight: '900',
+    letterSpacing: -0.7,
+    marginBottom: 10,
+    marginTop: 7
+  },
+  liveCard: { backgroundColor: colors.moss, borderRadius: 22, marginTop: 12, padding: 20 },
+  liveTop: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  gpsStrong: { color: colors.lime, fontSize: 11, fontWeight: '900' },
+  liveDistance: {
+    color: '#fff',
+    fontSize: 48,
+    fontWeight: '900',
+    letterSpacing: -2,
+    marginTop: 28,
+    textAlign: 'center'
+  },
+  unit: { color: '#D5E4DB', fontSize: 20, letterSpacing: 0 },
+  provisional: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginTop: 8,
+    textAlign: 'center'
+  },
+  liveStats: {
+    backgroundColor: '#FFFFFF18',
+    borderRadius: 16,
+    flexDirection: 'row',
+    marginTop: 24,
+    padding: 14
+  },
+  gpsError: {
+    alignSelf: 'center',
+    backgroundColor: colors.orange,
+    borderRadius: 24,
+    color: '#fff',
+    fontSize: 25,
+    fontWeight: '900',
+    height: 48,
+    overflow: 'hidden',
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    width: 48
+  },
+  recovery: { color: colors.ink, fontSize: 15, lineHeight: 27, marginBottom: 14 },
+  resultStats: {
+    backgroundColor: colors.cream,
+    borderRadius: 16,
+    flexDirection: 'row',
+    marginBottom: 10,
+    marginTop: 8,
+    padding: 14
+  },
+  history: { marginTop: 24 },
+  historyRow: {
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderColor: colors.line,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: 'row',
+    marginBottom: 8,
+    padding: 14
+  }
 });

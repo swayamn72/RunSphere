@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createActivityQueue, type ActivityQueueDatabase } from './activity-queue.js';
+import { createActivityQueue, type ActivityQueueDatabase } from './activity-queue-core.js';
 
 class MemoryDatabase implements ActivityQueueDatabase {
   readonly rows = new Map<

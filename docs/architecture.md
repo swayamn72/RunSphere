@@ -86,7 +86,7 @@ Managed relational store / object storage / cache
 | Season scoring     | Enrollment/divisions, best-60-minute selection, cell contribution, aggregate ranks     | Expose raw traces or move participants between divisions mid-season.                  |
 | Safety sharing     | Recipient authorization, delayed/coarse transform, automatic expiry                    | Send current/exact coordinates or historic routes.                                    |
 
-All mutation APIs use an idempotency key. Activity processing is asynchronous and stateful (`received → validating → accepted/rejected → derived`). The client can show pending results but must reconcile from the server outcome.
+Activity creation uses an idempotency key; later activity mutations use the stable activity ID plus a Bearer access token. Activity processing is asynchronous and stateful (`received → validating → accepted/rejected → derived`). The mobile sync coordinator uploads bounded chunks using canonical-JSON SHA-256 values, queries `/v1/activities/:activityId/sync?expectedChunkCount=N` after interruption, retries only returned sequences, then finalizes with the SHA-256 of sequence-ordered chunk checksums. The client can show pending results but must reconcile from the server outcome; a same-payload chunk replay is `204`, a conflicting sequence is `409`, and missing chunks remain `received` with safe validation errors.
 
 ## GPS quality, load, and distance baselines
 

@@ -1,5 +1,5 @@
 import * as SQLite from 'expo-sqlite';
-import { createActivityQueue } from './activity-queue';
+import { createActivityQueue } from './activity-queue-core';
 
 const database = SQLite.openDatabaseSync('runsphere-activity-queue.db');
 

@@ -1,5 +1,5 @@
 export type MovementPreference = 'walk' | 'run' | 'hike';
-export type LocationStatus = 'idle' | 'granted' | 'denied';
+export type LocationStatus = 'idle' | 'granted' | 'denied' | 'blocked';
 export type MotionStatus = 'idle' | 'granted' | 'denied' | 'skipped';
 export type AccountMode = 'register' | 'login';
 
@@ -45,6 +45,7 @@ export type OnboardingAction =
   | { type: 'retryLocation' }
   | { type: 'continueWithoutLocation' }
   | { type: 'finish' }
+  | { type: 'logoutComplete' }
   | { type: 'back' };
 
 const hasValidEmail = (email: string): boolean => /^\S+@\S+\.\S+$/.test(email.trim());
@@ -79,17 +80,19 @@ export const onboardingReducer = (
     case 'setHideStartFinish':
       return { ...state, hideStartFinish: action.value };
     case 'setLocation':
-      if (action.status === 'denied')
-        return { ...state, location: 'denied', step: 'location-denied' };
+      if (action.status === 'denied' || action.status === 'blocked')
+        return { ...state, location: action.status, step: 'location-denied' };
       if (action.status === 'granted') return { ...state, location: 'granted', step: 'privacy' };
       return { ...state, location: 'idle' };
     case 'setMotion':
-      return { ...state, motion: action.status };
+      return { ...state, motion: action.status === 'denied' ? 'skipped' : action.status };
     case 'retryLocation':
       return { ...state, location: 'idle', step: 'privacy' };
     case 'continueWithoutLocation':
     case 'finish':
       return { ...state, step: 'complete' };
+    case 'logoutComplete':
+      return initialOnboardingState;
     case 'back':
       if (state.step === 'account') return { ...state, step: 'welcome' };
       if (state.step === 'privacy') return { ...state, step: 'account' };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { distanceMeters, summarize, type TracePoint } from './activity.js';
+import { distanceMeters, chunkHash, summarize, type TracePoint } from './activity.js';
 
 const points: TracePoint[] = [
   { latitude: 19.076, longitude: 72.8777, recordedAt: '2026-08-27T10:00:00.000Z' },
@@ -14,5 +14,9 @@ describe('canonical activity summaries', () => {
       durationSeconds: 60,
       privacyTrimmed: false
     });
+  });
+
+  it('uses shared canonical JSON for replay-stable chunk checksums', () => {
+    expect(chunkHash({ sequence: 0, points })).toBe(chunkHash({ points, sequence: 0 }));
   });
 });

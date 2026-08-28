@@ -40,6 +40,25 @@ describe('onboarding state machine', () => {
     const retry = onboardingReducer(denied, { type: 'retryLocation' });
     expect(retry).toMatchObject({ step: 'privacy', location: 'idle' });
     expect(onboardingReducer(denied, { type: 'back' }).step).toBe('privacy');
+
+    const blocked = onboardingReducer(retry, { type: 'setLocation', status: 'blocked' });
+    expect(blocked).toMatchObject({ step: 'location-denied', location: 'blocked' });
+    expect(onboardingReducer(blocked, { type: 'setLocation', status: 'granted' })).toMatchObject({
+      step: 'privacy',
+      location: 'granted'
+    });
+  });
+
+  it('keeps recovered location on the privacy step until explicit Continue', () => {
+    const recovered = onboardingReducer(
+      { ...initialOnboardingState, step: 'location-denied', location: 'denied' },
+      { type: 'setLocation', status: 'granted' }
+    );
+    expect(recovered).toMatchObject({ step: 'privacy', location: 'granted', motion: 'idle' });
+
+    const declinedMotion = onboardingReducer(recovered, { type: 'setMotion', status: 'denied' });
+    expect(declinedMotion).toMatchObject({ step: 'privacy', motion: 'skipped' });
+    expect(onboardingReducer(declinedMotion, { type: 'finish' }).step).toBe('complete');
   });
 
   it('updates only explicit account fields and restores a durable session to home', () => {
@@ -49,5 +68,21 @@ describe('onboarding state machine', () => {
     });
     expect(state).toMatchObject({ email: 'maya@example.com', step: 'welcome' });
     expect(onboardingReducer(state, { type: 'restoreSession' }).step).toBe('complete');
+  });
+
+  it('resets a completed session to the pristine Welcome state after logout cleanup', () => {
+    const completed = {
+      ...initialOnboardingState,
+      step: 'complete' as const,
+      accountMode: 'login' as const,
+      email: 'maya@example.com',
+      password: 'do-not-retain-this-password',
+      location: 'granted' as const,
+      motion: 'skipped' as const
+    };
+
+    expect(onboardingReducer(completed, { type: 'logoutComplete' })).toEqual(
+      initialOnboardingState
+    );
   });
 });
