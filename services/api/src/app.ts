@@ -75,6 +75,7 @@ import { registerGamificationRoutes } from './gamification-routes.js';
 import { registerAccountLifecycleRoutes } from './account-routes.js';
 import { registerProgressionRoutes } from './progression-routes.js';
 import { registerAchievementRoutes } from './achievement-routes.js';
+import { registerChallengeRoutes } from './challenge-routes.js';
 import {
   hashPassword,
   issueSession,
@@ -1585,6 +1586,7 @@ export const buildApp = ({
     registerAccountLifecycleRoutes({ routes, database, authSecret });
     registerProgressionRoutes({ routes, database, authSecret });
     registerAchievementRoutes({ routes, database, authSecret });
+    registerChallengeRoutes({ routes, database, authSecret });
 
     done();
   });

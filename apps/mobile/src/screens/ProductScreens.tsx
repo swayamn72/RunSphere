@@ -58,29 +58,6 @@ export function ClubsScreen() {
   );
 }
 
-export function SeasonScreen() {
-  const styles = useAppStyles();
-  return (
-    <View style={styles.centeredState}>
-      <Text style={styles.mvpLabel}>CONDITIONAL · FLAG OFF</Text>
-      <Text style={styles.comingSoonTitle}>No territory season is active.</Text>
-      <Text style={styles.comingSoonCopy}>
-        Territory remains unavailable until a future enrollment flag opens. This app does not use H3
-        or MapLibre, and no territory behavior runs while it is off.
-      </Text>
-      <View style={styles.notice}>
-        <Text style={styles.noticeIcon}>⌖</Text>
-        <View style={styles.flexCopy}>
-          <Text style={styles.noticeTitle}>Explore quests instead</Text>
-          <Text style={styles.noticeCopy}>
-            Reviewed checkpoints and private validated activities are available now.
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
-}
-
 export function ProfileScreen({
   api,
   accountId,

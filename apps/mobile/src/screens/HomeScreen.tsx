@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import type { QuestSummary, WeeklyGoalResponse } from '@runsphere/contracts';
+import type {
+  Profile,
+  ProgressionSummary,
+  QuestSummary,
+  WeeklyGoalResponse
+} from '@runsphere/contracts';
 import type { MovementType } from '../activity-recorder-core';
 import type { MobileApiClient } from '../api-client';
 import { LoopMascot } from '../components/Mascot';
@@ -15,14 +20,28 @@ import {
   weeklyGoalMetrics,
   weeklyGoalState
 } from './home-state';
+import {
+  consistencyPresentation,
+  progressionCardState,
+  progressionErrorState,
+  progressionPresentation,
+  progressionStatusMessage,
+  type ConsistencyPresentation,
+  type ProgressionCardState,
+  type ProgressionPresentation
+} from './home-progression-model';
 
 interface HomeRemoteData {
   readonly goal: WeeklyGoalResponse | undefined;
   readonly goalState: HomeRemoteState;
   readonly quests: readonly QuestSummary[];
   readonly questState: HomeRemoteState;
+  readonly progression: ProgressionSummary | undefined;
+  readonly progressionState: ProgressionCardState;
+  readonly profile: Profile | undefined;
   readonly reloadGoals: () => void;
   readonly reloadQuests: () => void;
+  readonly reloadProgression: () => void;
 }
 
 const useHomeRemoteData = (api: MobileApiClient, onSessionExpired: () => void): HomeRemoteData => {
@@ -30,9 +49,13 @@ const useHomeRemoteData = (api: MobileApiClient, onSessionExpired: () => void): 
   const [goalState, setGoalState] = useState<HomeRemoteState>('loading');
   const [quests, setQuests] = useState<readonly QuestSummary[]>([]);
   const [questState, setQuestState] = useState<HomeRemoteState>('loading');
+  const [progression, setProgression] = useState<ProgressionSummary>();
+  const [progressionState, setProgressionState] = useState<ProgressionCardState>('loading');
+  const [profile, setProfile] = useState<Profile>();
   const mounted = useRef(true);
   const goalGeneration = useRef(0);
   const questGeneration = useRef(0);
+  const progressionGeneration = useRef(0);
   const sessionExpirationHandled = useRef(false);
 
   const loadGoals = useCallback(() => {
@@ -79,19 +102,70 @@ const useHomeRemoteData = (api: MobileApiClient, onSessionExpired: () => void): 
       });
   }, [api, onSessionExpired]);
 
+  /**
+   * The server owns XP, level, and weekly consistency (ADR-0005), so Home only
+   * reads the summary. It never calls `POST /v1/progression/sync`, which would
+   * make rendering Home a write, and never projects the open week locally.
+   */
+  const loadProgression = useCallback(() => {
+    const generation = ++progressionGeneration.current;
+    setProgression(undefined);
+    setProfile(undefined);
+    setProgressionState('loading');
+    void api
+      .getProgressionSummary()
+      .then((next) => {
+        if (!mounted.current || generation !== progressionGeneration.current) return;
+        setProgression(next);
+        setProgressionState(progressionCardState(next));
+      })
+      .catch((error: unknown) => {
+        if (!mounted.current || generation !== progressionGeneration.current) return;
+        const state = progressionErrorState(error);
+        setProgressionState(state);
+        if (state === 'session-expired' && !sessionExpirationHandled.current) {
+          sessionExpirationHandled.current = true;
+          onSessionExpired();
+        }
+      });
+    // The cosmetic tier is decoration on a card the progression summary already
+    // fills. A missing profile answers `404`, so a failure here must leave the
+    // chip off rather than block progression or invent an identity.
+    void api
+      .getProfile()
+      .then((next) => {
+        if (!mounted.current || generation !== progressionGeneration.current) return;
+        setProfile(next);
+      })
+      .catch(() => undefined);
+  }, [api, onSessionExpired]);
+
   useEffect(() => {
     mounted.current = true;
     sessionExpirationHandled.current = false;
     loadGoals();
     loadQuests();
+    loadProgression();
     return () => {
       mounted.current = false;
       goalGeneration.current += 1;
       questGeneration.current += 1;
+      progressionGeneration.current += 1;
     };
-  }, [loadGoals, loadQuests]);
+  }, [loadGoals, loadProgression, loadQuests]);
 
-  return { goal, goalState, quests, questState, reloadGoals: loadGoals, reloadQuests: loadQuests };
+  return {
+    goal,
+    goalState,
+    quests,
+    questState,
+    progression,
+    progressionState,
+    profile,
+    reloadGoals: loadGoals,
+    reloadQuests: loadQuests,
+    reloadProgression: loadProgression
+  };
 };
 
 export function HomeScreen({
@@ -113,12 +187,26 @@ export function HomeScreen({
 }) {
   const { tokens } = useAppTheme();
   const styles = useMemo(() => createStyles(tokens), [tokens]);
-  const { goal, goalState, quests, questState, reloadGoals, reloadQuests } = useHomeRemoteData(
-    api,
-    onSessionExpired
-  );
+  const {
+    goal,
+    goalState,
+    quests,
+    questState,
+    progression,
+    progressionState,
+    profile,
+    reloadGoals,
+    reloadQuests,
+    reloadProgression
+  } = useHomeRemoteData(api, onSessionExpired);
   const metrics = goal ? weeklyGoalMetrics(goal) : [];
-  const statusMessage = homeStatusMessage(goalState, questState);
+  const progressionCard = progression ? progressionPresentation(progression, profile) : undefined;
+  const consistencyCard = progression ? consistencyPresentation(progression) : undefined;
+  const statusMessage = homeStatusMessage(
+    goalState,
+    questState,
+    progressionStatusMessage(progressionState)
+  );
 
   return (
     <>
@@ -216,6 +304,14 @@ export function HomeScreen({
         <PrimaryButton label={`Start ${movement}`} onPress={onStart} />
       </View>
 
+      <ProgressionCard
+        styles={styles}
+        state={progressionState}
+        card={progressionCard}
+        onRetry={reloadProgression}
+      />
+      {consistencyCard && <ConsistencyCard styles={styles} card={consistencyCard} />}
+
       <View style={styles.questHeader}>
         <Text style={styles.sectionTitle}>Verified quests</Text>
         <Pressable
@@ -280,6 +376,157 @@ export function HomeScreen({
         />
       )}
     </>
+  );
+}
+
+/**
+ * Cosmetic progression only (ADR-0005). Every value shown is copied from the
+ * server summary; an unpublished rule shows the XP total with no level rather
+ * than an invented level 1.
+ */
+function ProgressionCard({
+  styles,
+  state,
+  card,
+  onRetry
+}: {
+  styles: ReturnType<typeof createStyles>;
+  state: ProgressionCardState;
+  card: ProgressionPresentation | undefined;
+  onRetry: () => void;
+}) {
+  return (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <View style={styles.flexCopy}>
+          <Text style={styles.eyebrow}>PROGRESSION</Text>
+          <Text style={styles.cardTitle}>Cosmetic only</Text>
+        </View>
+        {card?.tierLabel && <Text style={styles.tierBadge}>{card.tierLabel.toUpperCase()}</Text>}
+      </View>
+      {state === 'loading' && (
+        <View>
+          <View style={[styles.skeleton, styles.skeletonTitle]} />
+          <View style={[styles.skeleton, styles.skeletonProgress]} />
+          <Text style={styles.helper}>Loading progression.</Text>
+        </View>
+      )}
+      {(state === 'ready' || state === 'unpublished') && card && (
+        <>
+          <Text style={styles.xpTotal}>{card.totalXpLabel}</Text>
+          {card.level ? (
+            <View style={styles.metric}>
+              <View style={styles.metricHeader}>
+                <View style={styles.metricCopy}>
+                  <Text style={styles.metricTitle}>{card.level.levelLabel.toUpperCase()}</Text>
+                  <Text style={styles.levelDetail}>{card.level.xpInLevelLabel}</Text>
+                </View>
+                {card.level.progress !== undefined && (
+                  <Text style={styles.percent}>{card.level.progress}%</Text>
+                )}
+              </View>
+              {card.level.progress !== undefined && (
+                <View
+                  accessibilityLabel={card.level.progressAccessibilityLabel}
+                  accessibilityRole="progressbar"
+                  accessibilityValue={{
+                    min: 0,
+                    max: 100,
+                    now: card.level.progress,
+                    text: `${card.level.progress}% of this level`
+                  }}
+                  style={styles.progressTrack}
+                >
+                  <View style={[styles.progressFill, { width: `${card.level.progress}%` }]} />
+                </View>
+              )}
+            </View>
+          ) : (
+            <Text style={styles.helper}>
+              Cosmetic levels are not published yet, so only your XP total is available.
+            </Text>
+          )}
+          <Text style={styles.helper}>
+            XP is cosmetic. It never changes quest eligibility, validation, or who you are matched
+            with.
+          </Text>
+        </>
+      )}
+      {state === 'offline' && (
+        <Guide
+          styles={styles}
+          variant="offline"
+          label="Progression is unavailable offline."
+          actionLabel="Try again"
+          onAction={onRetry}
+        />
+      )}
+      {state === 'unavailable' && (
+        <Unavailable
+          styles={styles}
+          label="Progression is not available on this server yet."
+          actionLabel="Try again"
+          onAction={onRetry}
+        />
+      )}
+      {state === 'configuration' && (
+        <Unavailable
+          styles={styles}
+          label="Progression is unavailable until RunSphere is configured."
+        />
+      )}
+      {state === 'error' && (
+        <Unavailable
+          styles={styles}
+          label="Progression is unavailable."
+          actionLabel="Try again"
+          onAction={onRetry}
+        />
+      )}
+    </View>
+  );
+}
+
+/**
+ * Non-punitive weekly consistency (ADR-0005). The server reports how many days
+ * were active, never which ones, so the pips are an unlabelled count meter read
+ * to TalkBack as a single count. Inactive pips are neutral, never an error or
+ * warning color, and a quiet week is never framed as a loss.
+ */
+function ConsistencyCard({
+  styles,
+  card
+}: {
+  styles: ReturnType<typeof createStyles>;
+  card: ConsistencyPresentation;
+}) {
+  return (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <View style={styles.flexCopy}>
+          <Text style={styles.eyebrow}>CONSISTENCY</Text>
+          <Text style={styles.cardTitle}>{card.weekLabel}</Text>
+        </View>
+        {card.goalLabel && <Text style={styles.goalBadge}>{card.goalLabel.toUpperCase()}</Text>}
+      </View>
+      <View
+        accessible
+        accessibilityLabel={card.accessibilityLabel}
+        importantForAccessibility="yes"
+        style={styles.pipRow}
+      >
+        {card.pips.map((pip) => (
+          <View
+            key={pip.index}
+            importantForAccessibility="no-hide-descendants"
+            style={[styles.pip, pip.active ? styles.pipActive : styles.pipInactive]}
+          />
+        ))}
+      </View>
+      <Text style={styles.metricValue}>{card.activeDaysLabel}</Text>
+      <Text style={styles.levelDetail}>{card.cappedMinutesLabel}</Text>
+      <Text style={styles.helper}>{card.reassurance}</Text>
+    </View>
   );
 }
 
@@ -426,6 +673,43 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
     },
     progressFill: { backgroundColor: t.action.primary, borderRadius: 8, height: '100%' },
     helper: { color: t.text.secondary, fontSize: 12, lineHeight: 18, marginTop: 12 },
+    tierBadge: {
+      backgroundColor: t.background.surfaceInset,
+      borderRadius: 14,
+      color: t.text.primary,
+      fontSize: 12,
+      fontWeight: '900',
+      overflow: 'hidden',
+      paddingHorizontal: 9,
+      paddingVertical: 6
+    },
+    goalBadge: {
+      backgroundColor: t.background.surfaceInset,
+      borderRadius: 14,
+      color: t.text.secondary,
+      fontSize: 12,
+      fontWeight: '900',
+      overflow: 'hidden',
+      paddingHorizontal: 9,
+      paddingVertical: 6
+    },
+    xpTotal: {
+      color: t.text.primary,
+      fontSize: 28,
+      fontWeight: '900',
+      letterSpacing: -0.6,
+      lineHeight: 34,
+      marginTop: 10
+    },
+    levelDetail: { color: t.text.secondary, fontSize: 13, lineHeight: 19, marginTop: 4 },
+    pipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
+    pip: { borderRadius: 7, height: 14, width: 14 },
+    pipActive: { backgroundColor: t.status.success },
+    pipInactive: {
+      backgroundColor: t.background.surfaceInset,
+      borderColor: t.border.subtle,
+      borderWidth: 1
+    },
     skeleton: { backgroundColor: t.background.surfaceInset, borderRadius: 6, marginTop: 12 },
     skeletonTitle: { height: 24, width: '62%' },
     skeletonLine: { height: 16, width: '82%' },

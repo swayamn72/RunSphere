@@ -7,6 +7,12 @@ import {
 } from '@runsphere/db';
 import { createLogger, type Logger } from '@runsphere/observability';
 import { processActivity } from '@runsphere/api/activity';
+import {
+  CHALLENGE_FINISHED_TOPIC,
+  cancelExpiredChallengeInvites,
+  enqueueDueChallenges,
+  scoreChallenge
+} from './challenge-scoring.js';
 
 const maxAttempts = 5;
 const staleClaimSeconds = 300;
@@ -110,7 +116,42 @@ export const processMaintenance = async (db: Database): Promise<number> => {
   const purgedTraces = await purgeExpiredRawTraces(db);
   const deletedAccounts = await convergeAccountDeletion(db);
   const expiredShares = await expireSafetyShares(db);
-  return purgedTraces + deletedAccounts + expiredShares;
+  const lapsedInvites = await cancelExpiredChallengeInvites(db);
+  // Enqueue after deletion so a closed window belonging to an erased account is
+  // never queued for scoring.
+  const dueChallenges = await enqueueDueChallenges(db);
+  return purgedTraces + deletedAccounts + expiredShares + lapsedInvites + dueChallenges;
+};
+
+/**
+ * Score one challenge whose window has closed. Scoring is separate from
+ * delivery so a provider outage never blocks results, and a scoring failure
+ * retries under the same attempt budget as activity validation.
+ */
+export const processNextChallengeFinish = async (db: Database): Promise<boolean> => {
+  const event = await db.query<{ id: string; aggregate_id: string }>(
+    `UPDATE outbox_events SET claimed_at = now(), attempts = attempts + 1, last_error = NULL
+     WHERE id = (SELECT event.id FROM outbox_events event
+       WHERE event.topic = $1 AND event.processed_at IS NULL AND event.failed_at IS NULL
+         AND event.attempts < $2
+         AND (event.claimed_at IS NULL OR event.claimed_at < now() - $3::interval)
+       ORDER BY event.created_at FOR UPDATE OF event SKIP LOCKED LIMIT 1)
+     RETURNING id, aggregate_id`,
+    [CHALLENGE_FINISHED_TOPIC, maxAttempts, `${staleClaimSeconds} seconds`]
+  );
+  if (!event.rows[0]) return false;
+  try {
+    await scoreChallenge(db, event.rows[0].aggregate_id);
+    await db.query('UPDATE outbox_events SET processed_at = now() WHERE id = $1', [
+      event.rows[0].id
+    ]);
+  } catch (error) {
+    await db.query(
+      'UPDATE outbox_events SET claimed_at = NULL, last_error = $2, failed_at = CASE WHEN attempts >= $3 THEN now() ELSE NULL END WHERE id = $1',
+      [event.rows[0].id, safeWorkerError(error), maxAttempts]
+    );
+  }
+  return true;
 };
 
 export const processNextActivity = async (db: Database): Promise<boolean> => {
@@ -201,8 +242,9 @@ export const runWorker = async (): Promise<void> => {
       try {
         await processMaintenance(db);
         const hadActivity = await processNextActivity(db);
+        const hadChallenge = await processNextChallengeFinish(db);
         const hadDelivery = await processNextDelivery(db);
-        if (!hadActivity && !hadDelivery) await sleep(pollMilliseconds);
+        if (!hadActivity && !hadChallenge && !hadDelivery) await sleep(pollMilliseconds);
       } catch (error) {
         logger.error('worker.iteration_failed', { error: safeWorkerError(error) });
         if (!once) await sleep(pollMilliseconds);

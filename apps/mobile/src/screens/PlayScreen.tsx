@@ -1,0 +1,841 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import type {
+  ChallengeLengthDays,
+  ChallengeMode,
+  ChallengeResult,
+  ChallengeSummary,
+  FriendStandingsResponse,
+  Profile
+} from '@runsphere/contracts';
+import type { MobileApiClient } from '../api-client';
+import { ApiFailure } from '../api-client';
+import { LoopMascot } from '../components/Mascot';
+import { PrimaryButton } from '../components/primitives';
+import { useAppTheme } from '../theme/theme';
+import {
+  CHALLENGE_MODE_LABEL,
+  challengeListState,
+  challengeOutcomeLine,
+  challengeWindowLabel,
+  createChallengeFailure,
+  groupChallenges,
+  invitableFriends,
+  playErrorState,
+  respondChallengeFailure,
+  standingRows,
+  standingsState,
+  type PlayRemoteState
+} from './play-model';
+
+/**
+ * The Play tab (ADR-0005, ADR-0007). Challenges and standings are read from the
+ * server; this screen never derives a score. An in-progress challenge shows no
+ * score because none exists until the worker closes the window, and the friend
+ * board is empty until the account opts in.
+ *
+ * Only the modes the published v1 challenge rule enables are offered.
+ * `quest_completion` is absent because no quest completion is recorded
+ * server-side; the API answers `422` for it, which is surfaced verbatim if a
+ * rule ever disagrees with this list.
+ */
+const OFFERED_MODES: readonly ChallengeMode[] = ['active_minutes', 'active_days'];
+const OFFERED_LENGTHS: readonly ChallengeLengthDays[] = [3, 7];
+const MAX_CONCURRENT_RESULTS = 3;
+
+const todayIso = (): string => new Date().toISOString().slice(0, 10);
+
+interface PlayData {
+  readonly challenges: readonly ChallengeSummary[];
+  readonly challengeState: PlayRemoteState;
+  readonly results: ReadonlyMap<string, ChallengeResult>;
+  readonly standings: FriendStandingsResponse | undefined;
+  readonly standingsRemoteState: PlayRemoteState;
+  readonly friends: readonly Profile[];
+  readonly reload: () => void;
+  readonly respond: (challengeId: string, accept: boolean) => Promise<string | undefined>;
+  readonly create: (
+    friendAccountId: string,
+    mode: ChallengeMode,
+    lengthDays: ChallengeLengthDays
+  ) => Promise<string | undefined>;
+  readonly setParticipating: (participating: boolean) => Promise<void>;
+}
+
+const usePlayData = (api: MobileApiClient, onSessionExpired: () => void): PlayData => {
+  const [challenges, setChallenges] = useState<readonly ChallengeSummary[]>([]);
+  const [challengeState, setChallengeState] = useState<PlayRemoteState>('loading');
+  const [results, setResults] = useState<ReadonlyMap<string, ChallengeResult>>(new Map());
+  const [standings, setStandings] = useState<FriendStandingsResponse>();
+  const [standingsRemoteState, setStandingsRemoteState] = useState<PlayRemoteState>('loading');
+  const [friends, setFriends] = useState<readonly Profile[]>([]);
+  const mounted = useRef(true);
+  const generation = useRef(0);
+  const sessionExpirationHandled = useRef(false);
+
+  const expire = useCallback(
+    (state: PlayRemoteState) => {
+      if (state === 'session-expired' && !sessionExpirationHandled.current) {
+        sessionExpirationHandled.current = true;
+        onSessionExpired();
+      }
+    },
+    [onSessionExpired]
+  );
+
+  /** Bounded so a long finished list cannot open one request per row at once. */
+  const loadResults = useCallback(
+    async (finished: readonly ChallengeSummary[], requestGeneration: number) => {
+      const pending = [...finished];
+      const loaded = new Map<string, ChallengeResult>();
+      const workers = Array.from(
+        { length: Math.min(MAX_CONCURRENT_RESULTS, pending.length) },
+        async () => {
+          for (let next = pending.shift(); next; next = pending.shift()) {
+            try {
+              loaded.set(next.id, await api.getChallengeResult(next.id));
+            } catch (error) {
+              // A `409` means the worker has not scored the window yet. That is
+              // reported as pending, never as a zero or a loss.
+              if (!(error instanceof ApiFailure)) throw error;
+            }
+          }
+        }
+      );
+      await Promise.all(workers);
+      if (!mounted.current || requestGeneration !== generation.current) return;
+      setResults(loaded);
+    },
+    [api]
+  );
+
+  const load = useCallback(() => {
+    const requestGeneration = ++generation.current;
+    setChallengeState('loading');
+    setStandingsRemoteState('loading');
+    setResults(new Map());
+    void api
+      .listChallenges()
+      .then((next) => {
+        if (!mounted.current || requestGeneration !== generation.current) return;
+        setChallenges(next);
+        setChallengeState(challengeListState(groupChallenges(next)));
+        void loadResults(
+          next.filter((challenge) => challenge.status === 'finished'),
+          requestGeneration
+        );
+      })
+      .catch((error: unknown) => {
+        if (!mounted.current || requestGeneration !== generation.current) return;
+        const state = playErrorState(error);
+        setChallengeState(state);
+        expire(state);
+      });
+    void api
+      .getFriendStandings()
+      .then((next) => {
+        if (!mounted.current || requestGeneration !== generation.current) return;
+        setStandings(next);
+        setStandingsRemoteState(standingsState(next));
+      })
+      .catch((error: unknown) => {
+        if (!mounted.current || requestGeneration !== generation.current) return;
+        setStandingsRemoteState(playErrorState(error));
+      });
+    void api
+      .listFriends()
+      .then((next) => {
+        if (mounted.current && requestGeneration === generation.current) setFriends(next);
+      })
+      .catch(() => undefined);
+  }, [api, expire, loadResults]);
+
+  useEffect(() => {
+    mounted.current = true;
+    sessionExpirationHandled.current = false;
+    load();
+    return () => {
+      mounted.current = false;
+      generation.current += 1;
+    };
+  }, [load]);
+
+  const respond = useCallback(
+    async (challengeId: string, accept: boolean): Promise<string | undefined> => {
+      try {
+        await api.respondChallenge(challengeId, accept);
+        load();
+        return undefined;
+      } catch (error) {
+        return respondChallengeFailure(error);
+      }
+    },
+    [api, load]
+  );
+
+  const create = useCallback(
+    async (
+      friendAccountId: string,
+      mode: ChallengeMode,
+      lengthDays: ChallengeLengthDays
+    ): Promise<string | undefined> => {
+      try {
+        await api.createChallenge({ friendAccountId, mode, lengthDays });
+        load();
+        return undefined;
+      } catch (error) {
+        return createChallengeFailure(error);
+      }
+    },
+    [api, load]
+  );
+
+  const setParticipating = useCallback(
+    async (participating: boolean) => {
+      try {
+        await api.setFriendStandingsParticipation(participating);
+        load();
+      } catch {
+        if (mounted.current) setStandingsRemoteState('error');
+      }
+    },
+    [api, load]
+  );
+
+  return {
+    challenges,
+    challengeState,
+    results,
+    standings,
+    standingsRemoteState,
+    friends,
+    reload: load,
+    respond,
+    create,
+    setParticipating
+  };
+};
+
+export function PlayScreen({
+  api,
+  accountId,
+  onSessionExpired
+}: {
+  api: MobileApiClient;
+  accountId: string | undefined;
+  onSessionExpired: () => void;
+}) {
+  const { tokens } = useAppTheme();
+  const styles = useMemo(() => createStyles(tokens), [tokens]);
+  const {
+    challenges,
+    challengeState,
+    results,
+    standings,
+    standingsRemoteState,
+    friends,
+    reload,
+    respond,
+    create,
+    setParticipating
+  } = usePlayData(api, onSessionExpired);
+  const [notice, setNotice] = useState('');
+  const [busyId, setBusyId] = useState<string>();
+  const [composing, setComposing] = useState(false);
+
+  const groups = useMemo(() => groupChallenges(challenges), [challenges]);
+  const today = todayIso();
+  const available = useMemo(() => invitableFriends(friends, challenges), [friends, challenges]);
+  const rows = standings ? standingRows(standings) : [];
+
+  const answer = async (challengeId: string, accept: boolean) => {
+    setBusyId(challengeId);
+    setNotice((await respond(challengeId, accept)) ?? '');
+    setBusyId(undefined);
+  };
+
+  return (
+    <>
+      <Text accessibilityLiveRegion="polite" style={styles.liveStatus}>
+        {notice}
+      </Text>
+      <View style={styles.header}>
+        <Text style={styles.eyebrow}>PLAY</Text>
+        <Text style={styles.title}>Friendly challenges</Text>
+        <Text style={styles.lead}>
+          Challenges count active minutes and active days. Never pace, speed, or where you went.
+        </Text>
+      </View>
+
+      {notice !== '' && (
+        <View style={styles.noticeCard}>
+          <Text style={styles.noticeText}>{notice}</Text>
+        </View>
+      )}
+
+      {challengeState === 'loading' && (
+        <View style={styles.card}>
+          <View style={[styles.skeleton, styles.skeletonTitle]} />
+          <View style={[styles.skeleton, styles.skeletonLine]} />
+          <Text style={styles.helper}>Loading challenges.</Text>
+        </View>
+      )}
+
+      {(challengeState === 'ready' || challengeState === 'empty') && (
+        <>
+          <Section title="INVITES FOR YOU" styles={styles} hidden={!groups.incoming.length}>
+            {groups.incoming.map((challenge) => (
+              <View key={challenge.id} style={styles.card}>
+                <ChallengeHeading styles={styles} challenge={challenge} today={today} />
+                <Text style={styles.body}>
+                  {challenge.opponent.displayName} invited you to a {challenge.lengthDays}-day{' '}
+                  {CHALLENGE_MODE_LABEL[challenge.mode].toLowerCase()} challenge.
+                </Text>
+                <View style={styles.actionRow}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Accept the challenge from ${challenge.opponent.displayName}`}
+                    disabled={busyId === challenge.id}
+                    onPress={() => void answer(challenge.id, true)}
+                    style={styles.acceptButton}
+                  >
+                    <Text style={styles.acceptText}>Accept</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Decline the challenge from ${challenge.opponent.displayName}`}
+                    disabled={busyId === challenge.id}
+                    onPress={() => void answer(challenge.id, false)}
+                    style={styles.declineButton}
+                  >
+                    <Text style={styles.declineText}>Not now</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+          </Section>
+
+          <Section title="IN PROGRESS" styles={styles} hidden={!groups.active.length}>
+            {groups.active.map((challenge) => (
+              <View key={challenge.id} style={styles.card}>
+                <ChallengeHeading styles={styles} challenge={challenge} today={today} />
+                <Text style={styles.body}>
+                  With {challenge.opponent.displayName}. Scores are counted once the challenge ends,
+                  so neither of you sees a running total.
+                </Text>
+              </View>
+            ))}
+          </Section>
+
+          <Section title="WAITING ON A REPLY" styles={styles} hidden={!groups.outgoing.length}>
+            {groups.outgoing.map((challenge) => (
+              <View key={challenge.id} style={styles.card}>
+                <ChallengeHeading styles={styles} challenge={challenge} today={today} />
+                <Text style={styles.body}>
+                  {challenge.opponent.displayName} has not answered yet. An invite expires after
+                  seven days.
+                </Text>
+              </View>
+            ))}
+          </Section>
+
+          <Section title="FINISHED" styles={styles} hidden={!groups.finished.length}>
+            {groups.finished.map((challenge) => {
+              const outcome = challengeOutcomeLine(challenge, results.get(challenge.id), accountId);
+              return (
+                <View key={challenge.id} style={styles.card}>
+                  <ChallengeHeading styles={styles} challenge={challenge} today={today} />
+                  <Text style={styles.outcome}>{outcome.label}</Text>
+                  <Text style={styles.body}>{outcome.detail}</Text>
+                </View>
+              );
+            })}
+          </Section>
+
+          {challengeState === 'empty' && !composing && (
+            <View style={styles.guide}>
+              <LoopMascot variant="empty" accessibility={{ mode: 'decorative' }} size={48} />
+              <View style={styles.flexCopy}>
+                <Text style={styles.body}>
+                  No challenges yet. Invite a friend to a short, pace-neutral challenge.
+                </Text>
+              </View>
+            </View>
+          )}
+        </>
+      )}
+
+      {challengeState === 'offline' && (
+        <Unavailable
+          styles={styles}
+          label="Challenges are unavailable offline."
+          actionLabel="Try again"
+          onAction={reload}
+        />
+      )}
+      {challengeState === 'configuration' && (
+        <Unavailable
+          styles={styles}
+          label="Challenges are unavailable until RunSphere is configured."
+        />
+      )}
+      {challengeState === 'error' && (
+        <Unavailable
+          styles={styles}
+          label="Challenges are unavailable."
+          actionLabel="Try again"
+          onAction={reload}
+        />
+      )}
+
+      <ComposeChallenge
+        styles={styles}
+        open={composing}
+        friends={available}
+        hasFriends={friends.length > 0}
+        onOpen={() => setComposing(true)}
+        onCancel={() => setComposing(false)}
+        onCreate={async (friendAccountId, mode, lengthDays) => {
+          const failure = await create(friendAccountId, mode, lengthDays);
+          setNotice(failure ?? '');
+          if (!failure) setComposing(false);
+        }}
+      />
+
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Friend standings</Text>
+      </View>
+      {standingsRemoteState === 'loading' && (
+        <View style={styles.card}>
+          <View style={[styles.skeleton, styles.skeletonLine]} />
+          <Text style={styles.helper}>Loading standings.</Text>
+        </View>
+      )}
+      {standings && !standings.participating && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>You are not on the friend board</Text>
+          <Text style={styles.body}>
+            Joining shares one number with mutual friends who have also joined: your counted active
+            minutes this week. Never your route, pace, or where you went. You can leave at any time.
+          </Text>
+          <PrimaryButton
+            label="Join the friend board"
+            onPress={() => void setParticipating(true)}
+          />
+        </View>
+      )}
+      {standings?.participating && (
+        <View style={styles.card}>
+          <Text style={styles.weekLabel}>
+            Week of {standings.periodStart} · counted active minutes
+          </Text>
+          {rows.map((row) => (
+            <View
+              key={row.accountId}
+              accessible
+              accessibilityLabel={row.accessibilityLabel}
+              style={[styles.standingRow, row.isSelf && styles.standingSelf]}
+            >
+              <Text style={styles.rank}>{row.rank}</Text>
+              <Text style={styles.standingName}>{row.nameLabel}</Text>
+              <Text style={styles.standingScore}>{row.minutesLabel}</Text>
+            </View>
+          ))}
+          {!rows.length && (
+            <Text style={styles.body}>
+              No mutual friend has joined the board yet. It fills in as they do.
+            </Text>
+          )}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Leave the friend board"
+            onPress={() => void setParticipating(false)}
+            style={styles.guideAction}
+          >
+            <Text style={styles.guideActionText}>Leave the board</Text>
+          </Pressable>
+        </View>
+      )}
+      {standingsRemoteState === 'offline' && (
+        <Unavailable
+          styles={styles}
+          label="Friend standings are unavailable offline."
+          actionLabel="Try again"
+          onAction={reload}
+        />
+      )}
+      {standingsRemoteState === 'error' && (
+        <Unavailable
+          styles={styles}
+          label="Friend standings are unavailable."
+          actionLabel="Try again"
+          onAction={reload}
+        />
+      )}
+
+      <View style={styles.notice}>
+        <Text style={styles.noticeIcon}>⌁</Text>
+        <View style={styles.flexCopy}>
+          <Text style={styles.noticeTitle}>Private by design</Text>
+          <Text style={styles.noticeCopy}>
+            A challenge or standing shares only consented weekly totals. No territory season is
+            active, and territory stays off until a future enrollment flag opens.
+          </Text>
+        </View>
+      </View>
+    </>
+  );
+}
+
+function ChallengeHeading({
+  styles,
+  challenge,
+  today
+}: {
+  styles: ReturnType<typeof createStyles>;
+  challenge: ChallengeSummary;
+  today: string;
+}) {
+  return (
+    <View style={styles.cardHeader}>
+      <View style={styles.flexCopy}>
+        <Text style={styles.eyebrow}>{CHALLENGE_MODE_LABEL[challenge.mode].toUpperCase()}</Text>
+        <Text style={styles.cardTitle}>{challenge.opponent.displayName}</Text>
+      </View>
+      <Text style={styles.windowBadge}>{challengeWindowLabel(challenge, today)}</Text>
+    </View>
+  );
+}
+
+function Section({
+  title,
+  styles,
+  hidden,
+  children
+}: {
+  title: string;
+  styles: ReturnType<typeof createStyles>;
+  hidden: boolean;
+  children: React.ReactNode;
+}) {
+  if (hidden) return null;
+  return (
+    <View>
+      <Text style={styles.groupLabel}>{title}</Text>
+      {children}
+    </View>
+  );
+}
+
+function ComposeChallenge({
+  styles,
+  open,
+  friends,
+  hasFriends,
+  onOpen,
+  onCancel,
+  onCreate
+}: {
+  styles: ReturnType<typeof createStyles>;
+  open: boolean;
+  friends: readonly Profile[];
+  hasFriends: boolean;
+  onOpen: () => void;
+  onCancel: () => void;
+  onCreate: (
+    friendAccountId: string,
+    mode: ChallengeMode,
+    lengthDays: ChallengeLengthDays
+  ) => Promise<void>;
+}) {
+  const [friendId, setFriendId] = useState<string>();
+  const [mode, setMode] = useState<ChallengeMode>('active_minutes');
+  const [lengthDays, setLengthDays] = useState<ChallengeLengthDays>(3);
+  const [saving, setSaving] = useState(false);
+
+  if (!open)
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Start a new challenge"
+        onPress={onOpen}
+        style={styles.composeButton}
+      >
+        <Text style={styles.composeText}>Challenge a friend</Text>
+      </Pressable>
+    );
+
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>Challenge a friend</Text>
+      {!hasFriends && (
+        <Text style={styles.body}>
+          You have no mutual friends yet. Add one from your profile before starting a challenge.
+        </Text>
+      )}
+      {hasFriends && !friends.length && (
+        <Text style={styles.body}>Every mutual friend already has a challenge open with you.</Text>
+      )}
+      {friends.length > 0 && (
+        <>
+          <Text style={styles.fieldLabel}>FRIEND</Text>
+          <View style={styles.chipRow}>
+            {friends.map((friend) => (
+              <Pressable
+                key={friend.id}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: friendId === friend.id }}
+                accessibilityLabel={friend.displayName}
+                onPress={() => setFriendId(friend.id)}
+                style={[styles.chip, friendId === friend.id && styles.chipSelected]}
+              >
+                <Text style={[styles.chipText, friendId === friend.id && styles.chipTextSelected]}>
+                  {friend.displayName}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.fieldLabel}>WHAT TO COUNT</Text>
+          <View style={styles.chipRow}>
+            {OFFERED_MODES.map((option) => (
+              <Pressable
+                key={option}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: mode === option }}
+                accessibilityLabel={CHALLENGE_MODE_LABEL[option]}
+                onPress={() => setMode(option)}
+                style={[styles.chip, mode === option && styles.chipSelected]}
+              >
+                <Text style={[styles.chipText, mode === option && styles.chipTextSelected]}>
+                  {CHALLENGE_MODE_LABEL[option]}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.fieldLabel}>HOW LONG</Text>
+          <View style={styles.chipRow}>
+            {OFFERED_LENGTHS.map((option) => (
+              <Pressable
+                key={option}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: lengthDays === option }}
+                accessibilityLabel={`${option} days`}
+                onPress={() => setLengthDays(option)}
+                style={[styles.chip, lengthDays === option && styles.chipSelected]}
+              >
+                <Text
+                  style={[styles.chipText, lengthDays === option && styles.chipTextSelected]}
+                >{`${option} days`}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.helper}>
+            The window starts when your friend accepts, so a slow reply costs them nothing.
+          </Text>
+          <PrimaryButton
+            label={saving ? 'Sending…' : 'Send invite'}
+            disabled={saving || !friendId}
+            onPress={() => {
+              if (!friendId) return;
+              setSaving(true);
+              void onCreate(friendId, mode, lengthDays).finally(() => setSaving(false));
+            }}
+          />
+        </>
+      )}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Cancel the new challenge"
+        onPress={onCancel}
+        style={styles.guideAction}
+      >
+        <Text style={styles.guideActionText}>Cancel</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function Unavailable({
+  styles,
+  label,
+  actionLabel,
+  onAction
+}: {
+  styles: ReturnType<typeof createStyles>;
+  label: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
+  return (
+    <View style={styles.unavailable}>
+      <Text style={styles.body}>{label}</Text>
+      {actionLabel && onAction && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={actionLabel}
+          onPress={onAction}
+          style={styles.guideAction}
+        >
+          <Text style={styles.guideActionText}>{actionLabel}</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
+  StyleSheet.create({
+    liveStatus: { color: t.text.secondary, fontSize: 1, height: 1, opacity: 0, width: 1 },
+    header: { justifyContent: 'center', marginBottom: 4, minHeight: 88 },
+    flexCopy: { flex: 1 },
+    eyebrow: { color: t.status.success, fontSize: 12, fontWeight: '900', letterSpacing: 1.2 },
+    title: {
+      color: t.text.primary,
+      fontSize: 30,
+      fontWeight: '900',
+      letterSpacing: -1,
+      lineHeight: 35,
+      marginTop: 5
+    },
+    lead: { color: t.text.secondary, fontSize: 14, lineHeight: 21, marginTop: 8 },
+    groupLabel: {
+      color: t.text.secondary,
+      fontSize: 12,
+      fontWeight: '900',
+      letterSpacing: 1.2,
+      marginTop: 20
+    },
+    sectionHeader: { marginTop: 26 },
+    sectionTitle: { color: t.text.primary, fontSize: 20, fontWeight: '900', lineHeight: 26 },
+    card: {
+      backgroundColor: t.background.surface,
+      borderColor: t.border.subtle,
+      borderRadius: 22,
+      borderWidth: 1,
+      marginTop: 12,
+      padding: 16
+    },
+    cardHeader: { alignItems: 'flex-start', flexDirection: 'row', gap: 12 },
+    cardTitle: {
+      color: t.text.primary,
+      fontSize: 19,
+      fontWeight: '900',
+      lineHeight: 25,
+      marginTop: 4
+    },
+    windowBadge: {
+      backgroundColor: t.background.surfaceInset,
+      borderRadius: 14,
+      color: t.text.secondary,
+      fontSize: 12,
+      fontWeight: '900',
+      overflow: 'hidden',
+      paddingHorizontal: 9,
+      paddingVertical: 6
+    },
+    body: { color: t.text.secondary, fontSize: 14, lineHeight: 21, marginTop: 8 },
+    outcome: { color: t.text.primary, fontSize: 16, fontWeight: '900', marginTop: 10 },
+    helper: { color: t.text.secondary, fontSize: 12, lineHeight: 18, marginTop: 12 },
+    weekLabel: { color: t.text.secondary, fontSize: 12, lineHeight: 18 },
+    actionRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
+    acceptButton: {
+      alignItems: 'center',
+      backgroundColor: t.action.primary,
+      borderRadius: 16,
+      flex: 1,
+      justifyContent: 'center',
+      minHeight: 48,
+      paddingHorizontal: 16
+    },
+    acceptText: { color: t.text.onAccent, fontSize: 15, fontWeight: '900' },
+    declineButton: {
+      alignItems: 'center',
+      backgroundColor: t.background.surfaceInset,
+      borderColor: t.border.subtle,
+      borderRadius: 16,
+      borderWidth: 1,
+      flex: 1,
+      justifyContent: 'center',
+      minHeight: 48,
+      paddingHorizontal: 16
+    },
+    declineText: { color: t.text.primary, fontSize: 15, fontWeight: '900' },
+    composeButton: {
+      alignItems: 'center',
+      backgroundColor: t.background.surfaceInset,
+      borderColor: t.border.subtle,
+      borderRadius: 18,
+      borderWidth: 1,
+      justifyContent: 'center',
+      marginTop: 16,
+      minHeight: 52
+    },
+    composeText: { color: t.text.primary, fontSize: 15, fontWeight: '900' },
+    fieldLabel: {
+      color: t.text.secondary,
+      fontSize: 12,
+      fontWeight: '900',
+      letterSpacing: 1.1,
+      marginTop: 16
+    },
+    chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+    chip: {
+      alignItems: 'center',
+      backgroundColor: t.background.surfaceInset,
+      borderColor: t.border.subtle,
+      borderRadius: 16,
+      borderWidth: 1,
+      justifyContent: 'center',
+      minHeight: 48,
+      paddingHorizontal: 14
+    },
+    chipSelected: { backgroundColor: t.action.primary, borderColor: t.action.primary },
+    chipText: { color: t.text.primary, fontSize: 14, fontWeight: '800' },
+    chipTextSelected: { color: t.text.onAccent },
+    standingRow: {
+      alignItems: 'center',
+      borderTopColor: t.border.subtle,
+      borderTopWidth: 1,
+      flexDirection: 'row',
+      gap: 12,
+      minHeight: 52,
+      paddingVertical: 8
+    },
+    standingSelf: { backgroundColor: t.background.surfaceInset },
+    rank: { color: t.text.secondary, fontSize: 14, fontWeight: '900', minWidth: 24 },
+    standingName: { color: t.text.primary, flex: 1, fontSize: 15, fontWeight: '800' },
+    standingScore: { color: t.status.success, fontSize: 15, fontWeight: '900' },
+    guide: { alignItems: 'center', flexDirection: 'row', gap: 12, marginTop: 16, minHeight: 64 },
+    guideAction: {
+      alignSelf: 'flex-start',
+      justifyContent: 'center',
+      marginTop: 10,
+      minHeight: 48,
+      paddingHorizontal: 4
+    },
+    guideActionText: { color: t.action.primary, fontSize: 14, fontWeight: '900' },
+    unavailable: { marginTop: 12, minHeight: 64 },
+    noticeCard: {
+      backgroundColor: t.background.surfaceInset,
+      borderRadius: 16,
+      marginTop: 12,
+      padding: 12
+    },
+    noticeText: { color: t.text.primary, fontSize: 14, lineHeight: 20 },
+    notice: {
+      backgroundColor: t.background.surface,
+      borderColor: t.border.subtle,
+      borderRadius: 18,
+      borderWidth: 1,
+      flexDirection: 'row',
+      gap: 12,
+      marginTop: 24,
+      padding: 14
+    },
+    noticeIcon: { color: t.status.success, fontSize: 18, fontWeight: '900' },
+    noticeTitle: { color: t.text.primary, fontSize: 15, fontWeight: '900' },
+    noticeCopy: { color: t.text.secondary, fontSize: 13, lineHeight: 19, marginTop: 4 },
+    skeleton: { backgroundColor: t.background.surfaceInset, borderRadius: 6, marginTop: 12 },
+    skeletonTitle: { height: 24, width: '62%' },
+    skeletonLine: { height: 16, width: '82%' }
+  });

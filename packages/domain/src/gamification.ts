@@ -84,6 +84,26 @@ export function kolkataDate(instant: Date): string {
   return `${year}-${pad2(month)}-${pad2(day)}`;
 }
 
+/** UTC instant of Asia/Kolkata 00:00 for the calendar day containing `instant`. */
+export function kolkataDayStart(instant: Date): Date {
+  const { year, month, day } = kolkataCalendarDate(instant);
+  return new Date(Date.UTC(year, month - 1, day) - KOLKATA_OFFSET_MS);
+}
+
+/**
+ * UTC instant of Asia/Kolkata 00:00 for a `YYYY-MM-DD` calendar date. This is
+ * the inverse of `kolkataDate`, so a persisted `date` column round-trips back
+ * to the exact instant its scoring window opened.
+ */
+export function kolkataDateStart(date: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) throw new Error(`Expected a YYYY-MM-DD Asia/Kolkata date, received '${date}'`);
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const instant = Date.UTC(year, month - 1, day) - KOLKATA_OFFSET_MS;
+  if (!Number.isFinite(instant)) throw new Error(`Invalid Asia/Kolkata date '${date}'`);
+  return new Date(instant);
+}
+
 const EPOCH_WEEKDAY_SUNDAY0 = 4; // 1970-01-01 was a Thursday (0 = Sunday)
 
 function mod(numerator: number, modulus: number): number {
@@ -266,14 +286,80 @@ export function challengeModeScore(
   window: ScoringWindow,
   activities: readonly ScoredActivity[],
   completions: readonly QuestCompletion[],
-  dailyCapMinutes: number
+  dailyCapMinutes: number,
+  minMinutesPerActiveDay = 1
 ): number {
   switch (mode) {
     case 'active_minutes':
       return cappedActiveMinutes(activities, window.periodStart, window.periodEnd, dailyCapMinutes);
     case 'active_days':
-      return activeDayCount(activities, window.periodStart, window.periodEnd);
+      return activeDayCount(
+        activities,
+        window.periodStart,
+        window.periodEnd,
+        minMinutesPerActiveDay
+      );
     case 'quest_completion':
       return questCompletionCount(completions, window.periodStart, window.periodEnd);
   }
+}
+
+/**
+ * A challenge window is `lengthDays` Asia/Kolkata calendar days starting at
+ * 00:00 on `periodStart`, so both participants are scored over exactly the same
+ * instants regardless of device timezone.
+ */
+export function challengeWindow(periodStart: string, lengthDays: number): ScoringWindow {
+  if (!Number.isInteger(lengthDays) || lengthDays < 1) {
+    throw new Error(`Challenge length must be a positive whole number of days`);
+  }
+  const start = kolkataDateStart(periodStart);
+  return {
+    periodStart: start,
+    periodEnd: new Date(start.getTime() + lengthDays * MILLIS_PER_DAY)
+  };
+}
+
+/**
+ * Competition ranking over scores already ordered highest-first: equal scores
+ * share a rank and the next distinct score skips the consumed positions
+ * (1, 2, 2, 4). Ties are shared rather than broken, because the only available
+ * tiebreaks would be pace, distance, or timing, none of which a board may read
+ * (ADR-0007).
+ */
+export function competitionRanking(descendingScores: readonly number[]): number[] {
+  const ranks: number[] = [];
+  let currentRank = 0;
+  let previousScore: number | undefined;
+  descendingScores.forEach((score, index) => {
+    if (previousScore === undefined || score !== previousScore) currentRank = index + 1;
+    previousScore = score;
+    ranks.push(currentRank);
+  });
+  return ranks;
+}
+
+export interface ChallengeParticipantScore {
+  accountId: string;
+  score: number;
+}
+
+/**
+ * The higher pace-neutral score wins. An exact tie has no winner rather than a
+ * tiebreak on time, pace, or distance, none of which a challenge may read.
+ */
+export function challengeWinner(
+  participants: readonly ChallengeParticipantScore[]
+): string | undefined {
+  let best: ChallengeParticipantScore | undefined;
+  let tied = false;
+  for (const participant of participants) {
+    if (!best || participant.score > best.score) {
+      best = participant;
+      tied = false;
+    } else if (participant.score === best.score && participant.accountId !== best.accountId) {
+      tied = true;
+    }
+  }
+  return tied ? undefined : best?.accountId;
 }

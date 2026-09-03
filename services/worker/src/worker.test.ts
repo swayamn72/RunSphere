@@ -4,6 +4,7 @@ import type { Logger } from '@runsphere/observability';
 import {
   convergeAccountDeletion,
   processMaintenance,
+  processNextChallengeFinish,
   processNextDelivery,
   purgeExpiredRawTraces,
   startWorker
@@ -81,12 +82,29 @@ describe('privacy maintenance', () => {
           calls.push('delete');
           return { rows: [] };
         }
+        if (sql.includes('invite_expires_at')) {
+          calls.push('lapsed-invites');
+          return { rows: [] };
+        }
+        if (sql.includes('outbox_events')) {
+          calls.push('due-challenges');
+          return { rows: [] };
+        }
         calls.push('expire');
         return { rows: [] };
       })
     };
     await expect(processMaintenance(database as never)).resolves.toBe(1);
-    expect(calls).toEqual(['purge:start', 'purge:end', 'delete', 'expire']);
+    // Account erasure must settle before a closed challenge window is queued,
+    // so an erased participant is never scored.
+    expect(calls).toEqual([
+      'purge:start',
+      'purge:end',
+      'delete',
+      'expire',
+      'lapsed-invites',
+      'due-challenges'
+    ]);
   });
 });
 
@@ -147,6 +165,59 @@ describe('processNextDelivery', () => {
 
     expect(query.mock.calls[1]![0]).toContain('last_error = $2');
     expect(query.mock.calls[1]![0]).toContain('failed_at = CASE');
+  });
+});
+
+describe('processNextChallengeFinish', () => {
+  it('claims a closed challenge window, scores it, and marks the event processed', async () => {
+    const query = vi.fn(async (sql: string, _values?: readonly unknown[]) => {
+      if (sql.includes('UPDATE outbox_events SET claimed_at'))
+        return { rows: [{ id: 'event-id', aggregate_id: 'challenge-id' }] };
+      // No such active challenge, so scoring is a no-op the loop still completes.
+      return { rows: [] };
+    });
+
+    await expect(processNextChallengeFinish({ query } as never)).resolves.toBe(true);
+
+    expect(query.mock.calls[0]![0]).toContain('topic = $1');
+    expect(query.mock.calls[0]![1]).toContain('challenge.finished');
+    expect(query.mock.calls[0]![0]).toContain('SKIP LOCKED');
+    expect(query.mock.calls.at(-1)![0]).toContain('SET processed_at = now()');
+  });
+
+  it('returns false when no challenge window is waiting to be scored', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    await expect(processNextChallengeFinish({ query } as never)).resolves.toBe(false);
+  });
+
+  it('records a scoring failure without marking the event processed', async () => {
+    const query = vi.fn(async (sql: string, _values?: readonly unknown[]) => {
+      if (sql.includes('UPDATE outbox_events SET claimed_at'))
+        return { rows: [{ id: 'event-id', aggregate_id: 'challenge-id' }] };
+      if (sql.includes('FROM challenges WHERE id'))
+        return {
+          rows: [
+            {
+              id: 'challenge-id',
+              mode: 'active_minutes',
+              length_days: 3,
+              rule_version: '1',
+              period_start: '2026-08-31',
+              challenger_account_id: 'a',
+              opponent_account_id: 'b'
+            }
+          ]
+        };
+      // The agreed rule version is unreadable, so scoring must not invent a tie.
+      return { rows: [] };
+    });
+
+    await expect(processNextChallengeFinish({ query } as never)).resolves.toBe(true);
+
+    const last = query.mock.calls.at(-1)!;
+    expect(last[0]).toContain('last_error = $2');
+    expect(last[0]).toContain('failed_at = CASE');
+    expect(last[0]).not.toContain('SET processed_at = now()');
   });
 });
 

@@ -31,7 +31,8 @@ import {
 } from './src/screens/ActivityScreens';
 import { Onboarding } from './src/screens/OnboardingScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
-import { ClubsScreen, ProfileScreen, SeasonScreen } from './src/screens/ProductScreens';
+import { ClubsScreen, ProfileScreen } from './src/screens/ProductScreens';
+import { PlayScreen } from './src/screens/PlayScreen';
 import { ExploreScreen } from './src/screens/ExploreScreen';
 import { QuestDetailScreen } from './src/screens/QuestDetailScreen';
 import { ThemeProvider, useAppTheme } from './src/theme/theme';
@@ -226,8 +227,8 @@ function RunSphereApp() {
       />
     ) : activeTab === 'Clubs' ? (
       <ClubsScreen />
-    ) : activeTab === 'Season' ? (
-      <SeasonScreen />
+    ) : activeTab === 'Play' ? (
+      <PlayScreen api={apiClient} accountId={accountId} onSessionExpired={expireSession} />
     ) : (
       <>
         {accountId && (

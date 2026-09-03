@@ -1,11 +1,38 @@
 import type {
   AccountDeletionResponse,
   AccountExportResponse,
+  AchievementListResponse,
+  AchievementStatus,
+  AchievementSyncResponse,
   ActivityDetailResponse,
   ActivityStatusResponse,
+  BlockCreateRequest,
+  BlockResponse,
+  ChallengeCreateRequest,
+  ChallengeListResponse,
+  ChallengeRespondRequest,
+  ChallengeResult,
+  ChallengeSummary,
+  FriendListResponse,
+  FriendRequest,
+  FriendRequestCreateRequest,
+  FriendRequestCreateResponse,
+  FriendRequestListResponse,
+  FriendRequestRespondRequest,
+  FriendStandingsParticipationRequest,
+  FriendStandingsResponse,
+  InboxEntry,
+  InboxListResponse,
+  InboxMarkReadRequest,
   LoginRequest,
+  NotificationPreferences,
+  NotificationPreferencesUpdateRequest,
   PrivacyZoneRequest,
   PrivacyZoneResponse,
+  Profile,
+  ProfileUpdateRequest,
+  ProgressionSummary,
+  ProgressionSyncResponse,
   QuestDetail,
   QuestSummary,
   RegisterRequest,
@@ -130,7 +157,7 @@ export class MobileApiClient {
     return this.request('/v1/account/visibility', { method: 'PUT', body: visibility });
   }
   async requestEmailVerification(): Promise<void> {
-    await this.request('/v1/account/email-verification', { method: 'POST' });
+    await this.request('/v1/account/email-verification', { method: 'POST', body: {} });
   }
   async listSafetyContacts(): Promise<readonly SafetyContactResponse[]> {
     return (
@@ -143,7 +170,10 @@ export class MobileApiClient {
     return this.request('/v1/safety-contacts', { method: 'POST', body: contact });
   }
   async acceptSafetyContact(id: string): Promise<void> {
-    await this.request(`/v1/safety-contacts/${encodeURIComponent(id)}/accept`, { method: 'POST' });
+    await this.request(`/v1/safety-contacts/${encodeURIComponent(id)}/accept`, {
+      method: 'POST',
+      body: {}
+    });
   }
   async startSafetyShare(share: SafetyShareRequest): Promise<SafetyShareResponse> {
     return this.request('/v1/safety-shares', { method: 'POST', body: share });
@@ -204,6 +234,132 @@ export class MobileApiClient {
   }
   async deleteActivity(id: string): Promise<void> {
     await this.request(`/v1/activities/${id}`, { method: 'DELETE', empty: true });
+  }
+
+  /**
+   * Own gameplay profile. A `404` `ApiFailure` means no profile row exists yet;
+   * a caller must present an explicit create-profile state and never a
+   * fabricated identity.
+   */
+  async getProfile(): Promise<Profile> {
+    return this.request('/v1/profile', { method: 'GET' });
+  }
+  async updateProfile(update: ProfileUpdateRequest): Promise<Profile> {
+    return this.request('/v1/profile', { method: 'PUT', body: update });
+  }
+  /**
+   * The server answers identically for an unknown address and a recorded
+   * request (ADR-0007), so a caller must not infer that an account exists.
+   */
+  async sendFriendRequest(
+    invitation: FriendRequestCreateRequest
+  ): Promise<FriendRequestCreateResponse> {
+    return this.request('/v1/friends/requests', { method: 'POST', body: invitation });
+  }
+  /** Incoming pending requests only; the server never returns counterpart emails. */
+  async listFriendRequests(): Promise<readonly FriendRequest[]> {
+    return (
+      await this.request<FriendRequestListResponse>('/v1/friends/requests', { method: 'GET' })
+    ).data;
+  }
+  async respondFriendRequest(requestId: string, accept: boolean): Promise<void> {
+    const body: FriendRequestRespondRequest = { accept };
+    await this.request(`/v1/friends/requests/${encodeURIComponent(requestId)}/respond`, {
+      method: 'POST',
+      body,
+      empty: true
+    });
+  }
+  /** Mutual friendships only; membership is the server's authorization boundary. */
+  async listFriends(): Promise<readonly Profile[]> {
+    return (await this.request<FriendListResponse>('/v1/friends', { method: 'GET' })).data;
+  }
+  /**
+   * Weekly friend board (ADR-0007). `participating` is false until the account
+   * joins, and `entries` stays empty while it is: a caller must present the
+   * opt-in, never an empty board as though nobody moved.
+   */
+  async getFriendStandings(): Promise<FriendStandingsResponse> {
+    return this.request('/v1/friends/standings', { method: 'GET' });
+  }
+  /** Joining and leaving the friend board is independent of activity visibility. */
+  async setFriendStandingsParticipation(participating: boolean): Promise<boolean> {
+    const body: FriendStandingsParticipationRequest = { participating };
+    return (
+      await this.request<FriendStandingsParticipationRequest>(
+        '/v1/friends/standings/participation',
+        { method: 'PUT', body }
+      )
+    ).participating;
+  }
+  async blockAccount(block: BlockCreateRequest): Promise<BlockResponse> {
+    return this.request('/v1/blocks', { method: 'POST', body: block });
+  }
+  async unblockAccount(accountId: string): Promise<BlockResponse> {
+    return this.request(`/v1/blocks/${encodeURIComponent(accountId)}`, { method: 'DELETE' });
+  }
+
+  /** Durable inbox of record (ADR-0009). Entries carry no location or score detail. */
+  async getNotificationInbox(): Promise<readonly InboxEntry[]> {
+    return (await this.request<InboxListResponse>('/v1/notifications', { method: 'GET' })).data;
+  }
+  async markNotificationsRead(ids: readonly string[]): Promise<void> {
+    const body: InboxMarkReadRequest = { ids: [...ids] };
+    await this.request('/v1/notifications/read', { method: 'POST', body, empty: true });
+  }
+  async getNotificationPreferences(): Promise<NotificationPreferences> {
+    return this.request('/v1/notifications/preferences', { method: 'GET' });
+  }
+  async updateNotificationPreferences(
+    update: NotificationPreferencesUpdateRequest
+  ): Promise<NotificationPreferences> {
+    return this.request('/v1/notifications/preferences', { method: 'PUT', body: update });
+  }
+
+  /**
+   * Cosmetic progression only (ADR-0005). The server owns XP, level, and
+   * weekly consistency; the client never derives or projects them locally.
+   */
+  async getProgressionSummary(): Promise<ProgressionSummary> {
+    return this.request('/v1/progression', { method: 'GET' });
+  }
+  /** Idempotent finalization of closed weeks; the open week stays a projection. */
+  async syncProgression(): Promise<ProgressionSyncResponse> {
+    return this.request('/v1/progression/sync', { method: 'POST', body: {} });
+  }
+  async getAchievements(): Promise<readonly AchievementStatus[]> {
+    return (await this.request<AchievementListResponse>('/v1/achievements', { method: 'GET' }))
+      .data;
+  }
+  /** Idempotent re-evaluation; the server awards, so a repeat call adds nothing. */
+  async syncAchievements(): Promise<AchievementSyncResponse> {
+    return this.request('/v1/achievements/sync', { method: 'POST', body: {} });
+  }
+
+  // Challenge routes are live as of milestone 2.5 (`018_challenges.sql` plus
+  // `/v1/challenges`). Two failures are product states, not bugs: `422` means
+  // the published rule does not enable that mode or length, and `409` means a
+  // challenge with that friend is already open, an invite is no longer open, or
+  // a closed window has not been scored yet. A caller must present each
+  // explicitly rather than as a generic error.
+  async createChallenge(challenge: ChallengeCreateRequest): Promise<ChallengeSummary> {
+    return this.request('/v1/challenges', { method: 'POST', body: challenge });
+  }
+  async listChallenges(): Promise<readonly ChallengeSummary[]> {
+    return (await this.request<ChallengeListResponse>('/v1/challenges', { method: 'GET' })).data;
+  }
+  async respondChallenge(challengeId: string, accept: boolean): Promise<ChallengeSummary> {
+    const body: ChallengeRespondRequest = { accept };
+    return this.request(`/v1/challenges/${encodeURIComponent(challengeId)}`, {
+      method: 'PATCH',
+      body
+    });
+  }
+  /** Privacy-minimized pace-neutral totals; never pace, distance, or route. */
+  async getChallengeResult(challengeId: string): Promise<ChallengeResult> {
+    return this.request(`/v1/challenges/${encodeURIComponent(challengeId)}/result`, {
+      method: 'GET'
+    });
   }
 
   private async request<T>(

@@ -4,6 +4,7 @@
   "references": [
     { "path": "../../packages/observability" },
     { "path": "../../packages/db" },
+    { "path": "../../packages/domain" },
     { "path": "../api" }
   ],
   "include": ["src"]

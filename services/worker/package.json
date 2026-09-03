@@ -14,6 +14,7 @@
   "dependencies": {
     "@runsphere/api": "workspace:*",
     "@runsphere/db": "workspace:*",
+    "@runsphere/domain": "workspace:*",
     "@runsphere/observability": "workspace:*"
   },
   "devDependencies": {

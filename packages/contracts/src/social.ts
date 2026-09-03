@@ -1,5 +1,5 @@
 import { Type, type Static } from '@sinclair/typebox';
-import { DateTimeSchema, EmailSchema, Strict, UuidSchema } from './common.js';
+import { DateSchema, DateTimeSchema, EmailSchema, Strict, UuidSchema } from './common.js';
 
 const DisplayNameSchema = Type.String({ minLength: 1, maxLength: 40 });
 const VisibilitySchema = Type.Union([Type.Literal('private'), Type.Literal('followers')]);
@@ -77,6 +77,44 @@ export const FriendListResponseSchema = Type.Object(
   { $id: 'FriendListResponse' }
 );
 
+/**
+ * One friend-board entry (ADR-0007). A board entry carries an approved display
+ * identity, one published pace-neutral score, and a rank — never location,
+ * route, activity timestamps, pace, distance, or live state.
+ */
+export const FriendStandingEntrySchema = Type.Object(
+  {
+    profile: ProfileSchema,
+    /** Competition rank: equal scores share a rank and the next rank skips. */
+    rank: Type.Integer({ minimum: 1 }),
+    /** The single published score: whole validated active minutes, per-day capped. */
+    cappedActiveMinutes: Type.Integer({ minimum: 0 }),
+    isSelf: Type.Boolean()
+  },
+  { $id: 'FriendStandingEntry' }
+);
+
+/**
+ * The friend board is opt-in and revocable, independently of activity
+ * visibility (ADR-0007). `entries` is empty while `participating` is false: an
+ * account that is not on the board does not read other people's scores.
+ */
+export const FriendStandingsResponseSchema = Type.Object(
+  {
+    periodStart: DateSchema,
+    periodEnd: DateSchema,
+    participating: Type.Boolean(),
+    ruleVersion: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+    entries: Type.Array(FriendStandingEntrySchema, { maxItems: 200 })
+  },
+  { $id: 'FriendStandingsResponse' }
+);
+
+export const FriendStandingsParticipationRequestSchema = Type.Object(
+  { participating: Type.Boolean() },
+  { ...Strict, $id: 'FriendStandingsParticipationRequest' }
+);
+
 export const BlockCreateRequestSchema = Type.Object(
   {
     accountId: Type.String({ format: 'uuid' }),
@@ -116,7 +154,9 @@ export const FriendNotFoundResponseSchema = Type.Object(
 export type Profile = Static<typeof ProfileSchema>;
 export type ProfileUpdateRequest = Static<typeof ProfileUpdateRequestSchema>;
 export type FriendRequest = Static<typeof FriendRequestSchema>;
+export type FriendRequestStatus = Static<typeof FriendRequestStatusSchema>;
 export type FriendRequestCreateRequest = Static<typeof FriendRequestCreateRequestSchema>;
+export type FriendRequestCreateResponse = Static<typeof FriendRequestCreateResponseSchema>;
 export type FriendRequestRespondRequest = Static<typeof FriendRequestRespondRequestSchema>;
 export type FriendListResponse = Static<typeof FriendListResponseSchema>;
 export type BlockCreateRequest = Static<typeof BlockCreateRequestSchema>;
@@ -124,3 +164,8 @@ export type BlockResponse = Static<typeof BlockResponseSchema>;
 export type FriendRequestParams = Static<typeof FriendRequestParamsSchema>;
 export type FriendRequestListResponse = Static<typeof FriendRequestListResponseSchema>;
 export type BlockParams = Static<typeof BlockParamsSchema>;
+export type FriendStandingEntry = Static<typeof FriendStandingEntrySchema>;
+export type FriendStandingsResponse = Static<typeof FriendStandingsResponseSchema>;
+export type FriendStandingsParticipationRequest = Static<
+  typeof FriendStandingsParticipationRequestSchema
+>;

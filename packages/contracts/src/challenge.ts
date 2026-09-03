@@ -11,6 +11,16 @@ export const ChallengeModeSchema = Type.Union([
 /** Asynchronous 1v1 challenges run over a 3- or 7-day window. */
 export const ChallengeLengthDaysSchema = Type.Union([Type.Literal(3), Type.Literal(7)]);
 
+/**
+ * Which side of the challenge the reading account is on. Only the `opponent`
+ * of an `invited` challenge may accept or decline it, so a client cannot tell
+ * an invite it must answer from one it sent without this.
+ */
+export const ChallengeRoleSchema = Type.Union([
+  Type.Literal('challenger'),
+  Type.Literal('opponent')
+]);
+
 export const ChallengeStatusSchema = Type.Union([
   Type.Literal('invited'),
   Type.Literal('accepted'),
@@ -35,6 +45,7 @@ export const ChallengeSummarySchema = Type.Object(
     mode: ChallengeModeSchema,
     lengthDays: ChallengeLengthDaysSchema,
     status: ChallengeStatusSchema,
+    role: ChallengeRoleSchema,
     periodStart: DateSchema,
     periodEnd: DateSchema,
     opponent: ProfileSchema,
@@ -77,7 +88,18 @@ export const ChallengeResultSchema = Type.Object(
   { $id: 'ChallengeResult' }
 );
 
+export const ChallengeParamsSchema = Type.Object(
+  { challengeId: UuidSchema },
+  { ...Strict, $id: 'ChallengeParams' }
+);
+
+export type ChallengeParams = Static<typeof ChallengeParamsSchema>;
 export type ChallengeMode = Static<typeof ChallengeModeSchema>;
+export type ChallengeLengthDays = Static<typeof ChallengeLengthDaysSchema>;
+export type ChallengeStatus = Static<typeof ChallengeStatusSchema>;
+export type ChallengeRole = Static<typeof ChallengeRoleSchema>;
 export type ChallengeCreateRequest = Static<typeof ChallengeCreateRequestSchema>;
 export type ChallengeSummary = Static<typeof ChallengeSummarySchema>;
+export type ChallengeListResponse = Static<typeof ChallengeListResponseSchema>;
+export type ChallengeRespondRequest = Static<typeof ChallengeRespondRequestSchema>;
 export type ChallengeResult = Static<typeof ChallengeResultSchema>;

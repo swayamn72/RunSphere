@@ -11,6 +11,8 @@ import {
   FriendRequestListResponseSchema,
   FriendRequestParamsSchema,
   FriendRequestRespondRequestSchema,
+  FriendStandingsParticipationRequestSchema,
+  FriendStandingsResponseSchema,
   NotificationPreferencesSchema,
   NotificationPreferencesUpdateRequestSchema,
   ProfileResponseSchema,
@@ -20,13 +22,18 @@ import {
   type BlockCreateRequest,
   type FriendRequestCreateRequest,
   type FriendRequestRespondRequest,
+  type FriendStandingEntry,
+  type FriendStandingsParticipationRequest,
+  type FriendStandingsResponse,
   type NotificationPreferences,
   type NotificationPreferencesUpdateRequest,
   type Profile,
   type ProfileUpdateRequest
 } from '@runsphere/contracts';
 import type { Database } from '@runsphere/db';
+import { cappedWeeklyActiveMinutes, competitionRanking } from '@runsphere/domain';
 import { verifyAccessToken } from './auth.js';
+import { currentWeek, loadActiveProgressionRule } from './progression-core.js';
 
 /**
  * Foundation-gate gameplay substrate: profiles, mutual friends/blocks, and the
@@ -677,6 +684,214 @@ export const registerGamificationRoutes = ({
         maxPerDay: row.max_per_day,
         channels: row.channels as NotificationPreferences['channels']
       };
+    }
+  );
+  /**
+   * Weekly friend board (ADR-0007). Mutual friendship is the authorization
+   * boundary, participation is a separate opt-in from activity visibility, and
+   * an entry carries exactly one published pace-neutral score. Location,
+   * route, activity timestamps, pace, and distance are never selected here.
+   *
+   * The score is the same capped weekly active-minute total the account sees on
+   * its own Home consistency card, computed by `@runsphere/domain` from the
+   * published progression rule so the two can never disagree.
+   */
+  routes.get(
+    '/v1/friends/standings',
+    {
+      schema: {
+        tags: ['friends'],
+        headers: ActivityAuthorizationHeadersSchema,
+        response: {
+          200: FriendStandingsResponseSchema,
+          401: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+
+      const { weekStart, weekEnd, periodStart } = currentWeek(new Date());
+      const period = { periodStart, periodEnd: weekEnd.toISOString().slice(0, 10) };
+
+      const own = await database.query<{ participating: boolean }>(
+        `SELECT EXISTS (
+           SELECT 1 FROM leaderboard_opt_ins optin
+           WHERE optin.account_id = $1 AND optin.scope = 'friends' AND optin.revoked_at IS NULL
+         ) AS participating`,
+        [accountId]
+      );
+      const participating = Boolean(own.rows[0]?.participating);
+      // Reading other people's scores requires being on the board yourself.
+      if (!participating) {
+        const response: FriendStandingsResponse = { ...period, participating: false, entries: [] };
+        return response;
+      }
+
+      const rule = await loadActiveProgressionRule(database);
+      if (!rule) {
+        const response: FriendStandingsResponse = { ...period, participating: true, entries: [] };
+        return response;
+      }
+
+      // Mutual friendship plus a live opt-in on both sides, minus any block in
+      // either direction. The account itself is included once it has opted in.
+      const members = await database.query<{
+        account_id: string;
+        display_name: string | null;
+        cosmetic: unknown;
+        activity_visibility: 'private' | 'followers';
+      }>(
+        `WITH mutual AS (
+           SELECT forward.friend_account_id AS account_id
+           FROM friendships forward
+           WHERE forward.account_id = $1
+             AND EXISTS (SELECT 1 FROM friendships back
+               WHERE back.account_id = forward.friend_account_id
+                 AND back.friend_account_id = $1)
+             AND NOT EXISTS (SELECT 1 FROM blocks block WHERE block.revoked_at IS NULL
+               AND ((block.blocker_account_id = $1
+                     AND block.blocked_account_id = forward.friend_account_id)
+                 OR (block.blocker_account_id = forward.friend_account_id
+                     AND block.blocked_account_id = $1)))
+           UNION
+           SELECT $1::uuid
+         )
+         SELECT account.id AS account_id, profile.display_name, profile.cosmetic,
+                account.profile_visibility AS activity_visibility
+         FROM mutual
+         JOIN accounts account ON account.id = mutual.account_id AND account.deleted_at IS NULL
+         JOIN leaderboard_opt_ins optin ON optin.account_id = mutual.account_id
+           AND optin.scope = 'friends' AND optin.revoked_at IS NULL
+         LEFT JOIN profiles profile ON profile.account_id = mutual.account_id
+         LIMIT 200`,
+        [accountId]
+      );
+      if (!members.rows.length) {
+        const response: FriendStandingsResponse = {
+          ...period,
+          participating: true,
+          ruleVersion: String(rule.version),
+          entries: []
+        };
+        return response;
+      }
+
+      const activities = await database.query<{
+        account_id: string;
+        active_duration_seconds: number;
+        processed_at: Date;
+      }>(
+        `SELECT submission.account_id, output.active_duration_seconds, submission.processed_at
+         FROM activity_submissions submission
+         JOIN activity_validation_outputs output ON output.activity_id = submission.id
+         WHERE submission.account_id = ANY($1::uuid[])
+           AND submission.status = 'derived'
+           AND submission.deleted_at IS NULL
+           AND submission.processed_at >= $2
+           AND submission.processed_at < $3`,
+        [members.rows.map((member) => member.account_id), weekStart, weekEnd]
+      );
+      const byAccount = new Map<string, { activeDurationSeconds: number; endedAt: Date }[]>();
+      for (const row of activities.rows) {
+        const bucket = byAccount.get(row.account_id) ?? [];
+        bucket.push({
+          activeDurationSeconds: row.active_duration_seconds,
+          endedAt: row.processed_at
+        });
+        byAccount.set(row.account_id, bucket);
+      }
+
+      const scored = members.rows
+        .map((member) => ({
+          member,
+          score: cappedWeeklyActiveMinutes(
+            byAccount.get(member.account_id) ?? [],
+            weekStart,
+            rule.rule.dailyCapMinutes
+          )
+        }))
+        // Equal scores are ordered by display name so the list is stable; the
+        // shared rank below is what the reader is actually shown.
+        .sort(
+          (left, right) =>
+            right.score - left.score ||
+            (left.member.display_name ?? '').localeCompare(right.member.display_name ?? '') ||
+            left.member.account_id.localeCompare(right.member.account_id)
+        );
+      const ranks = competitionRanking(scored.map((entry) => entry.score));
+
+      const entries: FriendStandingEntry[] = scored.map((entry, index) => ({
+        profile: {
+          id: entry.member.account_id,
+          displayName: entry.member.display_name ?? 'RunSphere member',
+          cosmetic: (entry.member.cosmetic as Profile['cosmetic']) ?? DEFAULT_COSMETIC,
+          activityVisibility: entry.member.activity_visibility
+        },
+        rank: ranks[index]!,
+        cappedActiveMinutes: entry.score,
+        isSelf: entry.member.account_id === accountId
+      }));
+      const response: FriendStandingsResponse = {
+        ...period,
+        participating: true,
+        ruleVersion: String(rule.version),
+        entries
+      };
+      return response;
+    }
+  );
+
+  /**
+   * Join or leave the friend board. Leaving revokes rather than deletes, so the
+   * opt-in history stays auditable, and re-joining reopens the same row.
+   */
+  routes.put<{ Body: FriendStandingsParticipationRequest }>(
+    '/v1/friends/standings/participation',
+    {
+      schema: {
+        tags: ['friends'],
+        headers: ActivityAuthorizationHeadersSchema,
+        body: FriendStandingsParticipationRequestSchema,
+        response: {
+          200: FriendStandingsParticipationRequestSchema,
+          401: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+      if (request.body.participating) {
+        await database.query(
+          `INSERT INTO leaderboard_opt_ins (account_id, scope) VALUES ($1, 'friends')
+           ON CONFLICT (account_id, scope)
+           DO UPDATE SET opted_in_at = now(), revoked_at = NULL`,
+          [accountId]
+        );
+      } else {
+        await database.query(
+          `UPDATE leaderboard_opt_ins SET revoked_at = now()
+           WHERE account_id = $1 AND scope = 'friends' AND revoked_at IS NULL`,
+          [accountId]
+        );
+      }
+      await audit(
+        database,
+        accountId,
+        request.body.participating ? 'friend_standings.joined' : 'friend_standings.left',
+        'account',
+        accountId
+      );
+      const response: FriendStandingsParticipationRequest = {
+        participating: request.body.participating
+      };
+      return response;
     }
   );
 };

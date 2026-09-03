@@ -1,18 +1,30 @@
 # RunSphere implementation handoff
 
-Updated: 2026-08-28
-Branch: `vorflux/full-android-product`
-Pull request: https://github.com/swayamn72/RunSphere/pull/6
+Updated: 2026-09-03
+Baseline: `main` at `85d3cdb` (PR #8 merged). Phase 2 milestones 2.1 through 2.6
+are implemented and validated locally but are **not yet committed**; they need a
+fresh `vorflux/*` branch and a new pull request targeting `main`, because merged
+PRs #6 and #8 cannot receive later commits. Only 2.7 (push delivery) and 2.8
+(Loop guidance and polish) remain in Phase 2.
+Last merged pull request: https://github.com/swayamn72/RunSphere/pull/8
 
 ## Current state
 
 The branch implements an Android-first, privacy-focused fitness foundation for walk, run, and hike activities. It includes authenticated onboarding, encrypted offline recording and resumable upload, server-side validation and 200 m privacy trimming, activity history, weekly goals, curated checkpoint quests, fixed-radius privacy zones, email verification foundations, delayed coarse safety sharing, export/deletion, worker maintenance, and an authenticated staff review dashboard.
 
-Territory capture is intentionally disabled. Clubs are a truthful future-state screen. Cosmetic XP is intentionally excluded.
+Territory capture is intentionally disabled. Clubs are a truthful future-state screen.
+
+Cosmetic XP was excluded through PR #7 and is no longer excluded. PR #8 merged the
+Phase 1 gamification foundation into `main`, adding server-authoritative cosmetic
+progression, achievements, profiles, friends/blocks, the notification inbox, and
+staff RBAC (migrations 011-017). Progression stays cosmetic-only under ADR-0005,
+and no mobile surface consumes it yet.
 
 ## Immediate priority order
 
-1. Keep PR #5 green and mergeable.
+1. Keep the working branch green and mergeable. PRs #5 through #8 have merged and
+   `main` is the current baseline; because a merged pull request cannot receive
+   later commits, every new milestone needs a fresh pull request.
 2. Redesign the six core mobile experiences before adding more backend scope:
    - onboarding and movement selection;
    - home and activity start;
@@ -356,3 +368,341 @@ PATH="/tmp/runsphere-corepack:$PATH" pnpm lint
 - Keep commits narrow and push after every green milestone.
 - Update this file whenever priorities, blockers, validation status, or rollout decisions change.
 - Never enable territory or expose exact live location as part of an unrelated UI change.
+
+## Phase 2 milestone 2.1 — mobile API client extensions, 2026-09-03
+
+Baseline is `main` at `85d3cdb`, after PR #8 merged the Phase 1 gamification
+foundation. This change is client-only: `apps/mobile/src/api-client.ts` gained
+typed methods for every Phase 1 gamification route (profile, friends, blocks,
+notification inbox and preferences, progression, achievements) plus the
+contract-frozen challenge calls that stay unimplemented server-side until
+milestone 2.5. Details are in
+[`gamification-detailed-plan.md`](gamification-detailed-plan.md).
+
+No product screen consumes the new methods yet, so nothing user-visible changed
+and no new device evidence is claimed. Territory, exact live-location sharing,
+photos, and client-authoritative validation all remain disabled.
+
+Two latent client defects were fixed at the same boundary: `requestEmailVerification`
+and `acceptSafetyContact` sent a POST with `content-type: application/json` and no
+body, which Fastify rejects with `400 FST_ERR_CTP_EMPTY_JSON_BODY`. Both now send an
+explicit empty JSON object. This was reproduced against the real Fastify app before
+the fix.
+
+Validation passed for this milestone:
+
+- focused `api-client` suite: 16 tests;
+- workspace lint, typecheck, test (36 mobile files / 144 tests, all packages
+  green), build, `verify:maplibre`, and `git diff --check`.
+
+Two validation gaps are open and not waived:
+
+- the four PostGIS API integration tests were skipped because no local PostGIS was
+  reachable; they cover server routes this change does not touch, and CI runs them;
+- `pnpm format:check` cannot pass in a Windows checkout with `core.autocrlf=true`
+  and no `.gitattributes`: every one of the 224 files reports a CRLF style issue.
+  Prettier passes on every file this milestone changed, and CI checks out with LF
+  endings. Adding a `.gitattributes` that pins `* text=auto eol=lf` would remove
+  this trap for Windows contributors.
+
+Separately, `docs/gamification-detailed-plan.md` as committed in `85d3cdb` failed
+`prettier --check` on its own content, independent of line endings: headings were
+missing the required following blank line. `main` was therefore red at the CI
+formatting step. This milestone reformats that file, so the next pull request
+should confirm CI formatting is green again.
+
+Milestone 2.2 (rename the `Season` tab placeholder to `Play`) landed next, below.
+
+## Phase 2 milestone 2.2 — Play tab rename, 2026-09-03
+
+The fifth tab is now `Play` instead of `Season`, matching the PRD information
+architecture where Play owns challenges and friend standings. The rename covers
+`apps/mobile/src/navigation/types.ts`, `navigation/tab-style.ts`,
+`navigation/TabBar.tsx`, and `App.tsx`; `SeasonScreen` became `PlayScreen` in
+`screens/ProductScreens.tsx`.
+
+`TabBar` previously chose its glyph from a five-branch nested ternary whose final
+`else` silently answered for any unrecognized tab. `tab-style.ts` now exports
+`tabIcons: Record<Tab, string>`, so a future tab is a type error until it
+declares an icon, and a new test pins that every tab has a distinct non-empty
+glyph. Play uses `◆`, which frees the retired `⬡` for a later territory surface.
+
+`PlayScreen` is a truthful placeholder, not a preview. It states that challenges
+are not live, names what a challenge will count (active minutes, active days,
+quest completions) and what it will never count (pace or speed), and presents no
+invite, score, standing, or rank — none of which exist until milestones 2.4-2.6.
+It also carries the territory disclosure the old Season tab owned, so the
+"before first territory season" non-state in `docs/product.md` still has a
+surface; that table row now names the Play tab. Play stays a quiet-emphasis tab
+alongside Clubs, and milestone 2.4 should promote it to primary when real
+gamification UI replaces the placeholder.
+
+Validation passed for this milestone:
+
+- focused mobile `src/navigation` and `src/screens` suites: 7 files, 30 tests;
+- mobile lint (0 errors; the 3 remaining `react-hooks/exhaustive-deps` warnings
+  are pre-existing and in untouched hooks) and mobile typecheck;
+- workspace `typecheck`, `test` (36 mobile files / 145 tests, 17/17 turbo tasks
+  green), `build`, `verify:maplibre`, and `git diff --check`.
+
+No new Android device evidence is claimed or needed: the only user-visible
+change is a tab label, its icon, and placeholder copy on a screen that makes no
+network request. All existing release blockers stay open and unwaived, and
+territory, exact live-location sharing, photos, and client-authoritative
+validation all remain disabled.
+
+The Windows `pnpm format:check` trap from milestone 2.1 is unchanged: every file
+in a `core.autocrlf=true` checkout reports a CRLF style issue. Each file this
+milestone touched was verified against Prettier on an LF-normalized copy, and
+`docs/product.md` needed its non-state table re-padded after the shorter `Play`
+label. A `.gitattributes` pinning `* text=auto eol=lf` would remove the trap and
+is still unclaimed work.
+
+Milestone 2.3 (Home progression and weekly-consistency cards over
+`GET /v1/progression`) landed next, below.
+
+## Phase 2 milestone 2.3 — Home progression and consistency, 2026-09-03
+
+Home is the first surface to consume the milestone 2.1 gamification client
+methods. It now renders a progression card and a weekly consistency card from
+`GET /v1/progression`, with the cosmetic tier chip from `GET /v1/profile`.
+`apps/mobile/src/screens/home-progression-model.ts` holds every derivation as
+pure functions; `HomeScreen.tsx` only fetches and renders.
+
+Placement is deliberate: the cards sit after the free-activity Start card rather
+than immediately under the weekly goal, so two cosmetic cards do not push the
+screen's one primary action below the fold. Home reads the summary only and never
+calls `POST /v1/progression/sync`, which would turn rendering Home into a write.
+
+Reading the served payload surfaced four places where an obvious implementation
+would have shown something untrue:
+
+- `ProgressionSummary.level` is optional and exists only while a `progression`
+  rule version is published. A missing level renders as an explicit
+  `unpublished` state — the XP total plus "Cosmetic levels are not published
+  yet" — never a fabricated level 1 or a 0% bar.
+- `LevelInfo.nextLevelAt` is the next band's **cumulative** threshold, not a
+  remaining delta, so the band width is `nextLevelAt - (totalXp - xpInLevel)`.
+  A non-positive width means the served rule and totals disagree; the bar is
+  dropped rather than rendered from a divide-by-zero. The render test asserts
+  that no `NaN%` or `undefined%` width ever reaches a style.
+- `ProgressionSummary.questsCompleted` is still a server stub: the
+  `/v1/progression` route hardcodes `0`, so no surface presents it, and a test
+  pins that the presentation carries no quest wording. It becomes presentable
+  only once the route computes it.
+- `weeklyConsistency` reports **how many** days were active, never which ones.
+  The card is therefore seven unlabelled count pips rather than a weekday
+  calendar, which would have implied days the server never reported. Inactive
+  pips use the neutral inset token — never error or warning — nothing is marked
+  as missed, and the card closes with "A quieter week never reduces XP you have
+  already earned" (ADR-0005). The pip row is one TalkBack node reading
+  "3 of 7 active days this week, 182 counted active minutes", with the
+  individual pips hidden from the accessibility tree.
+
+Two boundaries were tightened at the same time. A `503` from `/v1/progression`
+now maps to a distinct `unavailable` state ("not available on this server yet")
+instead of a generic retryable error, and `homeStatusMessage` gained an optional
+secondary message so Home keeps exactly one live region: progression announces
+itself only when the weekly goal and quest list are both fine. The tier chip is
+decoration, so a `404` from `getProfile` — the documented no-profile answer —
+leaves the chip off without blocking progression or inventing an identity.
+
+Validation passed for this milestone:
+
+- new `home-progression-model` suite (13 tests) and a new
+  `HomeScreen.progression.render.test.tsx` render suite (5 tests) using the
+  existing `react-test-renderer` harness;
+- focused `src/screens`: 7 files, 40 tests;
+- mobile lint (0 errors; the 3 remaining `react-hooks/exhaustive-deps` warnings
+  are pre-existing and in untouched hooks) and mobile typecheck;
+- workspace `typecheck`, `test` (38 mobile files / 161 tests, 17/17 turbo tasks
+  green), `build`, `verify:maplibre`, and `git diff --check`;
+- Prettier verified per changed file on LF-normalized copies (see the milestone
+  2.2 note on the Windows CRLF trap).
+
+No Android device evidence is claimed. Authenticated capture of these cards is
+still blocked by the documented authorization-stripping HTTPS tunnel, and the
+cards need a published `progression` rule version plus derived activity to show
+anything other than the `unpublished` state — importing a rule is part of the
+outstanding production setup.
+
+Milestone 2.5 was taken next, out of plan order, so the Play tab is built
+against real routes instead of a contract that answers `404`.
+
+## Phase 2 milestone 2.5 — challenge API and scoring worker, 2026-09-03
+
+`/v1/challenges` is live. Milestone 2.4 (the Play tab) was deliberately deferred
+behind this so its UI is written against a real server rather than
+contract-frozen calls that raise `ApiFailure(404)`.
+
+New in this milestone:
+
+- `infra/postgres/migrations/018_challenges.sql`: `challenges`,
+  `challenge_results`, `challenge_participant_results`, a partial unique index
+  allowing one live challenge per pair in either direction, and a version-1
+  `challenge` rule in `rule_versions`.
+- `services/api/src/challenge-routes.ts`: `POST /v1/challenges`,
+  `GET /v1/challenges`, `PATCH /v1/challenges/:challengeId`, and
+  `GET /v1/challenges/:challengeId/result`, registered in `app.ts`.
+- `services/worker/src/challenge-scoring.ts` plus `processNextChallengeFinish`
+  in `worker.ts`: the `challenge.finished` sweep, scoring, and fan-out.
+- `packages/domain/src/challenge.ts`: `parseChallengeRule`,
+  `challengeModeEnabled`, `challengeLengthEnabled`; and in `gamification.ts`
+  `challengeWindow`, `challengeWinner`, `kolkataDayStart`, `kolkataDateStart`.
+- `ChallengeParamsSchema` in `packages/contracts/src/challenge.ts`. No existing
+  challenge contract shape changed; the frozen contract was implementable as
+  written.
+
+The invariant the schema exists to protect: **status `finished` implies a stored
+`challenge_results` row.** The worker sets `finished` in the same transaction
+that writes the result and participant rows, so a finished challenge can never
+present an empty or half-computed score. A window that has closed but is not yet
+scored answers `409 This result is not ready yet` rather than a zeroed result.
+
+Five decisions worth carrying forward:
+
+- **`quest_completion` cannot be scored, so it is refused.** Nothing in the
+  schema records a quest completion — the same gap that makes
+  `/v1/progression` return a hardcoded `questsCompleted: 0`. Scoring the mode
+  would hand every pair a fabricated 0-0 tie, so the published rule's `modes`
+  list omits it, `POST /v1/challenges` answers `422` naming the mode, and the
+  worker refuses to score it. **Milestone 2.4 must offer only `active_minutes`
+  and `active_days`.** Enabling it is one change: record completions, then
+  publish a v2 rule that lists the mode.
+- **The window starts when the invite is accepted.** `period_start`/`period_end`
+  are proposed at invite time and rewritten exactly once, while the row is still
+  `invited`, so a slow reply never costs the invitee scoring days. Invites lapse
+  after seven days and the maintenance sweep cancels them, which also frees the
+  one-open-challenge-per-pair slot.
+- **A tie has no winner.** `winner_account_id` is nullable and a tie is never
+  broken on pace, time, or distance — a challenge may not read any of them.
+- **Scoring reads the rule version recorded on the challenge**, not the newest
+  published one, so a v2 rule never rescores a window under terms the
+  participants did not agree to. An unreadable agreed version throws, which
+  routes the reason into `outbox_events.last_error` rather than writing a tie.
+- **Notice copy carries no score.** Only the opaque challenge id travels, in the
+  deep link, so the 014 fan-out to `notification.created` cannot leak a total
+  into a push payload (ADR-0009).
+
+Mutual friendship is the authorization boundary and is evaluated together with
+blocks in a single statement, so a stranger, a one-way friendship, and a blocked
+friend are indistinguishable (ADR-0007). A challenge summary exposes the
+opponent's `Profile` only; an opponent with no profile is named "RunSphere
+member" rather than by account id. `services/worker` gained a
+`@runsphere/domain` dependency (lockfile updated; three added lines).
+
+Validation passed for this milestone:
+
+- new domain `challenge` suite and worker `challenge-scoring` suite; new
+  `services/api/src/challenge-routes.test.ts` drives all four routes through
+  `app.inject` against a fake `Database`, so real Fastify schema validation and
+  authorization run with no PostGIS;
+- domain 50 tests, worker 23, API 31 passed + 4 PostGIS integration tests still
+  skipped locally, mobile 161;
+- workspace `typecheck`, `test` (17/17 turbo tasks), `build`, `lint`,
+  `verify:maplibre`, and `git diff --check`;
+- Prettier verified per changed file on LF-normalized copies.
+
+One pre-existing defect surfaced and was fixed: `services/worker` was the only
+workspace package without a `vitest.config.ts`, so after `pnpm build` the
+default glob also matched the compiled tests in `dist` and every worker test ran
+twice — the second time against stale output that could pass while `src` was
+broken. It now uses the `src/**/*.test.ts` include that `services/api`,
+`packages/domain`, and `apps/mobile` already had.
+
+The migration has not been applied to any database from this checkout: no local
+PostGIS is reachable, so `018_challenges.sql` is verified by review and by the
+route/worker tests, not by execution. **Applying it against a real PostGIS and
+re-running the four skipped integration tests is the first thing to do in CI or
+on a machine with a database.**
+
+Milestone 2.6 was taken next, then 2.4, so the Play tab reads only real routes.
+
+## Phase 2 milestone 2.6 — friend standings API, 2026-09-03
+
+`GET /v1/friends/standings` and `PUT /v1/friends/standings/participation` are
+live in `gamification-routes.ts`, with `019_friend_standings.sql` adding
+`leaderboard_opt_ins`.
+
+ADR-0007 requires friend boards to use a visibility control **independent** of
+activity visibility, so the opt-in is its own table rather than a reuse of
+`accounts.profile_visibility`. Absence of a row means not on the board, so the
+migration enrols nobody; leaving revokes rather than deletes, keeping the opt-in
+auditable. The participation route ships alongside the read route because a read
+path with no write path would have left the endpoint permanently empty.
+
+Board rules worth carrying forward:
+
+- **Not on the board means not reading it.** `entries` is empty whenever
+  `participating` is false, and the route does not even query for members. The
+  opt-in is reciprocal, not a one-way window into friends' numbers.
+- Membership requires mutual friendship **and** a live opt-in on both sides,
+  minus any block in either direction, evaluated in one statement.
+- An entry carries exactly one score: capped weekly active minutes, computed by
+  `cappedWeeklyActiveMinutes` in `@runsphere/domain` from the published
+  progression rule, so a friend sees the same number the account sees on its own
+  Home consistency card. Active days were deliberately not added — ADR-0007
+  describes a board entry as carrying one score, and each extra metric is more
+  exposure of a friend's week.
+- Ties share a rank and the next rank skips (`competitionRanking`, new in
+  domain). A tie is never broken, because every available tiebreak would be
+  pace, distance, or timing.
+
+Validation: domain 53 tests; API 45 passed + the 4 PostGIS integration tests
+still skipped locally, including a new 14-test `friend-standings.test.ts`
+driving both routes through `app.inject` against a fake `Database`.
+
+## Phase 2 milestone 2.4 — Play tab, 2026-09-03
+
+`apps/mobile/src/screens/PlayScreen.tsx` replaces the placeholder, with
+`screens/play-model.ts` owning every derivation and `play-model.test.ts` plus
+`PlayScreen.render.test.tsx` covering them. Play is now a primary-emphasis tab.
+
+Delivered: incoming invites with accept/decline, outgoing invites shown as
+waiting on a reply, in-progress challenges, finished challenges with their
+stored result, the friend board with join/leave, Loop guidance on the empty
+state, and a compose sheet for friend, mode, and duration.
+
+**Two planned features could not be built, because no server data backs them:**
+
+- **"Active challenges with live scores" does not exist.** The worker computes
+  scores when the window closes and `GET /v1/challenges/:id/result` answers
+  `409` until then, so an in-progress card shows mode, opponent, and days
+  remaining, and says scores are counted at the end. A running total would have
+  to be derived client-side, which ADR-0005/ADR-0006 forbid. Adding one needs a
+  new route **and** a privacy decision about exposing an opponent's in-progress
+  total — treat it as its own milestone, not a UI tweak.
+- **`quest_completion` is not offered.** No quest completion is recorded
+  server-side, so the v1 rule omits the mode and the API answers `422`. The
+  compose sheet offers `active_minutes` and `active_days` only.
+
+Building the screen exposed a contract gap milestone 2.5 had not: a
+`ChallengeSummary` did not say which side the reader was on, so a client could
+not distinguish an invite it must answer from one it sent. `ChallengeSummary`
+gained a required `role` (`challenger` | `opponent`) and the route projects it
+with a `CASE` on the challenger id. This is exactly the failure mode that
+building UI against a `404` contract would have hidden.
+
+Other decisions: declined and cancelled challenges are dropped rather than shown
+as history, because nothing was scored; a friend with a live challenge is not
+offered in the compose sheet; finished results are fetched at most three at a
+time; and a finished window the worker has not scored reads "Counting", never a
+zero or a loss.
+
+Validation passed for both milestones:
+
+- mobile 188 tests across 41 files, including 9 `src/screens` files / 67 tests;
+- workspace `typecheck`, `test` (17/17 turbo tasks), `build`, `lint`,
+  `verify:maplibre`, and `git diff --check`;
+- Prettier verified per changed file on LF-normalized copies.
+
+Still unverified, and unchanged by this work: no Android device evidence is
+claimed, and neither `018_challenges.sql` nor `019_friend_standings.sql` has
+been executed against a real PostGIS from this checkout. **Applying both
+migrations and running the four skipped integration tests remains the first
+thing to do in CI or on a machine with a database.**
+
+Milestone 2.7 (push delivery for `notification.created`) and 2.8 (Loop guidance,
+frequency caps, dismissal, and TalkBack polish across the new cards) are what
+remain in Phase 2. Both new surfaces already emit inbox rows the worker fans
+out, so 2.7 is a delivery-side change rather than a new producer.

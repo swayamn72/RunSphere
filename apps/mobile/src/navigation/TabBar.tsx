@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAppTheme } from '../theme/theme';
-import { tabEmphasis } from './tab-style';
+import { tabEmphasis, tabIcons } from './tab-style';
 import { tabs, type Tab } from './types';
 
 export function TabBar({ activeTab, onChange }: { activeTab: Tab; onChange: (tab: Tab) => void }) {
@@ -22,15 +22,7 @@ export function TabBar({ activeTab, onChange }: { activeTab: Tab; onChange: (tab
             style={({ pressed }) => [styles.navItem, pressed && styles.pressed]}
           >
             <Text style={[styles.navIcon, quiet && styles.quiet, selected && styles.active]}>
-              {tab === 'Home'
-                ? '⌂'
-                : tab === 'Explore'
-                  ? '⌖'
-                  : tab === 'Season'
-                    ? '⬡'
-                    : tab === 'Clubs'
-                      ? '◎'
-                      : '◉'}
+              {tabIcons[tab]}
             </Text>
             <Text style={[styles.navText, quiet && styles.quiet, selected && styles.active]}>
               {tab}

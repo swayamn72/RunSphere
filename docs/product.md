@@ -29,13 +29,13 @@ The approved visual direction is documented in the supplied mobile artifacts, no
 
 The app must not imply that a season is always available or that every account participates.
 
-| State                                | Required UI and behavior                                                                                                                                                                  |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Before first territory season        | Season tab explains that seasons are not yet live, shows the next announced window only when confirmed, and links to quest discovery. No rank, map ownership, or placeholder leaderboard. |
-| Season live, not enrolled            | Show rules, division assignment explanation, an explicit **Join season** action, and a quest-first alternative. Do not calculate or display a rank.                                       |
-| Enrolled but no qualifying time      | Show `0 qualifying minutes today`, explain the daily best-60-minute cap, and invite any pace activity.                                                                                    |
-| No nearby eligible quest / POI issue | Explain why the quest is unavailable, offer a free activity and nearby verified alternatives. Never auto-complete a POI-dependent checkpoint from proximity to an unverified place.       |
-| Offline                              | Continue local recording; mark quest and cell results pending server validation and do not present them as final.                                                                         |
+| State                                | Required UI and behavior                                                                                                                                                                |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Before first territory season        | Play tab explains that seasons are not yet live, shows the next announced window only when confirmed, and links to quest discovery. No rank, map ownership, or placeholder leaderboard. |
+| Season live, not enrolled            | Show rules, division assignment explanation, an explicit **Join season** action, and a quest-first alternative. Do not calculate or display a rank.                                     |
+| Enrolled but no qualifying time      | Show `0 qualifying minutes today`, explain the daily best-60-minute cap, and invite any pace activity.                                                                                  |
+| No nearby eligible quest / POI issue | Explain why the quest is unavailable, offer a free activity and nearby verified alternatives. Never auto-complete a POI-dependent checkpoint from proximity to an unverified place.     |
+| Offline                              | Continue local recording; mark quest and cell results pending server validation and do not present them as final.                                                                       |
 
 ## Hybrid adaptive quests
 

@@ -223,6 +223,9 @@ importers:
       '@runsphere/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@runsphere/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@runsphere/observability':
         specifier: workspace:*
         version: link:../../packages/observability

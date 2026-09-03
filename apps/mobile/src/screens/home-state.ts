@@ -53,9 +53,14 @@ export const questDistanceLabel = (distanceMeters: number): string =>
     ? `${Math.round(distanceMeters)} m route`
     : `${(distanceMeters / 1000).toFixed(1)} km route`;
 
+/**
+ * Home keeps one live region, so secondary content passes an already-derived
+ * message and only speaks when the weekly goal and quest list are both fine.
+ */
 export const homeStatusMessage = (
   goalState: HomeRemoteState,
-  questState: HomeRemoteState
+  questState: HomeRemoteState,
+  secondaryMessage = ''
 ): string => {
   if (goalState === 'configuration' || questState === 'configuration')
     return 'Home data is unavailable until RunSphere is configured.';
@@ -63,5 +68,5 @@ export const homeStatusMessage = (
   if (goalState === 'offline' || questState === 'offline')
     return 'Some Home data is unavailable offline.';
   if (goalState === 'error' || questState === 'error') return 'Some Home data is unavailable.';
-  return '';
+  return secondaryMessage;
 };
