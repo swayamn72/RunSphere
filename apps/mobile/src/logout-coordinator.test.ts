@@ -22,6 +22,19 @@ describe('logout coordinator', () => {
     expect(calls.slice(1).sort()).toEqual(['auth', 'queue']);
   });
 
+  it('revokes the push address while the session can still authenticate it', async () => {
+    const calls: string[] = [];
+    await coordinateLogout({
+      api: { logout: vi.fn(async () => void calls.push('remote')) },
+      auth: { clear: vi.fn(async () => void calls.push('auth')) },
+      queue: { clear: vi.fn(async () => void calls.push('queue')) },
+      push: { revoke: vi.fn(async () => void calls.push('push')) }
+    });
+
+    expect(calls[0]).toBe('push');
+    expect(calls[1]).toBe('remote');
+  });
+
   it('still clears local account data when remote logout fails', async () => {
     const auth = { clear: vi.fn().mockResolvedValue(undefined) };
     const queue = { clear: vi.fn().mockResolvedValue(undefined) };

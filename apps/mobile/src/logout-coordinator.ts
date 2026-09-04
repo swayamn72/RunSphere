@@ -10,6 +10,8 @@ export interface LogoutDependencies {
   auth: Pick<AuthStorage, 'clear'>;
   queue: Pick<ActivityQueue, 'clear'>;
   recorder?: { clear(): Promise<void> };
+  /** Revokes this installation's push address; absent until push is registered. */
+  push?: { revoke(): Promise<void> };
 }
 
 /**
@@ -20,8 +22,12 @@ export const coordinateLogout = async ({
   api,
   auth,
   queue,
-  recorder
+  recorder,
+  push
 }: LogoutDependencies): Promise<void> => {
+  // Revoke the push address while the session can still authenticate the call;
+  // after `auth.clear()` there is no credential left to revoke it with.
+  await push?.revoke();
   try {
     await api.logout();
   } catch {

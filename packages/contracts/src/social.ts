@@ -131,6 +131,26 @@ export const BlockResponseSchema = Type.Object(
   { $id: 'BlockResponse' }
 );
 
+/**
+ * One live block, as the blocker may see it. A blocked account is removed from
+ * every friend and board surface, so this list is the only place it can be
+ * found again -- without it a block would be irreversible from the client.
+ * The stored reason is deliberately not returned: it is moderation context,
+ * not something to re-present to the person who wrote it.
+ */
+export const BlockedAccountSchema = Type.Object(
+  {
+    profile: ProfileSchema,
+    blockedAt: DateTimeSchema
+  },
+  { $id: 'BlockedAccount' }
+);
+
+export const BlockListResponseSchema = Type.Object(
+  { data: Type.Array(BlockedAccountSchema, { maxItems: 500 }) },
+  { $id: 'BlockListResponse' }
+);
+
 export const FriendRequestParamsSchema = Type.Object(
   { requestId: UuidSchema },
   { ...Strict, $id: 'FriendRequestParams' }
@@ -164,6 +184,8 @@ export type BlockResponse = Static<typeof BlockResponseSchema>;
 export type FriendRequestParams = Static<typeof FriendRequestParamsSchema>;
 export type FriendRequestListResponse = Static<typeof FriendRequestListResponseSchema>;
 export type BlockParams = Static<typeof BlockParamsSchema>;
+export type BlockedAccount = Static<typeof BlockedAccountSchema>;
+export type BlockListResponse = Static<typeof BlockListResponseSchema>;
 export type FriendStandingEntry = Static<typeof FriendStandingEntrySchema>;
 export type FriendStandingsResponse = Static<typeof FriendStandingsResponseSchema>;
 export type FriendStandingsParticipationRequest = Static<

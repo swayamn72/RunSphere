@@ -4,7 +4,7 @@ import React from 'react';
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   ChallengeResult,
   ChallengeSummary,
@@ -24,6 +24,7 @@ vi.mock('react-native', async () => {
     ({ children, ...props }: Record<string, unknown>) =>
       React.createElement(name as React.ElementType, props, children as React.ReactNode);
   return {
+    Image: native('Image'),
     Pressable: native('Pressable'),
     StyleSheet: { create: <T,>(styles: T) => styles },
     Text: native('Text'),
@@ -38,17 +39,27 @@ vi.mock('../components/primitives', () => ({
 vi.mock('../theme/theme', () => ({
   useAppTheme: () => ({
     colorScheme: 'light',
+    reduceMotion: true,
     tokens: {
       action: { primary: '#0A6' },
       background: { canvas: '#fff', surface: '#f7f7f7', surfaceInset: '#eee' },
       border: { subtle: '#ddd' },
       status: { success: '#0A6' },
-      text: { primary: '#111', secondary: '#555', onAccent: '#fff' }
+      text: { primary: '#111', secondary: '#555', onAccent: '#fff' },
+      mascot: {
+        body: '#D9EAE0',
+        outline: '#386755',
+        orbit: '#5D8500',
+        pointer: '#087B69',
+        eye: '#10251F',
+        beacon: '#8FBD18'
+      }
     }
   })
 }));
 
 const { PlayScreen } = await import('./PlayScreen.js');
+const { createMemoryGuidanceStore, setGuidanceStore } = await import('../loop-guidance.js');
 
 const profile = (id: string, displayName: string): Profile => ({
   id,
@@ -116,6 +127,10 @@ const hostsMatching = (
   );
 
 describe('Play tab render', () => {
+  // Guidance caps are per installation, so each case starts from a clean slate
+  // rather than inheriting the cue budget the previous case spent.
+  beforeEach(() => setGuidanceStore(createMemoryGuidanceStore()));
+
   it('offers accept and decline only on an invite this account must answer', async () => {
     const renderer = await renderPlay(
       stubApi({
@@ -133,6 +148,39 @@ describe('Play tab render', () => {
       String(props['accessibilityLabel'] ?? '').startsWith('Accept the challenge')
     );
     expect(accepts).toHaveLength(1);
+  });
+
+  it('lets Coda explain a waiting invite, with a dismiss control of its own', async () => {
+    const renderer = await renderPlay(
+      stubApi({ challenges: [challenge({ id: 'incoming', role: 'opponent' })] })
+    );
+
+    expect(renderedText(renderer)).toContain('Coda');
+    const dismiss = hostsMatching(
+      renderer,
+      (props) => props['accessibilityLabel'] === 'Dismiss guidance from Coda'
+    );
+    expect(dismiss).toHaveLength(1);
+
+    await act(async () => (dismiss[0]!.props as { onPress: () => void }).onPress());
+    expect(
+      hostsMatching(
+        renderer,
+        (props) => props['accessibilityLabel'] === 'Dismiss guidance from Coda'
+      )
+    ).toHaveLength(0);
+  });
+
+  it('says nothing extra when there is no invite waiting on an answer', async () => {
+    const renderer = await renderPlay(
+      stubApi({ challenges: [challenge({ id: 'outgoing', role: 'challenger' })] })
+    );
+
+    expect(
+      hostsMatching(renderer, (props) =>
+        String(props['accessibilityLabel'] ?? '').startsWith('Dismiss guidance')
+      )
+    ).toHaveLength(0);
   });
 
   it('shows no running score for an in-progress challenge', async () => {

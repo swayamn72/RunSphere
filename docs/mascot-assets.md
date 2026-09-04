@@ -27,6 +27,7 @@ The four crew movers extend Loop's visual language without giving Loop the autho
 - Characters: `rho`, `mira`, `coda`, `bram`. Themes: `dark`, `light`.
 - Runtime rendering: `apps/mobile/src/components/CrewMascot.tsx` renders a dependency-free vector stand-in using the same `tokens.mascot` roles as Loop. It is static in every mode and does not import a native SVG runtime.
 - Character registry and guardrail: `apps/mobile/src/crew.ts` lists the crew and reuses Loop's safe-label rule (`isSafeMascotLabel`), so crew labels may not claim authority, rewards, or rejection.
+- In-app use: the crew appear in Loop guidance callouts (`apps/mobile/src/components/LoopCallout.tsx`). Each cue in `apps/mobile/src/loop-guidance.ts` names the crew member whose role it belongs to, its copy is held to the same safe-label rule, and the mascot inside a callout is decorative so a screen reader does not read the message twice.
 
 ### Swapping crew vector art for user-provided images
 

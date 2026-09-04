@@ -38,6 +38,9 @@ vi.mock('../location-adapter', () => ({
   recordingLocationAdapter: { subscribe: vi.fn().mockResolvedValue({ remove: vi.fn() }) }
 }));
 vi.mock('../components/styles', () => ({ useAppStyles: () => new Proxy({}, { get: () => ({}) }) }));
+// Guidance has its own render tests; this file is about lifecycle, and the
+// callout would otherwise need the whole theme provider.
+vi.mock('../components/LoopCallout', () => ({ LoopCallout: () => null }));
 vi.mock('../components/primitives', async () => {
   const React = await import('react');
   return {

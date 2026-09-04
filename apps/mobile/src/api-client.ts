@@ -7,12 +7,24 @@ import type {
   ActivityDetailResponse,
   ActivityStatusResponse,
   BlockCreateRequest,
+  BlockedAccount,
+  BlockListResponse,
   BlockResponse,
   ChallengeCreateRequest,
   ChallengeListResponse,
   ChallengeRespondRequest,
   ChallengeResult,
   ChallengeSummary,
+  Club,
+  ClubCreateRequest,
+  ClubJoinRequest,
+  ClubListResponse,
+  ClubMember,
+  ClubMemberRoleUpdateRequest,
+  ClubMembersResponse,
+  ClubRelayCreateRequest,
+  ClubRelayListResponse,
+  ClubRelaySummary,
   FriendListResponse,
   FriendRequest,
   FriendRequestCreateRequest,
@@ -33,6 +45,8 @@ import type {
   ProfileUpdateRequest,
   ProgressionSummary,
   ProgressionSyncResponse,
+  PushDevice,
+  PushDeviceRegisterRequest,
   QuestDetail,
   QuestSummary,
   RegisterRequest,
@@ -292,6 +306,14 @@ export class MobileApiClient {
       )
     ).participating;
   }
+  /**
+   * Live blocks. A block removes the friendship and revokes pending requests,
+   * so a blocked account is absent from every other list; this is the only
+   * surface that can find it again to unblock it.
+   */
+  async listBlocks(): Promise<readonly BlockedAccount[]> {
+    return (await this.request<BlockListResponse>('/v1/blocks', { method: 'GET' })).data;
+  }
   async blockAccount(block: BlockCreateRequest): Promise<BlockResponse> {
     return this.request('/v1/blocks', { method: 'POST', body: block });
   }
@@ -314,6 +336,26 @@ export class MobileApiClient {
     update: NotificationPreferencesUpdateRequest
   ): Promise<NotificationPreferences> {
     return this.request('/v1/notifications/preferences', { method: 'PUT', body: update });
+  }
+
+  /**
+   * Push registration (ADR-0009). Registering an address is not consent to be
+   * pushed: the categories, quiet hours, and daily cap in
+   * `updateNotificationPreferences` still decide, server-side, whether any
+   * given notification wakes the device. The push itself carries only the
+   * inbox id and its deep link, so the entry is always read back from
+   * `getNotificationInbox`.
+   */
+  async registerPushDevice(token: string): Promise<PushDevice> {
+    const body: PushDeviceRegisterRequest = { token, platform: 'android' };
+    return this.request('/v1/notifications/devices', { method: 'POST', body });
+  }
+  /** Revoked on sign-out so a shared device stops receiving the account wake-ups. */
+  async revokePushDevice(deviceId: string): Promise<void> {
+    await this.request(`/v1/notifications/devices/${encodeURIComponent(deviceId)}`, {
+      method: 'DELETE',
+      empty: true
+    });
   }
 
   /**
@@ -360,6 +402,83 @@ export class MobileApiClient {
     return this.request(`/v1/challenges/${encodeURIComponent(challengeId)}/result`, {
       method: 'GET'
     });
+  }
+
+  // Clubs (milestone 3.1). A club is private and invite-code-only: there is no
+  // public list or search to call. Every read starts from the caller's own
+  // membership, and a club the caller is not in answers `404` rather than
+  // `403`, so a club id is never confirmed from outside.
+  async createClub(name: string): Promise<Club> {
+    const body: ClubCreateRequest = { name };
+    return this.request('/v1/clubs', { method: 'POST', body });
+  }
+  async listClubs(): Promise<readonly Club[]> {
+    return (await this.request<ClubListResponse>('/v1/clubs', { method: 'GET' })).data;
+  }
+  /** `404` means no live club has that code; the code is the whole access path. */
+  async joinClub(inviteCode: string): Promise<Club> {
+    const body: ClubJoinRequest = { inviteCode };
+    return this.request('/v1/clubs/join', { method: 'POST', body });
+  }
+  /** A roster omits accounts blocked in either direction; the count does not. */
+  async listClubMembers(clubId: string): Promise<readonly ClubMember[]> {
+    return (
+      await this.request<ClubMembersResponse>(`/v1/clubs/${encodeURIComponent(clubId)}/members`, {
+        method: 'GET'
+      })
+    ).data;
+  }
+  /** `409` means the owner must hand the club on or archive it before leaving. */
+  async leaveClub(clubId: string): Promise<void> {
+    await this.request(`/v1/clubs/${encodeURIComponent(clubId)}/membership`, {
+      method: 'DELETE',
+      empty: true
+    });
+  }
+  async removeClubMember(clubId: string, accountId: string): Promise<void> {
+    await this.request(
+      `/v1/clubs/${encodeURIComponent(clubId)}/members/${encodeURIComponent(accountId)}`,
+      { method: 'DELETE', empty: true }
+    );
+  }
+  async setClubMemberRole(
+    clubId: string,
+    accountId: string,
+    role: 'admin' | 'member'
+  ): Promise<ClubMember> {
+    const body: ClubMemberRoleUpdateRequest = { role };
+    return this.request(
+      `/v1/clubs/${encodeURIComponent(clubId)}/members/${encodeURIComponent(accountId)}`,
+      { method: 'PATCH', body }
+    );
+  }
+  /**
+   * Relay weeks, newest first. Every figure is an aggregate plus the reader's
+   * own units: the API has no per-member breakdown to ask for, because a club
+   * receives aggregate completion data only.
+   */
+  async listClubRelays(clubId: string): Promise<readonly ClubRelaySummary[]> {
+    return (
+      await this.request<ClubRelayListResponse>(`/v1/clubs/${encodeURIComponent(clubId)}/relays`, {
+        method: 'GET'
+      })
+    ).data;
+  }
+  /**
+   * Sets the target for the open week only; the week is never a parameter, so
+   * a closed week cannot be retargeted. `422` means the published rule does not
+   * allow that target, or no relay rule is published at all.
+   */
+  async setClubRelayTarget(clubId: string, targetUnits: number): Promise<ClubRelaySummary> {
+    const body: ClubRelayCreateRequest = { targetUnits };
+    return this.request(`/v1/clubs/${encodeURIComponent(clubId)}/relays`, {
+      method: 'POST',
+      body
+    });
+  }
+  /** Archiving ends access for every member; the membership record survives. */
+  async archiveClub(clubId: string): Promise<Club> {
+    return this.request(`/v1/clubs/${encodeURIComponent(clubId)}/archive`, { method: 'POST' });
   }
 
   private async request<T>(

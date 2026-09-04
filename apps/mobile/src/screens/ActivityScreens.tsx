@@ -35,7 +35,10 @@ import {
   derivedResultRouteLayers,
   derivedRouteCenter
 } from './activity-results-model';
+import { LoopCallout } from '../components/LoopCallout';
 import { MovementChoice, PrimaryButton, Stat } from '../components/primitives';
+import { useLoopGuidance } from '../components/useLoopGuidance';
+import type { LoopGuidanceCue } from '../loop-guidance';
 import { useAppStyles } from '../components/styles';
 import { MapSurface } from '../maps/MapSurface';
 import {
@@ -232,6 +235,13 @@ export function ActivityPreparation({
   const isAcquiring = acquisition?.status === 'acquiring';
   const isActivating = acquisition?.status === 'ready';
   const needsSettings = permission === 'blocked';
+  // Only a hike gets a cue here, and only before recording starts: mid-record
+  // guidance would compete with the GPS notices for the same attention.
+  const guidanceCandidates = useMemo<readonly LoopGuidanceCue[]>(
+    () => (movement === 'hike' ? ['hike-prep'] : []),
+    [movement]
+  );
+  const guidance = useLoopGuidance(guidanceCandidates);
   return (
     <View style={styles.recordCard}>
       <Text style={styles.eyebrow}>FREE ACTIVITY</Text>
@@ -243,6 +253,7 @@ export function ActivityPreparation({
       </Text>
       {originLabel && <Text style={styles.privateNote}>Started from {originLabel}</Text>}
       <MovementChoice selected={movement} onChoose={setMovement} />
+      {guidance.cue && <LoopCallout cue={guidance.cue} onDismiss={guidance.dismiss} />}
       {isAcquiring && (
         <View style={styles.notice} accessibilityLiveRegion="polite">
           <View style={styles.flexCopy}>
@@ -625,6 +636,14 @@ export function ActivityDetail({
   const terminalRejected = presentation.state === 'rejected';
   const terminalDeleted = presentation.state === 'deleted';
   const canSync = presentation.state === 'pending' && !terminalRemoteStatus(current.remoteStatus);
+  // A pending result is the one moment the app asks for patience, so Rho says
+  // what is happening. A rejected or deleted activity is a settled answer and
+  // gets no cue.
+  const guidanceCandidates = useMemo<readonly LoopGuidanceCue[]>(
+    () => (presentation.state === 'pending' ? ['pending-result'] : []),
+    [presentation.state]
+  );
+  const guidance = useLoopGuidance(guidanceCandidates);
   const canRefresh =
     Boolean(current.remoteId) && !['rejected', 'deleted'].includes(current.remoteStatus ?? '');
   return (
@@ -649,6 +668,7 @@ export function ActivityDetail({
                 ? 'Sync paused.'
                 : 'Activity pending.'}
       </Text>
+      {guidance.cue && <LoopCallout cue={guidance.cue} onDismiss={guidance.dismiss} />}
       <Text style={styles.lead}>
         {presentation.state === 'validated'
           ? 'Validated totals are ready. Your route remains private and uses the server-trimmed result only.'

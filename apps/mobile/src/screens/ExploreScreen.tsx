@@ -1,9 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as Location from 'expo-location';
 import { AppState, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { LngLat } from '@maplibre/maplibre-react-native';
 import type { QuestSummary } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
+import { LoopCallout } from '../components/LoopCallout';
+import { useLoopGuidance } from '../components/useLoopGuidance';
+import type { LoopGuidanceCue } from '../loop-guidance';
 import { MapListSheet } from '../maps/MapListSheet';
 import { MapSurface } from '../maps/MapSurface';
 import type { MapSheetState } from '../maps/map-model';
@@ -278,6 +281,13 @@ function QuestCatalog({
   onStart: () => void;
 }) {
   const { tokens } = useAppTheme();
+  // Guidance is resolved before the state branches so the hook order is fixed;
+  // an empty catalog is the only case with anything to say.
+  const guidanceCandidates = useMemo<readonly LoopGuidanceCue[]>(
+    () => (state === 'empty' ? ['quest-empty'] : []),
+    [state]
+  );
+  const guidance = useLoopGuidance(guidanceCandidates);
   if (state === 'loading')
     return <SheetState title="Loading verified quests" copy="Loading the verified catalog." />;
   if (state === 'offline')
@@ -307,12 +317,15 @@ function QuestCatalog({
     );
   if (state === 'empty')
     return (
-      <SheetState
-        title="No verified quests yet"
-        copy="Start a private free activity while the catalog is empty."
-        action="Start a free activity"
-        onPress={onStart}
-      />
+      <>
+        <SheetState
+          title="No verified quests yet"
+          copy="Start a private free activity while the catalog is empty."
+          action="Start a free activity"
+          onPress={onStart}
+        />
+        {guidance.cue && <LoopCallout cue={guidance.cue} onDismiss={guidance.dismiss} />}
+      </>
     );
   if (!quests.length && hasCatalog)
     return (

@@ -1,11 +1,15 @@
 # RunSphere implementation handoff
 
-Updated: 2026-09-03
-Baseline: `main` at `85d3cdb` (PR #8 merged). Phase 2 milestones 2.1 through 2.6
-are implemented and validated locally but are **not yet committed**; they need a
+Updated: 2026-09-04
+Baseline: `main` at `d2aca92`. Phase 2 milestones 2.1 through 2.6 are committed
+on `main`; 2.7 (push delivery) and 2.8 (Loop guidance and polish) are
+implemented and validated locally but are **not yet committed**, as are 2.9
+(first mobile surfaces for the Foundation gate's social and notification routes)
+and Phase 3 milestones 3.1 (clubs) and 3.2 (club relays). All of it needs a
 fresh `vorflux/*` branch and a new pull request targeting `main`, because merged
-PRs #6 and #8 cannot receive later commits. Only 2.7 (push delivery) and 2.8
-(Loop guidance and polish) remain in Phase 2.
+PRs #6 and #8 cannot receive later commits. The rest of Phase 3 — club and
+global boards, competitions, moderation, campaigns, admin areas — is the next
+scope.
 Last merged pull request: https://github.com/swayamn72/RunSphere/pull/8
 
 ## Current state
@@ -706,3 +710,405 @@ Milestone 2.7 (push delivery for `notification.created`) and 2.8 (Loop guidance,
 frequency caps, dismissal, and TalkBack polish across the new cards) are what
 remain in Phase 2. Both new surfaces already emit inbox rows the worker fans
 out, so 2.7 is a delivery-side change rather than a new producer.
+
+## Phase 2 milestone 2.7 — push delivery, 2026-09-04
+
+`services/worker/src/push-delivery.ts` wires `notification.created` to FCM HTTP
+v1. `020_push_devices.sql` adds `push_devices` and `push_dispatches`, and
+`POST /v1/notifications/devices` plus `DELETE /v1/notifications/devices/:deviceId`
+register and revoke an address.
+
+The design decisions, and why they are not UI details:
+
+- **The push is data-only.** It carries the notification id and the deep link
+  already stored on the inbox row. A `notification` payload would ask the
+  provider to render the title and body — the content ADR-0009 keeps
+  server-side. The client reads the entry back from the durable inbox, which
+  stays the delivery of record.
+- **Registering an address is not consent to be pushed.** `pushDeliveryDecision`
+  in `@runsphere/domain` decides, from preferences that already existed:
+  channel, then category, then live devices, then quiet hours, then the daily
+  cap. Standing "no" answers are checked before timing limits so an audit row
+  says _why_ an account was not reached.
+- **`push_dispatches` is keyed by notification id.** That single key is both the
+  idempotency guard for an outbox retry and the counter the daily cap reads. The
+  cap window follows the account's own zone when quiet hours declare one, and
+  the Asia/Kolkata day otherwise, matching every other period in the system.
+- **A dead address and a transient failure are different.** A provider
+  `UNREGISTERED` revokes the row with `revoke_reason = 'provider_unregistered'`
+  and is recorded as `suppressed`/`no_devices`; a transient failure throws and
+  leaves no dispatch row, so the outbox retries under its existing budget. A
+  partial send is recorded as `sent` and not retried.
+- **Credentials are all or nothing.** `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, and
+  `FCM_PRIVATE_KEY` must all be present; a half-configured provider would fail
+  every event until the attempt budget burned out. Without them the worker logs
+  `push.provider_unconfigured` and drains the event. Transactional email stays
+  explicitly deferred rather than silently dropped.
+- No third-party auth dependency was added: the service-account assertion is
+  signed with `node:crypto` and the access token is cached until just before it
+  expires.
+
+**Not verified, and it cannot be from here:** no FCM project exists, so no push
+has ever been sent. `apps/mobile` has no native token source
+(`expo-notifications` is not a dependency), so `registerForPush` reports
+`unavailable` today. The client half is complete and tested around an injected
+`PushTokenSource`: it persists the registration in SecureStore, skips the network
+when the token has not rotated, re-registers when it has, and revokes through
+`coordinateLogout` **before** the credentials are cleared — after `auth.clear()`
+there is nothing left to authenticate the revoke with.
+
+## Phase 2 milestone 2.8 — Loop guidance and polish, 2026-09-04
+
+`apps/mobile/src/loop-guidance.ts` holds the cue registry and both limits,
+`components/LoopCallout.tsx` renders one, and `components/useLoopGuidance.ts`
+resolves at most one cue per surface. Six cues ship, each spoken by the crew
+member whose role it belongs to:
+
+| Cue                | Crew | Surface                                           |
+| ------------------ | ---- | ------------------------------------------------- |
+| `pending-result`   | Rho  | activity results, while validation is pending     |
+| `weekly-reset`     | Rho  | Home, on a week boundary the reader crossed       |
+| `challenge-invite` | Coda | Play, when an invite is waiting on an answer      |
+| `play-empty`       | Coda | Play, when nothing is running                     |
+| `quest-empty`      | Mira | Explore, when the catalog is empty                |
+| `hike-prep`        | Bram | activity preparation, when the movement is a hike |
+
+Rules worth carrying forward:
+
+- **Both limits live in the model, not the screens**, so every surface obeys the
+  same discipline: a per-cue daily frequency cap and a dismissal that holds for a
+  stated number of days. The cap is charged once, when the cue is first shown,
+  rather than on every render — a cap that consumed itself on re-render would
+  make a cue flicker away mid-read.
+- **One cue per surface.** A screen offers candidates in priority order and shows
+  only what the model returns; an invite waiting on the reader outranks an empty
+  list.
+- **Guidance is never the only route to information.** Every cue restates
+  something the surface already shows, so dismissing one loses nothing. That is
+  the property which makes a frequency cap safe to have at all.
+- **A weekly reset is only news to a client that saw the previous week.** A first
+  run records the week and says nothing, so a new account is never told that
+  something it never had has reset.
+- **Tone is enforced at render.** `LoopCallout` throws on copy that fails
+  `isSafeMascotLabel`, the rule Loop and the crew already obey, so a cue claiming
+  authority fails loudly rather than shipping quietly.
+- Guidance memory is per installation and holds no activity, location, identity,
+  or score. Screens reach it through a registry (`setGuidanceStore`), so no
+  screen pulls a native secure-storage module into its import graph — which is
+  also what keeps the render tests free of native mocks.
+
+TalkBack work in this milestone: each callout is one politely-announced unit
+labelled "&lt;speaker&gt; says: …", the mascot inside it is decorative so the message
+is not read twice, and dismiss is a separate 48dp control with a hint saying what
+dismissing does. Card titles across Home and Play gained
+`accessibilityRole="header"` for heading navigation, a challenge heading is read
+as one fact rather than three fragments, and a finished result reads as one
+outcome. The invite card was deliberately **not** grouped: setting `accessible`
+on a container hides its focusable children on Android, and accept/decline must
+stay reachable.
+
+This is also the first surface to render the crew at all — `CrewMascot` existed
+but no screen used it. The `crew-assets.ts` PNG swap point is unchanged, so the
+outstanding artwork blocker still stands and the vector stand-ins are what ship.
+
+Validation for both milestones:
+
+- domain 72 tests; API 56 passed + the 4 PostGIS integration tests still skipped
+  locally, including a new 11-test `push-devices.test.ts`; worker 41 tests
+  including a new 18-test `push-delivery.test.ts`; mobile 241 tests across 45
+  files;
+- workspace `typecheck`, `test` (17/17 turbo tasks), `build`, `lint` (3
+  pre-existing `react-hooks/exhaustive-deps` warnings, 0 errors),
+  `verify:maplibre`, and `git diff --check`;
+- Prettier verified per changed file on LF-normalized copies.
+
+Unverified and unchanged by this work: no Android device evidence is claimed, and
+`018_challenges.sql`, `019_friend_standings.sql`, and `020_push_devices.sql` have
+not been executed against a real PostGIS from this checkout. **Applying all three
+and running the four skipped integration tests remains the first thing to do in
+CI or on a machine with a database.**
+
+Phase 2 is now complete. Phase 3 (Community Beta) is the next scope: clubs CRUD
+and relays, opt-in global boards, scheduled competitions, moderation queues,
+campaign tooling, and a real Clubs tab.
+
+## Phase 2 milestone 2.9 — surfaces for the shipped social and notification routes, 2026-09-04
+
+Milestones 2.1 through 2.8 left a real gap: the Foundation gate's friends,
+blocks, inbox, preference, and achievement routes all shipped and were tested,
+`apps/mobile/src/api-client.ts` gained methods for them in 2.1, and **no screen
+ever called any of them**. The consequence was not cosmetic:
+
+- **No account could add a friend.** `PlayScreen` read `listFriends()` but
+  nothing called `sendFriendRequest`, so on a fresh install the friend board and
+  every challenge were unreachable — the two features Phase 2 exists for.
+- **No account had a profile.** `GET /v1/profile` answers `404` until a display
+  name is set, nothing set one, and `POST /v1/friends/requests` joins
+  `profiles` — so a friend request could not have reached anyone even if one
+  could be sent.
+- **The push preferences the 2.7 worker obeys had no controls**, and the
+  `ProfileScreen` head showed a fabricated identity ("Maya Hart", "@mayamoves ·
+  Mumbai") of the kind the redesign removed everywhere else.
+
+### What now exists
+
+| Surface                             | Route it finally consumes        |
+| ----------------------------------- | -------------------------------- |
+| `FriendsScreen` (from the Play tab) | friend requests, friends, blocks |
+| `NotificationsScreen` (from You)    | inbox, mark-read, preferences    |
+| `AchievementsScreen` (from You)     | achievements, achievement sync   |
+| `ProfileIdentityScreen` (from You)  | `GET`/`PUT /v1/profile`          |
+
+Each has a pure model beside it (`friends-model`, `notifications-model`,
+`achievements-model`, `profile-model`) holding every derivation, matching the
+2.3/2.4 split.
+
+### Decisions worth carrying forward
+
+- **A friend request is never reported as delivered.** The route answers the
+  same `202 recorded` for a missing account, an existing friend, a pending
+  request, and a block in either direction, so the address cannot be probed
+  (ADR-0007). `INVITE_RECORDED_NOTICE` is worded around that, and a test
+  asserts the copy contains no "sent", "delivered", "not found", or "exists".
+- **No outgoing-request list is shown**, because the API has none:
+  `GET /v1/friends/requests` returns incoming pending only. The screen does not
+  invent one.
+- **A block is only offered where it stays reversible.** Blocking removes the
+  friendship and revokes pending requests both ways, so the blocked account
+  vanishes from every other list. That is why this milestone added
+  `GET /v1/blocks` — a live block list, without the stored reason — and why the
+  blocked section renders whenever it has rows.
+- **Local email validation exists only to save a rate-limited attempt.** It
+  rejects what cannot be an address and claims nothing about who is registered;
+  a `429` keeps the typed address so the retry needs no retyping.
+- **Entries are marked read because a person opened the screen**, once per
+  unread set, never by a background refresh.
+- **An inbox entry offers navigation only where it can honestly go.** Today
+  that is Play for a `runsphere://challenges/<id>` link and friends for a
+  friend request; there is no challenge detail screen to deep-link into, so
+  anything else offers no destination rather than a dead end. Friends live
+  under Play, so `App` carries a `playEntry` so a friend-request notice in the
+  You tab can reach them.
+- **Preference saves send only what changed**, so a concurrent edit from
+  another device is not silently rewritten, and Save stays disabled until
+  something actually differs.
+- **The push switch says push is not being delivered yet** on this build and
+  that the choice is stored for when it is. Category toggles with no producer
+  (clubs, competitions) say so too: a toggle that governs nothing must not
+  imply the feature exists.
+- **The profile head now shows the account's own display name** or "No display
+  name yet", with initials derived from it and a neutral mark when unset. The
+  invented person, handle, and city are gone.
+
+### Contract fix this exposed
+
+`NotificationPreferencesUpdateRequest` was `Type.Partial(...)`, which cannot
+express _clearing_ quiet hours: `undefined` disappears in JSON and reads as
+"unchanged", so the window could be set and never switched off. The schema now
+spells `quietHours` out as `QuietHours | null`, the route treats an explicit
+`null` as the clear signal, and `notification-preferences.test.ts` covers the
+merge, the clear, and the untouched case — none of which had any test before.
+
+Validation:
+
+- API 70 passed + the 4 PostGIS integration tests still skipped locally,
+  including a new 6-test `block-list.test.ts` and 8-test
+  `notification-preferences.test.ts`; mobile 326 tests across 51 files;
+- workspace `typecheck`, `test` (17/17 turbo tasks), `build`, `lint` (3
+  pre-existing `react-hooks/exhaustive-deps` warnings, 0 errors),
+  `verify:maplibre`, and `git diff --check`;
+- Prettier verified per changed file on LF-normalized copies.
+
+Unverified: no Android device evidence, and `020_push_devices.sql` (plus `018`
+and `019`) still has never run against a real PostGIS from this checkout. A
+correction to the earlier gap list: activity history was never actually missing
+— the You tab renders `ActivityHistory` above `ProfileScreen`; only its
+settings row was mislabelled, and it now reads "Listed above, on this device".
+
+### What is still missing from these surfaces
+
+- **No club or competition producer exists**, so those two preference
+  categories govern nothing yet (labelled as such).
+- **Marketing consent is not offered here.** It is consent, not a preference,
+  and belongs with the campaign tooling in Phase 3.
+- **A blocked account cannot be reported.** Reporting, sanctions, and appeals
+  are Phase 3 moderation work; there is no reports table.
+- **Profile cosmetics are not editable.** `PUT /v1/profile` accepts a
+  `cosmetic.avatarKey`, but no catalogue of valid keys is published, so
+  offering a picker would invent one.
+
+## Phase 3 milestone 3.1 — clubs, end to end, 2026-09-04
+
+Phase 3's first deliverable: clubs exist, with membership, roles, invite-code
+joining, moderation, and archiving — server, domain, and a real Clubs tab in one
+milestone. `apps/mobile` no longer shows the "coming later" placeholder.
+
+Built deliberately end to end rather than API-first, because 2.9 had just
+finished paying off the cost of the opposite: five Foundation-gate routes shipped
+with client methods and no screen, and the friend surface sat unreachable for two
+milestones as a result.
+
+### What exists
+
+`021_clubs.sql` adds `clubs` and `club_memberships`. `services/api/src/club-routes.ts`
+serves eight routes; `packages/domain/src/club.ts` holds every authority rule;
+`apps/mobile/src/screens/ClubsScreen.tsx` and `clubs-model.ts` are the tab.
+
+| Route                                         | What it does                                         |
+| --------------------------------------------- | ---------------------------------------------------- |
+| `POST /v1/clubs`                              | create; the creator becomes owner in one transaction |
+| `GET /v1/clubs`                               | live clubs the caller is an active member of         |
+| `POST /v1/clubs/join`                         | join by exact invite code                            |
+| `GET /v1/clubs/:clubId/members`               | roster, blocked pairs omitted                        |
+| `DELETE /v1/clubs/:clubId/membership`         | leave                                                |
+| `DELETE /v1/clubs/:clubId/members/:accountId` | remove a member                                      |
+| `PATCH /v1/clubs/:clubId/members/:accountId`  | grant or withdraw `admin`                            |
+| `POST /v1/clubs/:clubId/archive`              | archive; ends access for everyone                    |
+
+### Decisions worth carrying forward
+
+- **A non-member gets `404`, never `403`.** A club is invite-code-only, so the
+  code is the whole access path; a `403` would confirm that a club id exists.
+  An unknown code, a malformed code, and an archived club are also one answer,
+  so the join route cannot be used as an oracle for guessing codes.
+- **Authority lives in `@runsphere/domain`, not in the route or the screen.**
+  `canRemoveMember`, `canChangeRole`, `canLeave`, `canArchive` are pure
+  predicates over two roles, and the Clubs tab calls the same ones the route
+  enforces — so the UI cannot offer an action the server will refuse.
+- **Removal needs strictly greater authority.** An admin cannot remove a fellow
+  admin, nobody removes the owner, and removing yourself is not removal but
+  leaving, which has its own rule.
+- **The owner cannot leave a club that still has members.** There is no silent
+  succession: promoting someone automatically would hand a stranger moderation
+  powers. A populated club's owner archives it or hands it on. A unique partial
+  index (`role = 'owner' AND left_at IS NULL`) makes "exactly one live owner"
+  a schema invariant, which is what every domain rule assumes.
+- **Nothing is deleted.** Leaving and removal set `left_at` with a reason, and
+  a removal names who did it; archiving sets `clubs.archived_at` and leaves the
+  membership rows as the audited record of who was in the club.
+- **Rejoining reactivates the old row** rather than adding a second one, and a
+  removed account may rejoin with the code: removal is not a ban, and bans are
+  moderation work that does not exist yet.
+- **A block hides two accounts from each other in a club roster too** — the
+  same rule as everywhere else — while `memberCount` still reports the club's
+  real size, because the size of a club is a fact about the club rather than
+  about a person. The tab says so in as many words.
+- **Invite codes are generated server-side, never chosen**, from an alphabet
+  with `I`, `L`, `O`, `0`, and `1` removed so a code read off a screen cannot
+  be mistyped into someone else's club. Codes are compared case-insensitively
+  and stored normalized, so the lookup is an equality match on a unique index.
+- **Archiving asks twice** and states what it costs first; it is the only
+  action in the tab that cannot be undone from the app.
+- **The tab shows no relay progress**, because no relay contribution is
+  recorded server-side yet: a progress bar with nothing behind it would be a
+  fabricated one. It says so, and says a club will only ever see aggregates.
+
+### A deletion gap this closed
+
+`club_memberships` cascades with the account, so erasing an owner would have
+left a club with members and nobody able to appoint an admin or archive it. The
+worker's `convergeAccountDeletion` now archives clubs the account owns
+**before** deleting it, while the membership row proving ownership still
+exists; a test asserts that ordering.
+
+Validation:
+
+- domain 91 tests including a new 19-test `club.test.ts`; API 103 passed + the
+  4 PostGIS integration tests still skipped locally, including a new 33-test
+  `club-routes.test.ts`; worker 42; mobile 364 across 53 files;
+- workspace `typecheck`, `test` (17/17 turbo tasks), `build`, `lint` (3
+  pre-existing `react-hooks/exhaustive-deps` warnings, 0 errors),
+  `verify:maplibre`, and `git diff --check`;
+- Prettier verified per changed file on LF-normalized copies.
+
+Unverified: no Android device evidence, and `021_clubs.sql` — like `018`, `019`,
+and `020` — has never run against a real PostGIS from this checkout. The single
+owner index, the invite-code unique index, and the two `left_reason` CHECK
+constraints are the parts most worth watching on first apply.
+
+### What Phase 3 still needs
+
+- **Club relays** — a contribution table, capped aggregation in the worker, and
+  the progress the tab currently declines to show.
+- **Member-only club boards and challenges**, isolated by `club_id`.
+- **Global opt-in period boards** — `leaderboard_opt_ins` already carries the
+  `global`, `club`, and `competition` scopes; only `friends` has a read path.
+- **Scheduled competitions**, **moderation** (reports, sanctions, appeals — a
+  blocked or removed member still cannot be reported), **campaign email**, and
+  the seven role-gated **admin areas** `gameplay.md` specifies.
+
+## Phase 3 milestone 3.2 — club relays, 2026-09-04
+
+The cooperative half of clubs: one weekly target per club, fed by capped
+validated active minutes from every active member. The Clubs tab now shows real
+relay progress instead of the note saying relays did not exist.
+
+`022_club_relays.sql` adds `club_relays` and `club_relay_contributions` and
+seeds club rule v1. `services/worker/src/club-relays.ts` computes the totals,
+two routes read and set them, and `@runsphere/domain/club.ts` holds the caps and
+the progress arithmetic.
+
+### Decisions worth carrying forward
+
+- **A club sees aggregates; a member sees aggregates plus their own units.**
+  There is no per-member breakdown in the response, and none can be derived
+  from the fields that are there — `totalUnits`, `contributorCount`, `myUnits`.
+  The internal `club_relay_contributions` row exists so a total is auditable
+  and recomputable, and **no route returns one**
+  (`safety-and-privacy.md`). `ClubRelayContributionSchema` is now documented as
+  the worker's internal record for exactly that reason.
+- **The per-member weekly ceiling is what makes a relay cooperative** rather
+  than a race. Rule v1 caps 240 minutes a day and 600 a week per member, so a
+  club target above ten hours cannot be reached by one person — the club needs
+  several people to move rather than one person to move a lot.
+- **The worker recomputes rather than increments.** That makes the job
+  idempotent (safe on every poll) and self-healing: a late validation, a
+  corrected activity, or a deleted one all land correctly on the next pass,
+  which an accumulating counter could never do. The replacement is one
+  transaction, so a club total is never observed mid-recompute.
+- **Only currently active members count.** Someone who left mid-week stops
+  contributing from that moment, the same rule access follows, and the
+  delete-and-reinsert means their units do not linger in the club total.
+- **The settling window is two weeks, not all of them.** The open week plus the
+  week just closed are recomputed, because validation is asynchronous and a
+  Sunday-evening walk can be validated on Monday. Older weeks are history and
+  are never rewritten (ADR-0006).
+- **The week is never a parameter when setting a target**, so a week that has
+  already been counted cannot be retargeted. `UNIQUE (club_id, period_start)`
+  turns a second call into an update rather than a rival relay, so "the club's
+  progress" is never ambiguous.
+- **Progress is clamped at 100%.** A club that passes its target has met it,
+  not exceeded it: there is no league table of clubs and no reward for
+  overshooting, so an unclamped number would only invite comparison.
+- **An out-of-range target is a `422`, not a `400`.** The request is
+  well-formed; the published rule simply does not allow it — or no relay rule
+  is published on this deployment, which the route says rather than inventing a
+  default target.
+- **A freshly created relay honestly reads zero** until the worker runs, because
+  the route does not compute totals.
+
+Validation:
+
+- domain 103 tests (12 more in `club.test.ts`); API 114 passed + the 4 PostGIS
+  integration tests still skipped locally (11 more in `club-routes.test.ts`);
+  worker 51 (a new 9-test `club-relays.test.ts`); mobile 386 across 53 files;
+- workspace `typecheck`, `test` (17/17 turbo tasks), `build`, `lint` (3
+  pre-existing `react-hooks/exhaustive-deps` warnings, 0 errors),
+  `verify:maplibre`, and `git diff --check`;
+- Prettier verified per changed file on LF-normalized copies.
+
+Unverified: no Android device evidence, and `022_club_relays.sql` — like `018`
+through `021` — has never run against a real PostGIS. The `period_end =
+period_start + 7` CHECK, the `UNIQUE (club_id, period_start)`, and the club
+rule-v1 seed are what to watch on first apply. **No relay has therefore ever
+been computed against real activity**: the aggregation is covered by unit tests
+with a fake database only.
+
+### What Phase 3 still needs
+
+- **Member-only club boards and club challenges**, isolated by `club_id`. The
+  tab says they are not built yet.
+- **Global opt-in period boards** — `leaderboard_opt_ins` already carries the
+  `global`, `club`, and `competition` scopes; only `friends` has a read path.
+- **Scheduled competitions**, **moderation** (reports, sanctions, appeals),
+  **campaign email**, and the seven role-gated **admin areas**.

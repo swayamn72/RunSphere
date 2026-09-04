@@ -53,6 +53,28 @@ describe('privacy maintenance', () => {
     expect(database.clientQuery.mock.calls.at(-1)![0]).toBe('COMMIT');
   });
 
+  it('archives a club the erased account owned, so it is not left ownerless', async () => {
+    const database = transactionDatabase();
+    database.query.mockResolvedValueOnce({ rows: [{ id: 'account-id' }] });
+    database.clientQuery.mockImplementation(async (sql: string) =>
+      sql.includes('SELECT id FROM accounts') ? { rows: [{ id: 'account-id' }] } : { rows: [] }
+    );
+
+    await convergeAccountDeletion(database as unknown as Database);
+
+    const archive = database.clientQuery.mock.calls.find(([sql]) =>
+      sql.includes('UPDATE clubs SET archived_at')
+    );
+    expect(archive?.[0]).toContain("role = 'owner'");
+    expect(archive?.[1]).toEqual(['account-id']);
+    // Ordering matters: the club must be archived while the membership row
+    // that proves ownership still exists.
+    const statements = database.clientQuery.mock.calls.map(([sql]) => sql);
+    expect(
+      statements.findIndex((sql) => sql.includes('UPDATE clubs SET archived_at'))
+    ).toBeLessThan(statements.findIndex((sql) => sql.includes('DELETE FROM accounts')));
+  });
+
   it('rolls back an account deletion when one cleanup operation fails', async () => {
     const database = transactionDatabase();
     database.query.mockResolvedValueOnce({ rows: [{ id: 'account-id' }] });
@@ -90,20 +112,26 @@ describe('privacy maintenance', () => {
           calls.push('due-challenges');
           return { rows: [] };
         }
+        if (sql.includes("kind = 'club'")) {
+          calls.push('relay-rule');
+          return { rows: [] };
+        }
         calls.push('expire');
         return { rows: [] };
       })
     };
     await expect(processMaintenance(database as never)).resolves.toBe(1);
     // Account erasure must settle before a closed challenge window is queued,
-    // so an erased participant is never scored.
+    // so an erased participant is never scored. Relay totals are a recompute
+    // and run last, so they already reflect this sweep's departures.
     expect(calls).toEqual([
       'purge:start',
       'purge:end',
       'delete',
       'expire',
       'lapsed-invites',
-      'due-challenges'
+      'due-challenges',
+      'relay-rule'
     ]);
   });
 });

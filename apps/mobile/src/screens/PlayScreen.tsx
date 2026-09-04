@@ -10,8 +10,12 @@ import type {
 } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { ApiFailure } from '../api-client';
+import { FriendsScreen } from './FriendsScreen';
+import { LoopCallout } from '../components/LoopCallout';
 import { LoopMascot } from '../components/Mascot';
 import { PrimaryButton } from '../components/primitives';
+import { useLoopGuidance } from '../components/useLoopGuidance';
+import type { LoopGuidanceCue } from '../loop-guidance';
 import { useAppTheme } from '../theme/theme';
 import {
   CHALLENGE_MODE_LABEL,
@@ -219,11 +223,14 @@ const usePlayData = (api: MobileApiClient, onSessionExpired: () => void): PlayDa
 export function PlayScreen({
   api,
   accountId,
-  onSessionExpired
+  onSessionExpired,
+  initialScreen = 'play'
 }: {
   api: MobileApiClient;
   accountId: string | undefined;
   onSessionExpired: () => void;
+  /** Opens straight onto friends when arriving from a friend-request notice. */
+  initialScreen?: 'play' | 'friends';
 }) {
   const { tokens } = useAppTheme();
   const styles = useMemo(() => createStyles(tokens), [tokens]);
@@ -242,17 +249,43 @@ export function PlayScreen({
   const [notice, setNotice] = useState('');
   const [busyId, setBusyId] = useState<string>();
   const [composing, setComposing] = useState(false);
+  // Friends are managed from Play because Play is where they are needed: a
+  // challenge and the friend board both require a mutual friend.
+  const [screen, setScreen] = useState<'play' | 'friends'>(initialScreen);
 
   const groups = useMemo(() => groupChallenges(challenges), [challenges]);
   const today = todayIso();
   const available = useMemo(() => invitableFriends(friends, challenges), [friends, challenges]);
   const rows = standings ? standingRows(standings) : [];
 
+  // An invite waiting on the reader outranks an empty board: one asks for an
+  // answer, the other only explains why a list is short.
+  const guidanceCandidates = useMemo<readonly LoopGuidanceCue[]>(
+    () => [
+      ...(groups.incoming.length ? (['challenge-invite'] as const) : []),
+      ...(challengeState === 'empty' ? (['play-empty'] as const) : [])
+    ],
+    [groups.incoming.length, challengeState]
+  );
+  const guidance = useLoopGuidance(guidanceCandidates);
+
   const answer = async (challengeId: string, accept: boolean) => {
     setBusyId(challengeId);
     setNotice((await respond(challengeId, accept)) ?? '');
     setBusyId(undefined);
   };
+
+  if (screen === 'friends')
+    return (
+      <FriendsScreen
+        api={api}
+        onBack={() => {
+          setScreen('play');
+          reload();
+        }}
+        onSessionExpired={onSessionExpired}
+      />
+    );
 
   return (
     <>
@@ -261,10 +294,20 @@ export function PlayScreen({
       </Text>
       <View style={styles.header}>
         <Text style={styles.eyebrow}>PLAY</Text>
-        <Text style={styles.title}>Friendly challenges</Text>
+        <Text accessibilityRole="header" style={styles.title}>
+          Friendly challenges
+        </Text>
         <Text style={styles.lead}>
           Challenges count active minutes and active days. Never pace, speed, or where you went.
         </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Manage friends"
+          onPress={() => setScreen('friends')}
+          style={styles.guideAction}
+        >
+          <Text style={styles.guideActionText}>Friends and requests ›</Text>
+        </Pressable>
       </View>
 
       {notice !== '' && (
@@ -284,6 +327,9 @@ export function PlayScreen({
       {(challengeState === 'ready' || challengeState === 'empty') && (
         <>
           <Section title="INVITES FOR YOU" styles={styles} hidden={!groups.incoming.length}>
+            {guidance.cue === 'challenge-invite' && (
+              <LoopCallout cue={guidance.cue} onDismiss={guidance.dismiss} />
+            )}
             {groups.incoming.map((challenge) => (
               <View key={challenge.id} style={styles.card}>
                 <ChallengeHeading styles={styles} challenge={challenge} today={today} />
@@ -345,22 +391,29 @@ export function PlayScreen({
               return (
                 <View key={challenge.id} style={styles.card}>
                   <ChallengeHeading styles={styles} challenge={challenge} today={today} />
-                  <Text style={styles.outcome}>{outcome.label}</Text>
-                  <Text style={styles.body}>{outcome.detail}</Text>
+                  <View accessible accessibilityLabel={`${outcome.label}. ${outcome.detail}`}>
+                    <Text style={styles.outcome}>{outcome.label}</Text>
+                    <Text style={styles.body}>{outcome.detail}</Text>
+                  </View>
                 </View>
               );
             })}
           </Section>
 
           {challengeState === 'empty' && !composing && (
-            <View style={styles.guide}>
-              <LoopMascot variant="empty" accessibility={{ mode: 'decorative' }} size={48} />
-              <View style={styles.flexCopy}>
-                <Text style={styles.body}>
-                  No challenges yet. Invite a friend to a short, pace-neutral challenge.
-                </Text>
+            <>
+              <View style={styles.guide}>
+                <LoopMascot variant="empty" accessibility={{ mode: 'decorative' }} size={48} />
+                <View style={styles.flexCopy}>
+                  <Text style={styles.body}>
+                    No challenges yet. Invite a friend to a short, pace-neutral challenge.
+                  </Text>
+                </View>
               </View>
-            </View>
+              {guidance.cue === 'play-empty' && (
+                <LoopCallout cue={guidance.cue} onDismiss={guidance.dismiss} />
+              )}
+            </>
           )}
         </>
       )}
@@ -393,6 +446,7 @@ export function PlayScreen({
         open={composing}
         friends={available}
         hasFriends={friends.length > 0}
+        onManageFriends={() => setScreen('friends')}
         onOpen={() => setComposing(true)}
         onCancel={() => setComposing(false)}
         onCreate={async (friendAccountId, mode, lengthDays) => {
@@ -403,7 +457,9 @@ export function PlayScreen({
       />
 
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Friend standings</Text>
+        <Text accessibilityRole="header" style={styles.sectionTitle}>
+          Friend standings
+        </Text>
       </View>
       {standingsRemoteState === 'loading' && (
         <View style={styles.card}>
@@ -496,8 +552,18 @@ function ChallengeHeading({
   challenge: ChallengeSummary;
   today: string;
 }) {
+  // The mode, the opponent, and the window are one fact about one challenge,
+  // so TalkBack reads them together instead of as three stray fragments. The
+  // heading holds no controls, so grouping hides nothing focusable.
   return (
-    <View style={styles.cardHeader}>
+    <View
+      accessible
+      accessibilityRole="header"
+      accessibilityLabel={`${CHALLENGE_MODE_LABEL[challenge.mode]} challenge with ${
+        challenge.opponent.displayName
+      }. ${challengeWindowLabel(challenge, today)}.`}
+      style={styles.cardHeader}
+    >
       <View style={styles.flexCopy}>
         <Text style={styles.eyebrow}>{CHALLENGE_MODE_LABEL[challenge.mode].toUpperCase()}</Text>
         <Text style={styles.cardTitle}>{challenge.opponent.displayName}</Text>
@@ -521,7 +587,9 @@ function Section({
   if (hidden) return null;
   return (
     <View>
-      <Text style={styles.groupLabel}>{title}</Text>
+      <Text accessibilityRole="header" style={styles.groupLabel}>
+        {title}
+      </Text>
       {children}
     </View>
   );
@@ -532,6 +600,7 @@ function ComposeChallenge({
   open,
   friends,
   hasFriends,
+  onManageFriends,
   onOpen,
   onCancel,
   onCreate
@@ -540,6 +609,7 @@ function ComposeChallenge({
   open: boolean;
   friends: readonly Profile[];
   hasFriends: boolean;
+  onManageFriends: () => void;
   onOpen: () => void;
   onCancel: () => void;
   onCreate: (
@@ -569,9 +639,20 @@ function ComposeChallenge({
     <View style={styles.card}>
       <Text style={styles.cardTitle}>Challenge a friend</Text>
       {!hasFriends && (
-        <Text style={styles.body}>
-          You have no mutual friends yet. Add one from your profile before starting a challenge.
-        </Text>
+        <>
+          <Text style={styles.body}>
+            A challenge needs a mutual friend. Adding someone takes the exact email they signed up
+            with, and they choose whether to accept.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Manage friends"
+            onPress={onManageFriends}
+            style={styles.guideAction}
+          >
+            <Text style={styles.guideActionText}>Add a friend ›</Text>
+          </Pressable>
+        </>
       )}
       {hasFriends && !friends.length && (
         <Text style={styles.body}>Every mutual friend already has a challenge open with you.</Text>

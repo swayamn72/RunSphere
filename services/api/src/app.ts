@@ -76,6 +76,7 @@ import { registerAccountLifecycleRoutes } from './account-routes.js';
 import { registerProgressionRoutes } from './progression-routes.js';
 import { registerAchievementRoutes } from './achievement-routes.js';
 import { registerChallengeRoutes } from './challenge-routes.js';
+import { registerClubRoutes } from './club-routes.js';
 import {
   hashPassword,
   issueSession,
@@ -1587,6 +1588,7 @@ export const buildApp = ({
     registerProgressionRoutes({ routes, database, authSecret });
     registerAchievementRoutes({ routes, database, authSecret });
     registerChallengeRoutes({ routes, database, authSecret });
+    registerClubRoutes({ routes, database, authSecret });
 
     done();
   });

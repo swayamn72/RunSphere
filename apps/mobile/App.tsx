@@ -14,6 +14,10 @@ import { FocusedFlexShell, FocusedScrollShell, TabScrollShell } from './src/comp
 import { PrimaryButton } from './src/components/primitives';
 import { useAppStyles } from './src/components/styles';
 import { coordinateLogout } from './src/logout-coordinator';
+import { setGuidanceStore } from './src/loop-guidance';
+import { persistentGuidanceStore } from './src/loop-guidance.native';
+import { revokePushRegistration } from './src/push-registration';
+import { pushRegistrationStore } from './src/push-registration.native';
 import { TabBar } from './src/navigation/TabBar';
 import { isTabBarVisible, selectAppShell } from './src/navigation/app-shell';
 import {
@@ -31,12 +35,16 @@ import {
 } from './src/screens/ActivityScreens';
 import { Onboarding } from './src/screens/OnboardingScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
-import { ClubsScreen, ProfileScreen } from './src/screens/ProductScreens';
+import { ProfileScreen } from './src/screens/ProductScreens';
+import { ClubsScreen } from './src/screens/ClubsScreen';
 import { PlayScreen } from './src/screens/PlayScreen';
 import { ExploreScreen } from './src/screens/ExploreScreen';
 import { QuestDetailScreen } from './src/screens/QuestDetailScreen';
 import { ThemeProvider, useAppTheme } from './src/theme/theme';
 
+// Guidance memory is resolved through the registry so no screen imports a
+// native secure-storage module.
+setGuidanceStore(persistentGuidanceStore);
 const apiClient = new MobileApiClient(undefined, fetch, authStorage);
 const activitySync = createActivitySyncCoordinator(apiClient, activityRecorder);
 const accountIdFromSession = (session: AuthSession): string => accountScopeFor(session);
@@ -65,6 +73,9 @@ function RunSphereApp() {
     'loading' | 'ready' | 'storage-failure'
   >('loading');
   const [selectedQuest, setSelectedQuest] = useState<QuestSummary>();
+  // Which Play sub-screen to land on. A friend-request notice in the You tab
+  // has to be able to reach friends, which live under Play.
+  const [playEntry, setPlayEntry] = useState<'play' | 'friends'>('play');
   const [storageAttempt, retryStorage] = useReducer((attempt: number) => attempt + 1, 0);
 
   useEffect(() => {
@@ -112,6 +123,9 @@ function RunSphereApp() {
       api: apiClient,
       auth: authStorage,
       queue: activityQueue,
+      push: {
+        revoke: () => revokePushRegistration({ api: apiClient, store: pushRegistrationStore })
+      },
       ...(accountId ? { recorder: { clear: () => activityRecorder.clearAccount(accountId) } } : {})
     }).then(finishSession);
   }, [accountId, finishSession]);
@@ -226,15 +240,29 @@ function RunSphereApp() {
         onSessionExpired={expireSession}
       />
     ) : activeTab === 'Clubs' ? (
-      <ClubsScreen />
+      <ClubsScreen api={apiClient} accountId={accountId} onSessionExpired={expireSession} />
     ) : activeTab === 'Play' ? (
-      <PlayScreen api={apiClient} accountId={accountId} onSessionExpired={expireSession} />
+      <PlayScreen
+        key={playEntry}
+        api={apiClient}
+        accountId={accountId}
+        initialScreen={playEntry}
+        onSessionExpired={expireSession}
+      />
     ) : (
       <>
         {accountId && (
           <ActivityHistory accountId={accountId} sync={activitySync} onOpen={setRecording} />
         )}
-        <ProfileScreen api={apiClient} accountId={accountId} onLogoutComplete={finishSession} />
+        <ProfileScreen
+          api={apiClient}
+          accountId={accountId}
+          onLogoutComplete={finishSession}
+          onNavigate={(target) => {
+            setPlayEntry(target === 'friends' ? 'friends' : 'play');
+            setActiveTab('Play');
+          }}
+        />
       </>
     );
 
@@ -256,6 +284,7 @@ function RunSphereApp() {
           onChange={(tab) => {
             dispatchActivityRoute({ type: 'select-tab' });
             setSelectedQuest(undefined);
+            if (tab !== 'Play') setPlayEntry('play');
             setActiveTab(tab);
           }}
         />

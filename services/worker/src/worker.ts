@@ -13,6 +13,13 @@ import {
   enqueueDueChallenges,
   scoreChallenge
 } from './challenge-scoring.js';
+import { processClubRelays } from './club-relays.js';
+import {
+  createFcmSender,
+  createPushDelivery,
+  readFcmCredentials,
+  type DeliveryHandler
+} from './push-delivery.js';
 
 const maxAttempts = 5;
 const staleClaimSeconds = 300;
@@ -96,6 +103,17 @@ export const convergeAccountDeletion = async (db: Database): Promise<number> => 
         [account.id]
       );
       await client.query('DELETE FROM privacy_zones WHERE account_id = $1', [account.id]);
+      // A club whose owner is erased would otherwise be left with members and
+      // nobody able to appoint an admin or archive it, because the membership
+      // row cascades away with the account. Archiving ends access for everyone
+      // while the remaining membership rows stay as the audited record.
+      await client.query(
+        `UPDATE clubs SET archived_at = now()
+         WHERE archived_at IS NULL AND id IN (
+           SELECT club_id FROM club_memberships
+           WHERE account_id = $1 AND role = 'owner' AND left_at IS NULL)`,
+        [account.id]
+      );
       await client.query("SELECT set_config('runsphere.account_erasure', 'on', true)");
       await client.query('DELETE FROM accounts WHERE id = $1', [account.id]);
     });
@@ -120,7 +138,10 @@ export const processMaintenance = async (db: Database): Promise<number> => {
   // Enqueue after deletion so a closed window belonging to an erased account is
   // never queued for scoring.
   const dueChallenges = await enqueueDueChallenges(db);
-  return purgedTraces + deletedAccounts + expiredShares + lapsedInvites + dueChallenges;
+  // Relay totals are a recompute, so running them last means they already
+  // reflect this sweep's deletions and departures.
+  const relays = await processClubRelays(db);
+  return purgedTraces + deletedAccounts + expiredShares + lapsedInvites + dueChallenges + relays;
 };
 
 /**
@@ -180,11 +201,7 @@ export const processNextActivity = async (db: Database): Promise<boolean> => {
   }
   return true;
 };
-export type DeliveryHandler = (
-  topic: string,
-  aggregateId: string,
-  payload: unknown
-) => Promise<void>;
+export type { DeliveryHandler };
 
 const deliveryTopics = ['notification.created', 'email.transactional'] as const;
 
@@ -236,6 +253,16 @@ export const runWorker = async (): Promise<void> => {
   const logger = createLogger('worker');
   await migrate(db);
   startWorker(logger);
+  // Push is gated on provider credentials. Without them the handler is a
+  // logged no-op rather than a failure, so notification events still drain and
+  // the durable inbox stays the delivery of record (ADR-0009).
+  const credentials = readFcmCredentials(process.env);
+  const deliver = createPushDelivery({
+    db,
+    logger,
+    ...(credentials ? { sender: createFcmSender(credentials) } : {})
+  });
+  logger.info('worker.push_provider', { configured: credentials !== undefined });
   const once = process.env.WORKER_ONCE === 'true';
   try {
     do {
@@ -243,7 +270,7 @@ export const runWorker = async (): Promise<void> => {
         await processMaintenance(db);
         const hadActivity = await processNextActivity(db);
         const hadChallenge = await processNextChallengeFinish(db);
-        const hadDelivery = await processNextDelivery(db);
+        const hadDelivery = await processNextDelivery(db, deliver);
         if (!hadActivity && !hadChallenge && !hadDelivery) await sleep(pollMilliseconds);
       } catch (error) {
         logger.error('worker.iteration_failed', { error: safeWorkerError(error) });

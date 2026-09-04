@@ -1,6 +1,6 @@
 # Gamified Product Expansion — Detailed Implementation Plan
 
-**Status:** Phase 1 (Foundation Gate) complete. Phase 2 (MVP) in progress: milestone 2.1 complete, 2.2-2.8 pending.
+**Status:** Phase 1 (Foundation Gate) complete. Phase 2 (MVP) complete: milestones 2.1 through 2.9 are implemented. Phase 3 (Community Beta) has started: milestones 3.1 (clubs) and 3.2 (club relays) are implemented.
 **Purpose:** This document provides a detailed, technical breakdown of the remaining work for the gamified product expansion so that multiple contributors can pick up milestones and work in parallel.
 
 ---
@@ -278,15 +278,116 @@ Validation: domain 53 tests; API 45 passed + 4 PostGIS integration tests still
 skipped locally, including a new 14-test `friend-standings.test.ts` driving both
 routes through `app.inject` against a fake `Database`.
 
-### Milestone 2.7 — Notification Push Wiring
+### Milestone 2.7 — Notification Push Wiring (complete)
 
-- **Task:** Implement real push delivery in the worker.
-- **Logic:** If FCM credentials exist, wire `notification.created` in `worker.ts` to send FCM push. Push payload must only contain an opaque notification ID + safe deep link (no sensitive data). If FCM is not ready, add a stub.
+`services/worker/src/push-delivery.ts` delivers `notification.created` through
+FCM HTTP v1, signing a service-account assertion with `node:crypto` so no
+third-party auth dependency was added. `020_push_devices.sql` adds
+`push_devices` and `push_dispatches`; `POST /v1/notifications/devices` and
+`DELETE /v1/notifications/devices/:deviceId` register and revoke an address.
 
-### Milestone 2.8 — Loop Guidance & Polish
+Decisions worth carrying forward:
 
-- **Task:** Implement companion callouts across the app.
-- **Features:** Loop guidance for empty states, pending results, weekly resets, and challenge invites. Add frequency caps, dismissal, and TalkBack accessibility for all new UI cards. Ensure new mascot images (Rho, Mira, Coda, Bram) are imported and displayed.
+- **The message is data-only.** It carries the notification id and the deep
+  link already stored on the inbox row, and nothing else. A `notification`
+  payload would ask the provider to render the title and body, which is exactly
+  the content ADR-0009 keeps server-side. The client reads the entry back from
+  the durable inbox.
+- **Registering is an address, not consent.** Whether a push is sent is a pure
+  decision in `@runsphere/domain` (`pushDeliveryDecision`) over the account's
+  existing preferences: channel, category, live devices, quiet hours, then the
+  daily cap. Standing "no" answers are evaluated before timing limits so an
+  audit row says why, not merely that the clock forbade it.
+- **Every decision is recorded.** `push_dispatches` is keyed by notification id,
+  which is both the idempotency guard against an outbox retry and the counter
+  the daily cap reads. `no_devices` covers both never-registered and
+  every-address-expired.
+- **A dead address is not a failure.** A provider `UNREGISTERED` revokes the
+  row with `revoke_reason = 'provider_unregistered'`; a transient failure throws
+  so the outbox retries under its existing attempt budget.
+- **Credentials are all or nothing.** `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, and
+  `FCM_PRIVATE_KEY` must all be present. Without them the worker logs
+  `push.provider_unconfigured`, drains the event, and the in-app inbox is
+  unaffected — the stub the task asked for. Transactional email stays
+  explicitly deferred rather than silently dropped.
+
+**Still blocked:** no FCM project is provisioned, and `apps/mobile` has no
+native token source (`expo-notifications` is not a dependency).
+`apps/mobile/src/push-registration.ts` takes an injected `PushTokenSource`,
+persists the registration in SecureStore, re-registers on token rotation, and
+revokes on sign-out through `coordinateLogout`; it reports `unavailable` until
+a real source is wired.
+
+### Milestone 2.8 — Loop Guidance & Polish (complete)
+
+`apps/mobile/src/loop-guidance.ts` owns the cue registry and both limits;
+`components/LoopCallout.tsx` renders one; `components/useLoopGuidance.ts`
+resolves at most one cue per surface.
+
+Six cues ship, and each is spoken by the crew member whose role it belongs to:
+`pending-result` and `weekly-reset` (Rho), `challenge-invite` and `play-empty`
+(Coda), `quest-empty` (Mira), `hike-prep` (Bram). They appear on the activity
+results screen, Home, Play, Explore, and activity preparation respectively.
+
+- **Two limits, both in the model rather than the screens:** a per-cue daily
+  frequency cap and a dismissal that holds for a stated number of days. The cap
+  is charged once, when the cue is first shown, so a cue cannot flicker away
+  mid-read.
+- **One cue per surface.** A screen offers candidates in priority order; an
+  invite waiting on the reader outranks an empty list.
+- **Guidance is never the only route to information.** Every cue restates
+  something the surface already shows, so dismissing one loses nothing.
+- **A weekly reset is only news to a client that saw the previous week.** A
+  first run records the week and says nothing.
+- **Tone is enforced, not merely intended.** `LoopCallout` throws on copy that
+  fails `isSafeMascotLabel`, the same rule Loop and the crew already obey.
+- TalkBack: each callout is one politely-announced unit labelled
+  "<speaker> says: …", the mascot inside it is decorative so the message is not
+  read twice, and dismiss is a separate 48dp control with a hint. Card titles
+  across Home and Play gained `accessibilityRole="header"`, and a challenge
+  heading and a finished result are each read as one fact rather than as
+  fragments.
+
+This is also the first surface to render the crew: `CrewMascot` existed but no
+screen used it. The `crew-assets.ts` swap point for user-provided PNGs is
+unchanged, so blocker 1 below still stands — the vector stand-ins are what
+ship today.
+
+### Milestone 2.9 — Surfaces for the shipped social and notification routes (complete)
+
+2.1 through 2.8 left the Foundation gate's friends, blocks, inbox, preference,
+and achievement routes with no mobile surface at all: the client methods existed
+from 2.1 and no screen called them. The result was that **no account could add a
+friend** (so the friend board and every challenge were unreachable on a fresh
+install) and **no account had a profile** (`GET /v1/profile` answers `404` until
+a display name is set, and the friend-request route joins `profiles`).
+
+Added: `FriendsScreen` from the Play tab (requests, friends, add-by-email,
+block/unblock), and `NotificationsScreen`, `AchievementsScreen`, and
+`ProfileIdentityScreen` from the You tab. Each has a pure model beside it, as in
+2.3 and 2.4.
+
+Rules worth carrying forward:
+
+- A friend request is never reported as delivered: the route answers the same
+  `202` whatever it finds, so the address cannot be probed (ADR-0007).
+- No outgoing-request list is shown, because the API has none.
+- `GET /v1/blocks` was added, because blocking hides the account from every
+  other list and a block that cannot be found again cannot be undone.
+- An inbox entry offers navigation only where it can honestly go: Play for a
+  challenge link, friends for a friend request, nothing otherwise.
+- Preference saves send only the changed field; the push switch states that
+  push is not being delivered on this build; toggles with no producer say so.
+- The `ProfileScreen` head no longer shows a fabricated identity.
+
+**Contract fix:** `NotificationPreferencesUpdateRequest` was a `Type.Partial`,
+which could not express _clearing_ quiet hours (`undefined` reads as
+"unchanged"), so the window could be set and never switched off. `quietHours` is
+now `QuietHours | null` and the route treats `null` as the clear signal.
+
+Validation: API 70 passed + 4 PostGIS integration tests still skipped locally,
+including new `block-list.test.ts` and `notification-preferences.test.ts`;
+mobile 326 tests across 51 files.
 
 ---
 
@@ -294,15 +395,64 @@ routes through `app.inject` against a fake `Database`.
 
 **Goal:** Expand social features to clubs and global boards.
 
-### Pending Deliverables:
+### Milestone 3.1 — Clubs (complete)
 
-- **Clubs Backend:** CRUD API for clubs, membership/roles (owner/admin/member), invite flows.
-- **Club Relays:** Aggregate club-level goals where members contribute capped minutes or quests.
+`021_clubs.sql` adds `clubs` and `club_memberships`; `club-routes.ts` serves
+create, list, join-by-code, roster, leave, remove, role change, and archive;
+`@runsphere/domain/club.ts` holds every authority rule; and the Clubs tab is a
+real screen rather than the "coming later" placeholder. Built end to end in one
+milestone on purpose, after 2.9 spent a milestone paying off the cost of
+shipping routes with no surface.
+
+Rules worth carrying forward: a non-member is answered `404` rather than `403`,
+and an unknown code, a malformed code, and an archived club are one answer, so
+the join route is not an oracle for guessing codes; authority is the same pure
+predicate in the route and in the UI; removal needs strictly greater authority;
+the owner cannot leave a populated club and there is no silent succession (a
+unique partial index makes "exactly one live owner" a schema invariant);
+nothing is deleted — leaving, removal, and archiving are recorded; a block hides
+two accounts from each other in a roster while the member count stays truthful;
+invite codes are server-generated from an alphabet without `I`, `L`, `O`, `0`,
+or `1`. The worker now archives clubs an erased account owned, before deleting
+it, so a club is never left ownerless.
+
+Validation: domain 91 tests (19 new in `club.test.ts`); API 103 passed + 4
+PostGIS integration tests still skipped, including a 33-test
+`club-routes.test.ts`; mobile 364 tests across 53 files.
+
+### Milestone 3.2 — Club relays (complete)
+
+`022_club_relays.sql` adds `club_relays` and `club_relay_contributions` and
+seeds club rule v1 (240 minutes a day, 600 a week per member, targets of
+60-20000). `services/worker/src/club-relays.ts` computes the totals,
+`POST`/`GET /v1/clubs/:clubId/relays` set and read them, and the Clubs tab shows
+real progress instead of the note saying relays did not exist.
+
+Rules worth carrying forward: a club sees aggregates and a member additionally
+sees their own units, with no per-member breakdown in the response and none
+derivable from it; the per-member weekly ceiling is what makes a relay
+cooperative rather than a race; the worker recomputes rather than increments, so
+the job is idempotent and self-heals after a late or withdrawn validation; only
+currently active members count; the open week and the week just closed are
+recomputed and older weeks are never rewritten; the week is never a parameter,
+so a counted week cannot be retargeted; progress is clamped at 100% because
+there is no league table of clubs; an out-of-range target is a `422` because the
+request is fine and the published rule is not.
+
+Validation: domain 103 tests; API 114 passed + 4 PostGIS integration tests still
+skipped; worker 51 (a new 9-test `club-relays.test.ts`); mobile 386 tests. No
+relay has been computed against real activity — the aggregation is covered by
+unit tests with a fake database only.
+
+### Remaining Phase 3 deliverables:
+
+- **Club boards and challenges:** member-only, isolated by `club_id`.
 - **Global Boards:** Opt-in, server-derived period leaderboards using privacy-minimized pace-neutral points. Segmented by division.
 - **Scheduled Competitions:** API and UI for opt-in time-boxed events with published rules and rewards.
 - **Moderation:** Staff queues for reviewing reported user profiles/club names.
 - **Campaign Tooling:** Admin API for drafting, testing, scheduling, and sending consented email campaigns with unsubscribe flows.
-- **Mobile UI:** Replace `Clubs` tab placeholder with real club discovery, club leaderboards, and relay progress.
+- **Mobile UI:** The `Clubs` tab is real as of 3.1 and shows relay progress as of 3.2. Club leaderboards still need their server side before the tab can show them.
+- **Reporting:** No reports/sanctions/appeals records exist. Blocking ships (2.9), reporting does not, so a blocked account cannot be reported.
 
 ---
 
@@ -336,7 +486,7 @@ routes through `app.inject` against a fake `Database`.
 
 ## ⚠️ Blockers & Open Items for Next Steps
 
-1. **Mascot Artwork:** Mascot images (Rho, Mira, Coda, Bram) need to be provided and placed in `apps/mobile/assets` so the image-swap hook can use them.
-2. **FCM Credentials:** Firebase Cloud Messaging credentials (`google-services.json` + server key) are required for Milestone 2.7 (Push Notifications).
+1. **Mascot Artwork:** Mascot images (Rho, Mira, Coda, Bram) need to be provided and placed in `apps/mobile/assets` so the image-swap hook can use them. The crew now appear in Loop guidance callouts as hand-authored vector stand-ins.
+2. **FCM Credentials:** A Firebase project and a service account are required before any push is actually delivered. The worker side is implemented; set `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, and `FCM_PRIVATE_KEY`. The mobile client additionally needs a native token source (`expo-notifications` plus `google-services.json`) before `registerForPush` has a token to register.
 3. **Admin Web App:** The `apps/admin` skeleton exists, but requires the full React UI for staff RBAC, moderation, and campaign management (Phase 3+).
-4. **Challenge routes:** the mobile client already calls `/v1/challenges`, which does not exist until milestone 2.5. Keep the Play tab off those methods until the routes and migration ship.
+4. **Migrations:** `018_challenges.sql`, `019_friend_standings.sql`, and `020_push_devices.sql` have not been executed against a real PostGIS from this checkout, and the four PostGIS integration tests remain skipped locally. Applying them and running those tests is the first thing to do in CI or on a machine with a database.

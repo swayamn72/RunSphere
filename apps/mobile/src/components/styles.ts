@@ -9,6 +9,9 @@ export const createAppStyles = (t: SemanticTokens) =>
     content: { padding: 20, paddingBottom: 118 },
     onboardingContent: { padding: 20, paddingBottom: 44 },
     flexCopy: { flex: 1 },
+    // Off-screen live region: a screen reader speaks it, sighted users
+    // read the same information from the cards themselves.
+    visuallyHidden: { color: t.text.secondary, fontSize: 1, height: 1, opacity: 0, width: 1 },
     loading: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 30 },
     eyebrow: { color: t.status.success, fontSize: 11, fontWeight: '900', letterSpacing: 1.4 },
     teal: { color: t.status.success },

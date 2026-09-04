@@ -80,16 +80,23 @@ export function PermissionCard({
 export function PrimaryButton({
   label,
   onPress,
-  disabled = false
+  disabled = false,
+  accessibilityLabel
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
+  /**
+   * Stable name for a button whose visible label changes while it works, so a
+   * screen reader is not told the control was renamed mid-action.
+   */
+  accessibilityLabel?: string;
 }) {
   const styles = useAppStyles();
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
@@ -133,8 +140,34 @@ export function SettingsGroup({ title, children }: { title: string; children: Re
   const styles = useAppStyles();
   return (
     <View style={styles.settingsGroup}>
-      <Text style={styles.settingsTitle}>{title}</Text>
+      <Text accessibilityRole="header" style={styles.settingsTitle}>
+        {title}
+      </Text>
       {children}
+    </View>
+  );
+}
+
+/**
+ * Header for a focused sub-screen reached from a tab. Shared so every
+ * sub-screen has the same back affordance and the same 40dp target.
+ */
+export function BackHeader({ label, onBack }: { label: string; onBack: () => void }) {
+  const styles = useAppStyles();
+  return (
+    <View style={styles.stepHeader}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Go back"
+        onPress={onBack}
+        style={styles.backButton}
+      >
+        <Text style={styles.backText}>‹</Text>
+      </Pressable>
+      <Text accessibilityRole="header" style={styles.stepText}>
+        {label}
+      </Text>
+      <View style={styles.backButton} />
     </View>
   );
 }

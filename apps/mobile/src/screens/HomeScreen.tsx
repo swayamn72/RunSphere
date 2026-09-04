@@ -8,8 +8,11 @@ import type {
 } from '@runsphere/contracts';
 import type { MovementType } from '../activity-recorder-core';
 import type { MobileApiClient } from '../api-client';
+import { LoopCallout } from '../components/LoopCallout';
 import { LoopMascot } from '../components/Mascot';
 import { MovementChoice, PrimaryButton } from '../components/primitives';
+import { useLoopGuidance } from '../components/useLoopGuidance';
+import type { LoopGuidanceCue } from '../loop-guidance';
 import { useAppTheme } from '../theme/theme';
 import {
   homeErrorState,
@@ -208,6 +211,11 @@ export function HomeScreen({
     progressionStatusMessage(progressionState)
   );
 
+  // Home offers one cue: a week boundary the reader has actually crossed. The
+  // hook drops it on a first run, when there is no earlier week to have reset.
+  const guidanceCandidates = useMemo<readonly LoopGuidanceCue[]>(() => ['weekly-reset'], []);
+  const guidance = useLoopGuidance(guidanceCandidates, { week: goal?.weekStartsOn });
+
   return (
     <>
       <Text accessibilityLiveRegion="polite" style={styles.liveStatus}>
@@ -215,7 +223,9 @@ export function HomeScreen({
       </Text>
       <View style={styles.header}>
         <Text style={styles.eyebrow}>HOME</Text>
-        <Text style={styles.title}>Ready to find{`\n`}your next path?</Text>
+        <Text accessibilityRole="header" style={styles.title}>
+          Ready to find{`\n`}your next path?
+        </Text>
       </View>
 
       <View style={styles.card}>
@@ -224,6 +234,7 @@ export function HomeScreen({
         {goalState === 'ready' && (
           <>
             <Text style={styles.weekLabel}>Week of {goal?.weekStartsOn}</Text>
+            {guidance.cue && <LoopCallout cue={guidance.cue} onDismiss={guidance.dismiss} />}
             {metrics.map((metric) => (
               <View key={metric.label} style={styles.metric}>
                 <View style={styles.metricHeader}>
@@ -293,7 +304,9 @@ export function HomeScreen({
         <View style={styles.cardHeader}>
           <View style={styles.flexCopy}>
             <Text style={styles.eyebrow}>FREE ACTIVITY</Text>
-            <Text style={styles.cardTitle}>Move your way</Text>
+            <Text accessibilityRole="header" style={styles.cardTitle}>
+              Move your way
+            </Text>
           </View>
           <Text style={styles.privateBadge}>PRIVATE</Text>
         </View>
@@ -313,7 +326,9 @@ export function HomeScreen({
       {consistencyCard && <ConsistencyCard styles={styles} card={consistencyCard} />}
 
       <View style={styles.questHeader}>
-        <Text style={styles.sectionTitle}>Verified quests</Text>
+        <Text accessibilityRole="header" style={styles.sectionTitle}>
+          Verified quests
+        </Text>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Explore verified quests"
@@ -400,7 +415,9 @@ function ProgressionCard({
       <View style={styles.cardHeader}>
         <View style={styles.flexCopy}>
           <Text style={styles.eyebrow}>PROGRESSION</Text>
-          <Text style={styles.cardTitle}>Cosmetic only</Text>
+          <Text accessibilityRole="header" style={styles.cardTitle}>
+            Cosmetic only
+          </Text>
         </View>
         {card?.tierLabel && <Text style={styles.tierBadge}>{card.tierLabel.toUpperCase()}</Text>}
       </View>
@@ -505,7 +522,9 @@ function ConsistencyCard({
       <View style={styles.cardHeader}>
         <View style={styles.flexCopy}>
           <Text style={styles.eyebrow}>CONSISTENCY</Text>
-          <Text style={styles.cardTitle}>{card.weekLabel}</Text>
+          <Text accessibilityRole="header" style={styles.cardTitle}>
+            {card.weekLabel}
+          </Text>
         </View>
         {card.goalLabel && <Text style={styles.goalBadge}>{card.goalLabel.toUpperCase()}</Text>}
       </View>

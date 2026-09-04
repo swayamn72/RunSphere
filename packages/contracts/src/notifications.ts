@@ -66,12 +66,26 @@ export const NotificationPreferencesSchema = Type.Object(
   { $id: 'NotificationPreferences' }
 );
 
-export const NotificationPreferencesUpdateRequestSchema = Type.Partial(
-  NotificationPreferencesSchema,
+/**
+ * A partial update: an absent key leaves that preference unchanged.
+ *
+ * `quietHours` is spelled out rather than derived from `Type.Partial`, because
+ * partial-of-optional cannot express *clearing* the window: `undefined` is
+ * dropped by JSON serialisation and would read as "unchanged", so quiet hours
+ * could be set and never switched off. An explicit `null` is the clear signal.
+ */
+export const NotificationPreferencesUpdateRequestSchema = Type.Object(
+  {
+    categories: Type.Optional(Type.Record(NotificationCategorySchema, Type.Boolean())),
+    quietHours: Type.Optional(Type.Union([QuietHoursSchema, Type.Null()])),
+    maxPerDay: Type.Optional(Type.Integer({ minimum: 1, maximum: 200 })),
+    channels: Type.Optional(Type.Object({ push: Type.Boolean(), email: Type.Boolean() }, Strict))
+  },
   { ...Strict, $id: 'NotificationPreferencesUpdateRequest' }
 );
 
 export type NotificationKind = Static<typeof NotificationKindSchema>;
+export type NotificationCategory = Static<typeof NotificationCategorySchema>;
 export type InboxEntry = Static<typeof InboxEntrySchema>;
 export type InboxListResponse = Static<typeof InboxListResponseSchema>;
 export type InboxMarkReadRequest = Static<typeof InboxMarkReadRequestSchema>;
@@ -79,3 +93,44 @@ export type NotificationPreferences = Static<typeof NotificationPreferencesSchem
 export type NotificationPreferencesUpdateRequest = Static<
   typeof NotificationPreferencesUpdateRequestSchema
 >;
+
+/**
+ * Push registration (ADR-0009). Android only: iOS parity is Phase 5, and
+ * accepting an iOS token before an iOS client exists would store a
+ * registration nothing can ever deliver to.
+ */
+export const PushPlatformSchema = Type.Union([Type.Literal('android')]);
+
+export const PushDeviceRegisterRequestSchema = Type.Object(
+  {
+    /** Opaque provider registration token. Never returned by any read route. */
+    token: Type.String({ minLength: 1, maxLength: 4096 }),
+    platform: PushPlatformSchema
+  },
+  { ...Strict, $id: 'PushDeviceRegisterRequest' }
+);
+
+/**
+ * A registration as the owning account may see it. The token is deliberately
+ * absent: the client already holds it, and echoing it back would put a device
+ * credential in a response body and in every client log that captures one.
+ */
+export const PushDeviceSchema = Type.Object(
+  {
+    id: UuidSchema,
+    platform: PushPlatformSchema,
+    createdAt: DateTimeSchema,
+    lastSeenAt: DateTimeSchema
+  },
+  { $id: 'PushDevice' }
+);
+
+export const PushDeviceParamsSchema = Type.Object(
+  { deviceId: UuidSchema },
+  { ...Strict, $id: 'PushDeviceParams' }
+);
+
+export type PushPlatform = Static<typeof PushPlatformSchema>;
+export type PushDeviceRegisterRequest = Static<typeof PushDeviceRegisterRequestSchema>;
+export type PushDevice = Static<typeof PushDeviceSchema>;
+export type PushDeviceParams = Static<typeof PushDeviceParamsSchema>;

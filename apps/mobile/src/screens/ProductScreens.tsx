@@ -1,17 +1,22 @@
 import { useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, Switch, Text, TextInput, View } from 'react-native';
 import * as Location from 'expo-location';
-import type { SafetyContactResponse, WeeklyGoalResponse } from '@runsphere/contracts';
+import type { Profile, SafetyContactResponse, WeeklyGoalResponse } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { clearAccountData } from '../account-cleanup';
 import { activityQueue } from '../activity-queue.native';
 import { activityRecorder } from '../activity-recorder.native';
 import { authStorage } from '../auth-storage.native';
-import { PrimaryButton, Setting, SettingsGroup, Stat } from '../components/primitives';
+import { BackHeader, PrimaryButton, Setting, SettingsGroup, Stat } from '../components/primitives';
 import { useAppTheme } from '../theme/theme';
 import { useAppStyles } from '../components/styles';
 import { coordinateLogout } from '../logout-coordinator';
 import { homeErrorState, type HomeRemoteState, weeklyGoalState } from './home-state';
+import { AchievementsScreen } from './AchievementsScreen';
+import { NotificationsScreen } from './NotificationsScreen';
+import { ProfileIdentityScreen } from './ProfileIdentityScreen';
+import type { NotificationTarget } from './notifications-model';
+import { profileInitials, profileNameLabel } from './profile-model';
 
 type RemoteState = HomeRemoteState;
 
@@ -34,41 +39,39 @@ const useWeeklyGoal = (api: MobileApiClient) => {
   return { goal, state, load, setGoal, setState };
 };
 
-export function ClubsScreen() {
-  const styles = useAppStyles();
-  return (
-    <View style={styles.centeredState}>
-      <Text style={styles.futureLabel}>COMING LATER · COOPERATIVE</Text>
-      <Text style={styles.comingSoonTitle}>Clubs are coming later.</Text>
-      <Text style={styles.comingSoonCopy}>
-        Future relays will let people contribute private segments at any comfortable pace. There is
-        no XP, exact live location, or active territory behavior.
-      </Text>
-      <View style={styles.notice}>
-        <Text style={styles.noticeIcon}>⌁</Text>
-        <View style={styles.flexCopy}>
-          <Text style={styles.noticeTitle}>Private by design</Text>
-          <Text style={styles.noticeCopy}>
-            A club will see only consented completion summaries—not an exact route, live location,
-            or speed.
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
-}
-
 export function ProfileScreen({
   api,
   accountId,
-  onLogoutComplete
+  onLogoutComplete,
+  onNavigate
 }: {
   api: MobileApiClient;
   accountId: string | undefined;
   onLogoutComplete: () => void;
+  /** Leaves the You tab for a destination an inbox entry points at. */
+  onNavigate?: (target: NotificationTarget) => void;
 }) {
   const styles = useAppStyles();
-  const [screen, setScreen] = useState<'profile' | 'safety' | 'goals'>('profile');
+  const [screen, setScreen] = useState<
+    'profile' | 'safety' | 'goals' | 'identity' | 'notifications' | 'achievements'
+  >('profile');
+  // The profile is the only identity a social surface may show, and an account
+  // without one is invisible to friends: a 404 here is a normal "unset" state.
+  const [profile, setProfile] = useState<Profile>();
+  useEffect(() => {
+    let active = true;
+    void api
+      .getProfile()
+      .then((next) => {
+        if (active) setProfile(next);
+      })
+      .catch(() => {
+        if (active) setProfile(undefined);
+      });
+    return () => {
+      active = false;
+    };
+  }, [api, screen]);
   const [visibility, setVisibility] = useState<'private' | 'followers'>('private');
   const [visibilityBusy, setVisibilityBusy] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState('Not verified');
@@ -168,15 +171,40 @@ export function ProfileScreen({
     );
   if (screen === 'safety') return <SafetyScreen api={api} onBack={() => setScreen('profile')} />;
   if (screen === 'goals') return <GoalsScreen api={api} onBack={() => setScreen('profile')} />;
+  if (screen === 'identity')
+    return (
+      <ProfileIdentityScreen api={api} onBack={() => setScreen('profile')} onSaved={setProfile} />
+    );
+  if (screen === 'notifications')
+    return (
+      <NotificationsScreen
+        api={api}
+        onBack={() => setScreen('profile')}
+        onOpenTarget={(target) => {
+          setScreen('profile');
+          onNavigate?.(target);
+        }}
+        onSessionExpired={onLogoutComplete}
+      />
+    );
+  if (screen === 'achievements')
+    return (
+      <AchievementsScreen
+        api={api}
+        onBack={() => setScreen('profile')}
+        onSessionExpired={onLogoutComplete}
+      />
+    );
   return (
     <>
       <View style={styles.profileHead}>
         <View style={styles.bigAvatar}>
-          <Text style={styles.bigAvatarText}>MH</Text>
+          <Text style={styles.bigAvatarText}>{profileInitials(profile?.displayName)}</Text>
         </View>
         <View style={styles.flexCopy}>
-          <Text style={styles.profileName}>Maya Hart</Text>
-          <Text style={styles.muted}>@mayamoves · Mumbai</Text>
+          <Text accessibilityRole="header" style={styles.profileName}>
+            {profileNameLabel(profile?.displayName)}
+          </Text>
           <Text style={styles.mvpLabel}>PRIVATE PROFILE</Text>
         </View>
       </View>
@@ -186,7 +214,28 @@ export function ProfileScreen({
           value="Set your own pace"
           onPress={() => setScreen('goals')}
         />
-        <Setting label="Activity history" value="Private on this device" disabled />
+        <Setting label="Activity history" value="Listed above, on this device" disabled />
+        <Setting
+          label="Achievements"
+          value="Cosmetic only"
+          onPress={() => setScreen('achievements')}
+        />
+      </SettingsGroup>
+      <SettingsGroup title="You and your friends">
+        <Setting
+          label="Display name"
+          value={profile?.displayName ?? 'Not set'}
+          onPress={() => setScreen('identity')}
+        />
+        <Setting
+          label="Notifications"
+          value="Inbox and delivery"
+          onPress={() => setScreen('notifications')}
+        />
+        <Text style={styles.settingsHint}>
+          Friends see your display name and nothing else. Manage friends and requests from the Play
+          tab.
+        </Text>
       </SettingsGroup>
       <SettingsGroup title="Account visibility">
         <Setting
@@ -516,23 +565,6 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
   );
 }
 
-function BackHeader({ label, onBack }: { label: string; onBack: () => void }) {
-  const styles = useAppStyles();
-  return (
-    <View style={styles.profileHeader}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Go back"
-        onPress={onBack}
-        style={styles.backButton}
-      >
-        <Text style={styles.backText}>‹</Text>
-      </Pressable>
-      <Text style={styles.eyebrow}>{label}</Text>
-      <View style={styles.backButton} />
-    </View>
-  );
-}
 function ErrorState({ copy, onRetry }: { copy: string; onRetry?: () => void }) {
   const styles = useAppStyles();
   return (

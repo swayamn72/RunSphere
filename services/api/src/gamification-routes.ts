@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   ActivityAuthorizationHeadersSchema,
   BlockCreateRequestSchema,
+  BlockListResponseSchema,
   BlockParamsSchema,
   BlockResponseSchema,
   ErrorResponseSchema,
@@ -16,6 +17,9 @@ import {
   NotificationPreferencesSchema,
   NotificationPreferencesUpdateRequestSchema,
   ProfileResponseSchema,
+  PushDeviceParamsSchema,
+  PushDeviceRegisterRequestSchema,
+  PushDeviceSchema,
   ProfileUpdateRequestSchema,
   InboxListResponseSchema,
   InboxMarkReadRequestSchema,
@@ -28,10 +32,16 @@ import {
   type NotificationPreferences,
   type NotificationPreferencesUpdateRequest,
   type Profile,
+  type PushDeviceParams,
+  type PushDeviceRegisterRequest,
   type ProfileUpdateRequest
 } from '@runsphere/contracts';
 import type { Database } from '@runsphere/db';
-import { cappedWeeklyActiveMinutes, competitionRanking } from '@runsphere/domain';
+import {
+  cappedWeeklyActiveMinutes,
+  competitionRanking,
+  defaultNotificationPreferences
+} from '@runsphere/domain';
 import { verifyAccessToken } from './auth.js';
 import { currentWeek, loadActiveProgressionRule } from './progression-core.js';
 
@@ -47,19 +57,6 @@ export interface GamificationRouteDeps {
 }
 
 const DEFAULT_COSMETIC: Profile['cosmetic'] = { avatarKey: 'default' };
-
-const defaultNotificationPreferences = (): NotificationPreferences => ({
-  categories: {
-    friends: true,
-    challenges: true,
-    clubs: true,
-    competitions: true,
-    account: true,
-    marketing: false
-  },
-  maxPerDay: 50,
-  channels: { push: true, email: false }
-});
 
 const accountIdFrom = (request: FastifyRequest, secret: string): string | undefined => {
   const value = request.headers.authorization;
@@ -413,6 +410,62 @@ export const registerGamificationRoutes = ({
     }
   );
 
+  /**
+   * Live blocks for the caller. Blocking removes the friendship and revokes
+   * pending requests in both directions, so a blocked account vanishes from
+   * every other surface; this list is the only place it can be found again,
+   * which is what makes the block reversible from the client.
+   */
+  routes.get(
+    '/v1/blocks',
+    {
+      schema: {
+        tags: ['friends'],
+        headers: ActivityAuthorizationHeadersSchema,
+        response: {
+          200: BlockListResponseSchema,
+          401: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+      const rows = await database.query<{
+        id: string;
+        display_name: string | null;
+        cosmetic: unknown;
+        activity_visibility: 'private' | 'followers';
+        created_at: Date;
+      }>(
+        `SELECT account.id, profile.display_name, profile.cosmetic,
+           account.profile_visibility AS activity_visibility, block.created_at
+         FROM blocks block
+         JOIN accounts account ON account.id = block.blocked_account_id
+         LEFT JOIN profiles profile ON profile.account_id = account.id
+         WHERE block.blocker_account_id = $1 AND block.revoked_at IS NULL
+           AND account.deleted_at IS NULL
+         ORDER BY block.created_at DESC`,
+        [accountId]
+      );
+      return {
+        data: rows.rows.map((row) => ({
+          profile: profileFromRow({
+            id: row.id,
+            // An account that never set a display name still has to be
+            // identifiable enough to unblock.
+            display_name: row.display_name ?? 'RunSphere member',
+            cosmetic: row.cosmetic,
+            activity_visibility: row.activity_visibility
+          }),
+          blockedAt: row.created_at.toISOString()
+        }))
+      };
+    }
+  );
+
   routes.post<{ Body: BlockCreateRequest }>(
     '/v1/blocks',
     {
@@ -636,12 +689,12 @@ export const registerGamificationRoutes = ({
         [accountId]
       );
       const previous = existing.rows[0];
+      // An explicit `null` clears the window; an absent key keeps the stored
+      // one. Without the null case quiet hours could never be switched off.
       const quietHours =
         'quietHours' in request.body
-          ? request.body.quietHours
-          : previous?.quiet_hours
-            ? (previous.quiet_hours as NotificationPreferences['quietHours'])
-            : undefined;
+          ? (request.body.quietHours ?? undefined)
+          : ((previous?.quiet_hours as NotificationPreferences['quietHours']) ?? undefined);
       const merged: NotificationPreferences = {
         categories:
           request.body.categories ??
@@ -653,7 +706,7 @@ export const registerGamificationRoutes = ({
           (previous?.channels as NotificationPreferences['channels']) ??
           defaultNotificationPreferences().channels
       };
-      if (quietHours !== undefined) merged.quietHours = quietHours;
+      if (quietHours) merged.quietHours = quietHours;
       const saved = await database.query<{
         categories: unknown;
         quiet_hours: unknown;
@@ -669,7 +722,7 @@ export const registerGamificationRoutes = ({
         [
           accountId,
           JSON.stringify(merged.categories),
-          'quietHours' in merged && merged.quietHours ? JSON.stringify(merged.quietHours) : null,
+          merged.quietHours ? JSON.stringify(merged.quietHours) : null,
           merged.maxPerDay,
           JSON.stringify(merged.channels)
         ]
@@ -686,6 +739,97 @@ export const registerGamificationRoutes = ({
       };
     }
   );
+
+  /**
+   * Push registration (ADR-0009). A registration is a delivery address, not a
+   * preference: whether a push is actually sent stays with
+   * `/v1/notifications/preferences` and the worker's decision function, so
+   * registering never re-enables a channel the account turned off.
+   *
+   * The token is hashed in the database, matching the other token paths, and
+   * the upsert moves a token that reappears on a different account rather than
+   * fanning a push out to the device's previous owner.
+   */
+  routes.post<{ Body: PushDeviceRegisterRequest }>(
+    '/v1/notifications/devices',
+    {
+      schema: {
+        tags: ['notifications'],
+        headers: ActivityAuthorizationHeadersSchema,
+        body: PushDeviceRegisterRequestSchema,
+        response: {
+          201: PushDeviceSchema,
+          401: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+      const saved = await database.query<{
+        id: string;
+        platform: 'android';
+        created_at: Date;
+        last_seen_at: Date;
+      }>(
+        `INSERT INTO push_devices (account_id, platform, token, token_hash)
+         VALUES ($1, $2, $3, encode(digest($3, 'sha256'), 'hex'))
+         ON CONFLICT (token_hash) WHERE revoked_at IS NULL DO UPDATE SET
+           account_id = EXCLUDED.account_id, platform = EXCLUDED.platform,
+           token = EXCLUDED.token, last_seen_at = now()
+         RETURNING id, platform, created_at, last_seen_at`,
+        [accountId, request.body.platform, request.body.token]
+      );
+      const row = saved.rows[0]!;
+      await audit(database, accountId, 'push_device.registered', 'account', row.id, {
+        platform: row.platform
+      });
+      return reply.code(201).send({
+        id: row.id,
+        platform: row.platform,
+        createdAt: row.created_at.toISOString(),
+        lastSeenAt: row.last_seen_at.toISOString()
+      });
+    }
+  );
+
+  /**
+   * Revoking is scoped to the caller's own registrations and answers 204 even
+   * when nothing matched, so the route cannot be used to probe whether a device
+   * id exists on another account.
+   */
+  routes.delete<{ Params: PushDeviceParams }>(
+    '/v1/notifications/devices/:deviceId',
+    {
+      schema: {
+        tags: ['notifications'],
+        headers: ActivityAuthorizationHeadersSchema,
+        params: PushDeviceParamsSchema,
+        response: {
+          204: { type: 'null' },
+          401: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+      const revoked = await database.query<{ id: string }>(
+        `UPDATE push_devices SET revoked_at = now(), revoke_reason = 'signed_out'
+         WHERE id = $1 AND account_id = $2 AND revoked_at IS NULL
+         RETURNING id`,
+        [request.params.deviceId, accountId]
+      );
+      if (revoked.rows[0])
+        await audit(database, accountId, 'push_device.revoked', 'account', revoked.rows[0].id);
+      return reply.code(204).send();
+    }
+  );
+
   /**
    * Weekly friend board (ADR-0007). Mutual friendship is the authorization
    * boundary, participation is a separate opt-in from activity visibility, and
