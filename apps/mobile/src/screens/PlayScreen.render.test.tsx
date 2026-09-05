@@ -13,6 +13,8 @@ import type {
   FriendStandingsResponse,
   GlobalBoardResponse,
   Profile,
+  TerritoryLadderResponse,
+  TerritoryMapResponse,
   TerritorySeasonResponse
 } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
@@ -21,6 +23,21 @@ import { ApiFailure } from '../api-client.js';
 const ME = '00000000-0000-4000-8000-00000000000a';
 const RAVI = '00000000-0000-4000-8000-00000000000b';
 
+// The season panel renders a map, and the native MapLibre components cannot
+// resolve outside a device build. The map itself is covered by
+// `MapSurface.render.test.tsx`; here it only needs to be renderable.
+vi.mock('@maplibre/maplibre-react-native', async () => {
+  const React = await import('react');
+  return {
+    Camera: React.forwardRef(() => null),
+    GeoJSONSource: ({ children, ...props }: Record<string, unknown>) =>
+      React.createElement('GeoJSONSource' as React.ElementType, props, children as React.ReactNode),
+    Layer: (props: Record<string, unknown>) =>
+      React.createElement('Layer' as React.ElementType, props),
+    Map: ({ children, ...props }: Record<string, unknown>) =>
+      React.createElement('Map' as React.ElementType, props, children as React.ReactNode)
+  };
+});
 vi.mock('react-native', async () => {
   const React = await import('react');
   const native =
@@ -159,6 +176,27 @@ const CAPTURE_NOTE =
 
 const noSeason: TerritorySeasonResponse = { captureNote: CAPTURE_NOTE };
 
+const LADDER_NOTE =
+  'Territory standings are shown without names. Points come from where people moved in public space, so this shows your division and where you sit in it, never who is above or below you.';
+const MAP_NOTE =
+  'This map shows which areas are held this week and which of them are yours. It never shows who holds the others, when anyone was there, or the path anyone took. Areas reset every week.';
+
+/** What the ladder and map actually return today: a season with nothing in it. */
+const emptyLadder: TerritoryLadderResponse = {
+  seasonId: '00000000-0000-4000-8000-0000000000b1',
+  participantCount: 0,
+  entries: [],
+  captureNote: CAPTURE_NOTE,
+  ladderNote: LADDER_NOTE
+};
+const emptyMap: TerritoryMapResponse = {
+  seasonId: '00000000-0000-4000-8000-0000000000b1',
+  h3Resolution: 9,
+  cells: [],
+  captureNote: CAPTURE_NOTE,
+  mapNote: MAP_NOTE
+};
+
 const season = (
   overrides: Partial<NonNullable<TerritorySeasonResponse['season']>> = {}
 ): TerritorySeasonResponse => ({
@@ -190,6 +228,8 @@ const stubApi = (overrides: {
     enrolled: boolean
   ) => Promise<CompetitionSummary>;
   territory?: TerritorySeasonResponse;
+  territoryLadder?: TerritoryLadderResponse;
+  territoryMap?: TerritoryMapResponse;
   setTerritoryEnrollment?: () => Promise<TerritorySeasonResponse>;
   friends?: Profile[];
 }): MobileApiClient =>
@@ -205,6 +245,8 @@ const stubApi = (overrides: {
     ),
     listCompetitions: () => Promise.resolve(overrides.competitions ?? []),
     getTerritorySeason: () => Promise.resolve(overrides.territory ?? noSeason),
+    getTerritoryLadder: () => Promise.resolve(overrides.territoryLadder ?? emptyLadder),
+    getTerritoryMap: () => Promise.resolve(overrides.territoryMap ?? emptyMap),
     setTerritoryEnrollment: vi.fn(
       overrides.setTerritoryEnrollment ?? (() => Promise.resolve(overrides.territory ?? noSeason))
     ),
@@ -613,6 +655,43 @@ describe('the territory season', () => {
     // appears in both states rather than only where a season exists.
     expect(renderedText(withSeason)).toContain('no cell is claimed');
     expect(renderedText(without)).toContain('no cell is claimed');
+  });
+
+  it('never displays a rank, because none is calculated', async () => {
+    const renderer = await renderPlay(
+      stubApi({ territory: season(), territoryLadder: emptyLadder, territoryMap: emptyMap })
+    );
+    const rendered = renderedText(renderer);
+
+    // `product.md` is explicit for a season somebody has not joined: do not
+    // calculate or display a rank. There is none to display, and the standings
+    // panel says why rather than showing an empty list.
+    expect(rendered).not.toMatch(/#\d|Rank \d/);
+    expect(rendered).toContain('Join the season to see your group');
+  });
+
+  it('says why the map is not drawn instead of showing an empty city', async () => {
+    const renderer = await renderPlay(
+      stubApi({ territory: season(), territoryLadder: emptyLadder, territoryMap: emptyMap })
+    );
+    const rendered = renderedText(renderer);
+
+    // Somebody who has not joined is told that, rather than shown a blank map
+    // that would read as an unclaimed city.
+    expect(rendered).toContain('Join the season to see the areas your group is playing for');
+    expect(rendered).toContain('never shows who holds the others');
+  });
+
+  it('tells a participant nothing is held yet, which is a different thing', async () => {
+    const renderer = await renderPlay(
+      stubApi({
+        territory: season(),
+        territoryLadder: emptyLadder,
+        territoryMap: { ...emptyMap, weekStartsOn: '2026-10-05' }
+      })
+    );
+
+    expect(renderedText(renderer)).toContain('No areas are held this week yet');
   });
 
   it('offers an explicit join and says what taking part records', async () => {

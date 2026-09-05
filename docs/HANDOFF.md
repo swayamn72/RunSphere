@@ -1362,10 +1362,13 @@ Validation:
   pre-existing `react-hooks/exhaustive-deps` warnings, 0 errors);
 - Prettier verified per changed file, and `git diff --check` is clean.
 
-One flake seen and not reproduced: `friend-standings.test.ts` failed once during
-a fully parallel `turbo run typecheck test build lint`, with every file in that
-run taking 14s or more, and passed on its own and on a rerun of the whole API
-suite. It looks like contention rather than a defect, but it is worth watching.
+One failure seen and not reproduced: `friend-standings.test.ts` failed once
+during a fully parallel `turbo run typecheck test build lint`, with every file in
+that run taking 14s or more, and passed on its own and on a rerun of the whole
+API suite. **Corrected 2026-09-05 — see "The timeout failures were
+self-inflicted" below.** This was not a property of the test suite: full runs
+were being launched in the background while other heavy commands ran against the
+same machine.
 
 Unverified: no Android device evidence, and no board has been materialized
 against a real database — the ranking and the division bands are covered by unit
@@ -1457,15 +1460,20 @@ renders a real pressable with the accessible name, and the competition tests
 press it the way a person would. If a Play-tab button ever looks untested, this
 is why.
 
-### The parallel-run flake, now identified
+### The timeout failures were self-inflicted
 
-Running `turbo run typecheck test build lint` fully parallel (Metro bundling
-included) makes one or two API tests fail with `Error: Test timed out in
-5000ms` — seen on `friend-standings.test.ts` and `block-list.test.ts`, both of
-which pass in isolation and in a serial API run, and neither of which this
-milestone touched. It is machine contention against vitest's default 5s
-timeout, not a defect. If it keeps costing signal, the fix is to raise
-`testTimeout` in the API vitest config rather than to chase the tests.
+**Corrected 2026-09-05.** Read the note under milestone 4.2 first — this
+section's original diagnosis was wrong.
+
+Running `turbo run typecheck test build lint` made one or two API tests fail
+with `Error: Test timed out in 5000ms` — seen on `friend-standings.test.ts` and
+`block-list.test.ts`, both of which pass in isolation and in a serial API run,
+and neither of which the milestone touched. The original conclusion recorded
+here was "machine contention, not a defect, raise `testTimeout`". The first half
+was right and the second was the wrong remedy: the contention was **caused by
+running other heavy commands concurrently with a backgrounded full run**, not by
+the suite itself. A `testTimeout` bump would have masked a scheduling mistake and
+blunted a real slowness signal. Run the full verification alone.
 
 Unverified: no Android device evidence, and no competition has ever run against
 a real database — the lifecycle, scoring, and eligibility are covered by unit
@@ -1544,7 +1552,7 @@ Validation:
   (15 new, in `moderation-model.test.ts` and `FriendsScreen.render.test.tsx`);
 - workspace `typecheck`, `test` (40/40 turbo tasks), `build`, and `lint` (the 3
   pre-existing `react-hooks/exhaustive-deps` warnings, 0 errors) — this run had
-  no parallel-timeout flake;
+  no timeout failures;
 - Prettier verified per changed file, and `git diff --check` is clean.
 
 Unverified: no Android device evidence, and no report, sanction, or appeal has
@@ -1635,12 +1643,12 @@ Validation:
   pre-existing `react-hooks/exhaustive-deps` warnings, 0 errors);
 - Prettier verified per changed file, and `git diff --check` is clean.
 
-The parallel-run timeout flake recurred once (`turbo run typecheck test build
-lint` with Metro bundling in flight; the API suite passes serially every time).
-It has now cost a false failure on four of the last six full runs. The fix
-remains a `testTimeout` bump in the API vitest config — still not made, because
-it is a shared config change nobody asked for, and raising it would also mask a
-genuine slowness regression.
+One timeout failure recurred (`turbo run typecheck test build lint` with Metro
+bundling in flight; the API suite passes serially every time). **Corrected
+2026-09-05:** this was recorded here as an unexplained flake and a case for a
+`testTimeout` bump. It was neither — the full run was competing with other
+commands issued against the same machine while it ran. No config change is
+needed; run the full verification alone.
 
 Unverified: no Android device evidence, and none of this has run against a real
 database — enforcement is covered by unit tests with a fake one, including the
@@ -1728,8 +1736,8 @@ Validation:
   `notification-preferences`); worker 98 (9 new in `campaigns.test.ts`); mobile
   464 (5 new);
 - workspace `typecheck`, `test` (40/40 turbo tasks), `build`, and `lint` (the 3
-  pre-existing `react-hooks/exhaustive-deps` warnings, 0 errors) — no
-  parallel-timeout flake this run;
+  pre-existing `react-hooks/exhaustive-deps` warnings, 0 errors) — no timeout
+  failures this run;
 - Prettier verified per changed file, and `git diff --check` is clean.
 
 Unverified: no Android device evidence, and nothing has run against a real
@@ -1804,12 +1812,11 @@ Validation:
   warnings, 0 errors);
 - Prettier verified per changed file, and `git diff --check` is clean.
 
-The parallel-run timeout flake appeared once more during this milestone (6 API
-tests, with the admin Vite build now also in flight) and vanished on a serial
-run and on a forced full re-run. It has now cost a false failure on roughly half
-the full runs in this session. The fix is still a `testTimeout` bump in the API
-vitest config; still not made, because it is a shared config change nobody asked
-for.
+Six API tests timed out during this milestone, with the admin Vite build also in
+flight, and passed on a serial run and on a forced full re-run. **Corrected
+2026-09-05:** recorded at the time as a recurring flake needing a `testTimeout`
+bump; it was self-inflicted contention from concurrent commands, and the config
+is fine as it stands.
 
 Unverified: the console has never been run against a live API — there is no
 integration test that signs in and loads a queue, and the tests render markup
@@ -1938,8 +1945,8 @@ Validation:
   in `governance-routes.test.ts`); admin 26 (3 new; two existing tests were
   rewritten because the areas they described as unbuilt now exist);
 - workspace `typecheck`, `test` (40/40 turbo tasks), `build`, and `lint` (the 3
-  pre-existing `react-hooks/exhaustive-deps` warnings, 0 errors) — no flake on
-  this run;
+  pre-existing `react-hooks/exhaustive-deps` warnings, 0 errors) — no timeout
+  failures on this run;
 - Prettier verified per changed file, and `git diff --check` is clean.
 
 Unverified: as before, nothing has run against a real database, and the console
@@ -2156,6 +2163,25 @@ off the latitude. The behaviour under real H3 indexing, real GPS noise, and a
 real eligibility dataset is unknown, and the MMR field study in the release plan
 is what would answer it.
 
+### Correction: the "parallel-run flake" was not a flake
+
+Four earlier milestones in this file recorded a recurring API test timeout as
+unexplained machine contention and proposed raising `testTimeout`. That
+diagnosis was wrong in its remedy, and those notes are now annotated.
+
+What actually happened: full `turbo run typecheck test build lint` runs were
+launched in the background and then Prettier, ESLint, and a second vitest were
+run against the same machine while they were in flight. The worst case reported
+**130 failed API tests**; the tell was a single-file Prettier run taking 36
+seconds. Run alone immediately afterwards, the API suite passed 296 with 4
+skipped, and a full clean workspace run passed 40/40 turbo tasks — domain 194,
+mobile 471, API 296 (+4 skipped), worker 102, admin 26.
+
+**Rule for whoever picks this up:** run the full verification with nothing else
+competing, and treat a timeout as a real signal rather than raising the limit. A
+`testTimeout` bump would have hidden a scheduling mistake and blunted the one
+warning that would catch a genuine slowness regression.
+
 ### What Phase 4 still needs
 
 - **An H3 dependency** with a pinned version, and a binding that satisfies
@@ -2167,3 +2193,126 @@ is what would answer it.
   review, plus the MMR field study.
 - The map surface, the season ladder read paths, and the concentration
   guardrails — all of which want a working engine underneath them first.
+
+## Phase 4 milestones 4.3–4.6 — the rest of a season, 2026-09-06
+
+Everything a territory season needs after scoring: closing a week, the ladder,
+the map, the concentration guardrails, and rollback. **None of it runs.**
+`TERRITORY_CAPTURE_ENABLED` is still false, no H3 library is a dependency of
+either the server or the app, and there is still no public-space eligibility
+dataset. What exists is the whole shape of a season, reviewable in one piece at
+the Territory gate instead of half of it.
+
+### The rules that came out of building it
+
+- **A week is snapshotted only after it has ended.** ADR-0006 makes a weekly
+  period immutable once written, so a snapshot of a week still running would
+  make version 1 of every week wrong by construction. `snapshotTerritoryWeek`
+  refuses with `week_not_closed`.
+- **The weekly reset is structural, not a job.** Control is stored per week, so
+  a new week has no control rows until its own contributions resolve. Nothing
+  deletes last week's control: history is kept, and what resets is what the
+  current week shows.
+- **A finalized week is never re-snapshotted by a sweep.** A second automatic
+  pass would write version N+1 of an unchanged week and turn the version history
+  into a record of how often the worker ran. Recomputation is a deliberate act.
+- **One pointer, and it is the only thing rollback moves.**
+  `territory_week_state.current_version` says which snapshot a week shows. No
+  snapshot is ever edited or deleted, and rolling _forward_ is deliberately
+  impossible — that is a recomputation, a different act with a different record.
+- **The season ladder is a full recompute from each week's current version.**
+  That is what makes a rollback reach the ladder at all, with no separate
+  correction step for somebody to forget.
+- **Withdrawing removes a standing rather than freezing it.** The season is
+  opt-in, and leaving should take somebody off the board rather than leaving
+  their number on one they quit.
+
+### The decision most worth arguing with
+
+**The territory ladder carries no identities at all.** Not names, not handles,
+not account ids — a row is a rank and a number of points, and the only one a
+reader can attach to a person is their own.
+
+The reasoning: the global board publishes display names because its score is
+capped active minutes, which is how long somebody moved. A territory standing is
+derived from _where somebody physically went in public space_. Putting a name
+beside that, on a screen that also shows a map of held ground, hands back
+precisely what ADR-0008 makes the map withhold.
+
+The cost is real and should be weighed rather than assumed away: this ladder
+offers no social comparison against named people, which is a large part of what
+makes a ladder motivating. The response says so in its own words
+(`TERRITORY_LADDER_NOTE`), so somebody expecting names is told why there are
+none instead of assuming the screen is broken. **If the gate wants names, that
+is a decision to make explicitly, not to discover in an implementation.**
+
+### Two things found while building
+
+- **Below 13 participants the 8% top-participant guardrail is arithmetically
+  unreachable.** The smallest possible share is `1/n`, so twelve people
+  splitting points perfectly evenly already sit above 8%. Unhandled, this would
+  have reported a breach every single day of any small pilot and buried the real
+  ones. `concentrationApplies` reports it as not-applicable, and the console says
+  what it actually means: merge the division at the next season start.
+- **A ladder or map failure was taking the season card down with it.** The first
+  wiring of the Play tab put all three reads in one promise chain, so a failing
+  panel flipped `territoryRemoteState` to `error` and removed the join and leave
+  buttons — the working half of the screen going down with the broken half. They
+  now fail independently.
+
+### What the map does, and what it cannot
+
+`GET /v1/territory/seasons/:seasonId/map` returns an H3 index and one bit per
+cell: whether the reader holds it. No holder, no time, no count, no route.
+Only the reader's own division, because a map spanning all of them would let
+anybody read a city's activity off a screen meant to show their own game.
+
+**It cannot be drawn.** Turning an index into a boundary is H3's job and the app
+has no H3 binding, so `territoryMapPlan` takes an injected `CellBoundarySource`
+and without one returns `no-boundaries` — with a sentence saying the areas are
+still counted. A resolution mismatch is treated identically: a cell one
+resolution out is about seven times the area, which would put a claim on ground
+nobody covered.
+
+The empty states are the part that actually exists, and they are three separate
+sentences on purpose — not joined, nothing held yet, cannot be drawn — because a
+blank map reads as an unclaimed city.
+
+### The field study
+
+[`docs/territory-field-study.md`](territory-field-study.md) is new: cell
+inventory, route repeatability under GPS noise, pace neutrality across speeds, a
+concentration simulation, and device cost, with thresholds and exit criteria
+fixed **before** anybody is under pressure to pass them. It is written and **has
+not been run** — it is the one Phase 4 deliverable that cannot be produced from a
+keyboard, and it cannot even start until the eligibility dataset exists.
+
+Validation:
+
+- domain 216 (22 new in `territory-season.test.ts`); worker 106 (4 new); API 316
+  passed + the 4 PostGIS integration tests still skipped (20 new in
+  `territory-season-routes.test.ts`); mobile 484 (11 new in
+  `territory-model.test.ts`, 3 new in `PlayScreen.render.test.tsx`); admin 30
+  (4 new);
+- workspace `typecheck`, `test`, `build`, `lint`, and `verify:migrations`;
+- Prettier verified per changed file, and `git diff --check` is clean.
+
+Unverified, and worth being blunt about: **not one line of this has processed a
+real trace or run against a real database.** The indexer in the tests reads a
+cell off a latitude, the boundary source is a square, and every query is checked
+against a fake. `030_territory_week_state.sql` has never run against a real
+PostGIS: watch the `to_version < from_version` CHECK on
+`territory_week_rollbacks` and the `numeric(6,5)` share columns on first apply.
+
+### What is left, and none of it is code
+
+1. **An H3 dependency** with a pinned version — a `CellIndexer` on the server
+   and a `CellBoundarySource` in the app.
+2. **A public-space eligibility dataset**: source, licence, import pipeline. A
+   project, not a task, and its cost and licensing belong with ADR-0010's
+   approval bands. The field study cannot start without it.
+3. **The Territory gate**: fair scoring, division, concentration, and anti-abuse
+   review — plus the field study above.
+
+Until those three, everything in Phase 4 stays exactly as it is: written,
+tested, refusing, and honest about why.

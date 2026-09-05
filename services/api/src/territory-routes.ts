@@ -5,11 +5,13 @@ import {
   ErrorResponseSchema,
   TerritoryEnrollmentRequestSchema,
   TerritorySeasonCreateRequestSchema,
+  TerritorySeasonListResponseSchema,
   TerritorySeasonParamsSchema,
   TerritorySeasonResponseSchema,
   TerritorySeasonStatusRequestSchema,
   type TerritoryEnrollmentRequest,
   type TerritorySeasonCreateRequest,
+  type TerritorySeasonListResponse,
   type TerritorySeasonParams,
   type TerritorySeasonResponse,
   type TerritorySeasonStatusRequest,
@@ -410,6 +412,54 @@ export const registerTerritoryRoutes = ({
       );
       const response: TerritorySeasonResponse = {
         season: seasonView(row),
+        captureNote: TERRITORY_CAPTURE_NOTE
+      };
+      return response;
+    }
+  );
+
+  /**
+   * Every season, for a season operator (milestone 4.6).
+   *
+   * The member read shows one season — the one they can act on — and hides
+   * ended ones because a screen still offering them would read as something to
+   * join. An operator needs the ended ones: that is where a week worth rolling
+   * back lives.
+   */
+  routes.get(
+    '/v1/staff/territory/seasons',
+    {
+      schema: {
+        tags: ['staff'],
+        headers: ActivityAuthorizationHeadersSchema,
+        response: {
+          200: TerritorySeasonListResponseSchema,
+          401: ErrorResponseSchema,
+          403: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+      if (!canOperateCompetitions(await staffRoles(database, accountId)))
+        return reply.code(403).send({ message: 'A season needs a season operator role' });
+
+      const seasons = await database.query<SeasonRow>(
+        `SELECT season.id, season.title, season.status, season.starts_at, season.ends_at,
+           season.privacy_policy_version,
+           (SELECT count(*) FROM territory_enrollments live
+             WHERE live.season_id = season.id AND live.withdrawn_at IS NULL)::text
+             AS participant_count,
+           NULL AS division, NULL AS prior_active_weeks, NULL AS enrolled_at
+         FROM territory_seasons season
+         ORDER BY season.starts_at DESC
+         LIMIT 100`
+      );
+      const response: TerritorySeasonListResponse = {
+        data: seasons.rows.map(seasonView),
         captureNote: TERRITORY_CAPTURE_NOTE
       };
       return response;

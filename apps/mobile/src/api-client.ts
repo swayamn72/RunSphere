@@ -76,6 +76,8 @@ import type {
   SafetyShareRequest,
   SafetyShareResponse,
   TerritoryEnrollmentRequest,
+  TerritoryLadderResponse,
+  TerritoryMapResponse,
   TerritorySeasonResponse,
   VisibilityRequest,
   VisibilityResponse,
@@ -415,6 +417,26 @@ export class MobileApiClient {
     return this.request(`/v1/territory/seasons/${encodeURIComponent(seasonId)}/enrollment`, {
       method: 'PUT',
       body
+    });
+  }
+  /**
+   * The reader's division ladder (milestone 4.4). It carries no identities:
+   * every entry is a rank and a number of points, and the only one attached to
+   * a person is the reader's own.
+   */
+  async getTerritoryLadder(seasonId: string): Promise<TerritoryLadderResponse> {
+    return this.request(`/v1/territory/seasons/${encodeURIComponent(seasonId)}/ladder`, {
+      method: 'GET'
+    });
+  }
+  /**
+   * Which areas are held this week, as H3 indexes (milestone 4.5). A cell says
+   * only that it is held and whether it is the reader's; never by whom, when,
+   * or by what route.
+   */
+  async getTerritoryMap(seasonId: string): Promise<TerritoryMapResponse> {
+    return this.request(`/v1/territory/seasons/${encodeURIComponent(seasonId)}/map`, {
+      method: 'GET'
     });
   }
   /** Off by default, and separately revocable from every other board scope. */

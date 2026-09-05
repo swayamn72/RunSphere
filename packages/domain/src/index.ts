@@ -32,3 +32,4 @@ export * from './moderation.js';
 export * from './campaign.js';
 export * from './territory.js';
 export * from './territory-scoring.js';
+export * from './territory-season.js';

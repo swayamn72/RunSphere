@@ -5,7 +5,8 @@ import type {
   EmailTemplate,
   StaffAppeal,
   StaffReport,
-  StaffSanction
+  StaffSanction,
+  TerritorySeasonView
 } from '@runsphere/contracts';
 
 export interface StaffReviewItem {
@@ -163,6 +164,34 @@ export const publishEmailTemplate = (
 ) => json<EmailTemplate>(accessToken, '/v1/staff/email-templates', 'POST', body);
 
 /** One open export or erasure request, as the privacy queue shows it. */
+/** One division's enrolled size, with advice for the next season start. */
+export interface TerritoryDivisionSize {
+  division: string;
+  enrolledCount: number;
+  advice: 'merge' | 'split' | 'healthy';
+}
+
+/** One day's concentration observation. Shares only, never the participants. */
+export interface TerritoryConcentrationRow {
+  division: string;
+  observedOn: string;
+  participants: number;
+  topDecileShare: number;
+  topParticipantShare: number;
+  applicable: boolean;
+  breached: boolean;
+  breachRunDays: number;
+  pausesAwards: boolean;
+}
+
+export interface TerritoryWeekRow {
+  weekStartsOn: string;
+  currentVersion: number;
+  latestVersion: number;
+  finalizedAt: string;
+  rolledBack: boolean;
+}
+
 export interface PrivacyRequest {
   accountId: string;
   kind: 'export' | 'deletion';
@@ -194,3 +223,51 @@ export const getPrivacyQueue = (accessToken: string) =>
 /** Published rule versions. Read-only: rules are published by migration. */
 export const getRuleVersions = (accessToken: string) =>
   authed<{ data: RuleVersion[] }>(accessToken, '/v1/staff/rules');
+
+/**
+ * Territory seasons (Phase 4, milestone 4.6). Every one of these returns an
+ * empty season today: capture is off, so no week has been finalized and no
+ * concentration has been observed. They exist because the console is where a
+ * season operator would look, and an area that appears only after the gate
+ * opens is an area nobody has reviewed.
+ */
+export const getTerritorySeasons = (accessToken: string) =>
+  authed<{ data: TerritorySeasonView[]; captureNote: string }>(
+    accessToken,
+    '/v1/staff/territory/seasons'
+  );
+
+export const getTerritoryDivisions = (accessToken: string, seasonId: string) =>
+  authed<{ data: TerritoryDivisionSize[] }>(
+    accessToken,
+    `/v1/staff/territory/seasons/${seasonId}/divisions`
+  );
+
+export const getTerritoryConcentration = (accessToken: string, seasonId: string) =>
+  authed<{ data: TerritoryConcentrationRow[] }>(
+    accessToken,
+    `/v1/staff/territory/seasons/${seasonId}/concentration`
+  );
+
+export const getTerritoryWeeks = (accessToken: string, seasonId: string) =>
+  authed<{ data: TerritoryWeekRow[] }>(
+    accessToken,
+    `/v1/staff/territory/seasons/${seasonId}/weeks`
+  );
+
+/**
+ * Point a week at an earlier snapshot. Nothing is edited or deleted, and the
+ * reason is kept as the record of why the week's numbers changed.
+ */
+export const rollBackTerritoryWeek = (
+  accessToken: string,
+  seasonId: string,
+  weekStartsOn: string,
+  body: { toVersion: number; reason: string }
+) =>
+  json<{ data: TerritoryWeekRow[] }>(
+    accessToken,
+    `/v1/staff/territory/seasons/${seasonId}/weeks/${weekStartsOn}/rollback`,
+    'POST',
+    body
+  );

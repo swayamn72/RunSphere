@@ -16,7 +16,14 @@ import { canManageCampaigns, canModerate, canOperateCompetitions } from '@runsph
  */
 
 export type AreaKey =
-  'review' | 'moderation' | 'competitions' | 'campaigns' | 'privacy' | 'data' | 'support';
+  | 'review'
+  | 'moderation'
+  | 'competitions'
+  | 'seasons'
+  | 'campaigns'
+  | 'privacy'
+  | 'data'
+  | 'support';
 
 export interface AreaDefinition {
   readonly key: AreaKey;
@@ -63,6 +70,13 @@ export const AREAS: readonly AreaDefinition[] = [
     summary: 'Schedule, announce, and cancel time-boxed events.',
     permitted: canOperateCompetitions,
     roleNote: 'season_operator or admin, matching /v1/staff/competitions.'
+  },
+  {
+    key: 'seasons',
+    title: 'Territory seasons',
+    summary: 'Division sizes, concentration monitoring, and week rollback for a season.',
+    permitted: canOperateCompetitions,
+    roleNote: 'season_operator or admin, matching /v1/staff/territory/seasons.'
   },
   {
     key: 'campaigns',
@@ -204,3 +218,32 @@ export const PRIVACY_ATTENTION_HOURS = 48;
 
 export const privacyNeedsAttention = (request: { openForHours: number }): boolean =>
   request.openForHours >= PRIVACY_ATTENTION_HOURS;
+
+/**
+ * The winner-concentration baselines a season operator is watching
+ * (`product.md`, milestone 4.6). Repeated here as display copy rather than
+ * imported as numbers, because what an operator needs is the sentence: the
+ * limit, and what happens when it is missed for a week.
+ */
+export const CONCENTRATION_NOTE =
+  'In any division the top 10% should hold no more than 35% of season points, and the top participant no more than 8%. Seven consecutive breached days pauses awards analysis and starts an investigation into cell scarcity and validation abuse.';
+
+/**
+ * Said where a division is too small for those limits to be reachable. In a
+ * division of twelve an exactly even split already exceeds 8%, so a breach
+ * there is arithmetic rather than a finding, and the console says which it is.
+ */
+export const CONCENTRATION_NOT_APPLICABLE_NOTE =
+  'This division is too small for the limits to be reachable, so they are not evaluated. That is a reason to merge it at the next season start, not a concentration problem.';
+
+/** Said above the rollback reason field. */
+export const ROLLBACK_REASON_HINT =
+  'Kept with the week as the record of why its numbers changed. A participant asking why their week moved is answered with this.';
+
+/**
+ * Nothing here recalculates or edits a week. A rollback points the week at a
+ * snapshot that already exists, and the console says so before somebody asks
+ * for the button that would rewrite one.
+ */
+export const ROLLBACK_NOTE =
+  'A rollback shows an earlier snapshot of the week. No snapshot is edited or deleted, and rolling forward is a recomputation rather than a rollback. Standings follow on the next sweep.';

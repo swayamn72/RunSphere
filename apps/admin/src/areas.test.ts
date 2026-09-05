@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   AREAS,
   AUDIT_NOTICE,
+  CONCENTRATION_NOTE,
+  CONCENTRATION_NOT_APPLICABLE_NOTE,
   NO_ROLES_MESSAGE,
   OPEN_APPEAL_WARNING,
   PRIVACY_ATTENTION_HOURS,
   PRIVACY_READ_ONLY_NOTE,
+  ROLLBACK_NOTE,
+  ROLLBACK_REASON_HINT,
   RULES_READ_ONLY_NOTE,
   SANCTION_CHOICES,
   SANCTION_LIFT_HINT,
@@ -26,10 +30,12 @@ describe('what each role can open', () => {
     expect(keys).not.toContain('campaigns');
   });
 
-  it('shows a season operator competitions only', () => {
+  it('shows a season operator competitions and seasons only', () => {
     const keys = permittedAreas(['season_operator']).map((area) => area.key);
 
+    // The same role runs both, and the API gates them with the same predicate.
     expect(keys).toContain('competitions');
+    expect(keys).toContain('seasons');
     expect(keys).not.toContain('moderation');
     expect(keys).not.toContain('campaigns');
   });
@@ -183,5 +189,33 @@ describe('the governance areas', () => {
     // Neither role reaches the other's area.
     expect(permittedAreas(['privacy_officer']).map((area) => area.key)).not.toContain('data');
     expect(permittedAreas(['data_steward']).map((area) => area.key)).not.toContain('privacy');
+  });
+});
+
+describe('the territory seasons area', () => {
+  const seasons = AREAS.find((area) => area.key === 'seasons');
+
+  it('is built, so it does not carry an unbuilt reason', () => {
+    expect(seasons?.unbuiltReason).toBeUndefined();
+    expect(seasons?.roleNote).toContain('/v1/staff/territory/seasons');
+  });
+
+  it('states the concentration limits an operator is watching', () => {
+    // The numbers matter less here than the sentence: what the limit is, and
+    // what happens when it is missed for a week.
+    expect(CONCENTRATION_NOTE).toContain('35%');
+    expect(CONCENTRATION_NOTE).toContain('8%');
+    expect(CONCENTRATION_NOTE).toContain('Seven consecutive breached days');
+  });
+
+  it('separates a division too small to judge from one that is concentrated', () => {
+    expect(CONCENTRATION_NOT_APPLICABLE_NOTE).toContain('merge it at the next season start');
+    expect(CONCENTRATION_NOT_APPLICABLE_NOTE).not.toContain('breach');
+  });
+
+  it('says a rollback edits nothing before somebody asks for a button that would', () => {
+    expect(ROLLBACK_NOTE).toContain('No snapshot is edited or deleted');
+    expect(ROLLBACK_NOTE).toContain('rolling forward is a recomputation');
+    expect(ROLLBACK_REASON_HINT).toContain('why its numbers changed');
   });
 });

@@ -879,14 +879,121 @@ pace neutrality, the tie-breaks, and order independence); worker 102 (4 new,
 which assert the refusals and will be the first tests to fail when the gate
 opens — which is the point of them).
 
+### Milestone 4.3 — Weekly close and reset (complete, and switched off)
+
+A week is snapshotted only once it has completely ended. `snapshotTerritoryWeek`
+gained a `week_not_closed` refusal, and `territoryWeekClosed` in the domain says
+when a Kolkata week is over — because ADR-0006 makes a weekly period immutable
+the moment it is written, so a snapshot of a week still running would make
+version 1 of every week wrong by construction.
+
+`030_territory_week_state.sql` adds `territory_week_state`, the pointer saying
+which immutable snapshot version a week currently shows. It is the only thing a
+rollback moves. `finalizeDueTerritoryWeeks` snapshots every closed week that has
+none, and skips weeks already finalized rather than recomputing them: an
+automatic second pass would write version N+1 of an unchanged week and turn the
+version history into a record of how often the worker ran.
+
+**The weekly reset is structural, not an action.** Control is stored per week,
+so a new week simply has no control rows until its own contributions resolve.
+There is deliberately no job that deletes the previous week's control — history
+is kept, and what resets is what the current week shows.
+`territoryControlCarriesForward` is `false` and a test asserts it.
+
+Territory is now called from `processMaintenance`, where both entry points
+refuse on `TERRITORY_CAPTURE_ENABLED` before their first query. Wiring an inert
+job into the sweep beats leaving it unreferenced: a job that has never been on
+the sweep is one nobody finds out is missing.
+
+### Milestone 4.4 — The season ladder (complete, and switched off)
+
+`seasonStandings` sums each week's banked points at that week's **current**
+snapshot version, which is what makes a rollback reach the ladder with no
+separate correction step. Equal points share a rank; ties order by the opaque
+reference purely for stable rendering. `territory_season_standings` stores the
+aggregate, recomputed each sweep, and a participant who withdraws is removed
+rather than frozen on a board they have quit.
+
+**The decision worth arguing with at the Territory gate: the ladder carries no
+identities at all.** The global board publishes display names because its score
+is capped active minutes — how long somebody moved. A territory standing is
+derived from _where somebody physically went in public space_, and pairing a
+name with it, beside a map of held cells, hands back exactly what ADR-0008 makes
+the map withhold. So an entry is a rank and a number of points, and the only one
+attached to a person is the reader's own. The trade is real and stated in the
+response itself: this ladder shows somebody the shape of their division and
+where they sit in it, and offers no social comparison against named people. That
+is what the opt-in global board is for.
+
+### Milestone 4.5 — The season map (complete, and undrawable)
+
+`GET /v1/territory/seasons/:seasonId/map` returns, per cell, an H3 index and one
+bit: whether the reader holds it. No holder, no timestamp, no count, no route —
+ADR-0008 says another participant's cell may expose that it is held and nothing
+else, and the response is exactly that. Only the reader's own division is
+returned, because a map spanning all of them would let anybody read a city's
+activity off a screen meant to show their own game.
+
+Cells are indexes rather than polygons because that is what ADR-0001 stores, and
+because turning an index into a boundary is H3's job. **No H3 library is a
+dependency of the app either**, so `territoryMapPlan` takes an injected
+`CellBoundarySource` and, without one, returns `no-boundaries` and a sentence
+saying the areas are still counted. A resolution mismatch is treated the same
+way: a cell one resolution out is roughly seven times the area, which would put
+a claim on ground nobody covered.
+
+The empty states are the part that actually exists, and they are deliberately
+three different sentences — not joined, nothing held yet, and cannot be drawn —
+because a blank map reads as an unclaimed city.
+
+### Milestone 4.6 — Concentration guardrails and season rollback (complete)
+
+`divisionConcentration` implements the `product.md` baselines: within a division
+the top 10% no more than 35% of season points, the top participant no more than
+8%, and seven consecutive breached days pauses awards analysis. The worker
+writes one observation per division per day whether or not it breaches, because
+a run of consecutive days cannot be counted from rows that only exist on bad
+days.
+
+**A finding worth carrying: below 13 participants the 8% limit is
+arithmetically unreachable** — the smallest possible share is `1/n`, so an
+exactly even split of twelve already sits above it. `concentrationApplies`
+reports that as not-applicable rather than as a breach, and the console says it
+means the division should be merged at the next season start. Left unhandled it
+would have fired a false breach every single day of any small pilot.
+
+Nothing acts on a breach. Pausing awards and investigating cell scarcity or
+validation abuse are judgements people make, and automating a response would
+take that judgement away from whoever should be making it.
+
+Rollback points a week at a snapshot that **already exists**: no snapshot is
+edited or deleted, the reason is staff-written and kept, and standings follow on
+the next sweep. Rolling forward is deliberately impossible here — a newer
+version comes from recomputing, which is a different act, and one verb doing
+both would make corrections and reversals read identically in the audit trail.
+
+The console gains a **Territory seasons** area on the same `season_operator`
+predicate the routes enforce, with the season list, division sizes,
+concentration, and week rollback.
+
+### Field study — protocol written, study not run
+
+[`docs/territory-field-study.md`](territory-field-study.md) sets out the MMR
+study the release plan gates on: cell inventory, route repeatability under GPS
+noise, pace neutrality across speeds, a concentration simulation, and device
+cost — with thresholds and exit criteria fixed **before** anybody is under
+pressure to pass them. It is the one Phase 4 deliverable that cannot be produced
+by writing code, and it has not been run.
+
 ### Pending Deliverables:
 
 - **Territory Engine:** built in 4.2 and switched off. What remains before it can run: an H3 library dependency with a pinned version, a public-space eligibility dataset, and the gate. **Gated:** ADR-0008 keeps territory disabled until the Territory gate in the release plan passes — fair scoring, division, concentration, and anti-abuse review, plus the MMR field study. 4.1 built everything up to that line and stopped at it.
-- **Weekly Resets:** Worker jobs to compute cell control at week's end based on best contiguous 60-minute daily windows, then reset cells to unclaimed.
-- **Season Ladder:** Compute and store season-long rank points based on capped control-days.
-- **Mobile UI:** Map rendering of controlled cells (no live tracking, no exact timestamps, no identity exposure).
-- **Abuse Controls:** Implement top-10% and top-user concentration guardrails, plus season rollback mechanisms.
-- **Field Study:** Physical-device GPS, distance, battery, and territory-cell field study in MMR to validate fairness.
+- **Weekly Resets:** Built in 4.3. Cells reset structurally — control is stored per week — and a week is finalized only after it ends.
+- **Season Ladder:** Built in 4.4, with no identities on it.
+- **Mobile UI:** Built in 4.5, and **cannot draw a cell**: the app has no H3 binding, so the map states that reason rather than showing an empty city.
+- **Abuse Controls:** Built in 4.6, monitoring only. Nothing automatically pauses awards or moves a standing.
+- **Field Study:** Protocol written ([`territory-field-study.md`](territory-field-study.md)); **not run**, and it cannot be run from a keyboard. It also cannot start until the public-space eligibility dataset exists.
+- **What still blocks a season running at all:** an H3 library dependency with a pinned version, the public-space eligibility dataset, and the Territory gate.
 
 ---
 

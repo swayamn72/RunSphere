@@ -7,7 +7,12 @@ import { decimateCoordinates } from './map-model';
 export interface LocalGeoJsonLayer {
   readonly id: string;
   readonly data: FeatureCollection<Geometry, GeoJsonProperties>;
-  readonly kind: 'line' | 'circle';
+  /**
+   * `fill` draws held territory cells (milestone 4.5). A cell is a shape and
+   * nothing else — it carries no holder, so it is painted one way whether it is
+   * the reader's or somebody else's, distinguished only by opacity.
+   */
+  readonly kind: 'line' | 'circle' | 'fill';
 }
 
 const decimateGeometry = (geometry: Geometry): Geometry => {
@@ -53,7 +58,19 @@ export function LocalGeoJsonLayers({
     <>
       {rendererLayers.map((layer) => (
         <GeoJSONSource key={layer.id} id={`${layer.id}-source`} data={layer.data}>
-          {layer.kind === 'line' ? (
+          {layer.kind === 'fill' ? (
+            <Layer
+              id={`${layer.id}-layer`}
+              type="fill"
+              paint={{
+                'fill-color': tokens.route.fill,
+                'fill-outline-color': tokens.route.line,
+                // The reader's own cells read stronger than the rest. Nothing
+                // else separates them, because nothing else may be shown.
+                'fill-opacity': ['case', ['get', 'isSelf'], 0.55, 0.25]
+              }}
+            />
+          ) : layer.kind === 'line' ? (
             <Layer
               id={`${layer.id}-layer`}
               type="line"

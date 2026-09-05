@@ -25,9 +25,13 @@ describe('admin shell', () => {
   it('states what staff cannot see here, and that their own use is recorded', () => {
     const rendered = markup();
 
-    expect(rendered).toContain('Raw GPS, account contact details, and territory controls are');
+    expect(rendered).toContain('Raw GPS and account contact details are unavailable here');
     expect(rendered).toContain('recorded against your staff account');
-    expect(rendered).toContain('Territory remains off.');
+    // Season operations now exist in this console, so the old blanket claim
+    // that territory controls are absent would be untrue. What is still true,
+    // and is what the footer says, is that capture itself is off.
+    expect(rendered).toContain('never a participant against a cell');
+    expect(rendered).toContain('Territory capture remains off.');
   });
 
   it('renders no operational data of its own', () => {

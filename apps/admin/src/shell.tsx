@@ -2,9 +2,13 @@ import { useState, type FormEvent } from 'react';
 import {
   AUDIT_NOTICE,
   AREAS,
+  CONCENTRATION_NOTE,
+  CONCENTRATION_NOT_APPLICABLE_NOTE,
   NO_ROLES_MESSAGE,
   OPEN_APPEAL_WARNING,
   PRIVACY_READ_ONLY_NOTE,
+  ROLLBACK_NOTE,
+  ROLLBACK_REASON_HINT,
   RULES_READ_ONLY_NOTE,
   SANCTION_CHOICES,
   SANCTION_LIFT_HINT,
@@ -31,7 +35,12 @@ import {
   getRuleVersions,
   getStaffReviewQueue,
   getStaffRoles,
+  getTerritoryConcentration,
+  getTerritoryDivisions,
+  getTerritorySeasons,
+  getTerritoryWeeks,
   liftSanction,
+  rollBackTerritoryWeek,
   publishEmailTemplate,
   resolveReport,
   scheduleCampaign,
@@ -39,7 +48,10 @@ import {
   signIn,
   type PrivacyRequest,
   type RuleVersion,
-  type StaffReviewItem
+  type StaffReviewItem,
+  type TerritoryConcentrationRow,
+  type TerritoryDivisionSize,
+  type TerritoryWeekRow
 } from './api.js';
 import type {
   CampaignSummary,
@@ -47,7 +59,8 @@ import type {
   EmailTemplate,
   StaffAppeal,
   StaffReport,
-  StaffSanction
+  StaffSanction,
+  TerritorySeasonView
 } from '@runsphere/contracts';
 
 const readableStatus = (status: StaffReviewItem['status']) => status.replace('_', ' ');
@@ -68,6 +81,7 @@ export function AdminShell() {
   const [accessToken, setAccessToken] = useState<string>();
   const [roles, setRoles] = useState<readonly string[]>([]);
   const [area, setArea] = useState<AreaKey>();
+  const [seasons, setSeasons] = useState<readonly TerritorySeasonView[]>([]);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [loading, setLoading] = useState(false);
@@ -117,6 +131,7 @@ export function AdminShell() {
         setPrivacyRequests(queue.data);
         setCompletedDeletions(queue.completedDeletions);
       }
+      if (next === 'seasons') setSeasons((await getTerritorySeasons(token)).data);
       if (next === 'data') setRules((await getRuleVersions(token)).data);
     });
   };
@@ -143,8 +158,9 @@ export function AdminShell() {
           <span>RUNSPHERE / OPERATIONS</span>
           <h1>{current?.title ?? 'Operations'}</h1>
           <p>
-            Authenticated staff access. Raw GPS, account contact details, and territory controls are
-            unavailable here.
+            Authenticated staff access. Raw GPS and account contact details are unavailable here.
+            Season operations show divisions, concentration, and week snapshots — never a
+            participant against a cell.
           </p>
         </div>
         {accessToken ? (
@@ -465,6 +481,10 @@ export function AdminShell() {
             />
           ) : null}
 
+          {area === 'seasons' ? (
+            <SeasonsArea accessToken={accessToken} seasons={seasons} run={run} />
+          ) : null}
+
           {area === 'campaigns' ? (
             <CampaignsArea
               accessToken={accessToken}
@@ -477,12 +497,189 @@ export function AdminShell() {
           ) : null}
         </>
       )}
-      <footer>{AUDIT_NOTICE} Territory remains off.</footer>
+      <footer>{AUDIT_NOTICE} Territory capture remains off.</footer>
     </main>
   );
 }
 
 type Runner = (work: () => Promise<unknown>, success?: string) => Promise<void>;
+
+/**
+ * Territory seasons (Phase 4, milestone 4.6).
+ *
+ * Everything here is empty on any current deployment, because capture is off
+ * and no week has ever been finalized. That is stated rather than hidden: an
+ * operator looking at a blank concentration table needs to know whether it
+ * means "nothing is wrong" or "nothing has run".
+ */
+function SeasonsArea({
+  accessToken,
+  seasons,
+  run
+}: {
+  accessToken: string;
+  seasons: readonly TerritorySeasonView[];
+  run: Runner;
+}) {
+  const [seasonId, setSeasonId] = useState('');
+  const [divisions, setDivisions] = useState<readonly TerritoryDivisionSize[]>([]);
+  const [concentration, setConcentration] = useState<readonly TerritoryConcentrationRow[]>([]);
+  const [weeks, setWeeks] = useState<readonly TerritoryWeekRow[]>([]);
+  const [reason, setReason] = useState('');
+
+  const openSeason = (id: string) => {
+    setSeasonId(id);
+    if (!id) return;
+    void run(async () => {
+      setDivisions((await getTerritoryDivisions(accessToken, id)).data);
+      setConcentration((await getTerritoryConcentration(accessToken, id)).data);
+      setWeeks((await getTerritoryWeeks(accessToken, id)).data);
+    });
+  };
+
+  const concentrationState = (row: TerritoryConcentrationRow): string => {
+    if (!row.applicable) return CONCENTRATION_NOT_APPLICABLE_NOTE;
+    if (row.pausesAwards)
+      return `Breached ${row.breachRunDays} days running. Pause awards analysis.`;
+    if (row.breached) return `Breached ${row.breachRunDays} days running.`;
+    return 'Within the limits.';
+  };
+
+  return (
+    <section>
+      <h2>Territory seasons</h2>
+      <p>{CONCENTRATION_NOTE}</p>
+      <label htmlFor="season">Season</label>
+      <select id="season" value={seasonId} onChange={(event) => openSeason(event.target.value)}>
+        <option value="">Choose a season</option>
+        {seasons.map((season) => (
+          <option key={season.id} value={season.id}>
+            {`${season.title} — ${season.status}`}
+          </option>
+        ))}
+      </select>
+      {seasons.length === 0 ? <p>No season has been announced on this deployment.</p> : null}
+
+      {seasonId ? (
+        <>
+          <h3>Divisions</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Division</th>
+                <th>Enrolled</th>
+                <th>Advice for the next season start</th>
+              </tr>
+            </thead>
+            <tbody>
+              {divisions.map((division) => (
+                <tr key={division.division}>
+                  <td>{division.division}</td>
+                  <td>{division.enrolledCount}</td>
+                  <td>{division.advice}</td>
+                </tr>
+              ))}
+              {divisions.length === 0 ? (
+                <tr>
+                  <td colSpan={3}>Nobody has enrolled in this season.</td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+
+          <h3>Concentration</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th>Division</th>
+                <th>Top 10%</th>
+                <th>Top participant</th>
+                <th>State</th>
+              </tr>
+            </thead>
+            <tbody>
+              {concentration.map((row) => (
+                <tr key={`${row.observedOn}-${row.division}`}>
+                  <td>{row.observedOn}</td>
+                  <td>{row.division}</td>
+                  <td>{`${Math.round(row.topDecileShare * 100)}%`}</td>
+                  <td>{`${Math.round(row.topParticipantShare * 100)}%`}</td>
+                  <td>{concentrationState(row)}</td>
+                </tr>
+              ))}
+              {concentration.length === 0 ? (
+                <tr>
+                  <td colSpan={5}>
+                    Nothing has been observed. Concentration is recorded daily once a season is
+                    scoring, and territory capture is off.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+
+          <h3>Weeks</h3>
+          <p>{ROLLBACK_NOTE}</p>
+          <label htmlFor="rollback-reason">Reason for a rollback</label>
+          <textarea
+            id="rollback-reason"
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder={ROLLBACK_REASON_HINT}
+          />
+          <table>
+            <thead>
+              <tr>
+                <th>Week</th>
+                <th>Showing</th>
+                <th>Newest</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {weeks.map((week) => (
+                <tr key={week.weekStartsOn}>
+                  <td>{week.weekStartsOn}</td>
+                  <td>
+                    {week.rolledBack ? `${week.currentVersion} (rolled back)` : week.currentVersion}
+                  </td>
+                  <td>{week.latestVersion}</td>
+                  <td>
+                    <button
+                      type="button"
+                      disabled={week.currentVersion <= 1 || reason.trim().length === 0}
+                      onClick={() =>
+                        void run(async () => {
+                          await rollBackTerritoryWeek(accessToken, seasonId, week.weekStartsOn, {
+                            toVersion: week.currentVersion - 1,
+                            reason: reason.trim()
+                          });
+                          setWeeks((await getTerritoryWeeks(accessToken, seasonId)).data);
+                          setReason('');
+                        }, 'The week now shows the earlier snapshot.')
+                      }
+                    >
+                      Roll back one version
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {weeks.length === 0 ? (
+                <tr>
+                  <td colSpan={4}>
+                    No week has been finalized. A week is snapshotted after it ends, and territory
+                    capture is off.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </>
+      ) : null}
+    </section>
+  );
+}
 
 function CompetitionsArea({
   accessToken,

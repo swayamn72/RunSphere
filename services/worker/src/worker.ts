@@ -18,6 +18,8 @@ import { processClubRelays } from './club-relays.js';
 import { CAMPAIGN_TOPIC, processCampaigns } from './campaigns.js';
 import { processCompetitions } from './competitions.js';
 import { processGlobalBoards } from './global-boards.js';
+import { processTerritory } from './territory-scoring.js';
+import { processTerritorySeasons } from './territory-season.js';
 import {
   createFcmSender,
   createPushDelivery,
@@ -151,7 +153,7 @@ export const expireSanctions = async (db: Database): Promise<number> => {
   return expired.rows.length;
 };
 
-export const processMaintenance = async (db: Database): Promise<number> => {
+export const processMaintenance = async (db: Database, now: Date = new Date()): Promise<number> => {
   // Deletion can remove the same traces and share records touched by the other jobs.
   const purgedTraces = await purgeExpiredRawTraces(db);
   const deletedAccounts = await convergeAccountDeletion(db);
@@ -180,6 +182,15 @@ export const processMaintenance = async (db: Database): Promise<number> => {
   // already gone: an expired sanction on a deleted account is nothing to
   // record.
   const sanctions = await expireSanctions(db);
+  // Territory is wired in but switched off: both calls refuse on
+  // `TERRITORY_CAPTURE_ENABLED` before their first query, so a sweep does no
+  // territory work and costs nothing (milestones 4.2, 4.3). They are called
+  // anyway, rather than left unreferenced until the gate opens, because a job
+  // that has never been on the sweep is a job nobody finds out is missing.
+  // Scoring runs before season upkeep: a week is finalized from the
+  // contributions the same sweep has already accepted.
+  const territory = await processTerritory({ db }, now);
+  const territorySeasons = await processTerritorySeasons({ db }, now);
   // Campaign sends resolve their audience last, so consent revoked anywhere in
   // this sweep — including by an unsubscribe — is already reflected in who the
   // send will reach.
@@ -195,6 +206,8 @@ export const processMaintenance = async (db: Database): Promise<number> => {
     globalBoard +
     competitions +
     sanctions +
+    territory.contributionsWritten +
+    territorySeasons.weeksFinalized +
     campaigns
   );
 };

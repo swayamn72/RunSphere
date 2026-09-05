@@ -5,6 +5,7 @@ import {
   kolkataDate,
   parseTerritoryScoringRule,
   resolveCellControl,
+  territoryWeekClosed,
   weeklyLadderPoints,
   weeklyPeriodStart,
   type AcceptedContribution,
@@ -37,7 +38,11 @@ import {
  */
 
 export type TerritoryScoringRefusal =
-  'capture_disabled' | 'no_indexer' | 'no_eligibility_source' | 'no_published_rule';
+  | 'capture_disabled'
+  | 'no_indexer'
+  | 'no_eligibility_source'
+  | 'no_published_rule'
+  | 'week_not_closed';
 
 export interface TerritoryScoringDeps {
   db: Database;
@@ -188,13 +193,21 @@ export const scoreTerritoryDay = async (
  * Nothing is updated: a recomputation writes version N+1 and leaves N in place,
  * so a correction is auditable and reversible, and a participant can be shown
  * what changed rather than discovering their week silently rewritten.
+ *
+ * A week is snapshotted only once it has completely ended (milestone 4.3).
+ * Snapshotting a week still running would publish a standing that is about to
+ * change, and ADR-0006 makes a weekly period immutable once written — so the
+ * first version of every week would be wrong by construction.
  */
 export const snapshotTerritoryWeek = async (
   deps: TerritoryScoringDeps,
   seasonId: string,
-  weekStartsOn: string
+  weekStartsOn: string,
+  now: Date = new Date()
 ): Promise<TerritoryScoringOutcome> => {
   if (!TERRITORY_CAPTURE_ENABLED) return { refusal: 'capture_disabled', contributionsWritten: 0 };
+  if (!territoryWeekClosed(weekStartsOn, now))
+    return { refusal: 'week_not_closed', contributionsWritten: 0 };
   const { db } = deps;
 
   const season = await db.query<{ scoring_rule_version: number }>(
@@ -257,6 +270,16 @@ export const snapshotTerritoryWeek = async (
         ]
       );
     }
+    // The pointer at the version this week now shows. Only this moves — the
+    // snapshot rows above are never edited — so a rollback is a change of
+    // which existing version is read (milestone 4.6).
+    await client.query(
+      `INSERT INTO territory_week_state (season_id, week_starts_on, current_version)
+       VALUES ($1, $2::date, $3)
+       ON CONFLICT (season_id, week_starts_on)
+       DO UPDATE SET current_version = EXCLUDED.current_version, updated_at = now()`,
+      [seasonId, weekStartsOn, next]
+    );
   });
   return { contributionsWritten: controls.length };
 };
@@ -287,7 +310,8 @@ export const processTerritory = async (
   const week = await snapshotTerritoryWeek(
     deps,
     seasonId,
-    kolkataDate(weeklyPeriodStart(yesterday))
+    kolkataDate(weeklyPeriodStart(yesterday)),
+    now
   );
   return {
     ...(day.refusal ? { refusal: day.refusal } : {}),

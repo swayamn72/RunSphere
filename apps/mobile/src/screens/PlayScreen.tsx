@@ -9,6 +9,8 @@ import type {
   CompetitionSummary,
   FriendStandingsResponse,
   GlobalBoardResponse,
+  TerritoryLadderResponse,
+  TerritoryMapResponse,
   TerritorySeasonResponse,
   Profile
 } from '@runsphere/contracts';
@@ -18,6 +20,7 @@ import { FriendsScreen } from './FriendsScreen';
 import { LoopCallout } from '../components/LoopCallout';
 import { LoopMascot } from '../components/Mascot';
 import { PrimaryButton } from '../components/primitives';
+import { TerritoryPanel } from './TerritoryPanel';
 import { useLoopGuidance } from '../components/useLoopGuidance';
 import type { LoopGuidanceCue } from '../loop-guidance';
 import { useAppTheme } from '../theme/theme';
@@ -82,6 +85,9 @@ interface PlayData {
   readonly competitionsRemoteState: PlayRemoteState;
   readonly territory: TerritorySeasonResponse | undefined;
   readonly territoryRemoteState: PlayRemoteState;
+  /** The division ladder and the held-cell map, read only when a season exists. */
+  readonly territoryLadder: TerritoryLadderResponse | undefined;
+  readonly territoryMap: TerritoryMapResponse | undefined;
   readonly friends: readonly Profile[];
   readonly reload: () => void;
   readonly respond: (challengeId: string, accept: boolean) => Promise<string | undefined>;
@@ -116,6 +122,8 @@ const usePlayData = (api: MobileApiClient, onSessionExpired: () => void): PlayDa
     useState<PlayRemoteState>('loading');
   const [territory, setTerritory] = useState<TerritorySeasonResponse>();
   const [territoryRemoteState, setTerritoryRemoteState] = useState<PlayRemoteState>('loading');
+  const [territoryLadder, setTerritoryLadder] = useState<TerritoryLadderResponse>();
+  const [territoryMap, setTerritoryMap] = useState<TerritoryMapResponse>();
   const [friends, setFriends] = useState<readonly Profile[]>([]);
   const mounted = useRef(true);
   const generation = useRef(0);
@@ -192,10 +200,35 @@ const usePlayData = (api: MobileApiClient, onSessionExpired: () => void): PlayDa
       });
     void api
       .getTerritorySeason()
-      .then((next) => {
+      .then(async (next) => {
         if (!mounted.current || requestGeneration !== generation.current) return;
         setTerritory(next);
         setTerritoryRemoteState(next.season ? 'ready' : 'empty');
+        // The ladder and the map are read only when a season exists. Asking for
+        // them otherwise would be two requests whose only possible answer is
+        // "there is no season", which the call above has already given.
+        if (!next.season) {
+          setTerritoryLadder(undefined);
+          setTerritoryMap(undefined);
+          return;
+        }
+        // Their own try, so a ladder or map that fails leaves the season card
+        // standing. The season is the part somebody acts on — joining and
+        // leaving — and losing it because a panel underneath it failed would
+        // take away the working half of the screen along with the broken half.
+        try {
+          const [ladder, map] = await Promise.all([
+            api.getTerritoryLadder(next.season.id),
+            api.getTerritoryMap(next.season.id)
+          ]);
+          if (!mounted.current || requestGeneration !== generation.current) return;
+          setTerritoryLadder(ladder);
+          setTerritoryMap(map);
+        } catch {
+          if (!mounted.current || requestGeneration !== generation.current) return;
+          setTerritoryLadder(undefined);
+          setTerritoryMap(undefined);
+        }
       })
       .catch((error: unknown) => {
         if (!mounted.current || requestGeneration !== generation.current) return;
@@ -364,6 +397,8 @@ const usePlayData = (api: MobileApiClient, onSessionExpired: () => void): PlayDa
     competitionsRemoteState,
     territory,
     territoryRemoteState,
+    territoryLadder,
+    territoryMap,
     friends,
     reload: load,
     respond,
@@ -402,6 +437,8 @@ export function PlayScreen({
     competitionsRemoteState,
     territory,
     territoryRemoteState,
+    territoryLadder,
+    territoryMap,
     friends,
     reload,
     respond,
@@ -830,6 +867,11 @@ export function PlayScreen({
           ) : null}
         </View>
       )}
+      {territory?.season && seasonRow ? (
+        // The map has no H3 binding in this app, so it renders its stated
+        // reason rather than a blank city (milestone 4.5).
+        <TerritoryPanel ladder={territoryLadder} map={territoryMap} />
+      ) : null}
       {territoryRemoteState === 'offline' && (
         <Unavailable
           styles={styles}
