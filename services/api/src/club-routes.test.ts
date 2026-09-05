@@ -35,7 +35,62 @@ interface Stubs {
   /** Published club-relay rule rows; `[]` means none is published. */
   clubRule?: Record<string, unknown>[];
   relayRows?: Record<string, unknown>[];
+  /** The caller's own live opt-in in the `club` board scope. */
+  boardParticipating?: boolean;
+  /** Published progression rule rows; `[]` means none is published. */
+  progressionRule?: Record<string, unknown>[];
+  /** Members with a live `club` opt-in, as the board query returns them. */
+  boardMembers?: Record<string, unknown>[];
+  activities?: Record<string, unknown>[];
+  /** Published club-challenge rule rows; `[]` means none is published. */
+  clubChallengeRule?: Record<string, unknown>[];
+  /** `true` makes the one-live-challenge-per-club index reject the insert. */
+  openConflict?: boolean;
+  /** The challenge one club lookup returns; `[]` means no such challenge. */
+  challenge?: Record<string, unknown>[];
+  challengeStatus?: 'active' | 'finished' | 'cancelled';
+  challengeCounts?: { count: string; joined: boolean };
+  challengeParticipants?: Record<string, unknown>[];
+  cancelled?: Record<string, unknown>[];
 }
+
+const CHALLENGE_ID = '00000000-0000-4000-8000-0000000000d1';
+
+const challengeRow = (overrides: Record<string, unknown> = {}) => ({
+  id: CHALLENGE_ID,
+  club_id: '00000000-0000-4000-8000-0000000000c1',
+  mode: 'active_minutes',
+  length_days: 7,
+  status: 'active',
+  period_start: '2026-08-31',
+  period_end: '2026-09-07',
+  rule_version: 1,
+  created_at: new Date('2026-08-31T04:00:00.000Z'),
+  ...overrides
+});
+
+const PROGRESSION_RULE = {
+  xpPerActiveMinute: 1,
+  xpPerActiveDay: 20,
+  dailyCapMinutes: 240,
+  minMinutesPerActiveDay: 1,
+  goalActiveDays: 3,
+  levels: [0, 100, 250]
+};
+
+const boardMemberRow = (accountId: string, displayName: string | null, blocked = false) => ({
+  account_id: accountId,
+  display_name: displayName,
+  cosmetic: displayName ? { avatarKey: 'loop-1' } : null,
+  activity_visibility: 'private',
+  blocked_either_way: blocked
+});
+
+const activityRow = (accountId: string, minutes: number, processedAt: Date | string) => ({
+  account_id: accountId,
+  active_duration_seconds: minutes * 60,
+  processed_at: new Date(processedAt)
+});
 
 const fakeDatabase = (stubs: Stubs = {}) => {
   const calls: { sql: string; values: readonly unknown[] | undefined }[] = [];
@@ -47,6 +102,58 @@ const fakeDatabase = (stubs: Stubs = {}) => {
       const role = roleLookups === 1 ? stubs.myRole : stubs.targetRole;
       return { rows: role ? [{ role }] : [] };
     }
+    if (sql.includes('AS participating'))
+      return { rows: [{ participating: stubs.boardParticipating ?? true }] };
+    if (sql.includes("kind = 'progression'"))
+      return { rows: stubs.progressionRule ?? [{ version: 4, definition: PROGRESSION_RULE }] };
+    // Checked before the roster: the board query is also a membership select
+    // with a block probe, and only the opt-in join tells the two apart.
+    if (sql.includes('JOIN leaderboard_opt_ins optin')) return { rows: stubs.boardMembers ?? [] };
+    if (sql.includes('FROM activity_submissions')) return { rows: stubs.activities ?? [] };
+    if (sql.includes("kind = 'club_challenge'"))
+      return {
+        rows: stubs.clubChallengeRule ?? [
+          {
+            version: 1,
+            definition: {
+              dailyCapMinutes: 240,
+              minMinutesPerActiveDay: 1,
+              lengthDays: [7, 14],
+              modes: ['active_minutes', 'active_days']
+            }
+          }
+        ]
+      };
+    if (sql.includes('INSERT INTO club_challenges'))
+      return {
+        rows: stubs.openConflict
+          ? []
+          : [
+              challengeRow({
+                mode: values?.[1] ?? 'active_minutes',
+                length_days: values?.[2] ?? 7,
+                rule_version: values?.[4] ?? 1
+              })
+            ]
+      };
+    if (sql.includes('UPDATE club_challenges SET'))
+      return { rows: stubs.cancelled ?? [challengeRow({ status: 'cancelled' })] };
+    if (sql.includes('FROM club_challenges challenge')) return { rows: stubs.challenge ?? [] };
+    if (sql.includes('FROM club_challenges WHERE id'))
+      return {
+        rows: stubs.challenge ?? [challengeRow({ status: stubs.challengeStatus ?? 'active' })]
+      };
+    if (sql.includes('FROM club_challenge_participants participant'))
+      return { rows: stubs.challengeParticipants ?? [] };
+    if (sql.includes('FROM club_challenge_participants WHERE challenge_id'))
+      return {
+        rows: [
+          {
+            participant_count: stubs.challengeCounts?.count ?? '2',
+            joined: stubs.challengeCounts?.joined ?? true
+          }
+        ]
+      };
     if (sql.includes('count(*)::text AS count')) {
       return { rows: [{ count: String(stubs.memberCount ?? 1) }] };
     }
@@ -163,8 +270,14 @@ describe('POST /v1/clubs', () => {
       inviteCode: 'ABCDEFGHJK'
     });
     const statements = db.calls.map((call) => call.sql);
-    expect(statements[0]).toBe('BEGIN');
-    expect(statements.some((sql) => sql.includes("VALUES ($1, $2, 'owner')"))).toBe(true);
+    // The club and its owner row are written inside one transaction. The
+    // sanction check runs before it opens, which is why this looks for BEGIN
+    // rather than assuming it is the first statement of the request.
+    const begin = statements.indexOf('BEGIN');
+    expect(begin).toBeGreaterThanOrEqual(0);
+    expect(statements.slice(begin).some((sql) => sql.includes("VALUES ($1, $2, 'owner')"))).toBe(
+      true
+    );
     expect(statements.at(-1) === 'COMMIT' || statements.includes('COMMIT')).toBe(true);
   });
 
@@ -683,5 +796,581 @@ describe('club sessions', () => {
     });
     expect(invalid.statusCode).toBe(401);
     expect(db.sql()).not.toContain('FROM clubs club');
+  });
+});
+
+describe('GET /v1/clubs/:clubId/board', () => {
+  const board = (db: ReturnType<typeof fakeDatabase>) =>
+    appWith(db).inject({ method: 'GET', url: `/v1/clubs/${CLUB}/board`, headers: auth });
+
+  /** The Kolkata week is whatever week the test runs in, so instants come from the route. */
+  const weekStartFrom = (db: ReturnType<typeof fakeDatabase>): Date =>
+    db.calls.find((call) => call.sql.includes('FROM activity_submissions'))?.values?.[1] as Date;
+
+  it('answers 404 to a non-member without reading anyone opt-in state', async () => {
+    const db = fakeDatabase({ myRole: undefined });
+    const response = await board(db);
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toEqual({ message: 'Club not found' });
+    expect(db.sql()).not.toContain('leaderboard_opt_ins');
+  });
+
+  it('shows no entries to a member who is not on the board', async () => {
+    const db = fakeDatabase({ myRole: 'member', boardParticipating: false });
+    const response = await board(db);
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body).toMatchObject({ clubId: CLUB, participating: false, entries: [] });
+    expect(body.ruleVersion).toBeUndefined();
+    // Reading other members' scores requires publishing your own.
+    expect(db.sql()).not.toContain('FROM activity_submissions');
+    expect(db.sql()).not.toContain('JOIN leaderboard_opt_ins optin');
+  });
+
+  it('ranks opted-in members of this club by capped weekly active minutes', async () => {
+    const probe = fakeDatabase({
+      myRole: 'member',
+      boardMembers: [boardMemberRow(ME, 'Maya'), boardMemberRow(RAVI, 'Ravi')]
+    });
+    await board(probe);
+    const weekStart = weekStartFrom(probe);
+
+    const db = fakeDatabase({
+      myRole: 'member',
+      boardMembers: [
+        boardMemberRow(ME, 'Maya'),
+        boardMemberRow(RAVI, 'Ravi'),
+        boardMemberRow(ANA, 'Ana')
+      ],
+      activities: [
+        activityRow(RAVI, 200, weekStart),
+        activityRow(ME, 90, weekStart),
+        activityRow(ME, 30, weekStart)
+      ]
+    });
+    const response = await board(db);
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.participating).toBe(true);
+    expect(body.ruleVersion).toBe('4');
+    expect(body.entries).toEqual([
+      {
+        profile: expect.objectContaining({ id: RAVI, displayName: 'Ravi' }),
+        rank: 1,
+        cappedActiveMinutes: 200,
+        isSelf: false
+      },
+      {
+        profile: expect.objectContaining({ id: ME, displayName: 'Maya' }),
+        rank: 2,
+        cappedActiveMinutes: 120,
+        isSelf: true
+      },
+      {
+        profile: expect.objectContaining({ id: ANA, displayName: 'Ana' }),
+        rank: 3,
+        cappedActiveMinutes: 0,
+        isSelf: false
+      }
+    ]);
+    // The board is one club's board: the member query is filtered by club id.
+    const members = db.calls.find((call) => call.sql.includes('JOIN leaderboard_opt_ins optin'))!;
+    expect(members.values?.[0]).toBe(CLUB);
+    expect(members.sql).toContain('membership.club_id = $1');
+    expect(members.sql).toContain('membership.left_at IS NULL');
+  });
+
+  it('gives tied scores the same rank and skips the next one', async () => {
+    const probe = fakeDatabase({ myRole: 'member', boardMembers: [boardMemberRow(ME, 'Maya')] });
+    await board(probe);
+    const weekStart = weekStartFrom(probe);
+
+    const db = fakeDatabase({
+      myRole: 'member',
+      boardMembers: [
+        boardMemberRow(ME, 'Maya'),
+        boardMemberRow(RAVI, 'Ravi'),
+        boardMemberRow(ANA, 'Ana')
+      ],
+      activities: [
+        activityRow(ME, 60, weekStart),
+        activityRow(RAVI, 60, weekStart),
+        activityRow(ANA, 10, weekStart)
+      ]
+    });
+    const response = await board(db);
+
+    expect(response.json().entries.map((entry: { rank: number }) => entry.rank)).toEqual([1, 1, 3]);
+  });
+
+  it('hides a blocked member from the board in either direction', async () => {
+    const db = fakeDatabase({
+      myRole: 'member',
+      boardMembers: [boardMemberRow(ME, 'Maya'), boardMemberRow(RAVI, 'Ravi', true)]
+    });
+    const response = await board(db);
+
+    const body = response.json();
+    expect(body.entries.map((entry: { profile: { id: string } }) => entry.profile.id)).toEqual([
+      ME
+    ]);
+    // The blocked member is not scored either: they never reach the score query.
+    const activities = db.calls.find((call) => call.sql.includes('FROM activity_submissions'))!;
+    expect(activities.values?.[0]).toEqual([ME]);
+  });
+
+  it('returns an empty board rather than zeroes when no progression rule is published', async () => {
+    const db = fakeDatabase({ myRole: 'member', progressionRule: [] });
+    const response = await board(db);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ participating: true, entries: [] });
+    expect(response.json().ruleVersion).toBeUndefined();
+    expect(db.sql()).not.toContain('FROM activity_submissions');
+  });
+
+  it('never reads route, location, pace, or distance for a board entry', async () => {
+    const db = fakeDatabase({
+      myRole: 'member',
+      boardMembers: [boardMemberRow(ME, 'Maya'), boardMemberRow(RAVI, null)]
+    });
+    await board(db);
+
+    const sql = db.sql();
+    for (const forbidden of ['route', 'geom', 'latitude', 'longitude', 'distance_meters', 'pace'])
+      expect(sql).not.toContain(forbidden);
+  });
+
+  it('answers 401 to an unverifiable token before touching the club', async () => {
+    const db = fakeDatabase({ myRole: 'member' });
+    const response = await appWith(db).inject({
+      method: 'GET',
+      url: `/v1/clubs/${CLUB}/board`,
+      headers: { authorization: 'Bearer not-a-real-token' }
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(db.sql()).toBe('');
+  });
+});
+
+describe('PUT /v1/clubs/board/participation', () => {
+  it('opens the club scope opt-in and reopens a revoked one', async () => {
+    const db = fakeDatabase();
+    const response = await appWith(db).inject({
+      method: 'PUT',
+      url: '/v1/clubs/board/participation',
+      headers: auth,
+      payload: { participating: true }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ participating: true });
+    const insert = db.calls.find((call) => call.sql.includes('INSERT INTO leaderboard_opt_ins'))!;
+    expect(insert.sql).toContain("'club'");
+    expect(insert.sql).toContain('DO UPDATE SET opted_in_at = now(), revoked_at = NULL');
+    const audit = db.calls.find((call) => call.sql.includes('privacy_audit_events'))!;
+    expect(audit.values?.[1]).toBe('club_board.joined');
+  });
+
+  it('revokes rather than deletes when a member leaves the board', async () => {
+    const db = fakeDatabase();
+    const response = await appWith(db).inject({
+      method: 'PUT',
+      url: '/v1/clubs/board/participation',
+      headers: auth,
+      payload: { participating: false }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ participating: false });
+    expect(db.sql()).toContain('UPDATE leaderboard_opt_ins SET revoked_at = now()');
+    expect(db.sql()).not.toContain('DELETE FROM leaderboard_opt_ins');
+    const audit = db.calls.find((call) => call.sql.includes('privacy_audit_events'))!;
+    expect(audit.values?.[1]).toBe('club_board.left');
+  });
+
+  it('does not accept a club id, because the decision is not per club', async () => {
+    const db = fakeDatabase({ myRole: 'member' });
+    const response = await appWith(db).inject({
+      method: 'PUT',
+      url: `/v1/clubs/${CLUB}/board/participation`,
+      headers: auth,
+      payload: { participating: true }
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(db.sql()).not.toContain('leaderboard_opt_ins');
+  });
+
+  it('answers 401 to an unverifiable token without changing an opt-in', async () => {
+    const db = fakeDatabase();
+    const response = await appWith(db).inject({
+      method: 'PUT',
+      url: '/v1/clubs/board/participation',
+      headers: { authorization: 'Bearer not-a-real-token' },
+      payload: { participating: true }
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(db.sql()).not.toContain('leaderboard_opt_ins');
+  });
+});
+
+const CHALLENGE = '00000000-0000-4000-8000-0000000000d1';
+
+describe('POST /v1/clubs/:clubId/challenges', () => {
+  const open = (db: ReturnType<typeof fakeDatabase>, payload: Record<string, unknown>) =>
+    appWith(db).inject({
+      method: 'POST',
+      url: `/v1/clubs/${CLUB}/challenges`,
+      headers: auth,
+      payload
+    });
+
+  it('opens a contest for the club without enrolling anybody in it', async () => {
+    const db = fakeDatabase({ myRole: 'admin' });
+    const response = await open(db, { mode: 'active_minutes', lengthDays: 7 });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({
+      id: CHALLENGE,
+      clubId: CLUB,
+      mode: 'active_minutes',
+      lengthDays: 7,
+      status: 'active',
+      participantCount: 0,
+      joined: false,
+      ruleVersion: 1
+    });
+    // Opening is a club-wide act; joining publishes a personal score, so the
+    // member who opened it is not put in it.
+    expect(db.sql()).not.toContain('INSERT INTO club_challenge_participants');
+  });
+
+  it('refuses a member who is not an owner or admin', async () => {
+    const db = fakeDatabase({ myRole: 'member' });
+    const response = await open(db, { mode: 'active_minutes', lengthDays: 7 });
+
+    expect(response.statusCode).toBe(403);
+    expect(db.sql()).not.toContain('INSERT INTO club_challenges');
+  });
+
+  it('answers 404 to a non-member rather than confirming the club', async () => {
+    const db = fakeDatabase({ myRole: undefined });
+    const response = await open(db, { mode: 'active_minutes', lengthDays: 7 });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toEqual({ message: 'Club not found' });
+  });
+
+  it('answers 422 for a length the published rule does not allow', async () => {
+    const db = fakeDatabase({ myRole: 'owner' });
+    const response = await open(db, { mode: 'active_minutes', lengthDays: 3 });
+
+    expect(response.statusCode).toBe(422);
+    expect(response.json().message).toContain('7 or 14');
+    expect(db.sql()).not.toContain('INSERT INTO club_challenges');
+  });
+
+  it('answers 422 when no club challenge rule is published', async () => {
+    const db = fakeDatabase({ myRole: 'owner', clubChallengeRule: [] });
+    const response = await open(db, { mode: 'active_minutes', lengthDays: 7 });
+
+    expect(response.statusCode).toBe(422);
+    expect(response.json()).toEqual({ message: 'No club challenge rule is published' });
+  });
+
+  it('answers 409 when the club already has one running', async () => {
+    const db = fakeDatabase({ myRole: 'owner', openConflict: true });
+    const response = await open(db, { mode: 'active_days', lengthDays: 14 });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({ message: 'This club already has a challenge running' });
+  });
+
+  it('starts the window today rather than anywhere the request asks for', async () => {
+    const db = fakeDatabase({ myRole: 'owner' });
+    await open(db, { mode: 'active_minutes', lengthDays: 7, periodStart: '2020-01-01' });
+
+    const insert = db.calls.find((call) => call.sql.includes('INSERT INTO club_challenges'))!;
+    // The window is derived, so a contest can neither be backdated over days
+    // that already happened nor parked in the future.
+    expect(insert.values).not.toContain('2020-01-01');
+    expect(String(insert.values?.[3])).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(insert.sql).toContain('$4::date + $3');
+  });
+});
+
+describe('PUT /v1/clubs/:clubId/challenges/:challengeId/participation', () => {
+  const participate = (db: ReturnType<typeof fakeDatabase>, participating: boolean) =>
+    appWith(db).inject({
+      method: 'PUT',
+      url: `/v1/clubs/${CLUB}/challenges/${CHALLENGE}/participation`,
+      headers: auth,
+      payload: { participating }
+    });
+
+  it('joins a running contest and reopens a place that was left', async () => {
+    const db = fakeDatabase({ myRole: 'member', challengeCounts: { count: '4', joined: true } });
+    const response = await participate(db, true);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ joined: true, participantCount: 4 });
+    const insert = db.calls.find((call) =>
+      call.sql.includes('INSERT INTO club_challenge_participants')
+    )!;
+    expect(insert.sql).toContain('DO UPDATE SET left_at = NULL');
+  });
+
+  it('leaves by recording the departure rather than deleting the row', async () => {
+    const db = fakeDatabase({ myRole: 'member', challengeCounts: { count: '3', joined: false } });
+    const response = await participate(db, false);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ joined: false });
+    expect(db.sql()).toContain('UPDATE club_challenge_participants SET left_at = now()');
+    expect(db.sql()).not.toContain('DELETE FROM club_challenge_participants');
+  });
+
+  it('refuses to change a contest whose window has closed', async () => {
+    const db = fakeDatabase({ myRole: 'member', challengeStatus: 'finished' });
+    const response = await participate(db, true);
+
+    expect(response.statusCode).toBe(409);
+    expect(db.sql()).not.toContain('INSERT INTO club_challenge_participants');
+  });
+
+  it('does not find a challenge belonging to another club', async () => {
+    const db = fakeDatabase({ myRole: 'member', challenge: [] });
+    const response = await participate(db, true);
+
+    expect(response.statusCode).toBe(404);
+    const lookup = db.calls.find((call) => call.sql.includes('FROM club_challenges WHERE id'))!;
+    // The club id is part of the lookup, so a challenge id from another club
+    // is simply not found rather than acted on.
+    expect(lookup.values).toEqual([CHALLENGE, CLUB]);
+  });
+});
+
+describe('POST /v1/clubs/:clubId/challenges/:challengeId/cancel', () => {
+  const cancel = (db: ReturnType<typeof fakeDatabase>) =>
+    appWith(db).inject({
+      method: 'POST',
+      url: `/v1/clubs/${CLUB}/challenges/${CHALLENGE}/cancel`,
+      headers: auth
+    });
+
+  it('lets an owner end a contest that should not have been opened', async () => {
+    const db = fakeDatabase({ myRole: 'owner' });
+    const response = await cancel(db);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ status: 'cancelled' });
+    // Nothing is scored, so a cancelled contest never becomes a record.
+    expect(db.sql()).not.toContain('club_challenge_results');
+  });
+
+  it('refuses a plain member', async () => {
+    const db = fakeDatabase({ myRole: 'member' });
+    const response = await cancel(db);
+
+    expect(response.statusCode).toBe(403);
+    expect(db.sql()).not.toContain('UPDATE club_challenges SET');
+  });
+
+  it('answers 409 for a contest that already finished', async () => {
+    const db = fakeDatabase({ myRole: 'owner', cancelled: [], challengeStatus: 'finished' });
+    const response = await cancel(db);
+
+    expect(response.statusCode).toBe(409);
+  });
+});
+
+describe('GET /v1/clubs/:clubId/challenges/:challengeId/standings', () => {
+  const standings = (db: ReturnType<typeof fakeDatabase>) =>
+    appWith(db).inject({
+      method: 'GET',
+      url: `/v1/clubs/${CLUB}/challenges/${CHALLENGE}/standings`,
+      headers: auth
+    });
+
+  const participantRow = (
+    accountId: string,
+    displayName: string | null,
+    extras: Record<string, unknown> = {}
+  ) => ({
+    account_id: accountId,
+    display_name: displayName,
+    cosmetic: displayName ? { avatarKey: 'loop-1' } : null,
+    activity_visibility: 'private',
+    blocked_either_way: false,
+    stored_score: null,
+    stored_rank: null,
+    ...extras
+  });
+
+  it('shows nothing to a member who has not joined the contest', async () => {
+    const db = fakeDatabase({ myRole: 'member', challengeCounts: { count: '3', joined: false } });
+    const response = await standings(db);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ final: false, entries: [] });
+    // Reading the other participants' scores means having published your own.
+    expect(db.sql()).not.toContain('FROM club_challenge_participants participant');
+  });
+
+  it('ranks live scores over the challenge window for participants', async () => {
+    const probe = fakeDatabase({
+      myRole: 'member',
+      challengeParticipants: [participantRow(ME, 'Maya')]
+    });
+    await standings(probe);
+    const windowStart = probe.calls.find((call) => call.sql.includes('FROM activity_submissions'))
+      ?.values?.[1] as Date;
+
+    const db = fakeDatabase({
+      myRole: 'member',
+      challengeParticipants: [
+        participantRow(ME, 'Maya'),
+        participantRow(RAVI, 'Ravi'),
+        participantRow(ANA, 'Ana')
+      ],
+      activities: [
+        activityRow(RAVI, 200, windowStart),
+        activityRow(ME, 90, windowStart),
+        activityRow(ME, 30, windowStart)
+      ]
+    });
+    const response = await standings(db);
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.final).toBe(false);
+    expect(body.entries).toEqual([
+      {
+        profile: expect.objectContaining({ id: RAVI, displayName: 'Ravi' }),
+        rank: 1,
+        score: 200,
+        isSelf: false
+      },
+      {
+        profile: expect.objectContaining({ id: ME, displayName: 'Maya' }),
+        rank: 2,
+        score: 120,
+        isSelf: true
+      },
+      {
+        profile: expect.objectContaining({ id: ANA, displayName: 'Ana' }),
+        rank: 3,
+        score: 0,
+        isSelf: false
+      }
+    ]);
+  });
+
+  it('reads the stored result of a finished contest rather than recomputing it', async () => {
+    const db = fakeDatabase({
+      myRole: 'member',
+      challengeStatus: 'finished',
+      challengeParticipants: [
+        participantRow(ME, 'Maya', { stored_score: 120, stored_rank: 2 }),
+        participantRow(RAVI, 'Ravi', { stored_score: 200, stored_rank: 1 })
+      ]
+    });
+    const response = await standings(db);
+
+    const body = response.json();
+    expect(body.final).toBe(true);
+    expect(body.entries.map((entry: { rank: number }) => entry.rank)).toEqual([1, 2]);
+    expect(body.entries[0].score).toBe(200);
+    // A finished window is history: nothing is scored again from activity.
+    expect(db.sql()).not.toContain('FROM activity_submissions');
+  });
+
+  it('hides a blocked participant in either direction', async () => {
+    const db = fakeDatabase({
+      myRole: 'member',
+      challengeParticipants: [
+        participantRow(ME, 'Maya'),
+        participantRow(RAVI, 'Ravi', { blocked_either_way: true })
+      ]
+    });
+    const response = await standings(db);
+
+    expect(
+      response.json().entries.map((entry: { profile: { id: string } }) => entry.profile.id)
+    ).toEqual([ME]);
+    const activities = db.calls.find((call) => call.sql.includes('FROM activity_submissions'))!;
+    expect(activities.values?.[0]).toEqual([ME]);
+  });
+
+  it('never reads route, location, pace, or distance for a standing', async () => {
+    const db = fakeDatabase({
+      myRole: 'member',
+      challengeParticipants: [participantRow(ME, 'Maya')]
+    });
+    await standings(db);
+
+    const sql = db.sql();
+    for (const forbidden of ['route', 'geom', 'latitude', 'longitude', 'distance_meters'])
+      expect(sql).not.toContain(forbidden);
+  });
+});
+
+describe('GET /v1/clubs/:clubId/challenges', () => {
+  it('lists the club contests with a count and the reader own state', async () => {
+    const db = fakeDatabase({
+      myRole: 'member',
+      challenge: [
+        {
+          id: CHALLENGE,
+          club_id: CLUB,
+          mode: 'active_days',
+          length_days: 14,
+          status: 'active',
+          period_start: '2026-08-31',
+          period_end: '2026-09-14',
+          rule_version: 1,
+          created_at: new Date('2026-08-31T04:00:00.000Z'),
+          participant_count: '5',
+          joined: true
+        }
+      ]
+    });
+    const response = await appWith(db).inject({
+      method: 'GET',
+      url: `/v1/clubs/${CLUB}/challenges`,
+      headers: auth
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data).toEqual([
+      expect.objectContaining({
+        id: CHALLENGE,
+        mode: 'active_days',
+        lengthDays: 14,
+        status: 'active',
+        participantCount: 5,
+        joined: true
+      })
+    ]);
+    // A count, never a list: who else is in it is the standings' business.
+    expect(JSON.stringify(response.json())).not.toContain('accountId');
+  });
+
+  it('answers 404 to a non-member', async () => {
+    const db = fakeDatabase({ myRole: undefined });
+    const response = await appWith(db).inject({
+      method: 'GET',
+      url: `/v1/clubs/${CLUB}/challenges`,
+      headers: auth
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(db.sql()).not.toContain('FROM club_challenges challenge');
   });
 });

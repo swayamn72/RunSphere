@@ -8,8 +8,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   ChallengeResult,
   ChallengeSummary,
+  CompetitionStandingsResponse,
+  CompetitionSummary,
   FriendStandingsResponse,
-  Profile
+  GlobalBoardResponse,
+  Profile,
+  TerritorySeasonResponse
 } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { ApiFailure } from '../api-client.js';
@@ -33,8 +37,22 @@ vi.mock('react-native', async () => {
 });
 vi.mock('../components/Mascot', () => ({ LoopMascot: () => null }));
 vi.mock('../components/primitives', () => ({
-  PrimaryButton: ({ label }: { label: string }) =>
-    React.createElement('Text' as React.ElementType, null, label)
+  // Rendered as a real pressable so a test can press it the way a person
+  // would, by the name a screen reader announces.
+  PrimaryButton: ({
+    label,
+    accessibilityLabel,
+    onPress
+  }: {
+    label: string;
+    accessibilityLabel?: string;
+    onPress: () => void;
+  }) =>
+    React.createElement(
+      'Pressable' as React.ElementType,
+      { accessibilityLabel: accessibilityLabel ?? label, onPress },
+      React.createElement('Text' as React.ElementType, null, label)
+    )
 }));
 vi.mock('../theme/theme', () => ({
   useAppTheme: () => ({
@@ -89,10 +107,90 @@ const emptyStandings: FriendStandingsResponse = {
   entries: []
 };
 
+const emptyGlobalBoard: GlobalBoardResponse = {
+  periodStart: '2026-08-31',
+  periodEnd: '2026-09-07',
+  participating: false,
+  entries: []
+};
+
+const globalEntry = (id: string, displayName: string, rank: number, minutes: number) => ({
+  profile: profile(id, displayName),
+  rank,
+  cappedActiveMinutes: minutes,
+  isSelf: id === ME
+});
+
+const COMPETITION = '00000000-0000-4000-8000-0000000000f1';
+
+const competition = (overrides: Partial<CompetitionSummary> = {}): CompetitionSummary => ({
+  id: COMPETITION,
+  title: 'September steady week',
+  mode: 'active_minutes',
+  status: 'published',
+  periodStart: '2026-09-07',
+  periodEnd: '2026-09-14',
+  minPriorActiveWeeks: 0,
+  rewards: 'A cosmetic badge',
+  disputePeriodHours: 48,
+  participantCount: 12,
+  enrolled: false,
+  eligible: true,
+  ruleVersion: 1,
+  createdAt: '2026-09-01T04:00:00.000Z',
+  ...overrides
+});
+
+const competitionStandings = (
+  overrides: Partial<CompetitionStandingsResponse> = {}
+): CompetitionStandingsResponse => ({
+  competition: competition({ enrolled: true, status: 'open' }),
+  live: true,
+  provisional: false,
+  entries: [
+    { profile: profile(RAVI, 'Ravi'), rank: 1, score: 200, isSelf: false },
+    { profile: profile(ME, 'Maya'), rank: 2, score: 120, isSelf: true }
+  ],
+  ...overrides
+});
+
+const CAPTURE_NOTE =
+  'Territory capture is not switched on. A season records who is taking part and in which division; no cell is claimed, no location is read, and no rank is calculated.';
+
+const noSeason: TerritorySeasonResponse = { captureNote: CAPTURE_NOTE };
+
+const season = (
+  overrides: Partial<NonNullable<TerritorySeasonResponse['season']>> = {}
+): TerritorySeasonResponse => ({
+  captureNote: CAPTURE_NOTE,
+  season: {
+    id: '00000000-0000-4000-8000-0000000000b1',
+    title: 'Spring season',
+    status: 'open',
+    startsAt: '2026-10-01T00:00:00.000Z',
+    endsAt: '2026-11-12T00:00:00.000Z',
+    joinable: true,
+    captureEnabled: false,
+    participantCount: 12,
+    privacyPolicyVersion: '2026-09',
+    ...overrides
+  }
+});
+
 const stubApi = (overrides: {
   challenges?: ChallengeSummary[];
   result?: () => Promise<ChallengeResult>;
   standings?: FriendStandingsResponse;
+  globalBoard?: GlobalBoardResponse;
+  setGlobalParticipation?: (participating: boolean) => Promise<boolean>;
+  competitions?: CompetitionSummary[];
+  competitionStandings?: CompetitionStandingsResponse;
+  setCompetitionEnrollment?: (
+    competitionId: string,
+    enrolled: boolean
+  ) => Promise<CompetitionSummary>;
+  territory?: TerritorySeasonResponse;
+  setTerritoryEnrollment?: () => Promise<TerritorySeasonResponse>;
   friends?: Profile[];
 }): MobileApiClient =>
   ({
@@ -100,6 +198,22 @@ const stubApi = (overrides: {
     getChallengeResult:
       overrides.result ?? (() => Promise.reject(new ApiFailure(409, 'not ready yet'))),
     getFriendStandings: () => Promise.resolve(overrides.standings ?? emptyStandings),
+    getGlobalBoard: () => Promise.resolve(overrides.globalBoard ?? emptyGlobalBoard),
+    setGlobalBoardParticipation: vi.fn(
+      overrides.setGlobalParticipation ??
+        ((participating: boolean) => Promise.resolve(participating))
+    ),
+    listCompetitions: () => Promise.resolve(overrides.competitions ?? []),
+    getTerritorySeason: () => Promise.resolve(overrides.territory ?? noSeason),
+    setTerritoryEnrollment: vi.fn(
+      overrides.setTerritoryEnrollment ?? (() => Promise.resolve(overrides.territory ?? noSeason))
+    ),
+    getCompetitionStandings: () =>
+      Promise.resolve(overrides.competitionStandings ?? competitionStandings()),
+    setCompetitionEnrollment: vi.fn(
+      overrides.setCompetitionEnrollment ??
+        ((_competitionId: string, enrolled: boolean) => Promise.resolve(competition({ enrolled })))
+    ),
     listFriends: () => Promise.resolve(overrides.friends ?? [])
   }) as unknown as MobileApiClient;
 
@@ -111,6 +225,14 @@ const renderPlay = async (api: MobileApiClient): Promise<ReactTestRenderer> => {
   await act(async () => undefined);
   return renderer;
 };
+
+/** Controls addressed the way a screen reader would find them. */
+const byLabelText = (renderer: ReactTestRenderer, label: string) =>
+  renderer.root.findAll(
+    (node) =>
+      typeof node.type === 'string' &&
+      (node.props as Record<string, unknown>)['accessibilityLabel'] === label
+  );
 
 const renderedText = (renderer: ReactTestRenderer): string =>
   renderer.root
@@ -296,5 +418,290 @@ describe('Play tab render', () => {
   it('guides an account with no challenges toward inviting a friend', async () => {
     const renderer = await renderPlay(stubApi({}));
     expect(renderedText(renderer)).toContain('Invite a friend');
+  });
+});
+
+describe('the global board', () => {
+  it('gates it behind an explicit join and says what joining publishes', async () => {
+    const renderer = await renderPlay(stubApi({}));
+    const rendered = renderedText(renderer);
+
+    expect(rendered).toContain('You are not on the global board');
+    expect(rendered).toContain('Never your route, pace, distance, or where you went');
+    expect(rendered).toContain('similar length of time on RunSphere');
+  });
+
+  it('renders the served page with the division it was ranked in', async () => {
+    const renderer = await renderPlay(
+      stubApi({
+        globalBoard: {
+          periodStart: '2026-08-31',
+          periodEnd: '2026-09-07',
+          participating: true,
+          division: 'rising',
+          ruleVersion: 1,
+          me: { rank: 2, cappedActiveMinutes: 120 },
+          entries: [globalEntry(RAVI, 'Ravi', 1, 200), globalEntry(ME, 'Maya', 2, 120)]
+        }
+      })
+    );
+    const rendered = renderedText(renderer);
+
+    expect(rendered).toContain('Rising');
+    expect(rendered).toContain('Ravi');
+    expect(rendered).toContain('200 min');
+    expect(rendered).toContain('Maya (you)');
+    expect(rendered).toContain('You are #2 with 120 min');
+    // A division is a length of time on RunSphere, never a pace or a place.
+    expect(rendered).toContain('how many weeks you have been active');
+    // An entry is a rank, a name, and one number of minutes — nothing else.
+    const labels = renderer.root
+      .findAll(
+        (node) =>
+          typeof node.type === 'string' &&
+          String((node.props as Record<string, unknown>)['accessibilityLabel'] ?? '').startsWith(
+            'Rank '
+          )
+      )
+      .map((node) => String((node.props as Record<string, unknown>)['accessibilityLabel']));
+    expect(labels).toEqual([
+      'Rank 1, Ravi, 200 counted active minutes',
+      'Rank 2, Maya (you), 120 counted active minutes'
+    ]);
+  });
+
+  it('explains an empty board to somebody who has joined but not moved', async () => {
+    const renderer = await renderPlay(
+      stubApi({
+        globalBoard: {
+          periodStart: '2026-08-31',
+          periodEnd: '2026-09-07',
+          participating: true,
+          entries: []
+        }
+      })
+    );
+
+    expect(renderedText(renderer)).toContain('Your first counted minutes this week put you on it');
+  });
+
+  it('offers a way off the board that reaches the server', async () => {
+    const api = stubApi({
+      globalBoard: {
+        periodStart: '2026-08-31',
+        periodEnd: '2026-09-07',
+        participating: true,
+        division: 'newcomer',
+        me: { rank: 1, cappedActiveMinutes: 30 },
+        entries: [globalEntry(ME, 'Maya', 1, 30)]
+      }
+    });
+    const renderer = await renderPlay(api);
+    const leave = renderer.root.findAll(
+      (node) =>
+        typeof node.type === 'string' &&
+        (node.props as Record<string, unknown>)['accessibilityLabel'] === 'Leave the global board'
+    )[0]!;
+    await act(async () => (leave.props as { onPress: () => void }).onPress());
+
+    expect(
+      (api as unknown as { setGlobalBoardParticipation: ReturnType<typeof vi.fn> })
+        .setGlobalBoardParticipation
+    ).toHaveBeenCalledWith(false);
+  });
+});
+
+describe('scheduled competitions', () => {
+  it('says nothing is scheduled rather than showing an empty list', async () => {
+    const renderer = await renderPlay(stubApi({}));
+
+    expect(renderedText(renderer)).toContain('No competition is scheduled');
+  });
+
+  it('announces the window, entrants, and rewards before anybody enters', async () => {
+    const renderer = await renderPlay(stubApi({ competitions: [competition()] }));
+    const rendered = renderedText(renderer);
+
+    expect(rendered).toContain('September steady week');
+    expect(rendered).toContain('Announced');
+    expect(rendered).toContain('2026-09-07 to 2026-09-14');
+    expect(rendered).toContain('12 entrants');
+    expect(rendered).toContain('Rewards: A cosmetic badge');
+    expect(rendered).toContain('The whole window is scored however late you enter');
+  });
+
+  it('states an eligibility band whether or not the reader clears it', async () => {
+    const renderer = await renderPlay(
+      stubApi({ competitions: [competition({ minPriorActiveWeeks: 8, eligible: false })] })
+    );
+    const rendered = renderedText(renderer);
+
+    expect(rendered).toContain('8 or more earlier active weeks');
+    expect(rendered).toContain('not you yet');
+    // An account that cannot enter is not offered a control that would fail.
+    expect(byLabelText(renderer, 'Enter the competition')).toHaveLength(0);
+  });
+
+  it('enters a competition and reports the failure the server published', async () => {
+    const api = stubApi({
+      competitions: [competition()],
+      setCompetitionEnrollment: () => {
+        throw new ApiFailure(
+          403,
+          'This competition is for accounts with at least 8 earlier active weeks'
+        );
+      }
+    });
+    const renderer = await renderPlay(api);
+    const enter = byLabelText(renderer, 'Enter the competition')[0]!;
+    await act(async () => (enter.props as { onPress: () => void }).onPress());
+    await act(async () => undefined);
+
+    expect(renderedText(renderer)).toContain('at least 8 earlier active weeks');
+  });
+
+  it('shows standings to an entrant and marks a provisional result as provisional', async () => {
+    const closed = competition({
+      enrolled: true,
+      status: 'closed',
+      disputeEndsAt: '2026-09-16T00:00:00.000Z'
+    });
+    const renderer = await renderPlay(
+      stubApi({
+        competitions: [closed],
+        competitionStandings: competitionStandings({
+          competition: closed,
+          live: false,
+          provisional: true
+        })
+      })
+    );
+    const rendered = renderedText(renderer);
+
+    expect(rendered).toContain('Provisional result');
+    expect(rendered).toContain('provisional until 2026-09-16T00:00:00.000Z');
+    expect(rendered).toContain('Ravi');
+    expect(rendered).toContain('Maya (you)');
+  });
+
+  it('offers no entry control once the window has closed', async () => {
+    const renderer = await renderPlay(
+      stubApi({ competitions: [competition({ status: 'finalized', enrolled: true })] })
+    );
+
+    expect(renderedText(renderer)).toContain('Final result');
+    expect(byLabelText(renderer, 'Leave the competition')).toHaveLength(0);
+  });
+});
+
+describe('the territory season', () => {
+  it('says no season is running, and points at what to do instead', async () => {
+    const renderer = await renderPlay(stubApi({}));
+    const rendered = renderedText(renderer);
+
+    expect(rendered).toContain('No season is running');
+    expect(rendered).toContain('Quests and your weekly goal');
+    // A season is not a permanent fixture, so nothing promises one is coming.
+    expect(rendered).not.toMatch(/coming soon|next season starts/i);
+  });
+
+  it('says capture is off wherever a season is shown', async () => {
+    const withSeason = await renderPlay(stubApi({ territory: season() }));
+    const without = await renderPlay(stubApi({}));
+
+    // The word "season" promises a map, and there is no map yet — so the note
+    // appears in both states rather than only where a season exists.
+    expect(renderedText(withSeason)).toContain('no cell is claimed');
+    expect(renderedText(without)).toContain('no cell is claimed');
+  });
+
+  it('offers an explicit join and says what taking part records', async () => {
+    const renderer = await renderPlay(stubApi({ territory: season() }));
+    const rendered = renderedText(renderer);
+
+    expect(rendered).toContain('Spring season');
+    expect(rendered).toContain('12 taking part');
+    expect(rendered).toContain('Nothing about where you go is read');
+    expect(byLabelText(renderer, 'Take part')).toHaveLength(1);
+  });
+
+  it('shows the division and explains how it was decided', async () => {
+    const renderer = await renderPlay(
+      stubApi({
+        territory: season({
+          enrollment: {
+            division: 'returning',
+            priorActiveWeeks: 9,
+            enrolledAt: '2026-09-20T10:00:00.000Z'
+          }
+        })
+      })
+    );
+    const rendered = renderedText(renderer);
+
+    expect(rendered).toContain('Your group: Returning');
+    // The explanation is the point: a label somebody cannot question is worse
+    // than no label.
+    expect(rendered).toContain('active in 9 earlier weeks');
+    expect(rendered).toContain('nothing you do later moves you');
+    expect(byLabelText(renderer, 'Leave the season')).toHaveLength(1);
+  });
+
+  it('never shows a rank, because none is calculated', async () => {
+    const renderer = await renderPlay(
+      stubApi({
+        territory: season({
+          status: 'live',
+          enrollment: {
+            division: 'newcomer',
+            priorActiveWeeks: 0,
+            enrolledAt: '2026-10-02T10:00:00.000Z'
+          }
+        })
+      })
+    );
+    // Scoped to the season card: the Play tab shows ranks elsewhere, and this
+    // is about the season not inventing one.
+    const card = byLabelText(
+      renderer,
+      'Spring season. Running. 2026-10-01 to 2026-11-12. 12 taking part. You are taking part.'
+    )[0]!;
+    const cardText = card
+      .findAllByType('Text' as React.ElementType)
+      .flatMap((node) =>
+        node.children.filter((child): child is string => typeof child === 'string')
+      )
+      .join(' | ');
+
+    expect(cardText).toContain('Running');
+    // The card *says* there is no rank, which is the point — what it must not
+    // do is show one: no position, no held-cell count, no standing.
+    expect(cardText).toContain('no rank is calculated');
+    expect(cardText).not.toMatch(/#\d|Rank \d|\d+(st|nd|rd|th) place|cells held/i);
+  });
+
+  it('offers no join control on a season that cannot be joined', async () => {
+    const renderer = await renderPlay(
+      stubApi({ territory: season({ status: 'announced', joinable: false }) })
+    );
+
+    expect(renderedText(renderer)).toContain('Announced');
+    expect(byLabelText(renderer, 'Take part')).toHaveLength(0);
+  });
+
+  it('takes part and reports a refusal in the server own words', async () => {
+    const api = stubApi({
+      territory: season(),
+      setTerritoryEnrollment: () => {
+        throw new ApiFailure(409, 'That season is not open for enrollment');
+      }
+    });
+    const renderer = await renderPlay(api);
+    await act(async () =>
+      (byLabelText(renderer, 'Take part')[0]!.props as { onPress: () => void }).onPress()
+    );
+    await act(async () => undefined);
+
+    expect(renderedText(renderer)).toContain('not open to join');
   });
 });

@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, Switch, Text, TextInput, View } from 'react-native';
 import * as Location from 'expo-location';
-import type { Profile, SafetyContactResponse, WeeklyGoalResponse } from '@runsphere/contracts';
+import type {
+  Profile,
+  Sanction,
+  SafetyContactResponse,
+  WeeklyGoalResponse
+} from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { clearAccountData } from '../account-cleanup';
 import { activityQueue } from '../activity-queue.native';
@@ -17,8 +22,54 @@ import { NotificationsScreen } from './NotificationsScreen';
 import { ProfileIdentityScreen } from './ProfileIdentityScreen';
 import type { NotificationTarget } from './notifications-model';
 import { profileInitials, profileNameLabel } from './profile-model';
+import {
+  APPEAL_CONSEQUENCE,
+  NO_SANCTIONS_MESSAGE,
+  appealFailureNotice,
+  sanctionRows,
+  validateAppeal
+} from './moderation-model';
 
 type RemoteState = HomeRemoteState;
+
+/**
+ * The account's own moderation record (milestone 3.7).
+ *
+ * Loaded quietly: an account with nothing against it sees one reassuring line
+ * rather than a section that looks like an accusation, and a failure leaves the
+ * section out entirely rather than implying something exists that cannot be
+ * read.
+ */
+const useSanctions = (api: MobileApiClient) => {
+  const [sanctions, setSanctions] = useState<readonly Sanction[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const reload = () => {
+    void api
+      .listSanctions()
+      .then((next) => {
+        setSanctions(next);
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(false));
+  };
+  useEffect(() => {
+    let active = true;
+    void api
+      .listSanctions()
+      .then((next) => {
+        if (!active) return;
+        setSanctions(next);
+        setLoaded(true);
+      })
+      .catch(() => {
+        if (active) setLoaded(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [api]);
+  return { sanctions, loaded, reload };
+};
 
 const useWeeklyGoal = (api: MobileApiClient) => {
   const [goal, setGoal] = useState<WeeklyGoalResponse>();
@@ -52,6 +103,7 @@ export function ProfileScreen({
   onNavigate?: (target: NotificationTarget) => void;
 }) {
   const styles = useAppStyles();
+  const { tokens } = useAppTheme();
   const [screen, setScreen] = useState<
     'profile' | 'safety' | 'goals' | 'identity' | 'notifications' | 'achievements'
   >('profile');
@@ -72,9 +124,31 @@ export function ProfileScreen({
       active = false;
     };
   }, [api, screen]);
+  const { sanctions, loaded: sanctionsLoaded, reload: reloadSanctions } = useSanctions(api);
+  const [appealDrafts, setAppealDrafts] = useState<Readonly<Record<string, string>>>({});
+  const [appealNotice, setAppealNotice] = useState('');
+  const [appealBusy, setAppealBusy] = useState(false);
   const [visibility, setVisibility] = useState<'private' | 'followers'>('private');
   const [visibilityBusy, setVisibilityBusy] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState('Not verified');
+  const sendAppeal = async (sanctionId: string) => {
+    const validation = validateAppeal(appealDrafts[sanctionId] ?? '');
+    if (!validation.ok) {
+      setAppealNotice(validation.message);
+      return;
+    }
+    setAppealBusy(true);
+    try {
+      await api.appealSanction(sanctionId, validation.statement);
+      setAppealNotice('Appeal sent. You will be told the decision and the reason for it.');
+      setAppealDrafts((drafts) => ({ ...drafts, [sanctionId]: '' }));
+      reloadSanctions();
+    } catch (error) {
+      setAppealNotice(appealFailureNotice(error));
+    }
+    setAppealBusy(false);
+  };
+
   const updateVisibility = async (next: 'private' | 'followers') => {
     setVisibilityBusy(true);
     try {
@@ -258,6 +332,50 @@ export function ProfileScreen({
           value="Private by default"
           onPress={() => setScreen('safety')}
         />
+      </SettingsGroup>
+      <SettingsGroup title="Your standing">
+        {sanctionsLoaded && sanctions.length === 0 && (
+          <Text style={styles.settingsHint}>{NO_SANCTIONS_MESSAGE}</Text>
+        )}
+        {appealNotice !== '' && <Text style={styles.settingsHint}>{appealNotice}</Text>}
+        {sanctionRows(sanctions).map((row) => (
+          <View
+            key={row.id}
+            accessible
+            accessibilityLabel={row.accessibilityLabel}
+            style={styles.settingStack}
+          >
+            <Text style={styles.rowTitle}>{`${row.kindLabel} · ${row.statusLabel}`}</Text>
+            <Text style={styles.rowDetail}>{row.statement}</Text>
+            <Text style={styles.settingsHint}>{row.effectLabel}</Text>
+            <Text style={styles.settingsHint}>{row.endsLabel}</Text>
+            {row.appealStatusLabel && (
+              <Text style={styles.settingsHint}>{row.appealStatusLabel}</Text>
+            )}
+            {row.canAppeal && (
+              <>
+                <Text style={styles.settingsHint}>{APPEAL_CONSEQUENCE}</Text>
+                <TextInput
+                  accessibilityLabel={`Appeal the ${row.kindLabel.toLowerCase()}`}
+                  multiline
+                  onChangeText={(text) =>
+                    setAppealDrafts((drafts) => ({ ...drafts, [row.id]: text }))
+                  }
+                  placeholder="What should a moderator know?"
+                  placeholderTextColor={tokens.text.secondary}
+                  style={styles.input}
+                  value={appealDrafts[row.id] ?? ''}
+                />
+                <PrimaryButton
+                  accessibilityLabel="Send appeal"
+                  label={appealBusy ? 'Sending…' : 'Send appeal'}
+                  disabled={appealBusy}
+                  onPress={() => void sendAppeal(row.id)}
+                />
+              </>
+            )}
+          </View>
+        ))}
       </SettingsGroup>
       <SettingsGroup title="Data">
         <Setting

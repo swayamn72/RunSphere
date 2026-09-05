@@ -179,7 +179,8 @@ export const setQuietHoursEnabled = (
     const rest: NotificationPreferences = {
       categories: preferences.categories,
       maxPerDay: preferences.maxPerDay,
-      channels: preferences.channels
+      channels: preferences.channels,
+      marketingConsent: preferences.marketingConsent
     };
     return rest;
   }
@@ -216,6 +217,28 @@ export const setPushEnabled = (
 ): NotificationPreferences => ({ ...preferences, channels: { ...preferences.channels, push } });
 
 /**
+ * Campaign email consent (milestone 3.9). Turning it on sets all three
+ * switches the server requires — the consent flag, the `marketing` category,
+ * and the `email` channel — because a member who says yes here means yes, not
+ * "yes, if two other toggles elsewhere also happen to be on".
+ *
+ * Turning it off is an unsubscribe, and clears all three for the same reason.
+ */
+export const setMarketingConsent = (
+  preferences: NotificationPreferences,
+  consented: boolean
+): NotificationPreferences => ({
+  ...preferences,
+  marketingConsent: consented,
+  categories: { ...preferences.categories, marketing: consented },
+  channels: { ...preferences.channels, email: consented }
+});
+
+/** Said where consent is given, so what it covers is not a guess. */
+export const MARKETING_CONSENT_HINT =
+  'Occasional product news by email. Off unless you turn it on, and you can turn it off here or from any email we send. Messages about your own account are not affected.';
+
+/**
  * Only what changed is sent. The route merges a partial body, so sending the
  * whole object would silently rewrite a field another device just changed.
  * Clearing quiet hours is an explicit `null`: `undefined` disappears in JSON
@@ -231,6 +254,8 @@ export const preferencesDiff = (
   if (JSON.stringify(saved.channels) !== JSON.stringify(edited.channels))
     update.channels = edited.channels;
   if (saved.maxPerDay !== edited.maxPerDay) update.maxPerDay = edited.maxPerDay;
+  if (saved.marketingConsent !== edited.marketingConsent)
+    update.marketingConsent = edited.marketingConsent;
   if (JSON.stringify(saved.quietHours) !== JSON.stringify(edited.quietHours))
     update.quietHours = edited.quietHours ?? null;
   return update;

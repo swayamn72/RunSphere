@@ -2,6 +2,14 @@ import { randomInt } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   ActivityAuthorizationHeadersSchema,
+  ClubBoardParticipationRequestSchema,
+  ClubBoardResponseSchema,
+  ClubChallengeCreateRequestSchema,
+  ClubChallengeListResponseSchema,
+  ClubChallengeParamsSchema,
+  ClubChallengeParticipationRequestSchema,
+  ClubChallengeStandingsResponseSchema,
+  ClubChallengeSummarySchema,
   ClubCreateRequestSchema,
   ClubJoinRequestSchema,
   ClubListResponseSchema,
@@ -16,6 +24,17 @@ import {
   ClubSchema,
   ErrorResponseSchema,
   type Club,
+  type ClubBoardEntry,
+  type ClubBoardParticipationRequest,
+  type ClubBoardResponse,
+  type ClubChallengeCreateRequest,
+  type ClubChallengeMode,
+  type ClubChallengeParams,
+  type ClubChallengeParticipationRequest,
+  type ClubChallengeStanding,
+  type ClubChallengeStandingsResponse,
+  type ClubChallengeStatus,
+  type ClubChallengeSummary,
   type ClubCreateRequest,
   type ClubJoinRequest,
   type ClubMember,
@@ -34,19 +53,31 @@ import {
   canArchive,
   canChangeRole,
   canLeave,
+  canManageClubChallenge,
   canManageRelay,
   canRemoveMember,
+  cappedWeeklyActiveMinutes,
+  challengeModeScore,
+  challengeWindow,
+  clubChallengeLengthEnabled,
+  clubChallengeModeEnabled,
+  clubChallengeOpen,
+  competitionRanking,
   isPlausibleInviteCode,
+  kolkataDate,
   normalizeInviteCode,
+  parseChallengeRule,
   parseClubRelayRule,
   relayGoalMet,
   relayProgressPercent,
   relayTargetAllowed,
   visibleToMember,
+  type ChallengeRule,
   type ClubRelayRule
 } from '@runsphere/domain';
 import { verifyAccessToken } from './auth.js';
-import { currentWeek } from './progression-core.js';
+import { currentWeek, loadActiveProgressionRule } from './progression-core.js';
+import { notSharingSuspended, requireSharingAllowed } from './sanction-guard.js';
 
 /**
  * Clubs (Phase 3, milestone 3.1).
@@ -242,6 +273,110 @@ const relaySummary = (
   };
 };
 
+interface ClubChallengeRow {
+  id: string;
+  club_id: string;
+  mode: ClubChallengeMode;
+  length_days: number;
+  status: ClubChallengeStatus;
+  period_start: Date | string;
+  period_end: Date | string;
+  rule_version: number;
+  created_at: Date;
+}
+
+interface ClubChallengeCountRow {
+  participant_count: string;
+  joined: boolean | null;
+}
+
+/**
+ * The published club-challenge rule. It shares the 1v1 rule's shape so the
+ * same parser and the same scoring functions read both, and it is a separate
+ * `kind` only so a club contest's lengths and modes can be tuned without
+ * touching an agreement two friends already made.
+ *
+ * Passing a version reads that exact version, which is what a running or
+ * finished challenge is scored under even after a newer rule is published.
+ */
+const loadClubChallengeRule = async (
+  database: Database,
+  version: number
+): Promise<ChallengeRule | undefined> => {
+  const result = await database.query<{ definition: unknown }>(
+    `SELECT definition FROM rule_versions WHERE kind = 'club_challenge' AND version = $1`,
+    [version]
+  );
+  const row = result.rows[0];
+  return row ? parseChallengeRule(row.definition) : undefined;
+};
+
+const loadActiveClubChallengeRule = async (
+  database: Database
+): Promise<{ version: number; rule: ChallengeRule } | undefined> => {
+  const result = await database.query<{ version: number; definition: unknown }>(
+    `SELECT version, definition FROM rule_versions
+     WHERE kind = 'club_challenge' AND superseded_at IS NULL
+     ORDER BY version DESC LIMIT 1`
+  );
+  const row = result.rows[0];
+  if (!row) return undefined;
+  return { version: row.version, rule: parseChallengeRule(row.definition) };
+};
+
+/** One challenge of one club, or `undefined`. The club id is always part of
+ * the lookup, so a challenge id from another club is simply not found. */
+const loadClubChallenge = async (
+  database: Database,
+  clubId: string,
+  challengeId: string
+): Promise<ClubChallengeRow | undefined> => {
+  const result = await database.query<ClubChallengeRow>(
+    `SELECT id, club_id, mode, length_days, status, period_start, period_end, rule_version,
+       created_at
+     FROM club_challenges WHERE id = $1 AND club_id = $2`,
+    [challengeId, clubId]
+  );
+  return result.rows[0];
+};
+
+/** How many members are in a contest, and whether the reader is one. A count
+ * and a boolean: the list of participants is the standings' business. */
+const clubChallengeCounts = async (
+  database: Database,
+  challengeId: string,
+  accountId: string
+): Promise<{ participantCount: number; joined: boolean }> => {
+  const result = await database.query<ClubChallengeCountRow>(
+    `SELECT count(*) FILTER (WHERE left_at IS NULL)::text AS participant_count,
+       bool_or(account_id = $2 AND left_at IS NULL) AS joined
+     FROM club_challenge_participants WHERE challenge_id = $1`,
+    [challengeId, accountId]
+  );
+  const row = result.rows[0];
+  return {
+    participantCount: Number(row?.participant_count ?? 0),
+    joined: Boolean(row?.joined)
+  };
+};
+
+const clubChallengeSummary = (
+  row: ClubChallengeRow,
+  counts: { participantCount: number; joined: boolean }
+): ClubChallengeSummary => ({
+  id: row.id,
+  clubId: row.club_id,
+  mode: row.mode,
+  lengthDays: row.length_days,
+  status: row.status,
+  periodStart: asDateString(row.period_start),
+  periodEnd: asDateString(row.period_end),
+  participantCount: counts.participantCount,
+  joined: counts.joined,
+  ruleVersion: row.rule_version,
+  createdAt: row.created_at.toISOString()
+});
+
 export const registerClubRoutes = ({ routes, database, authSecret }: ClubRouteDeps): void => {
   /**
    * Creating a club makes the creator its owner in the same transaction, so a
@@ -258,6 +393,7 @@ export const registerClubRoutes = ({ routes, database, authSecret }: ClubRouteDe
           201: ClubSchema,
           400: ErrorResponseSchema,
           401: ErrorResponseSchema,
+          403: ErrorResponseSchema,
           503: ErrorResponseSchema
         }
       }
@@ -268,6 +404,8 @@ export const registerClubRoutes = ({ routes, database, authSecret }: ClubRouteDe
       if (!accountId) return;
       const name = request.body.name.trim().replace(/\s+/g, ' ');
       if (!name) return reply.code(400).send({ message: 'A club needs a name' });
+      // Starting a club puts a name and an owner in front of other people.
+      if (!(await requireSharingAllowed(database, reply, accountId))) return;
 
       const created = await withTransaction(database, async (client) => {
         // A code collision is astronomically unlikely but cheap to retry, and
@@ -344,6 +482,7 @@ export const registerClubRoutes = ({ routes, database, authSecret }: ClubRouteDe
         response: {
           200: ClubSchema,
           401: ErrorResponseSchema,
+          403: ErrorResponseSchema,
           404: ErrorResponseSchema,
           409: ErrorResponseSchema,
           503: ErrorResponseSchema
@@ -357,6 +496,9 @@ export const registerClubRoutes = ({ routes, database, authSecret }: ClubRouteDe
       const inviteCode = normalizeInviteCode(request.body.inviteCode);
       if (!isPlausibleInviteCode(inviteCode))
         return reply.code(404).send({ message: 'Club not found' });
+      // Checked before the code is looked up, so a paused account cannot use
+      // the join route to test whether a code is real.
+      if (!(await requireSharingAllowed(database, reply, accountId))) return;
 
       const joined = await withTransaction(database, async (client) => {
         const club = await client.query<{ id: string; name: string; invite_code: string }>(
@@ -758,6 +900,709 @@ export const registerClubRoutes = ({ routes, database, authSecret }: ClubRouteDe
           )
         )
       };
+    }
+  );
+
+  /**
+   * The club's weekly board (Phase 3, milestone 3.3; ADR-0007).
+   *
+   * Two gates stand in front of an entry list, and both are enforced here
+   * rather than in the query alone: the reader must be an active member of
+   * this club, and the reader must be on the board themselves. Reading other
+   * members' scores without publishing your own is exactly the asymmetry the
+   * friend board refuses, and a club is a smaller room, not a different rule.
+   *
+   * The score is the same capped weekly active-minute total the account sees
+   * on its own Home consistency card, computed by `@runsphere/domain` from the
+   * published progression rule, so the two can never disagree. Location,
+   * route, activity timestamps, pace, and distance are never selected here.
+   */
+  routes.get<{ Params: ClubParams }>(
+    '/v1/clubs/:clubId/board',
+    {
+      schema: {
+        tags: ['clubs'],
+        headers: ActivityAuthorizationHeadersSchema,
+        params: ClubParamsSchema,
+        response: {
+          200: ClubBoardResponseSchema,
+          401: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+      // Membership first: a non-member gets the same `404` as for a club that
+      // does not exist, so the board is not an oracle for club ids either.
+      if (!(await activeRole(database, request.params.clubId, accountId)))
+        return reply.code(404).send({ message: 'Club not found' });
+
+      const { weekStart, weekEnd, periodStart } = currentWeek(new Date());
+      const period = {
+        clubId: request.params.clubId,
+        periodStart,
+        periodEnd: weekEnd.toISOString().slice(0, 10)
+      };
+
+      const own = await database.query<{ participating: boolean }>(
+        `SELECT EXISTS (
+           SELECT 1 FROM leaderboard_opt_ins optin
+           WHERE optin.account_id = $1 AND optin.scope = 'club' AND optin.revoked_at IS NULL
+         ) AS participating`,
+        [accountId]
+      );
+      const participating = Boolean(own.rows[0]?.participating);
+      // Reading other members' scores requires being on the board yourself.
+      if (!participating) {
+        const response: ClubBoardResponse = { ...period, participating: false, entries: [] };
+        return response;
+      }
+
+      const rule = await loadActiveProgressionRule(database);
+      // No published progression rule means there is no defined score. An
+      // empty board is the honest answer; a board of zeroes would not be.
+      if (!rule) {
+        const response: ClubBoardResponse = { ...period, participating: true, entries: [] };
+        return response;
+      }
+
+      // Active membership of this club, a live `club` opt-in, and no block in
+      // either direction. The reader is included by their own membership row.
+      const members = await database.query<{
+        account_id: string;
+        display_name: string | null;
+        cosmetic: unknown;
+        activity_visibility: 'private' | 'followers';
+        blocked_either_way: boolean;
+      }>(
+        `SELECT membership.account_id, profile.display_name, profile.cosmetic,
+           account.profile_visibility AS activity_visibility,
+           EXISTS (SELECT 1 FROM blocks block WHERE block.revoked_at IS NULL
+             AND ((block.blocker_account_id = $2 AND block.blocked_account_id = membership.account_id)
+               OR (block.blocker_account_id = membership.account_id AND block.blocked_account_id = $2)))
+             AS blocked_either_way
+         FROM club_memberships membership
+         JOIN accounts account ON account.id = membership.account_id
+           AND account.deleted_at IS NULL
+         JOIN leaderboard_opt_ins optin ON optin.account_id = membership.account_id
+           AND optin.scope = 'club' AND optin.revoked_at IS NULL
+         LEFT JOIN profiles profile ON profile.account_id = membership.account_id
+         WHERE membership.club_id = $1 AND membership.left_at IS NULL
+           AND ${notSharingSuspended('membership.account_id')}
+         LIMIT 500`,
+        [request.params.clubId, accountId]
+      );
+      // A block hides two accounts from each other on a board as in a roster.
+      const visible = members.rows.filter((row) =>
+        visibleToMember({
+          blockedEitherWay: row.blocked_either_way,
+          self: row.account_id === accountId
+        })
+      );
+      if (!visible.length) {
+        const response: ClubBoardResponse = {
+          ...period,
+          participating: true,
+          ruleVersion: String(rule.version),
+          entries: []
+        };
+        return response;
+      }
+
+      const activities = await database.query<{
+        account_id: string;
+        active_duration_seconds: number;
+        processed_at: Date;
+      }>(
+        `SELECT submission.account_id, output.active_duration_seconds, submission.processed_at
+         FROM activity_submissions submission
+         JOIN activity_validation_outputs output ON output.activity_id = submission.id
+         WHERE submission.account_id = ANY($1::uuid[])
+           AND submission.status = 'derived'
+           AND submission.deleted_at IS NULL
+           AND submission.processed_at >= $2
+           AND submission.processed_at < $3`,
+        [visible.map((member) => member.account_id), weekStart, weekEnd]
+      );
+      const byAccount = new Map<string, { activeDurationSeconds: number; endedAt: Date }[]>();
+      for (const row of activities.rows) {
+        const bucket = byAccount.get(row.account_id) ?? [];
+        bucket.push({
+          activeDurationSeconds: row.active_duration_seconds,
+          endedAt: row.processed_at
+        });
+        byAccount.set(row.account_id, bucket);
+      }
+
+      const scored = visible
+        .map((member) => ({
+          member,
+          score: cappedWeeklyActiveMinutes(
+            byAccount.get(member.account_id) ?? [],
+            weekStart,
+            rule.rule.dailyCapMinutes
+          )
+        }))
+        // Equal scores are ordered by display name so the list is stable; the
+        // shared rank below is what the reader is actually shown.
+        .sort(
+          (left, right) =>
+            right.score - left.score ||
+            (left.member.display_name ?? '').localeCompare(right.member.display_name ?? '') ||
+            left.member.account_id.localeCompare(right.member.account_id)
+        );
+      const ranks = competitionRanking(scored.map((entry) => entry.score));
+
+      const entries: ClubBoardEntry[] = scored.map((entry, index) => ({
+        profile: {
+          id: entry.member.account_id,
+          displayName: entry.member.display_name ?? 'RunSphere member',
+          cosmetic: (entry.member.cosmetic as Profile['cosmetic']) ?? DEFAULT_COSMETIC,
+          activityVisibility: entry.member.activity_visibility
+        },
+        rank: ranks[index]!,
+        cappedActiveMinutes: entry.score,
+        isSelf: entry.member.account_id === accountId
+      }));
+      const response: ClubBoardResponse = {
+        ...period,
+        participating: true,
+        ruleVersion: String(rule.version),
+        entries
+      };
+      return response;
+    }
+  );
+
+  /**
+   * Join or leave club boards. One decision in the `club` scope, independent
+   * of the friend board and of activity visibility (ADR-0007), and covering
+   * every club the account is an active member of: a club is private and
+   * member-only, so the audience is already the set of rooms they chose to
+   * join, and a per-club switch would only multiply the controls without
+   * narrowing what is published.
+   *
+   * The club id is deliberately not in this path, so the route cannot read as
+   * a per-club promise it does not keep. Leaving revokes rather than deletes,
+   * so the opt-in history stays auditable, and re-joining reopens the row.
+   */
+  routes.put<{ Body: ClubBoardParticipationRequest }>(
+    '/v1/clubs/board/participation',
+    {
+      schema: {
+        tags: ['clubs'],
+        headers: ActivityAuthorizationHeadersSchema,
+        body: ClubBoardParticipationRequestSchema,
+        response: {
+          200: ClubBoardParticipationRequestSchema,
+          401: ErrorResponseSchema,
+          403: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+      // Joining publishes this account to the members of its clubs, so a
+      // paused account cannot; leaving is never guarded.
+      if (request.body.participating && !(await requireSharingAllowed(database, reply, accountId)))
+        return;
+      if (request.body.participating) {
+        await database.query(
+          `INSERT INTO leaderboard_opt_ins (account_id, scope) VALUES ($1, 'club')
+           ON CONFLICT (account_id, scope)
+           DO UPDATE SET opted_in_at = now(), revoked_at = NULL`,
+          [accountId]
+        );
+      } else {
+        await database.query(
+          `UPDATE leaderboard_opt_ins SET revoked_at = now()
+           WHERE account_id = $1 AND scope = 'club' AND revoked_at IS NULL`,
+          [accountId]
+        );
+      }
+      await audit(
+        database,
+        accountId,
+        request.body.participating ? 'club_board.joined' : 'club_board.left',
+        accountId,
+        { scope: 'club' }
+      );
+      const response: ClubBoardParticipationRequest = {
+        participating: request.body.participating
+      };
+      return response;
+    }
+  );
+
+  /**
+   * Club challenges (Phase 3, milestone 3.4).
+   *
+   * The competitive counterpart to the relay: a time-boxed contest inside one
+   * club, opened by an owner or admin, joined by each member for themselves.
+   *
+   * Two consents are kept apart on purpose. Opening a challenge is a club-wide
+   * act, so it needs authority; joining one publishes *your* score, so it is
+   * yours alone to give and to take back. Opening a contest never enrols
+   * anybody, including the member who opened it.
+   */
+  routes.post<{ Params: ClubParams; Body: ClubChallengeCreateRequest }>(
+    '/v1/clubs/:clubId/challenges',
+    {
+      schema: {
+        tags: ['clubs'],
+        headers: ActivityAuthorizationHeadersSchema,
+        params: ClubParamsSchema,
+        body: ClubChallengeCreateRequestSchema,
+        response: {
+          201: ClubChallengeSummarySchema,
+          401: ErrorResponseSchema,
+          403: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          409: ErrorResponseSchema,
+          422: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+      const role = await activeRole(database, request.params.clubId, accountId);
+      if (!role) return reply.code(404).send({ message: 'Club not found' });
+      if (!canManageClubChallenge(role))
+        return reply.code(403).send({ message: 'Only a club owner or admin can open a challenge' });
+
+      const published = await loadActiveClubChallengeRule(database);
+      // A `422` rather than a `400`: the request is well-formed, the published
+      // rule simply does not allow it — or no rule is published here at all.
+      if (!published)
+        return reply.code(422).send({ message: 'No club challenge rule is published' });
+      if (!clubChallengeModeEnabled(published.rule, request.body.mode))
+        return reply.code(422).send({ message: `Mode ${request.body.mode} is not enabled` });
+      if (!clubChallengeLengthEnabled(published.rule, request.body.lengthDays))
+        return reply.code(422).send({
+          message: `A challenge must run ${published.rule.lengthDays.join(' or ')} days`
+        });
+
+      // The window is never a parameter: it starts today and runs the published
+      // length, so a contest can neither be backdated over days that already
+      // happened nor parked in the future.
+      const periodStart = kolkataDate(new Date());
+      const opened = await database.query<ClubChallengeRow>(
+        `INSERT INTO club_challenges (club_id, mode, length_days, period_start, period_end,
+           rule_version, created_by_account_id)
+         VALUES ($1, $2, $3, $4::date, $4::date + $3, $5, $6)
+         ON CONFLICT (club_id) WHERE status = 'active' DO NOTHING
+         RETURNING id, club_id, mode, length_days, status, period_start, period_end,
+           rule_version, created_at`,
+        [
+          request.params.clubId,
+          request.body.mode,
+          request.body.lengthDays,
+          periodStart,
+          published.version,
+          accountId
+        ]
+      );
+      const row = opened.rows[0];
+      // The partial unique index is the real guarantee: one live challenge per
+      // club, so "the club's challenge" is never ambiguous and a member is
+      // never asked which contest their minutes count toward.
+      if (!row)
+        return reply.code(409).send({ message: 'This club already has a challenge running' });
+
+      await audit(database, accountId, 'club.challenge_opened', request.params.clubId, {
+        challengeId: row.id,
+        mode: row.mode,
+        lengthDays: row.length_days
+      });
+      return reply
+        .code(201)
+        .send(clubChallengeSummary(row, { participantCount: 0, joined: false }));
+    }
+  );
+
+  /**
+   * The club's challenges, newest first. Every figure here is the contest's own
+   * — how many members are in it, and whether the reader is one of them. Who
+   * else is in it appears only in the standings, and only to a participant.
+   */
+  routes.get<{ Params: ClubParams }>(
+    '/v1/clubs/:clubId/challenges',
+    {
+      schema: {
+        tags: ['clubs'],
+        headers: ActivityAuthorizationHeadersSchema,
+        params: ClubParamsSchema,
+        response: {
+          200: ClubChallengeListResponseSchema,
+          401: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+      if (!(await activeRole(database, request.params.clubId, accountId)))
+        return reply.code(404).send({ message: 'Club not found' });
+
+      const challenges = await database.query<ClubChallengeRow & ClubChallengeCountRow>(
+        `SELECT challenge.id, challenge.club_id, challenge.mode, challenge.length_days,
+           challenge.status, challenge.period_start, challenge.period_end, challenge.rule_version,
+           challenge.created_at,
+           count(participant.account_id) FILTER (WHERE participant.left_at IS NULL)::text
+             AS participant_count,
+           bool_or(participant.account_id = $2 AND participant.left_at IS NULL) AS joined
+         FROM club_challenges challenge
+         LEFT JOIN club_challenge_participants participant
+           ON participant.challenge_id = challenge.id
+         WHERE challenge.club_id = $1
+         GROUP BY challenge.id
+         ORDER BY challenge.period_start DESC, challenge.created_at DESC
+         LIMIT 50`,
+        [request.params.clubId, accountId]
+      );
+      return {
+        data: challenges.rows.map((row) =>
+          clubChallengeSummary(row, {
+            participantCount: Number(row.participant_count),
+            joined: Boolean(row.joined)
+          })
+        )
+      };
+    }
+  );
+
+  /**
+   * Join or leave one challenge.
+   *
+   * Joining publishes your score for the *whole* window, including the days
+   * before you joined, because every participant is scored over the same days.
+   * A contest where each person's clock started when they opted in would rank
+   * the moment someone decided to join rather than how much they moved.
+   *
+   * Leaving is not a delete: the row stays as the record that you were in and
+   * left, and from that moment you are neither scored nor shown.
+   */
+  routes.put<{ Params: ClubChallengeParams; Body: ClubChallengeParticipationRequest }>(
+    '/v1/clubs/:clubId/challenges/:challengeId/participation',
+    {
+      schema: {
+        tags: ['clubs'],
+        headers: ActivityAuthorizationHeadersSchema,
+        params: ClubChallengeParamsSchema,
+        body: ClubChallengeParticipationRequestSchema,
+        response: {
+          200: ClubChallengeSummarySchema,
+          401: ErrorResponseSchema,
+          403: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          409: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+      if (!(await activeRole(database, request.params.clubId, accountId)))
+        return reply.code(404).send({ message: 'Club not found' });
+
+      const found = await loadClubChallenge(
+        database,
+        request.params.clubId,
+        request.params.challengeId
+      );
+      if (!found) return reply.code(404).send({ message: 'Challenge not found' });
+      // A closed window is history. Its participants and its scores are what
+      // they were when it closed, so neither can be joined or left afterwards.
+      if (!clubChallengeOpen(found.status))
+        return reply.code(409).send({ message: 'That challenge is no longer running' });
+
+      // Joining publishes a score to the other participants, so a paused
+      // account cannot; leaving is never guarded.
+      if (request.body.participating && !(await requireSharingAllowed(database, reply, accountId)))
+        return;
+      if (request.body.participating) {
+        await database.query(
+          `INSERT INTO club_challenge_participants (challenge_id, account_id)
+           VALUES ($1, $2)
+           ON CONFLICT (challenge_id, account_id)
+           DO UPDATE SET left_at = NULL, joined_at = now()`,
+          [found.id, accountId]
+        );
+      } else {
+        await database.query(
+          `UPDATE club_challenge_participants SET left_at = now()
+           WHERE challenge_id = $1 AND account_id = $2 AND left_at IS NULL`,
+          [found.id, accountId]
+        );
+      }
+      await audit(
+        database,
+        accountId,
+        request.body.participating ? 'club.challenge_joined' : 'club.challenge_left',
+        request.params.clubId,
+        { challengeId: found.id }
+      );
+      const counts = await clubChallengeCounts(database, found.id, accountId);
+      return clubChallengeSummary(found, counts);
+    }
+  );
+
+  /**
+   * Cancel a running challenge. An owner or admin can end a contest that should
+   * not have been opened; nothing is scored and no result is written, so a
+   * cancelled challenge never becomes a record anybody is ranked in. A finished
+   * one cannot be cancelled — its result already exists.
+   */
+  routes.post<{ Params: ClubChallengeParams }>(
+    '/v1/clubs/:clubId/challenges/:challengeId/cancel',
+    {
+      schema: {
+        tags: ['clubs'],
+        headers: ActivityAuthorizationHeadersSchema,
+        params: ClubChallengeParamsSchema,
+        response: {
+          200: ClubChallengeSummarySchema,
+          401: ErrorResponseSchema,
+          403: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          409: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+      const role = await activeRole(database, request.params.clubId, accountId);
+      if (!role) return reply.code(404).send({ message: 'Club not found' });
+      if (!canManageClubChallenge(role))
+        return reply
+          .code(403)
+          .send({ message: 'Only a club owner or admin can cancel a challenge' });
+
+      const cancelled = await database.query<ClubChallengeRow>(
+        `UPDATE club_challenges SET status = 'cancelled'
+         WHERE id = $1 AND club_id = $2 AND status = 'active'
+         RETURNING id, club_id, mode, length_days, status, period_start, period_end,
+           rule_version, created_at`,
+        [request.params.challengeId, request.params.clubId]
+      );
+      const row = cancelled.rows[0];
+      if (!row) {
+        const existing = await loadClubChallenge(
+          database,
+          request.params.clubId,
+          request.params.challengeId
+        );
+        // Distinguishing these two is safe: the caller is already a member of
+        // this club, so neither answer discloses anything they cannot see.
+        return existing
+          ? reply.code(409).send({ message: 'That challenge is no longer running' })
+          : reply.code(404).send({ message: 'Challenge not found' });
+      }
+      await audit(database, accountId, 'club.challenge_cancelled', request.params.clubId, {
+        challengeId: row.id
+      });
+      const counts = await clubChallengeCounts(database, row.id, accountId);
+      return clubChallengeSummary(row, counts);
+    }
+  );
+
+  /**
+   * The standings of one challenge.
+   *
+   * `joined` gates the entry list exactly as the club board's opt-in does:
+   * reading the other participants' scores means having published your own.
+   *
+   * While the window is open the scores are computed live from server-derived
+   * validated activity; once it has closed the stored result is read instead
+   * and never recomputed, so a finished contest reads the same forever
+   * (ADR-0006). A block hides two accounts from each other here as everywhere.
+   */
+  routes.get<{ Params: ClubChallengeParams }>(
+    '/v1/clubs/:clubId/challenges/:challengeId/standings',
+    {
+      schema: {
+        tags: ['clubs'],
+        headers: ActivityAuthorizationHeadersSchema,
+        params: ClubChallengeParamsSchema,
+        response: {
+          200: ClubChallengeStandingsResponseSchema,
+          401: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+      if (!(await activeRole(database, request.params.clubId, accountId)))
+        return reply.code(404).send({ message: 'Club not found' });
+
+      const found = await loadClubChallenge(
+        database,
+        request.params.clubId,
+        request.params.challengeId
+      );
+      if (!found) return reply.code(404).send({ message: 'Challenge not found' });
+      const counts = await clubChallengeCounts(database, found.id, accountId);
+      const challenge = clubChallengeSummary(found, counts);
+      const final = found.status === 'finished';
+      if (!counts.joined) {
+        const response: ClubChallengeStandingsResponse = { challenge, final, entries: [] };
+        return response;
+      }
+
+      const participants = await database.query<{
+        account_id: string;
+        display_name: string | null;
+        cosmetic: unknown;
+        activity_visibility: 'private' | 'followers';
+        blocked_either_way: boolean;
+        stored_score: number | null;
+        stored_rank: number | null;
+      }>(
+        `SELECT participant.account_id, profile.display_name, profile.cosmetic,
+           account.profile_visibility AS activity_visibility,
+           EXISTS (SELECT 1 FROM blocks block WHERE block.revoked_at IS NULL
+             AND ((block.blocker_account_id = $2 AND block.blocked_account_id = participant.account_id)
+               OR (block.blocker_account_id = participant.account_id AND block.blocked_account_id = $2)))
+             AS blocked_either_way,
+           result.score AS stored_score, result.rank AS stored_rank
+         FROM club_challenge_participants participant
+         JOIN accounts account ON account.id = participant.account_id
+           AND account.deleted_at IS NULL
+         LEFT JOIN profiles profile ON profile.account_id = participant.account_id
+         LEFT JOIN club_challenge_results result ON result.challenge_id = participant.challenge_id
+           AND result.account_id = participant.account_id
+         WHERE participant.challenge_id = $1 AND participant.left_at IS NULL
+           AND ${notSharingSuspended('participant.account_id')}
+         LIMIT 500`,
+        [found.id, accountId]
+      );
+      const visible = participants.rows.filter((row) =>
+        visibleToMember({
+          blockedEitherWay: row.blocked_either_way,
+          self: row.account_id === accountId
+        })
+      );
+      if (!visible.length) {
+        const response: ClubChallengeStandingsResponse = { challenge, final, entries: [] };
+        return response;
+      }
+
+      const profileOf = (row: (typeof visible)[number]): Profile => ({
+        id: row.account_id,
+        displayName: row.display_name ?? 'RunSphere member',
+        cosmetic: (row.cosmetic as Profile['cosmetic']) ?? DEFAULT_COSMETIC,
+        activityVisibility: row.activity_visibility
+      });
+
+      // A finished challenge reads its stored result: the rank was computed
+      // once, from the membership and the activity as they stood at the close.
+      if (final) {
+        const entries: ClubChallengeStanding[] = visible
+          .filter((row) => row.stored_score !== null && row.stored_rank !== null)
+          .map((row) => ({
+            profile: profileOf(row),
+            rank: row.stored_rank!,
+            score: row.stored_score!,
+            isSelf: row.account_id === accountId
+          }))
+          .sort(
+            (left, right) =>
+              left.rank - right.rank ||
+              left.profile.displayName.localeCompare(right.profile.displayName)
+          );
+        const response: ClubChallengeStandingsResponse = { challenge, final, entries };
+        return response;
+      }
+
+      const rule = await loadClubChallengeRule(database, found.rule_version);
+      // The rule recorded on the challenge is authoritative even after a newer
+      // one is published, so a running contest is never rescored under rules
+      // its participants did not sign up to. If it is unreadable, an empty
+      // standing is the honest answer rather than an invented one.
+      if (!rule) {
+        const response: ClubChallengeStandingsResponse = { challenge, final, entries: [] };
+        return response;
+      }
+
+      const window = challengeWindow(asDateString(found.period_start), found.length_days);
+      const activities = await database.query<{
+        account_id: string;
+        active_duration_seconds: number;
+        processed_at: Date;
+      }>(
+        `SELECT submission.account_id, output.active_duration_seconds, submission.processed_at
+         FROM activity_submissions submission
+         JOIN activity_validation_outputs output ON output.activity_id = submission.id
+         WHERE submission.account_id = ANY($1::uuid[])
+           AND submission.status = 'derived'
+           AND submission.deleted_at IS NULL
+           AND submission.processed_at >= $2
+           AND submission.processed_at < $3`,
+        [visible.map((row) => row.account_id), window.periodStart, window.periodEnd]
+      );
+      const byAccount = new Map<string, { activeDurationSeconds: number; endedAt: Date }[]>();
+      for (const row of activities.rows) {
+        const bucket = byAccount.get(row.account_id) ?? [];
+        bucket.push({
+          activeDurationSeconds: row.active_duration_seconds,
+          endedAt: row.processed_at
+        });
+        byAccount.set(row.account_id, bucket);
+      }
+
+      const scored = visible
+        .map((row) => ({
+          row,
+          score: challengeModeScore(
+            found.mode,
+            window,
+            byAccount.get(row.account_id) ?? [],
+            // No quest completion is recorded anywhere, which is why no rule
+            // enables that mode and this list is never the scoring input.
+            [],
+            rule.dailyCapMinutes,
+            rule.minMinutesPerActiveDay
+          )
+        }))
+        // Equal scores are ordered by display name so the list is stable; the
+        // shared rank below is what the reader is actually shown.
+        .sort(
+          (left, right) =>
+            right.score - left.score ||
+            (left.row.display_name ?? '').localeCompare(right.row.display_name ?? '') ||
+            left.row.account_id.localeCompare(right.row.account_id)
+        );
+      const ranks = competitionRanking(scored.map((entry) => entry.score));
+      const entries: ClubChallengeStanding[] = scored.map((entry, index) => ({
+        profile: profileOf(entry.row),
+        rank: ranks[index]!,
+        score: entry.score,
+        isSelf: entry.row.account_id === accountId
+      }));
+      const response: ClubChallengeStandingsResponse = { challenge, final, entries };
+      return response;
     }
   );
 

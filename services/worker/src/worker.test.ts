@@ -3,6 +3,7 @@ import type { Database } from '@runsphere/db';
 import type { Logger } from '@runsphere/observability';
 import {
   convergeAccountDeletion,
+  expireSanctions,
   processMaintenance,
   processNextChallengeFinish,
   processNextDelivery,
@@ -116,6 +117,26 @@ describe('privacy maintenance', () => {
           calls.push('relay-rule');
           return { rows: [] };
         }
+        if (sql.includes('FROM club_challenges challenge')) {
+          calls.push('club-challenges');
+          return { rows: [] };
+        }
+        if (sql.includes("kind = 'global_board'")) {
+          calls.push('global-board-rule');
+          return { rows: [] };
+        }
+        if (sql.includes('FROM competitions')) {
+          calls.push('competitions');
+          return { rows: [] };
+        }
+        if (sql.includes('UPDATE sanctions SET')) {
+          calls.push('sanctions');
+          return { rows: [] };
+        }
+        if (sql.includes('FROM email_campaigns')) {
+          calls.push('campaigns');
+          return { rows: [] };
+        }
         calls.push('expire');
         return { rows: [] };
       })
@@ -123,7 +144,10 @@ describe('privacy maintenance', () => {
     await expect(processMaintenance(database as never)).resolves.toBe(1);
     // Account erasure must settle before a closed challenge window is queued,
     // so an erased participant is never scored. Relay totals are a recompute
-    // and run last, so they already reflect this sweep's departures.
+    // and run last, so they already reflect this sweep's departures; club
+    // challenges are finished after all of it for the same reason, and the
+    // global board — a full recompute over the widest set of accounts — is
+    // last of all.
     expect(calls).toEqual([
       'purge:start',
       'purge:end',
@@ -131,7 +155,12 @@ describe('privacy maintenance', () => {
       'expire',
       'lapsed-invites',
       'due-challenges',
-      'relay-rule'
+      'relay-rule',
+      'club-challenges',
+      'global-board-rule',
+      'competitions',
+      'sanctions',
+      'campaigns'
     ]);
   });
 });
@@ -258,5 +287,31 @@ describe('worker startup', () => {
       status: 'ready',
       queuedJobs: 0
     });
+  });
+});
+
+describe('expiring sanctions', () => {
+  it('closes out only sanctions the clock has ended, and records why', async () => {
+    const query = vi.fn(async (_sql: string) => ({
+      rows: [{ id: 'sanction-1' }, { id: 'sanction-2' }]
+    }));
+
+    await expect(expireSanctions({ query } as unknown as Database)).resolves.toBe(2);
+    const sql = query.mock.calls[0]![0];
+    expect(sql).toContain("revoked_reason = 'expired'");
+    // A live sanction, an indefinite one, and one already revoked are all left
+    // alone; a warning has no expiry, so it is never touched here.
+    expect(sql).toContain('revoked_at IS NULL');
+    expect(sql).toContain('expires_at IS NOT NULL');
+    expect(sql).toContain('expires_at <= now()');
+  });
+
+  it('ends a sanction at its stated time rather than at sweep time', async () => {
+    const query = vi.fn(async (_sql: string) => ({ rows: [] }));
+    await expireSanctions({ query } as unknown as Database);
+
+    // The account was free from the moment the sanction expired, not from
+    // whenever the worker happened to notice.
+    expect(query.mock.calls[0]![0]).toContain('revoked_at = expires_at');
   });
 });

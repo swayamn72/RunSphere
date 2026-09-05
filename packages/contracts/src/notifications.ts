@@ -61,7 +61,15 @@ export const NotificationPreferencesSchema = Type.Object(
     categories: Type.Record(NotificationCategorySchema, Type.Boolean()),
     quietHours: Type.Optional(QuietHoursSchema),
     maxPerDay: Type.Integer({ minimum: 1, maximum: 200 }),
-    channels: Type.Object({ push: Type.Boolean(), email: Type.Boolean() }, Strict)
+    channels: Type.Object({ push: Type.Boolean(), email: Type.Boolean() }, Strict),
+    /**
+     * Consent to campaign email, off by default and separate from the
+     * `marketing` category and the `email` channel. A campaign requires all
+     * three (milestone 3.9), so no single forgotten switch can put mail in
+     * somebody's inbox — and turning this off is an unsubscribe wherever it is
+     * done.
+     */
+    marketingConsent: Type.Boolean()
   },
   { $id: 'NotificationPreferences' }
 );
@@ -79,7 +87,8 @@ export const NotificationPreferencesUpdateRequestSchema = Type.Object(
     categories: Type.Optional(Type.Record(NotificationCategorySchema, Type.Boolean())),
     quietHours: Type.Optional(Type.Union([QuietHoursSchema, Type.Null()])),
     maxPerDay: Type.Optional(Type.Integer({ minimum: 1, maximum: 200 })),
-    channels: Type.Optional(Type.Object({ push: Type.Boolean(), email: Type.Boolean() }, Strict))
+    channels: Type.Optional(Type.Object({ push: Type.Boolean(), email: Type.Boolean() }, Strict)),
+    marketingConsent: Type.Optional(Type.Boolean())
   },
   { ...Strict, $id: 'NotificationPreferencesUpdateRequest' }
 );

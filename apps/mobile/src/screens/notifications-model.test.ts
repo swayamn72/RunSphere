@@ -19,8 +19,10 @@ import {
   setPushEnabled,
   setQuietHoursEdge,
   setQuietHoursEnabled,
+  setMarketingConsent,
   toggleCategory,
-  unreadIds
+  unreadIds,
+  MARKETING_CONSENT_HINT
 } from './notifications-model';
 
 const NOW = new Date('2026-09-04T12:00:00.000Z');
@@ -47,6 +49,7 @@ const preferences = (
   },
   maxPerDay: 50,
   channels: { push: true, email: false },
+  marketingConsent: false,
   ...overrides
 });
 
@@ -224,5 +227,58 @@ describe('state and status', () => {
     expect(notificationsStatusMessage('ready', '', 3)).toBe('3 unread notifications.');
     expect(notificationsStatusMessage('ready', '', 0)).toBe('');
     expect(notificationsStatusMessage('offline', '', 0)).toContain('offline');
+  });
+});
+
+describe('campaign email consent', () => {
+  it('sets every switch the server requires, so yes means yes', () => {
+    const consented = setMarketingConsent(preferences(), true);
+
+    expect(consented.marketingConsent).toBe(true);
+    expect(consented.categories.marketing).toBe(true);
+    expect(consented.channels.email).toBe(true);
+  });
+
+  it('clears every switch when it is turned off, which is an unsubscribe', () => {
+    const withdrawn = setMarketingConsent(
+      preferences({
+        marketingConsent: true,
+        categories: { ...preferences().categories, marketing: true },
+        channels: { push: true, email: true }
+      }),
+      false
+    );
+
+    expect(withdrawn.marketingConsent).toBe(false);
+    expect(withdrawn.categories.marketing).toBe(false);
+    expect(withdrawn.channels.email).toBe(false);
+    // Push is somebody else's decision and is left where it was.
+    expect(withdrawn.channels.push).toBe(true);
+  });
+
+  it('sends the consent change on its own when only it changed', () => {
+    const saved = preferences();
+    const edited = setMarketingConsent(saved, true);
+
+    expect(preferencesDiff(saved, edited)).toEqual({
+      marketingConsent: true,
+      categories: edited.categories,
+      channels: edited.channels
+    });
+  });
+
+  it('says what consent covers, and that account messages are unaffected', () => {
+    expect(MARKETING_CONSENT_HINT).toContain('Off unless you turn it on');
+    expect(MARKETING_CONSENT_HINT).toContain('any email we send');
+    expect(MARKETING_CONSENT_HINT).toContain('your own account are not affected');
+  });
+
+  it('keeps consent when quiet hours are switched off', () => {
+    const consented = setMarketingConsent(
+      preferences({ quietHours: { start: '22:00', end: '07:00', timezone: 'Asia/Kolkata' } }),
+      true
+    );
+
+    expect(setQuietHoursEnabled(consented, false).marketingConsent).toBe(true);
   });
 });

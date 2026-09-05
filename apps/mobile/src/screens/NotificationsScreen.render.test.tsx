@@ -49,6 +49,7 @@ const preferences = (
   },
   maxPerDay: 50,
   channels: { push: true, email: false },
+  marketingConsent: false,
   ...overrides
 });
 

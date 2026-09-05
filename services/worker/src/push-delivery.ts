@@ -202,6 +202,7 @@ interface PreferencesRow {
   quiet_hours: unknown;
   max_per_day: number;
   channels: unknown;
+  marketing_consent?: boolean;
 }
 
 const preferencesFromRow = (row: PreferencesRow | undefined): NotificationPreferences => {
@@ -209,7 +210,11 @@ const preferencesFromRow = (row: PreferencesRow | undefined): NotificationPrefer
   const preferences: NotificationPreferences = {
     categories: row.categories as NotificationPreferences['categories'],
     maxPerDay: row.max_per_day,
-    channels: row.channels as NotificationPreferences['channels']
+    channels: row.channels as NotificationPreferences['channels'],
+    // Push delivery never consults campaign consent — it is here only because
+    // the two share one preferences shape — so an unselected column reads as
+    // "not given", which is also its default.
+    marketingConsent: row.marketing_consent ?? false
   };
   if (row.quiet_hours)
     preferences.quietHours = row.quiet_hours as NonNullable<NotificationPreferences['quietHours']>;

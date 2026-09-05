@@ -44,6 +44,9 @@ importers:
       '@runsphere/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@runsphere/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@runsphere/domain':
         specifier: workspace:*
         version: link:../../packages/domain

@@ -84,6 +84,7 @@ const stubApi = (
     blocks?: BlockedAccount[];
     send?: () => Promise<{ status: 'recorded' }>;
     respond?: () => Promise<void>;
+    report?: () => Promise<{ received: boolean; message: string }>;
   } = {}
 ) =>
   ({
@@ -93,7 +94,11 @@ const stubApi = (
     sendFriendRequest: vi.fn(overrides.send ?? (async () => ({ status: 'recorded' as const }))),
     respondFriendRequest: vi.fn(overrides.respond ?? (async () => undefined)),
     blockAccount: vi.fn(async () => ({ accountId: RAVI, status: 'blocked' as const })),
-    unblockAccount: vi.fn(async () => ({ accountId: RAVI, status: 'unblocked' as const }))
+    unblockAccount: vi.fn(async () => ({ accountId: RAVI, status: 'unblocked' as const })),
+    fileReport: vi.fn(
+      overrides.report ??
+        (async () => ({ received: true, message: 'Thanks — this is with our moderators.' }))
+    )
   }) as unknown as MobileApiClient & Record<string, ReturnType<typeof vi.fn>>;
 
 const render = async (api: MobileApiClient): Promise<ReactTestRenderer> => {
@@ -254,5 +259,82 @@ describe('Friends screen', () => {
     // appears is the field the account typed into.
     expect(text(renderer)).not.toContain('@example.com');
     expect(text(renderer)).not.toContain(ME);
+  });
+});
+
+describe('reporting', () => {
+  beforeEach(() => setGuidanceStore(createMemoryGuidanceStore()));
+
+  it('offers reporting alongside blocking, since they answer different needs', async () => {
+    const renderer = await render(stubApi({ friends: [profile(RAVI, 'Ravi')] }));
+
+    expect(byLabel(renderer, (label) => label === 'Report Ravi')).toHaveLength(1);
+    expect(byLabel(renderer, (label) => label === 'Block Ravi')).toHaveLength(1);
+  });
+
+  it('offers reporting for an account already blocked, which is the gap this closed', async () => {
+    const renderer = await render(stubApi({ blocks: [blocked(profile(ANA, 'Ana'))] }));
+
+    expect(byLabel(renderer, (label) => label === 'Report Ana')).toHaveLength(1);
+  });
+
+  it('asks for a published reason before it sends anything', async () => {
+    const api = stubApi({ friends: [profile(RAVI, 'Ravi')] });
+    const renderer = await render(api);
+    const report = byLabel(renderer, (label) => label === 'Report Ravi')[0]!;
+    await act(async () => (report.props as { onPress: () => void }).onPress());
+
+    expect(api.fileReport).not.toHaveBeenCalled();
+    const rendered = text(renderer);
+    expect(rendered).toContain('Harassment or bullying');
+    expect(rendered).toContain('Pretending to be someone else');
+    // The screen says plainly that no outcome comes back.
+    expect(rendered).toContain('You will not hear the outcome');
+  });
+
+  it('files the chosen reason and promises no follow-up', async () => {
+    const api = stubApi({ friends: [profile(RAVI, 'Ravi')] });
+    const renderer = await render(api);
+    await act(async () =>
+      (
+        byLabel(renderer, (label) => label === 'Report Ravi')[0]!.props as { onPress: () => void }
+      ).onPress()
+    );
+    await act(async () =>
+      (
+        byLabel(renderer, (label) => label === 'Report for Harassment or bullying')[0]!.props as {
+          onPress: () => void;
+        }
+      ).onPress()
+    );
+
+    expect(api.fileReport).toHaveBeenCalledWith('account', RAVI, 'harassment');
+    expect(text(renderer)).toContain('Report sent');
+    // The reason list closes once the report is filed.
+    expect(byLabel(renderer, (label) => label.startsWith('Report for'))).toHaveLength(0);
+  });
+
+  it('says nothing was sent when the report fails', async () => {
+    const api = stubApi({
+      friends: [profile(RAVI, 'Ravi')],
+      report: async () => {
+        throw new ApiFailure(400, 'That report cannot be filed');
+      }
+    });
+    const renderer = await render(api);
+    await act(async () =>
+      (
+        byLabel(renderer, (label) => label === 'Report Ravi')[0]!.props as { onPress: () => void }
+      ).onPress()
+    );
+    await act(async () =>
+      (
+        byLabel(renderer, (label) => label === 'Report for Something else')[0]!.props as {
+          onPress: () => void;
+        }
+      ).onPress()
+    );
+
+    expect(text(renderer)).toContain('Nothing was sent');
   });
 });

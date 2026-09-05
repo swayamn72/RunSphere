@@ -1,4 +1,5 @@
 import type { ClubRole } from '@runsphere/contracts';
+import type { ChallengeMode, ChallengeRule } from './challenge.js';
 import { cappedWeeklyActiveMinutes, type ScoredActivity } from './gamification.js';
 
 export type { ClubRole };
@@ -170,3 +171,37 @@ export const relayProgressPercent = (totalUnits: number, targetUnits: number): n
 
 export const relayGoalMet = (totalUnits: number, targetUnits: number): boolean =>
   targetUnits > 0 && totalUnits >= targetUnits;
+
+/**
+ * Opening, cancelling, or otherwise managing a club challenge is a club-wide
+ * act — it defines the contest every member is invited into — so it sits with
+ * the owner and admins, exactly as the relay target does.
+ *
+ * Joining one is deliberately *not* gated here: publishing your own score is a
+ * personal act that every member may take for themselves.
+ */
+export const canManageClubChallenge = (role: ClubRole): boolean =>
+  role === 'owner' || role === 'admin';
+
+/**
+ * A club challenge is scored under the same published-rule shape as the 1v1
+ * challenge (`parseChallengeRule`), so `challengeModeScore` reads both and the
+ * two can never drift into scoring the same minutes differently.
+ *
+ * `kind = 'club_challenge'` is a separate published rule from `'challenge'`
+ * only so a club contest's length and modes can be tuned without touching an
+ * agreement two friends already made.
+ */
+export const clubChallengeModeEnabled = (rule: ChallengeRule, mode: ChallengeMode): boolean =>
+  rule.modes.includes(mode);
+
+export const clubChallengeLengthEnabled = (rule: ChallengeRule, lengthDays: number): boolean =>
+  rule.lengthDays.includes(lengthDays);
+
+/**
+ * Whether a challenge is still open to joining, leaving, and live standings.
+ * A finished or cancelled contest is history: its participant list and its
+ * scores are what they were when the window closed.
+ */
+export const clubChallengeOpen = (status: 'active' | 'finished' | 'cancelled'): boolean =>
+  status === 'active';

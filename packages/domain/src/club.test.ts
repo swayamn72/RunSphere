@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   CLUB_ROLES,
+  canManageClubChallenge,
   canManageRelay,
+  clubChallengeLengthEnabled,
+  clubChallengeModeEnabled,
+  clubChallengeOpen,
   parseClubRelayRule,
   relayGoalMet,
   relayMemberUnits,
@@ -19,6 +23,7 @@ import {
   outranks,
   visibleToMember
 } from './club.js';
+import { parseChallengeRule } from './challenge.js';
 
 describe('the role ladder', () => {
   it('ranks owner over admin over member', () => {
@@ -232,5 +237,40 @@ describe('relay progress', () => {
     expect(relayGoalMet(599, 600)).toBe(false);
     expect(relayGoalMet(600, 600)).toBe(true);
     expect(relayGoalMet(601, 600)).toBe(true);
+  });
+});
+
+describe('club challenge rules', () => {
+  const rule = parseChallengeRule({
+    dailyCapMinutes: 240,
+    minMinutesPerActiveDay: 1,
+    lengthDays: [7, 14],
+    modes: ['active_minutes', 'active_days']
+  });
+
+  it('lets an owner or admin open a contest, and nobody else', () => {
+    expect(canManageClubChallenge('owner')).toBe(true);
+    expect(canManageClubChallenge('admin')).toBe(true);
+    expect(canManageClubChallenge('member')).toBe(false);
+  });
+
+  it('reads the same published shape as the 1v1 challenge rule', () => {
+    expect(clubChallengeModeEnabled(rule, 'active_minutes')).toBe(true);
+    expect(clubChallengeModeEnabled(rule, 'active_days')).toBe(true);
+    // Nothing records a quest completion, so no rule enables scoring one.
+    expect(clubChallengeModeEnabled(rule, 'quest_completion')).toBe(false);
+  });
+
+  it('allows only the published lengths', () => {
+    expect(clubChallengeLengthEnabled(rule, 7)).toBe(true);
+    expect(clubChallengeLengthEnabled(rule, 14)).toBe(true);
+    expect(clubChallengeLengthEnabled(rule, 3)).toBe(false);
+    expect(clubChallengeLengthEnabled(rule, 30)).toBe(false);
+  });
+
+  it('treats a closed contest as history rather than something to join', () => {
+    expect(clubChallengeOpen('active')).toBe(true);
+    expect(clubChallengeOpen('finished')).toBe(false);
+    expect(clubChallengeOpen('cancelled')).toBe(false);
   });
 });

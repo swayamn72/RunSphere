@@ -44,6 +44,7 @@ import {
 } from '@runsphere/domain';
 import { verifyAccessToken } from './auth.js';
 import { currentWeek, loadActiveProgressionRule } from './progression-core.js';
+import { notSharingSuspended, requireSharingAllowed } from './sanction-guard.js';
 
 /**
  * Foundation-gate gameplay substrate: profiles, mutual friends/blocks, and the
@@ -221,6 +222,7 @@ export const registerGamificationRoutes = ({
         response: {
           202: FriendRequestCreateResponseSchema,
           401: ErrorResponseSchema,
+          403: ErrorResponseSchema,
           429: ErrorResponseSchema,
           503: ErrorResponseSchema
         }
@@ -232,6 +234,11 @@ export const registerGamificationRoutes = ({
       if (!accountId) return;
       if (!allowFriendRequest(accountId))
         return reply.code(429).send({ message: 'Too many requests' });
+      // Checked before the address is looked at, so the refusal is about the
+      // sender's own account and discloses nothing about the recipient. A
+      // paused account can still *receive* requests and accept them: what is
+      // paused is putting yourself in front of other people.
+      if (!(await requireSharingAllowed(database, reply, accountId))) return;
       const email = request.body.email.trim().toLowerCase();
 
       const target = await database.query<{ id: string; skip: boolean }>(
@@ -642,8 +649,9 @@ export const registerGamificationRoutes = ({
         quiet_hours: unknown;
         max_per_day: number;
         channels: unknown;
+        marketing_consent: boolean;
       }>(
-        `SELECT categories, quiet_hours, max_per_day, channels
+        `SELECT categories, quiet_hours, max_per_day, channels, marketing_consent
          FROM notification_preferences WHERE account_id = $1`,
         [accountId]
       );
@@ -655,7 +663,8 @@ export const registerGamificationRoutes = ({
           ? { quietHours: row.quiet_hours as NotificationPreferences['quietHours'] }
           : {}),
         maxPerDay: row.max_per_day,
-        channels: row.channels as NotificationPreferences['channels']
+        channels: row.channels as NotificationPreferences['channels'],
+        marketingConsent: row.marketing_consent
       };
     }
   );
@@ -683,8 +692,9 @@ export const registerGamificationRoutes = ({
         quiet_hours: unknown;
         max_per_day: number;
         channels: unknown;
+        marketing_consent: boolean;
       }>(
-        `SELECT categories, quiet_hours, max_per_day, channels
+        `SELECT categories, quiet_hours, max_per_day, channels, marketing_consent
          FROM notification_preferences WHERE account_id = $1`,
         [accountId]
       );
@@ -704,7 +714,11 @@ export const registerGamificationRoutes = ({
         channels:
           request.body.channels ??
           (previous?.channels as NotificationPreferences['channels']) ??
-          defaultNotificationPreferences().channels
+          defaultNotificationPreferences().channels,
+        marketingConsent:
+          request.body.marketingConsent ??
+          previous?.marketing_consent ??
+          defaultNotificationPreferences().marketingConsent
       };
       if (quietHours) merged.quietHours = quietHours;
       const saved = await database.query<{
@@ -712,22 +726,34 @@ export const registerGamificationRoutes = ({
         quiet_hours: unknown;
         max_per_day: number;
         channels: unknown;
+        marketing_consent: boolean;
       }>(
-        `INSERT INTO notification_preferences (account_id, categories, quiet_hours, max_per_day, channels)
-         VALUES ($1, $2::jsonb, $3::jsonb, $4, $5::jsonb)
+        `INSERT INTO notification_preferences (account_id, categories, quiet_hours, max_per_day, channels, marketing_consent)
+         VALUES ($1, $2::jsonb, $3::jsonb, $4, $5::jsonb, $6)
          ON CONFLICT (account_id) DO UPDATE SET
            categories = EXCLUDED.categories, quiet_hours = EXCLUDED.quiet_hours,
-           max_per_day = EXCLUDED.max_per_day, channels = EXCLUDED.channels, updated_at = now()
-         RETURNING categories, quiet_hours, max_per_day, channels`,
+           max_per_day = EXCLUDED.max_per_day, channels = EXCLUDED.channels,
+           marketing_consent = EXCLUDED.marketing_consent, updated_at = now()
+         RETURNING categories, quiet_hours, max_per_day, channels, marketing_consent`,
         [
           accountId,
           JSON.stringify(merged.categories),
           merged.quietHours ? JSON.stringify(merged.quietHours) : null,
           merged.maxPerDay,
-          JSON.stringify(merged.channels)
+          JSON.stringify(merged.channels),
+          merged.marketingConsent
         ]
       );
       await audit(database, accountId, 'notification_preferences.updated', 'account', accountId);
+      // Campaign consent is consent, so a change to it is recorded where every
+      // other consent decision is recorded — not only as a column that was
+      // overwritten (milestone 3.9).
+      if (previous === undefined || previous.marketing_consent !== merged.marketingConsent)
+        await database.query(
+          `INSERT INTO consent_history (account_id, consent_type, granted, policy_version)
+           VALUES ($1, 'marketing_email', $2, 'preferences')`,
+          [accountId, merged.marketingConsent]
+        );
       const row = saved.rows[0]!;
       return {
         categories: row.categories as NotificationPreferences['categories'],
@@ -735,7 +761,8 @@ export const registerGamificationRoutes = ({
           ? { quietHours: row.quiet_hours as NotificationPreferences['quietHours'] }
           : {}),
         maxPerDay: row.max_per_day,
-        channels: row.channels as NotificationPreferences['channels']
+        channels: row.channels as NotificationPreferences['channels'],
+        marketingConsent: row.marketing_consent
       };
     }
   );
@@ -910,6 +937,7 @@ export const registerGamificationRoutes = ({
          JOIN accounts account ON account.id = mutual.account_id AND account.deleted_at IS NULL
          JOIN leaderboard_opt_ins optin ON optin.account_id = mutual.account_id
            AND optin.scope = 'friends' AND optin.revoked_at IS NULL
+           AND ${notSharingSuspended('mutual.account_id')}
          LEFT JOIN profiles profile ON profile.account_id = mutual.account_id
          LIMIT 200`,
         [accountId]
@@ -1011,6 +1039,10 @@ export const registerGamificationRoutes = ({
       if (!database) return reply.code(503).send({ message: 'Service unavailable' });
       const accountId = requireAccount(request, reply, authSecret);
       if (!accountId) return;
+      // Joining publishes this account to mutual friends, so a paused account
+      // cannot; leaving is never guarded.
+      if (request.body.participating && !(await requireSharingAllowed(database, reply, accountId)))
+        return;
       if (request.body.participating) {
         await database.query(
           `INSERT INTO leaderboard_opt_ins (account_id, scope) VALUES ($1, 'friends')

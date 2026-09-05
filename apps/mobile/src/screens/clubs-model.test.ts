@@ -1,11 +1,33 @@
 import { describe, expect, it } from 'vitest';
-import type { Club, ClubMember, ClubRelaySummary, ClubRole } from '@runsphere/contracts';
+import type {
+  Club,
+  ClubBoardEntry,
+  ClubChallengeSummary,
+  ClubMember,
+  ClubRelaySummary,
+  ClubRole
+} from '@runsphere/contracts';
 import { ApiFailure } from '../api-client';
 import { AuthFailure } from '../auth-failure';
 import {
   ARCHIVE_CONSEQUENCE,
+  CLUB_BOARD_EXPLANATION,
+  CLUB_BOARD_JOIN_CONSEQUENCE,
+  CLUB_BOARD_OFF_EXPLANATION,
+  CLUB_CHALLENGE_CANCEL_CONSEQUENCE,
+  CLUB_CHALLENGE_EXPLANATION,
+  CLUB_CHALLENGE_JOIN_CONSEQUENCE,
   RELAY_EXPLANATION,
+  canOpenClubChallenge,
   canSetRelayTarget,
+  clubBoardEmptyMessage,
+  clubBoardFailureNotice,
+  clubBoardRows,
+  clubChallengeEmptyMessage,
+  clubChallengeFailureNotice,
+  clubChallengeRows,
+  clubChallengeStandingRows,
+  currentClubChallenge,
   clubActions,
   clubListState,
   clubMemberRows,
@@ -308,5 +330,176 @@ describe('relay target validation', () => {
     expect(relayFailureNotice(new ApiFailure(403, 'no'))).toContain('owner or admin');
     expect(relayFailureNotice(new AuthFailure('network'))).toContain('Nothing changed');
     expect(relayFailureNotice(new Error('boom'))).toContain('Nothing changed');
+  });
+});
+
+describe('club board rows', () => {
+  const entry = (
+    accountId: string,
+    displayName: string,
+    rank: number,
+    minutes: number
+  ): ClubBoardEntry => ({
+    profile: {
+      id: accountId,
+      displayName,
+      cosmetic: { avatarKey: 'loop-1' },
+      activityVisibility: 'private'
+    },
+    rank,
+    cappedActiveMinutes: minutes,
+    isSelf: accountId === ME
+  });
+
+  it('keeps the server order and rank rather than renumbering entries', () => {
+    const rows = clubBoardRows([
+      entry(RAVI, 'Ravi', 1, 200),
+      entry(ME, 'Maya', 1, 200),
+      entry('00000000-0000-4000-8000-00000000000c', 'Ana', 3, 1)
+    ]);
+
+    expect(rows.map((row) => row.rankLabel)).toEqual(['#1', '#1', '#3']);
+    expect(rows.map((row) => row.minutesLabel)).toEqual(['200 minutes', '200 minutes', '1 minute']);
+    expect(rows[1]?.isSelf).toBe(true);
+    expect(rows[0]?.accessibilityLabel).toBe('Rank 1. Ravi. 200 minutes.');
+    expect(rows[1]?.accessibilityLabel).toBe('Rank 1. Maya, you. 200 minutes.');
+  });
+
+  it('names an entry that has no display name rather than showing an id', () => {
+    const rows = clubBoardRows([entry(RAVI, '', 1, 0)]);
+
+    expect(rows[0]?.nameLabel).toBe('RunSphere member');
+    expect(rows[0]?.accessibilityLabel).not.toContain(RAVI);
+  });
+
+  it('separates "no scoring published" from "nobody has joined"', () => {
+    expect(clubBoardEmptyMessage(undefined)).toContain('unavailable until scoring is published');
+    expect(clubBoardEmptyMessage('4')).toContain('Nobody else in this club has joined');
+  });
+
+  it('says what joining publishes and what the board is scored on', () => {
+    expect(CLUB_BOARD_JOIN_CONSEQUENCE).toContain('every club you are in');
+    expect(CLUB_BOARD_JOIN_CONSEQUENCE).toContain('leave at any time');
+    expect(CLUB_BOARD_EXPLANATION).toContain('Pace, distance, and where you moved play no part');
+    expect(CLUB_BOARD_OFF_EXPLANATION).toContain('reading their scores means publishing yours');
+  });
+
+  it('reports a failed change without claiming anything happened', () => {
+    expect(clubBoardFailureNotice(new ApiFailure(404, 'Club not found'))).toContain(
+      'Reload to refresh'
+    );
+    expect(clubBoardFailureNotice(new AuthFailure('network'))).toContain('Nothing changed');
+    expect(clubBoardFailureNotice(new Error('boom'))).toContain('Nothing changed');
+  });
+});
+
+describe('club challenge rows', () => {
+  const summary = (overrides: Partial<ClubChallengeSummary> = {}): ClubChallengeSummary => ({
+    id: 'challenge-1',
+    clubId: '00000000-0000-4000-8000-0000000000c1',
+    mode: 'active_minutes',
+    lengthDays: 7,
+    status: 'active',
+    periodStart: '2026-08-31',
+    periodEnd: '2026-09-07',
+    participantCount: 3,
+    joined: false,
+    ruleVersion: 1,
+    createdAt: '2026-08-31T04:00:00.000Z',
+    ...overrides
+  });
+
+  it('describes the contest by mode, window, status, and how many are in it', () => {
+    const [row] = clubChallengeRows([summary({ joined: true })]);
+
+    expect(row?.modeLabel).toBe('Counted minutes');
+    expect(row?.windowLabel).toBe('7 days from 2026-08-31');
+    expect(row?.statusLabel).toBe('Running');
+    expect(row?.participantLabel).toBe('3 members in it');
+    expect(row?.accessibilityLabel).toContain('You are in it');
+  });
+
+  it('treats a closed contest as history rather than something to join', () => {
+    expect(clubChallengeRows([summary({ status: 'finished' })])[0]?.open).toBe(false);
+    expect(clubChallengeRows([summary({ status: 'cancelled' })])[0]?.open).toBe(false);
+    expect(clubChallengeRows([summary()])[0]?.open).toBe(true);
+  });
+
+  it('leads with the running contest, and otherwise the last one that closed', () => {
+    const finished = summary({ id: 'old', status: 'finished' });
+    const running = summary({ id: 'live' });
+
+    expect(currentClubChallenge([finished, running])?.id).toBe('live');
+    expect(currentClubChallenge([finished])?.id).toBe('old');
+    expect(currentClubChallenge([summary({ status: 'cancelled' })])).toBeUndefined();
+    expect(currentClubChallenge([])).toBeUndefined();
+  });
+
+  it('labels a score in the unit the contest is scored in', () => {
+    const entry = (score: number) => ({
+      profile: {
+        id: ME,
+        displayName: 'Maya',
+        cosmetic: { avatarKey: 'loop-1' },
+        activityVisibility: 'private' as const
+      },
+      rank: 1,
+      score,
+      isSelf: true
+    });
+
+    expect(clubChallengeStandingRows([entry(120)], 'active_minutes')[0]?.scoreLabel).toBe(
+      '120 minutes'
+    );
+    expect(clubChallengeStandingRows([entry(1)], 'active_days')[0]?.scoreLabel).toBe(
+      '1 active day'
+    );
+    expect(clubChallengeStandingRows([entry(5)], 'active_days')[0]?.scoreLabel).toBe(
+      '5 active days'
+    );
+    expect(clubChallengeStandingRows([entry(5)], 'active_days')[0]?.accessibilityLabel).toBe(
+      'Rank 1. Maya, you. 5 active days.'
+    );
+  });
+
+  it('gates opening a contest on the same predicate the route enforces', () => {
+    expect(canOpenClubChallenge('owner')).toBe(true);
+    expect(canOpenClubChallenge('admin')).toBe(true);
+    expect(canOpenClubChallenge('member')).toBe(false);
+  });
+
+  it('tells a member who can open one when nothing is running', () => {
+    expect(clubChallengeEmptyMessage(true)).toContain('Open one below');
+    expect(clubChallengeEmptyMessage(false)).toContain('An owner or admin can open one');
+  });
+
+  it('says joining is retroactive within the window, and that leaving works', () => {
+    expect(CLUB_CHALLENGE_JOIN_CONSEQUENCE).toContain('already passed');
+    expect(CLUB_CHALLENGE_JOIN_CONSEQUENCE).toContain('leave at any time');
+    expect(CLUB_CHALLENGE_EXPLANATION).toContain(
+      'pace, distance, and where you moved play no part'
+    );
+    expect(CLUB_CHALLENGE_CANCEL_CONSEQUENCE).toContain('no result is kept');
+  });
+
+  it('passes the server own words through for a 422 or a 403', () => {
+    expect(
+      clubChallengeFailureNotice(new ApiFailure(422, 'No club challenge rule is published'))
+    ).toBe('No club challenge rule is published');
+    // A 403 is either the role limit or a moderation decision, and the server
+    // says which in words worth showing.
+    expect(
+      clubChallengeFailureNotice(
+        new ApiFailure(403, 'Only a club owner or admin can open a challenge')
+      )
+    ).toContain('owner or admin');
+    expect(
+      clubChallengeFailureNotice(
+        new ApiFailure(403, 'Sharing is paused while we look at your name.')
+      )
+    ).toBe('Sharing is paused while we look at your name.');
+    expect(clubChallengeFailureNotice(new ApiFailure(409, 'no'))).toContain('no longer running');
+    expect(clubChallengeFailureNotice(new AuthFailure('network'))).toContain('Nothing changed');
+    expect(clubChallengeFailureNotice(new Error('boom'))).toContain('Nothing changed');
   });
 });

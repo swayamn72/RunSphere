@@ -28,6 +28,7 @@ import {
   type ChallengeRule
 } from '@runsphere/domain';
 import { verifyAccessToken } from './auth.js';
+import { requireSharingAllowed } from './sanction-guard.js';
 
 /**
  * Asynchronous 1v1 friend challenges (ADR-0005, ADR-0007). A challenge needs a
@@ -154,6 +155,7 @@ export const registerChallengeRoutes = ({
         response: {
           201: ChallengeSummarySchema,
           401: ErrorResponseSchema,
+          403: ErrorResponseSchema,
           404: ErrorResponseSchema,
           409: ErrorResponseSchema,
           422: ErrorResponseSchema,
@@ -165,6 +167,11 @@ export const registerChallengeRoutes = ({
       if (!database) return reply.code(503).send({ message: 'Service unavailable' });
       const accountId = requireAccount(request, reply, authSecret);
       if (!accountId) return;
+
+      // Inviting somebody into a contest is putting yourself in front of
+      // them, so a paused account cannot open one. Answering an invite it
+      // already has is untouched.
+      if (!(await requireSharingAllowed(database, reply, accountId))) return;
 
       const active = await loadActiveChallengeRule(database);
       if (!active) return reply.code(503).send({ message: 'Challenge rule unavailable' });

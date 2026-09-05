@@ -64,6 +64,10 @@ export const INVITE_RECORDED_NOTICE =
 export const inviteFailureNotice = (error: unknown): string => {
   if (error instanceof ApiFailure && error.status === 429)
     return 'Too many friend requests just now. Try again in a minute.';
+  // A moderation decision arrives as a `403` carrying the statement staff
+  // wrote. Showing it beats a generic failure: the member learns why, in the
+  // words of the decision, rather than being left to guess.
+  if (error instanceof ApiFailure && error.status === 403) return error.message;
   if (error instanceof AuthFailure) {
     if (error.kind === 'network' || error.kind === 'tls')
       return 'Friend requests need a connection. Nothing was sent.';

@@ -1,10 +1,21 @@
-import type { Club, ClubMember, ClubRelaySummary, ClubRole } from '@runsphere/contracts';
+import type {
+  Club,
+  ClubBoardEntry,
+  ClubChallengeMode,
+  ClubChallengeStanding,
+  ClubChallengeSummary,
+  ClubMember,
+  ClubRelaySummary,
+  ClubRole
+} from '@runsphere/contracts';
 import {
   canArchive,
   canChangeRole,
   canLeave,
+  canManageClubChallenge,
   canManageRelay,
-  canRemoveMember
+  canRemoveMember,
+  clubChallengeOpen
 } from '@runsphere/domain';
 import { AuthFailure } from '../auth-failure';
 import { ApiFailure } from '../api-client';
@@ -284,3 +295,214 @@ export const relayFailureNotice = (error: unknown): string => {
  */
 export const RELAY_EXPLANATION =
   'A relay adds up the counted active minutes of everyone in the club toward one weekly target. Each member counts up to a published weekly ceiling, so it takes several people rather than one. Nobody sees another member’s minutes — only the club total.';
+
+/**
+ * A club-board entry as the tab presents it (milestone 3.3). An entry carries
+ * a display name, one published pace-neutral score, and a rank — the same
+ * projection the friend board shows, because a board entry means the same
+ * thing wherever it is read.
+ */
+export interface ClubBoardRow {
+  readonly accountId: string;
+  readonly rankLabel: string;
+  readonly nameLabel: string;
+  readonly minutesLabel: string;
+  readonly isSelf: boolean;
+  readonly accessibilityLabel: string;
+}
+
+export const clubBoardRows = (entries: readonly ClubBoardEntry[]): readonly ClubBoardRow[] =>
+  entries.map((entry) => {
+    const nameLabel = entry.profile.displayName || 'RunSphere member';
+    const minutesLabel = minuteLabel(entry.cappedActiveMinutes);
+    return {
+      accountId: entry.profile.id,
+      rankLabel: `#${entry.rank}`,
+      nameLabel,
+      minutesLabel,
+      isSelf: entry.isSelf,
+      accessibilityLabel: `Rank ${entry.rank}. ${nameLabel}${
+        entry.isSelf ? ', you' : ''
+      }. ${minutesLabel}.`
+    };
+  });
+
+/**
+ * What the board is, said where it is shown. Two things have to be explicit:
+ * the score is counted minutes rather than pace or distance, and only members
+ * who joined the board appear on it.
+ */
+export const CLUB_BOARD_EXPLANATION =
+  'The board ranks this week’s counted active minutes of the club members who joined it. Pace, distance, and where you moved play no part, and a member who has not joined does not appear.';
+
+/**
+ * Said before joining. Joining publishes your weekly minutes to every club you
+ * are in — the switch is one decision, not one per club — and it is revocable.
+ */
+export const CLUB_BOARD_JOIN_CONSEQUENCE =
+  'Joining shows your weekly counted minutes to the members of every club you are in, and shows you theirs. It is off until you turn it on, and you can leave at any time.';
+
+/** Why an opted-out member sees no names: reading a board means being on it. */
+export const CLUB_BOARD_OFF_EXPLANATION =
+  'You are not on club boards, so there is nothing to show. Members who joined are ranked by counted active minutes; reading their scores means publishing yours.';
+
+export const clubBoardEmptyMessage = (ruleVersion: string | undefined): string =>
+  ruleVersion === undefined
+    ? 'Club boards are unavailable until scoring is published on this deployment.'
+    : 'Nobody else in this club has joined the board yet.';
+
+export const clubBoardFailureNotice = (error: unknown): string => {
+  // A `403` is a moderation decision carrying the statement staff wrote.
+  if (error instanceof ApiFailure && error.status === 403) return error.message;
+  if (error instanceof ApiFailure && error.status === 404)
+    return 'That club is no longer available to you. Reload to refresh.';
+  if (error instanceof AuthFailure && (error.kind === 'network' || error.kind === 'tls'))
+    return 'That change needs a connection. Nothing changed.';
+  return 'That change could not be saved. Nothing changed.';
+};
+
+/**
+ * Club challenges (milestone 3.4). A contest inside one club: an owner or
+ * admin opens it, each member joins for themselves, and the standings show
+ * only the members who are in it.
+ */
+export const CLUB_CHALLENGE_MODE_LABEL: Readonly<Record<ClubChallengeMode, string>> = {
+  active_minutes: 'Counted minutes',
+  active_days: 'Active days'
+};
+
+export const CLUB_CHALLENGE_LENGTHS: readonly number[] = [7, 14];
+
+export interface ClubChallengeRow {
+  readonly id: string;
+  readonly modeLabel: string;
+  readonly windowLabel: string;
+  readonly statusLabel: string;
+  readonly participantLabel: string;
+  readonly joined: boolean;
+  readonly open: boolean;
+  readonly accessibilityLabel: string;
+}
+
+const participantLabel = (count: number): string =>
+  count === 1 ? '1 member in it' : `${count} members in it`;
+
+const CLUB_CHALLENGE_STATUS_LABEL: Readonly<Record<ClubChallengeSummary['status'], string>> = {
+  active: 'Running',
+  finished: 'Finished',
+  cancelled: 'Cancelled'
+};
+
+export const clubChallengeRows = (
+  challenges: readonly ClubChallengeSummary[]
+): readonly ClubChallengeRow[] =>
+  challenges.map((challenge) => {
+    const modeLabel = CLUB_CHALLENGE_MODE_LABEL[challenge.mode];
+    const windowLabel = `${challenge.lengthDays} days from ${challenge.periodStart}`;
+    const statusLabel = CLUB_CHALLENGE_STATUS_LABEL[challenge.status];
+    return {
+      id: challenge.id,
+      modeLabel,
+      windowLabel,
+      statusLabel,
+      participantLabel: participantLabel(challenge.participantCount),
+      joined: challenge.joined,
+      open: clubChallengeOpen(challenge.status),
+      accessibilityLabel: `${modeLabel}. ${windowLabel}. ${statusLabel}. ${participantLabel(
+        challenge.participantCount
+      )}.${challenge.joined ? ' You are in it.' : ''}`
+    };
+  });
+
+/**
+ * The contest the tab leads with: the one that is running, or failing that the
+ * most recent one that closed. A club runs one at a time, so this is never a
+ * choice between two live contests.
+ */
+export const currentClubChallenge = (
+  challenges: readonly ClubChallengeSummary[]
+): ClubChallengeSummary | undefined =>
+  challenges.find((challenge) => clubChallengeOpen(challenge.status)) ??
+  challenges.find((challenge) => challenge.status === 'finished');
+
+export interface ClubChallengeStandingRow {
+  readonly accountId: string;
+  readonly rankLabel: string;
+  readonly nameLabel: string;
+  readonly scoreLabel: string;
+  readonly isSelf: boolean;
+  readonly accessibilityLabel: string;
+}
+
+const scoreLabel = (mode: ClubChallengeMode, score: number): string =>
+  mode === 'active_minutes'
+    ? minuteLabel(score)
+    : score === 1
+      ? '1 active day'
+      : `${score} active days`;
+
+export const clubChallengeStandingRows = (
+  entries: readonly ClubChallengeStanding[],
+  mode: ClubChallengeMode
+): readonly ClubChallengeStandingRow[] =>
+  entries.map((entry) => {
+    const nameLabel = entry.profile.displayName || 'RunSphere member';
+    const label = scoreLabel(mode, entry.score);
+    return {
+      accountId: entry.profile.id,
+      rankLabel: `#${entry.rank}`,
+      nameLabel,
+      scoreLabel: label,
+      isSelf: entry.isSelf,
+      accessibilityLabel: `Rank ${entry.rank}. ${nameLabel}${
+        entry.isSelf ? ', you' : ''
+      }. ${label}.`
+    };
+  });
+
+/** Opening a contest is a club-wide act; joining one is not. */
+export const canOpenClubChallenge = (role: ClubRole): boolean => canManageClubChallenge(role);
+
+/**
+ * What a club challenge is, said where it is shown: it counts the same
+ * pace-neutral minutes as everything else, and only the members who joined it
+ * appear in it.
+ */
+export const CLUB_CHALLENGE_EXPLANATION =
+  'A club challenge ranks the members who joined it over one fixed window. It counts the same validated active minutes as the rest of RunSphere — pace, distance, and where you moved play no part.';
+
+/**
+ * Said before joining, because joining is retroactive within the window: it is
+ * the one part of this that a member could otherwise be surprised by.
+ */
+export const CLUB_CHALLENGE_JOIN_CONSEQUENCE =
+  'Joining shows your score for this challenge to the other members in it, including the days of the window that have already passed — everyone is scored over the same days. You can leave at any time, and you stop being counted and shown from that moment.';
+
+/** Why a non-participant sees no names: the same rule the club board follows. */
+export const CLUB_CHALLENGE_OFF_EXPLANATION =
+  'You are not in this challenge, so there is nothing to show. Reading the other members’ scores means publishing your own.';
+
+export const clubChallengeEmptyMessage = (canOpen: boolean): string =>
+  canOpen
+    ? 'No challenge is running. Open one below.'
+    : 'No challenge is running. An owner or admin can open one.';
+
+export const clubChallengeFailureNotice = (error: unknown): string => {
+  if (error instanceof ApiFailure) {
+    // A 422 is a product state: the published rule does not allow that
+    // contest, or club challenges are not enabled on this deployment.
+    if (error.status === 422) return error.message;
+    // The server's own words: either the role limit or a moderation
+    // decision, and both are more use than a fixed sentence here.
+    if (error.status === 403) return error.message;
+    if (error.status === 409) return 'That challenge is no longer running. Reload to refresh.';
+    if (error.status === 404) return 'That challenge is no longer available. Reload to refresh.';
+  }
+  if (error instanceof AuthFailure && (error.kind === 'network' || error.kind === 'tls'))
+    return 'That change needs a connection. Nothing changed.';
+  return 'That change could not be saved. Nothing changed.';
+};
+
+/** What cancelling does, said before it is done. */
+export const CLUB_CHALLENGE_CANCEL_CONSEQUENCE =
+  'Cancelling ends the challenge for everyone in it. Nothing is scored and no result is kept, so nobody is ranked in it.';

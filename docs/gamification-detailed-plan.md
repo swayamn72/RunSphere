@@ -1,6 +1,6 @@
 # Gamified Product Expansion — Detailed Implementation Plan
 
-**Status:** Phase 1 (Foundation Gate) complete. Phase 2 (MVP) complete: milestones 2.1 through 2.9 are implemented. Phase 3 (Community Beta) has started: milestones 3.1 (clubs) and 3.2 (club relays) are implemented.
+**Status:** Phase 1 (Foundation Gate) complete. Phase 4 (Territory Pilot) has started with 4.1 (season enrollment and divisions) and 4.2 (the traversal and control engine, written but switched off); territory capture remains disabled behind the Territory gate, and two required inputs do not exist yet. Phase 2 (MVP) complete: milestones 2.1 through 2.9 are implemented. Phase 3 (Community Beta) has started: milestones 3.1 (clubs), 3.2 (club relays), 3.3 (club boards), 3.4 (club challenges), 3.5 (global boards), 3.6 (scheduled competitions), 3.7 (moderation), 3.8 (sanction enforcement), 3.9 (campaign email), 3.10 (the operations console), 3.11 (sanction management), and 3.12 (privacy and data-stewardship reads) are implemented.
 **Purpose:** This document provides a detailed, technical breakdown of the remaining work for the gamified product expansion so that multiple contributors can pick up milestones and work in parallel.
 
 ---
@@ -444,15 +444,365 @@ skipped; worker 51 (a new 9-test `club-relays.test.ts`); mobile 386 tests. No
 relay has been computed against real activity — the aggregation is covered by
 unit tests with a fake database only.
 
+### Milestone 3.3 — Club boards (complete)
+
+The competitive half of clubs, and the counterpart to the cooperative relay:
+`GET /v1/clubs/:clubId/board` ranks the club members who joined the board by
+this week's capped validated active minutes, and
+`PUT /v1/clubs/board/participation` opens or revokes the `club` scope in
+`leaderboard_opt_ins`. No migration was needed — 019 already carries the scope
+— and the Clubs tab shows the board where it used to say boards did not exist.
+
+Rules worth carrying forward: two gates stand in front of an entry list —
+active membership of that club, and the reader's own live opt-in — so reading
+other members' scores means publishing your own; a non-member is answered `404`
+as everywhere else in clubs, so the board is not an oracle for club ids; a block
+hides two accounts from each other on a board as in a roster, and a blocked
+member is never scored either; the entry is the same privacy-minimized
+projection the friend board publishes (display identity, one pace-neutral score,
+a rank), so a board entry means the same thing wherever it is read; the score is
+the capped weekly active-minute total from the published progression rule, so it
+can never disagree with the reader's own Home card; with no published rule the
+board is empty rather than a column of zeroes; participation is one account-level
+decision covering every club the account is in, which is why no club id appears
+in that path; and leaving revokes rather than deletes, so the opt-in history
+stays auditable.
+
+The board publishes a per-member score where the relay deliberately does not.
+That is the difference between the two: relay minutes are counted whether or not
+you asked, so they stay aggregate forever, while a board score is opt-in, off by
+default, and revocable (ADR-0007).
+
+Validation: API 126 passed + 4 PostGIS integration tests still skipped (11 new
+in `club-routes.test.ts`); mobile 398 tests across 53 files (12 new); workspace
+`typecheck`, `test`, `build`, and `lint` (3 pre-existing
+`react-hooks/exhaustive-deps` warnings, 0 errors).
+
+### Milestone 3.4 — Club challenges (complete)
+
+The last unbuilt club surface. `023_club_challenges.sql` adds `club_challenges`,
+`club_challenge_participants`, and `club_challenge_results`, and seeds club
+challenge rule v1 in the same shape as the 1v1 rule (240-minute daily cap,
+lengths of 7 or 14 days, `active_minutes` and `active_days`).
+`services/api/src/club-routes.ts` serves open, list, join/leave, cancel, and
+standings; `services/worker/src/club-challenges.ts` finishes a contest when its
+window closes; and the Clubs tab runs the whole thing.
+
+Rules worth carrying forward: opening a contest needs owner or admin authority
+because it is a club-wide act, while joining publishes _your_ score and is
+therefore yours alone to give and revoke — opening one enrols nobody, including
+the member who opened it; a partial unique index keeps exactly one live
+challenge per club, so a member is never asked which contest their minutes count
+toward; the window is derived from the day it was opened and is never a request
+parameter, so a contest can neither be backdated nor parked in the future;
+joining is retroactive within the window because every participant is scored
+over the same days, and the UI says so before you join; leaving records a
+departure rather than deleting the row, and from that moment you are neither
+scored nor shown; standings are gated on the reader's own participation, exactly
+as the club board is gated on its opt-in; a running contest is scored live while
+a finished one reads the stored result and is never recomputed; a contest is
+always scored under the rule version it was opened with; and cancelling writes
+no result at all, so nobody is ranked in a contest that was called off.
+
+The worker deliberately has no outbox row: the `status = 'active'` claim inside
+the finishing transaction is the idempotence, so a failed pass simply retries on
+the next sweep, and a scored challenge is never selected again. The finish
+notification reuses the existing `challenge_finished` inbox kind, so a member's
+"challenges" notification preference governs it exactly as it already does for a
+1v1 result, and the body carries neither score nor rank.
+
+Validation: domain 107 tests; API 147 passed + 4 PostGIS integration tests still
+skipped (21 new in `club-routes.test.ts`); worker 63 (a new 12-test
+`club-challenges.test.ts`); mobile 416 across 53 files (18 new). Workspace
+`typecheck`, `test`, `build`, and `lint` (3 pre-existing
+`react-hooks/exhaustive-deps` warnings, 0 errors).
+
+### Milestone 3.5 — Global boards (complete)
+
+The first board outside a private room. `024_global_boards.sql` adds
+`global_board_entries` and seeds global-board rule v1;
+`services/worker/src/global-boards.ts` materializes the open week and the week
+just closed; `services/api/src/global-board-routes.ts` serves
+`GET /v1/boards/global` and `PUT /v1/boards/global/participation`; and the Play
+tab shows the board beneath friend standings.
+
+Rules worth carrying forward: the board is **materialized, not computed on
+read** — ranking every opted-in account per request would scan everyone's
+activity history, so the worker writes the week and a read is one indexed page,
+which is what keeps a cache out of the critical path while PostgreSQL stays
+authoritative; divisions are **published activity-history bands**, derived from
+how many earlier weeks an account was active and never from a score, a pace, or
+a place, so a first week is never ranked against a fiftieth; a division is
+recomputed per period rather than carried, so nobody is stuck in a band they
+have grown out of; an account with no counted minutes is **absent rather than
+ranked at zero**; ranks are shared on a tie and computed within the division;
+reading the board requires being on it; a block hides two accounts from each
+other and **leaves a gap in the visible ranks rather than renumbering them**,
+because a rank is a fact about the period rather than about who is looking; the
+reader's own standing comes back as a rank and a score with no second copy of
+their identity; and leaving deletes the reader's rows from the open week
+immediately rather than waiting for the next sweep, because an opt-out that is
+still visible for hours is not an opt-out.
+
+Validation: domain 116 tests (9 new in `global-board.test.ts`); API 157 passed +
+4 PostGIS integration tests still skipped (10 new in
+`global-board-routes.test.ts`); worker 74 (a new 11-test `global-boards.test.ts`);
+mobile 427 across 53 files (11 new). Workspace `typecheck`, `test`, `build`, and
+`lint` (3 pre-existing `react-hooks/exhaustive-deps` warnings, 0 errors).
+
+### Milestone 3.6 — Scheduled competitions (complete)
+
+The most formal contest in the product, and the only one an ordinary member
+cannot create. `025_competitions.sql` adds `competitions`,
+`competition_enrollments`, and `competition_results`, and seeds competition rule
+v1 (240-minute daily cap; 7, 14, or 30 days; `active_minutes` and
+`active_days`). `services/api/src/competition-routes.ts` serves the member list,
+enrollment, and standings plus two `season_operator`/`admin` staff routes;
+`services/worker/src/competitions.ts` advances the lifecycle; and the Play tab
+lists competitions, enters them, and shows standings.
+
+Rules worth carrying forward: staff schedule, members enter themselves — a
+competition is created as a **draft** because an announcement is a commitment,
+so publishing is a second deliberate act; a cancelled event stays visible,
+because an event people arranged their weeks around is a fact they are owed;
+eligibility is a published band of earlier active weeks, checked on the server
+and **stated whether or not the reader clears it**, since a rule that only
+appears when it excludes you reads as a rejection; entering scores the whole
+window however late you enter, because everyone is measured over the same days;
+withdrawing is recorded rather than deleted, and is never gated on eligibility;
+**the clock, not a person, moves a competition** through open, closed, and
+finalized, each decided by a pure predicate, and a window that passed while
+nobody swept lands straight on `closed` rather than opening for a day that is
+gone; results are written once in the transaction that closes the event and are
+**flagged provisional until the stated dispute period elapses** — finalizing
+records that the span passed and rescores nothing; and a cancelled competition
+writes no result at all.
+
+Validation: domain 129 tests (13 new in `competition.test.ts`); API 181 passed +
+4 PostGIS integration tests still skipped (24 new in
+`competition-routes.test.ts`); worker 86 (a new 12-test `competitions.test.ts`);
+mobile 443 across 53 files (16 new). Workspace `typecheck`, `test`, `build`, and
+`lint` (3 pre-existing `react-hooks/exhaustive-deps` warnings, 0 errors).
+
+### Milestone 3.7 — Moderation (complete)
+
+Reports, sanctions, and appeals — and with them the gap the plan has carried
+since 2.9: **a blocked account can now be reported**. `026_moderation.sql` adds
+`reports`, `sanctions`, and `sanction_appeals`;
+`services/api/src/moderation-routes.ts` serves three member routes and four
+`moderator`/`admin` staff routes; the worker closes out expired sanctions; the
+Friends screen offers Report beside Block (including on blocked accounts), and
+the You tab shows the account its own standing and lets it appeal.
+
+Rules worth carrying forward: **a reporter is told the report was received and
+nothing else** — an answer that varied by outcome, or by whether the subject
+exists, would make reporting a lookup; a second report on the same subject is
+folded into the first rather than refused, since refusing both discloses state
+and discourages a second attempt; reporting never consults blocks, because
+hiding somebody does not revoke your ability to raise what they did; **a
+sanction is written for the account that receives it** and the route refuses to
+issue one without that statement; a `social_suspension` removes only the
+sharing surfaces and leaves recording, history, and export untouched, because
+withholding somebody's own data is a punishment aimed at the wrong thing; a
+club cannot be sanctioned from a report, which would punish every member for
+one person's name; **one appeal per sanction**, only while it still applies,
+answered with a reason; an overturned appeal revokes the sanction in the same
+transaction, so a lifted sanction is never briefly still in force; a sanction
+record is never deleted or hidden once it ends, because a record that vanishes
+cannot be checked; and expiry sets `revoked_at` to the stated expiry rather
+than to sweep time, so an account was free from the moment its sanction ended.
+
+Validation: domain 144 tests (15 new in `moderation.test.ts`); API 208 passed +
+4 PostGIS integration tests still skipped (27 new in
+`moderation-routes.test.ts`); worker 88 (2 new); mobile 458 across 54 files (15
+new). Workspace `typecheck`, `test`, `build`, and `lint` (3 pre-existing
+`react-hooks/exhaustive-deps` warnings, 0 errors).
+
+### Milestone 3.8 — Sanction enforcement (complete)
+
+3.7 recorded sanctions and told the account about them; nothing acted on them.
+This wires them in. `services/api/src/sanction-guard.ts` is the single place
+that decides what a suspension stops, and every enforcement point reads it.
+
+Two shapes of enforcement, kept apart on purpose. **Your own actions**: joining
+any board scope, entering any contest, opening a 1v1 or club challenge,
+creating or joining a club, and sending a friend request are refused with the
+statement staff wrote — a refusal is never mysterious. **Other people's
+views**: the friend board, club board, club challenge standings, competition
+standings, and the materialized global board all drop a suspended account. A
+suspension that only stopped _new_ participation would leave the account on
+every board it had already joined, which is not a pause of anything.
+
+Rules worth carrying forward: **leaving is never guarded** — an account may
+always remove itself from something, sanction or no sanction, so a paused
+member is never trapped in a club board or a competition; a `warning` changes
+nothing at all; a sharing suspension never touches recording, history, export,
+club membership, or reading; sign-in is refused for an `account_suspension`
+**only after the password has checked out**, so sign-in can never become a way
+to test whether somebody else has been suspended; refresh is checked too, so a
+suspension applied mid-session takes effect at the next rotation rather than
+waiting for a sign-out; the guard runs _before_ a friend request looks at the
+address and before a club join looks up the code, so a refusal discloses
+nothing about anyone else; and the mobile notices pass a `403` through
+verbatim, so a paused member reads the decision rather than "something went
+wrong".
+
+Validation: domain 150 tests (6 new in `moderation.test.ts`); API 228 passed +
+4 PostGIS integration tests still skipped (20 new, most in a new
+`sanction-enforcement.test.ts` that drives every guarded route); worker 89 (1
+new); mobile 459 (1 new). Workspace `typecheck`, `test`, `build`, and `lint` (3
+pre-existing `react-hooks/exhaustive-deps` warnings, 0 errors).
+
+### Milestone 3.9 — Consented campaign email (complete)
+
+`027_email_campaigns.sql` adds `email_templates`, `email_campaigns`,
+`email_campaign_recipients`, and `email_unsubscribe_tokens`.
+`services/api/src/campaign-routes.ts` serves four `campaign_manager`/`admin`
+routes plus a public unsubscribe; `services/worker/src/campaigns.ts` resolves
+an audience and queues recipients when a scheduled campaign comes due; and the
+notification settings screen gained the consent toggle that makes any of it
+reachable.
+
+`notification_preferences.marketing_consent` has existed since 011 and had
+never been read or written by anything. It is now the authoritative consent
+flag, wired through the preferences contract, route, and mobile screen, and
+recorded in `consent_history` on every change.
+
+Rules worth carrying forward: **consent is all three switches** — the consent
+flag, the `marketing` category, and the `email` channel — so no single
+forgotten toggle can put mail in an inbox, and the mobile control sets and
+clears all three together; a campaign references a **reviewed template
+version**, resolved and recorded at schedule time, so editing a template
+afterwards cannot change what a scheduled send contains; **a campaign manager
+sees counts, never people** — the preview is three integers, and no route
+returns an account id or an address; the audience is **re-resolved at send
+time**, so somebody who unsubscribed after scheduling is simply not in the
+list; the send cap bounds the query itself and the recipients table is the
+record of what it did; **an audience dimension nothing records is refused**
+rather than silently matching nobody (locale, app version, and feature cohort
+are in the contract but have no source here yet); a recency band must be at
+least 7 days, so it stays a broad band rather than behavioural targeting;
+**unsubscribe needs no session**, answers identically whatever the token was,
+and clears all three switches; and the token is stored hashed and never
+reissued, so the link in an email already sent keeps working.
+
+Delivery itself is still a gated dependency (ADR-0010): no email provider is
+configured, so recipients stay `queued` — visibly, in rows somebody can
+count — rather than being marked sent by a worker that sent nothing. That is
+the same shape push took before FCM credentials existed.
+
+Validation: domain 162 tests (12 new in `campaign.test.ts`); API 252 passed + 4
+PostGIS integration tests still skipped (24 new); worker 98 (9 new in
+`campaigns.test.ts`); mobile 464 (5 new). Workspace `typecheck`, `test`,
+`build`, and `lint` (3 pre-existing `react-hooks/exhaustive-deps` warnings, 0
+errors).
+
+### Milestone 3.10 — The operations console (complete)
+
+Five milestones had added staff routes with nothing in front of them, so
+running a competition or working a report meant an HTTP client. `apps/admin`
+is now a real console: sign in, read your roles, and see exactly the areas your
+roles can operate.
+
+`apps/admin/src/areas.ts` maps roles to areas and **gates on the server's own
+predicates** — the same `canModerate`, `canOperateCompetitions`, and
+`canManageCampaigns` the routes enforce — so the console can never offer an
+action the API will refuse nor hide one it would allow. Four areas are backed by
+real routes (activity review, moderation, competitions, campaign email); the
+three that are not (privacy requests, data stewardship, support) **say what is
+missing and why** instead of rendering a screen that looks operational.
+
+This also closed the gap 3.9 left behind: `POST /v1/staff/email-templates`
+publishes a template version, superseding the live one inside a transaction so
+the "one live version per key" index is never briefly violated. Publishing only
+ever adds — a version a campaign already used is never edited — so a campaign
+that went out under version 1 stays readable as version 1.
+
+Rules worth carrying forward: the activity review queue is allow-listed by
+account id rather than by role (it predates RBAC), so the console offers it to
+any signed-in staff account and lets the server decide, and the area note says
+so; an account with no staff role is told plainly that signing in worked and
+there is nothing to operate; issuing a sanction is deliberately _not_ a
+one-click action in the queue, because it needs a statement written for the
+account that receives it; and the footer tells staff their own reads are
+recorded against their account.
+
+Validation: admin 17 tests (16 new, in `areas.test.ts` and a rewritten
+`shell.test.tsx`); API 257 passed + 4 PostGIS integration tests still skipped (5
+new for templates). Workspace `typecheck`, `test`, `build`, and `lint` (3
+pre-existing `react-hooks/exhaustive-deps` warnings, 0 errors).
+
+### Milestone 3.11 — Sanction management (complete)
+
+The last moderation action with no audited path. Before this, issuing a
+sanction from the console was impossible (it needs a written statement) and
+ending one early meant a database change nobody could review.
+
+Two routes: `GET /v1/staff/accounts/:accountId/sanctions` shows a moderator
+what an account was actually told and whether an appeal is open, and
+`POST /v1/staff/sanctions/:sanctionId/lift` ends one early with a required
+reason. The console gained the form that makes both usable.
+
+Rules worth carrying forward: **the lift reason is required and kept with the
+sanction** — an action that changes what somebody may do, with no record of
+why, is precisely what an audit exists to catch; the account is told in the
+same transaction, so a lifted sanction is never left unannounced; the reason
+staff wrote is for the record and is **not** in the notice, because the account
+is owed the decision rather than the internal note; a lifted sanction is
+revoked, never deleted; an already-ended sanction answers `409` instead of
+silently rewriting why it ended; the history read is itself audited, because
+reading somebody's moderation record is an act; **an open appeal is flagged**
+so two staff do not answer the same question in different directions; and the
+console never offers to sanction a club, because the API refuses it — a club is
+moderated by acting on its owner or by archiving it.
+
+Validation: API 268 passed + 4 PostGIS integration tests still skipped (11 new
+in `moderation-routes.test.ts`); admin 23 tests (6 new). Workspace `typecheck`,
+`test`, `build`, and `lint` (3 pre-existing `react-hooks/exhaustive-deps`
+warnings, 0 errors).
+
+### Milestone 3.12 — Privacy and data-stewardship reads (complete)
+
+Two of the three placeholder console areas become real.
+`services/api/src/governance-routes.ts` serves
+`GET /v1/staff/privacy/requests` (open exports and erasures, oldest first, with
+how long each has been waiting, plus a count of erasures that converged) and
+`GET /v1/staff/rules` (every published rule version, and which is live).
+
+Both are **read-only on purpose**. A privacy officer's job is to see that
+requests converge, not to run erasure by hand: the worker performs it, and a
+console button outside that path would be a second way to destroy data with
+none of the worker's ordering guarantees. Rules are published by migration, so
+editing them here would change gameplay without a reviewed change behind it.
+The console states both reasons rather than leaving somebody hunting for a
+button that was never built.
+
+Rules worth carrying forward: the privacy queue carries **account ids, states,
+and timestamps and nothing else** — no email address, no display name, no
+activity — because a compliance queue is not a directory of who asked;
+completed erasures are a **count**, since a list of who was erased would
+rebuild what erasure removed; `openForHours` is the number that matters,
+because the failure mode a privacy officer is watching for is the request that
+stopped moving; and both reads are audited, since looking at a queue is itself
+an act.
+
+**A schema defect was found and fixed while reading for this milestone.**
+`023_club_challenges.sql` and `024_global_boards.sql` seed rule kinds
+(`club_challenge`, `global_board`) that the `011` CHECK constraint forbids, so
+**both would have failed on first apply**. `023` now widens the constraint
+before its own seed, covering both kinds. This is exactly the class of bug the
+"never applied against PostGIS" caveat has been hiding.
+
+Validation: API 276 passed + 4 PostGIS integration tests still skipped (8 new in
+`governance-routes.test.ts`); admin 26 tests (3 new, and two rewritten now that
+the areas exist). Workspace `typecheck`, `test`, `build`, and `lint` (3
+pre-existing `react-hooks/exhaustive-deps` warnings, 0 errors).
+
 ### Remaining Phase 3 deliverables:
 
-- **Club boards and challenges:** member-only, isolated by `club_id`.
-- **Global Boards:** Opt-in, server-derived period leaderboards using privacy-minimized pace-neutral points. Segmented by division.
-- **Scheduled Competitions:** API and UI for opt-in time-boxed events with published rules and rewards.
-- **Moderation:** Staff queues for reviewing reported user profiles/club names.
-- **Campaign Tooling:** Admin API for drafting, testing, scheduling, and sending consented email campaigns with unsubscribe flows.
-- **Mobile UI:** The `Clubs` tab is real as of 3.1 and shows relay progress as of 3.2. Club leaderboards still need their server side before the tab can show them.
-- **Reporting:** No reports/sanctions/appeals records exist. Blocking ships (2.9), reporting does not, so a blocked account cannot be reported.
+- **Mobile UI:** The `Clubs` tab is real as of 3.1, shows relay progress as of 3.2, the weekly board as of 3.3, and runs club challenges as of 3.4; the `Play` tab shows the global board as of 3.5 and competitions as of 3.6; reporting and the account's own standing arrived with 3.7. Every member-facing surface in this phase now exists.
+- **The support console area:** still an honest placeholder, and still waiting on a privacy review rather than on implementation time. An account-lookup surface is the most sensitive thing in this product.
+- **An email provider**, before any campaign sends anything.
 
 ---
 
@@ -460,10 +810,78 @@ unit tests with a fake database only.
 
 **Goal:** Introduce location-based seasonal gameplay safely in the MMR market.
 
+### Milestone 4.1 — Season enrollment and divisions (complete)
+
+The part of territory that can exist before the Territory gate opens: a season
+people can be told about, an opt-in, and a division. **No cell is captured, no
+location is read, and no rank is calculated** — `028_territory_seasons.sql`
+creates `territory_seasons` and `territory_enrollments` and nothing else,
+because a contributions table sitting empty would invite use.
+
+`services/api/src/territory-routes.ts` serves the member season read and
+enrollment plus three `season_operator` routes (announce, open or end, division
+sizes). The Play tab shows the three states `product.md` asks for: no season, a
+season not joined, and one joined — with no rank displayed, because none is
+calculated.
+
+Rules worth carrying forward: **a division is assigned once, at enrollment**,
+from the published activity-history band, and re-joining keeps the division
+already assigned — leaving is not a way to reroll it, and `product.md` permits
+rebalancing between seasons only; the band an assignment was read from is
+stored and shown, so it can be explained to the person it was made about rather
+than being a label they cannot question; a season may be joined while it is
+running, for the same reason a competition may be entered late; `live` is
+deliberately unreachable, because that status would say the engine is running;
+division sizes are reported with merge/split advice for the **next** season
+start and nothing is ever moved automatically; and `TERRITORY_CAPTURE_NOTE` is
+the single place the whole product says capture is off, returned whether or not
+a season exists.
+
+Validation: domain 175 tests (13 new in `territory.test.ts`); API 296 passed + 4
+PostGIS integration tests still skipped (20 new in `territory-routes.test.ts`);
+mobile 471 (7 new). Workspace `typecheck`, `test`, `build`, `lint`, and
+`verify:migrations`.
+
+### Milestone 4.2 — The traversal and control engine (complete, and switched off)
+
+The arithmetic of a season, written as pure functions so the rules can be
+argued with before anything runs. `packages/domain/src/territory-scoring.ts`
+implements ADR-0008 exactly: the best contiguous 60-minute window of a local
+day chosen by distinct eligible cells and tied on earliest start; one cell per
+participant per local day; a published daily cap; weekly control by most
+distinct days, tied on earliest accepted contribution and then on a stable
+opaque reference; and capped control-days for the ladder.
+`029_territory_contributions.sql` adds the contribution, control-snapshot, and
+ladder tables, and publishes territory rule v2 with the scoring parameters v1
+deliberately omitted.
+
+**It does not run, and three things must be true before it can:**
+
+1. the Territory gate passes (`TERRITORY_CAPTURE_ENABLED` is false);
+2. an H3 indexer is supplied — no H3 library is a dependency of this workspace,
+   and ADR-0001 requires its version pinned per contribution, so it is injected
+   rather than imported;
+3. a public-space eligibility source is supplied — **no such dataset exists**.
+
+Each is a named refusal before the first query, not a silent no-op, because a
+scoring job that quietly does nothing looks exactly like one that is broken.
+
+Two facts found while building it, both worth carrying: **timestamped points
+live only in `activity_chunks`**, which are purged on the raw-trace retention
+clock (`shareable_route` is a geometry with no time dimension), so scoring must
+run inside the retention window and a season cannot be scored retroactively;
+and **the ladder formula is an interpretation** — ADR-0008 says "capped
+control-days" without saying over what period or per what, and this reads it as
+per participant per week. That needs confirming before a season runs for real.
+
+Validation: domain 194 tests (19 new in `territory-scoring.test.ts`, covering
+pace neutrality, the tie-breaks, and order independence); worker 102 (4 new,
+which assert the refusals and will be the first tests to fail when the gate
+opens — which is the point of them).
+
 ### Pending Deliverables:
 
-- **Territory Engine:** Server-side H3 traversal and mapping to eligible public cells.
-- **Enrollment:** Opt-in enrollment API with division assignment.
+- **Territory Engine:** built in 4.2 and switched off. What remains before it can run: an H3 library dependency with a pinned version, a public-space eligibility dataset, and the gate. **Gated:** ADR-0008 keeps territory disabled until the Territory gate in the release plan passes — fair scoring, division, concentration, and anti-abuse review, plus the MMR field study. 4.1 built everything up to that line and stopped at it.
 - **Weekly Resets:** Worker jobs to compute cell control at week's end based on best contiguous 60-minute daily windows, then reset cells to unclaimed.
 - **Season Ladder:** Compute and store season-long rank points based on capped control-days.
 - **Mobile UI:** Map rendering of controlled cells (no live tracking, no exact timestamps, no identity exposure).
@@ -489,4 +907,4 @@ unit tests with a fake database only.
 1. **Mascot Artwork:** Mascot images (Rho, Mira, Coda, Bram) need to be provided and placed in `apps/mobile/assets` so the image-swap hook can use them. The crew now appear in Loop guidance callouts as hand-authored vector stand-ins.
 2. **FCM Credentials:** A Firebase project and a service account are required before any push is actually delivered. The worker side is implemented; set `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, and `FCM_PRIVATE_KEY`. The mobile client additionally needs a native token source (`expo-notifications` plus `google-services.json`) before `registerForPush` has a token to register.
 3. **Admin Web App:** The `apps/admin` skeleton exists, but requires the full React UI for staff RBAC, moderation, and campaign management (Phase 3+).
-4. **Migrations:** `018_challenges.sql`, `019_friend_standings.sql`, and `020_push_devices.sql` have not been executed against a real PostGIS from this checkout, and the four PostGIS integration tests remain skipped locally. Applying them and running those tests is the first thing to do in CI or on a machine with a database.
+4. **Migrations:** `pnpm verify:migrations` now checks seeded values against the CHECK constraints in force and catches the class of defect found in 3.12, but it is a static check only. `018_challenges.sql` through `027_email_campaigns.sql` have not been executed against a real PostGIS from this checkout, and the four PostGIS integration tests remain skipped locally. Applying them and running those tests is the first thing to do in CI or on a machine with a database. On `023`, watch the `club_challenges_open_idx` partial unique index (the one-live-challenge-per-club rule the create route relies on for its `409`) and the `period_end = period_start + length_days` CHECK.

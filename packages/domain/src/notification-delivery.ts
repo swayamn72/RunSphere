@@ -51,7 +51,10 @@ export const defaultNotificationPreferences = (): NotificationPreferences => ({
     marketing: false
   },
   maxPerDay: 50,
-  channels: { push: true, email: false }
+  channels: { push: true, email: false },
+  // Off by default, like the category: campaign email is consent, and an
+  // unset account has not given it.
+  marketingConsent: false
 });
 
 export type PushSuppressionReason =

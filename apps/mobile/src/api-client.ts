@@ -16,6 +16,14 @@ import type {
   ChallengeResult,
   ChallengeSummary,
   Club,
+  ClubBoardParticipationRequest,
+  ClubBoardResponse,
+  ClubChallengeCreateRequest,
+  ClubChallengeListResponse,
+  ClubChallengeMode,
+  ClubChallengeParticipationRequest,
+  ClubChallengeStandingsResponse,
+  ClubChallengeSummary,
   ClubCreateRequest,
   ClubJoinRequest,
   ClubListResponse,
@@ -25,6 +33,10 @@ import type {
   ClubRelayCreateRequest,
   ClubRelayListResponse,
   ClubRelaySummary,
+  CompetitionEnrollmentRequest,
+  CompetitionListResponse,
+  CompetitionStandingsResponse,
+  CompetitionSummary,
   FriendListResponse,
   FriendRequest,
   FriendRequestCreateRequest,
@@ -33,6 +45,8 @@ import type {
   FriendRequestRespondRequest,
   FriendStandingsParticipationRequest,
   FriendStandingsResponse,
+  GlobalBoardParticipationRequest,
+  GlobalBoardResponse,
   InboxEntry,
   InboxListResponse,
   InboxMarkReadRequest,
@@ -50,11 +64,19 @@ import type {
   QuestDetail,
   QuestSummary,
   RegisterRequest,
+  ReportAcknowledgement,
+  ReportCreateRequest,
+  ReportReason,
+  ReportSubjectType,
+  Sanction,
+  SanctionListResponse,
   SafetyContactRequest,
   SafetyContactResponse,
   SafetyShareReadResponse,
   SafetyShareRequest,
   SafetyShareResponse,
+  TerritoryEnrollmentRequest,
+  TerritorySeasonResponse,
   VisibilityRequest,
   VisibilityResponse,
   WeeklyGoalRequest,
@@ -201,6 +223,39 @@ export class MobileApiClient {
   async readDelayedSafetyShare(id: string): Promise<SafetyShareReadResponse> {
     return this.request(`/v1/safety-shares/${encodeURIComponent(id)}/updates`, { method: 'GET' });
   }
+  /**
+   * Report an account or a club (milestone 3.7). The answer is the same
+   * whether or not the subject exists and whatever has happened to them: a
+   * report is not a lookup. Reporting works on an account you have blocked.
+   */
+  async fileReport(
+    subjectType: ReportSubjectType,
+    subjectId: string,
+    reason: ReportReason,
+    note?: string
+  ): Promise<ReportAcknowledgement> {
+    const body: ReportCreateRequest = {
+      subjectType,
+      subjectId,
+      reason,
+      ...(note ? { note } : {})
+    };
+    return this.request('/v1/reports', { method: 'POST', body });
+  }
+  /** Every moderation decision about this account, in force or not. */
+  async listSanctions(): Promise<readonly Sanction[]> {
+    return (await this.request<SanctionListResponse>('/v1/account/sanctions', { method: 'GET' }))
+      .data;
+  }
+  /** One appeal per decision; `409` means it can no longer be appealed. */
+  async appealSanction(sanctionId: string, statement: string): Promise<readonly Sanction[]> {
+    return (
+      await this.request<SanctionListResponse>(
+        `/v1/sanctions/${encodeURIComponent(sanctionId)}/appeal`,
+        { method: 'POST', body: { statement } }
+      )
+    ).data;
+  }
   async exportAccount(): Promise<AccountExportResponse> {
     return this.request('/v1/account/export', { method: 'GET' });
   }
@@ -297,6 +352,81 @@ export class MobileApiClient {
     return this.request('/v1/friends/standings', { method: 'GET' });
   }
   /** Joining and leaving the friend board is independent of activity visibility. */
+  /**
+   * The opt-in global board (milestone 3.5). It is materialized by the worker,
+   * so this is a plain read: `participating: false` comes back with no entries,
+   * and an opted-in reader with no counted minutes yet has no `me` and no
+   * division until the next recompute ranks them.
+   */
+  async getGlobalBoard(): Promise<GlobalBoardResponse> {
+    return this.request('/v1/boards/global', { method: 'GET' });
+  }
+  /**
+   * Scheduled competitions (milestone 3.6). A draft never appears here — it
+   * has not been announced — and every entry carries the reader's own state
+   * and whether their history clears the published eligibility band.
+   */
+  async listCompetitions(): Promise<readonly CompetitionSummary[]> {
+    return (await this.request<CompetitionListResponse>('/v1/competitions', { method: 'GET' }))
+      .data;
+  }
+  /**
+   * Enter or leave one competition. `403` means the published eligibility band
+   * was not met and says which; `409` means the window has already closed.
+   */
+  async setCompetitionEnrollment(
+    competitionId: string,
+    enrolled: boolean
+  ): Promise<CompetitionSummary> {
+    const body: CompetitionEnrollmentRequest = { enrolled };
+    return this.request(`/v1/competitions/${encodeURIComponent(competitionId)}/enrollment`, {
+      method: 'PUT',
+      body
+    });
+  }
+  /**
+   * Standings for one competition: empty until the reader has entered, live
+   * while the window is open, and the stored result afterwards — flagged
+   * `provisional` until the dispute period has elapsed.
+   */
+  async getCompetitionStandings(competitionId: string): Promise<CompetitionStandingsResponse> {
+    return this.request(`/v1/competitions/${encodeURIComponent(competitionId)}/standings`, {
+      method: 'GET'
+    });
+  }
+  /**
+   * The territory season (milestone 4.1). Territory capture is not switched on:
+   * a season records who is taking part and in which division, and the response
+   * says so whether or not a season exists.
+   */
+  async getTerritorySeason(): Promise<TerritorySeasonResponse> {
+    return this.request('/v1/territory/season', { method: 'GET' });
+  }
+  /**
+   * Join or leave the season. The division is decided once, when joining, from
+   * how many weeks the account has been active; re-joining keeps the division
+   * already assigned rather than rerolling it.
+   */
+  async setTerritoryEnrollment(
+    seasonId: string,
+    enrolled: boolean
+  ): Promise<TerritorySeasonResponse> {
+    const body: TerritoryEnrollmentRequest = { enrolled };
+    return this.request(`/v1/territory/seasons/${encodeURIComponent(seasonId)}/enrollment`, {
+      method: 'PUT',
+      body
+    });
+  }
+  /** Off by default, and separately revocable from every other board scope. */
+  async setGlobalBoardParticipation(participating: boolean): Promise<boolean> {
+    const body: GlobalBoardParticipationRequest = { participating };
+    return (
+      await this.request<GlobalBoardParticipationRequest>('/v1/boards/global/participation', {
+        method: 'PUT',
+        body
+      })
+    ).participating;
+  }
   async setFriendStandingsParticipation(participating: boolean): Promise<boolean> {
     const body: FriendStandingsParticipationRequest = { participating };
     return (
@@ -475,6 +605,98 @@ export class MobileApiClient {
       method: 'POST',
       body
     });
+  }
+  /**
+   * The club's weekly board (milestone 3.3). Membership answers `404` when it
+   * is missing, and `participating: false` comes back with no entries at all:
+   * reading other members' scores means publishing your own.
+   */
+  async getClubBoard(clubId: string): Promise<ClubBoardResponse> {
+    return this.request(`/v1/clubs/${encodeURIComponent(clubId)}/board`, { method: 'GET' });
+  }
+  /**
+   * Joining or leaving club boards. One decision in the `club` scope covering
+   * every club the account is in, which is why no club id is in this path.
+   */
+  async setClubBoardParticipation(participating: boolean): Promise<boolean> {
+    const body: ClubBoardParticipationRequest = { participating };
+    return (
+      await this.request<ClubBoardParticipationRequest>('/v1/clubs/board/participation', {
+        method: 'PUT',
+        body
+      })
+    ).participating;
+  }
+  /**
+   * The club's challenges, newest first (milestone 3.4). Each carries how many
+   * members are in it and whether the reader is one; who else is in it is the
+   * standings' business, and only for a participant.
+   */
+  async listClubChallenges(clubId: string): Promise<readonly ClubChallengeSummary[]> {
+    return (
+      await this.request<ClubChallengeListResponse>(
+        `/v1/clubs/${encodeURIComponent(clubId)}/challenges`,
+        { method: 'GET' }
+      )
+    ).data;
+  }
+  /**
+   * Open a contest for the club. Owner or admin only, and it enrols nobody —
+   * joining publishes a personal score, so every member does that themselves.
+   * `409` means the club already has one running; `422` means the published
+   * rule does not allow that mode or length.
+   */
+  async openClubChallenge(
+    clubId: string,
+    mode: ClubChallengeMode,
+    lengthDays: number
+  ): Promise<ClubChallengeSummary> {
+    const body: ClubChallengeCreateRequest = { mode, lengthDays };
+    return this.request(`/v1/clubs/${encodeURIComponent(clubId)}/challenges`, {
+      method: 'POST',
+      body
+    });
+  }
+  /**
+   * Join or leave one contest. Joining covers the whole window, including the
+   * days already passed, because everyone in it is scored over the same days.
+   */
+  async setClubChallengeParticipation(
+    clubId: string,
+    challengeId: string,
+    participating: boolean
+  ): Promise<ClubChallengeSummary> {
+    const body: ClubChallengeParticipationRequest = { participating };
+    return this.request(
+      `/v1/clubs/${encodeURIComponent(clubId)}/challenges/${encodeURIComponent(
+        challengeId
+      )}/participation`,
+      { method: 'PUT', body }
+    );
+  }
+  /** Ends a running contest for everyone; nothing is scored and no result kept. */
+  async cancelClubChallenge(clubId: string, challengeId: string): Promise<ClubChallengeSummary> {
+    return this.request(
+      `/v1/clubs/${encodeURIComponent(clubId)}/challenges/${encodeURIComponent(
+        challengeId
+      )}/cancel`,
+      { method: 'POST' }
+    );
+  }
+  /**
+   * Standings for one contest. Empty while the reader has not joined, live
+   * while the window is open, and the stored result once `final` is true.
+   */
+  async getClubChallengeStandings(
+    clubId: string,
+    challengeId: string
+  ): Promise<ClubChallengeStandingsResponse> {
+    return this.request(
+      `/v1/clubs/${encodeURIComponent(clubId)}/challenges/${encodeURIComponent(
+        challengeId
+      )}/standings`,
+      { method: 'GET' }
+    );
   }
   /** Archiving ends access for every member; the membership record survives. */
   async archiveClub(clubId: string): Promise<Club> {

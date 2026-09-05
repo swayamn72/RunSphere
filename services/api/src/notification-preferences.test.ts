@@ -20,6 +20,7 @@ const storedRow = (overrides: Record<string, unknown> = {}) => ({
   quiet_hours: null,
   max_per_day: 50,
   channels: { push: true, email: false },
+  marketing_consent: false,
   ...overrides
 });
 
@@ -36,7 +37,8 @@ const fakeDatabase = (stored?: Record<string, unknown>) => {
             categories: JSON.parse(String(values![1])),
             quiet_hours: values![2] === null ? null : JSON.parse(String(values![2])),
             max_per_day: values![3],
-            channels: JSON.parse(String(values![4]))
+            channels: JSON.parse(String(values![4])),
+            marketing_consent: values![5]
           }
         ]
       };
@@ -87,7 +89,9 @@ describe('GET /v1/notifications/preferences', () => {
     expect(response.json()).toEqual({
       categories,
       maxPerDay: 50,
-      channels: { push: true, email: false }
+      channels: { push: true, email: false },
+      // Campaign consent is off for an account that never gave it.
+      marketingConsent: false
     });
   });
 });
@@ -101,7 +105,8 @@ describe('PUT /v1/notifications/preferences', () => {
     expect(response.json()).toEqual({
       categories,
       maxPerDay: 12,
-      channels: { push: false, email: false }
+      channels: { push: false, email: false },
+      marketingConsent: false
     });
   });
 
@@ -167,5 +172,35 @@ describe('PUT /v1/notifications/preferences', () => {
 
     const audit = db.calls.find((call) => call.sql.includes('privacy_audit_events'))!;
     expect(audit.values?.[1]).toBe('notification_preferences.updated');
+  });
+});
+
+describe('campaign email consent', () => {
+  it('records the change in consent history, not only in the column', async () => {
+    const db = fakeDatabase(storedRow());
+    const response = await update(db, { marketingConsent: true });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().marketingConsent).toBe(true);
+    const history = db.calls.find((call) => call.sql.includes('INSERT INTO consent_history'))!;
+    expect(history.sql).toContain("'marketing_email'");
+    expect(history.values).toEqual([ME, true]);
+  });
+
+  it('records a withdrawal the same way', async () => {
+    const db = fakeDatabase(storedRow({ marketing_consent: true }));
+    await update(db, { marketingConsent: false });
+
+    const history = db.calls.find((call) => call.sql.includes('INSERT INTO consent_history'))!;
+    expect(history.values).toEqual([ME, false]);
+  });
+
+  it('writes no consent record when consent did not change', async () => {
+    const db = fakeDatabase(storedRow({ marketing_consent: true }));
+    await update(db, { maxPerDay: 20 });
+
+    // A preference edit is not a consent event, and logging it as one would
+    // make the history unreadable.
+    expect(db.calls.some((call) => call.sql.includes('INSERT INTO consent_history'))).toBe(false);
   });
 });

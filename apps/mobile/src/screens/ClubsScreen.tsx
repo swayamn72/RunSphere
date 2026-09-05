@@ -1,14 +1,40 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
-import type { Club, ClubMember, ClubRelaySummary } from '@runsphere/contracts';
+import type {
+  Club,
+  ClubBoardResponse,
+  ClubChallengeMode,
+  ClubChallengeStandingsResponse,
+  ClubChallengeSummary,
+  ClubMember,
+  ClubRelaySummary
+} from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { BackHeader, PrimaryButton, SettingsGroup } from '../components/primitives';
 import { useAppStyles } from '../components/styles';
 import { useAppTheme } from '../theme/theme';
 import {
   ARCHIVE_CONSEQUENCE,
+  CLUB_BOARD_EXPLANATION,
+  CLUB_BOARD_JOIN_CONSEQUENCE,
+  CLUB_BOARD_OFF_EXPLANATION,
+  CLUB_CHALLENGE_CANCEL_CONSEQUENCE,
+  CLUB_CHALLENGE_EXPLANATION,
+  CLUB_CHALLENGE_JOIN_CONSEQUENCE,
+  CLUB_CHALLENGE_LENGTHS,
+  CLUB_CHALLENGE_MODE_LABEL,
+  CLUB_CHALLENGE_OFF_EXPLANATION,
   RELAY_EXPLANATION,
+  canOpenClubChallenge,
   canSetRelayTarget,
+  clubBoardEmptyMessage,
+  clubBoardFailureNotice,
+  clubBoardRows,
+  clubChallengeEmptyMessage,
+  clubChallengeFailureNotice,
+  clubChallengeRows,
+  clubChallengeStandingRows,
+  currentClubChallenge,
   clubActions,
   clubListState,
   clubMemberRows,
@@ -36,9 +62,9 @@ import {
  * `@runsphere/domain` the route enforces, so nothing is offered that the
  * server will refuse.
  *
- * Relays and club boards are not here: no relay contribution is recorded
- * server-side yet, and a progress bar with no data behind it would be a
- * fabricated one.
+ * Relay progress arrived with milestone 3.2 and the weekly board with 3.3.
+ * The board is opt-in and shows nothing until the reader joins it, because
+ * reading other members' scores means publishing your own.
  */
 interface ClubsData {
   readonly clubs: readonly Club[];
@@ -358,6 +384,13 @@ function ClubDetail({
   const { tokens } = useAppTheme();
   const [members, setMembers] = useState<readonly ClubMember[]>([]);
   const [relays, setRelays] = useState<readonly ClubRelaySummary[]>([]);
+  const [board, setBoard] = useState<ClubBoardResponse | undefined>(undefined);
+  const [challenges, setChallenges] = useState<readonly ClubChallengeSummary[]>([]);
+  const [challengeStandings, setChallengeStandings] = useState<
+    ClubChallengeStandingsResponse | undefined
+  >(undefined);
+  const [modeDraft, setModeDraft] = useState<ClubChallengeMode>('active_minutes');
+  const [lengthDraft, setLengthDraft] = useState<number>(7);
   const [targetDraft, setTargetDraft] = useState('');
   const [state, setState] = useState<ClubsRemoteState>('loading');
   const [notice, setNotice] = useState('');
@@ -367,11 +400,25 @@ function ClubDetail({
 
   const load = useCallback(() => {
     setState('loading');
-    void Promise.all([api.listClubMembers(club.id), api.listClubRelays(club.id)])
-      .then(([nextMembers, nextRelays]) => {
+    void Promise.all([
+      api.listClubMembers(club.id),
+      api.listClubRelays(club.id),
+      api.getClubBoard(club.id),
+      api.listClubChallenges(club.id)
+    ])
+      .then(async ([nextMembers, nextRelays, nextBoard, nextChallenges]) => {
         if (!mounted.current) return;
         setMembers(nextMembers);
         setRelays(nextRelays);
+        setBoard(nextBoard);
+        setChallenges(nextChallenges);
+        // Standings are read for the contest the tab leads with, and only that
+        // one: a club runs one challenge at a time.
+        const lead = currentClubChallenge(nextChallenges);
+        setChallengeStandings(
+          lead ? await api.getClubChallengeStandings(club.id, lead.id) : undefined
+        );
+        if (!mounted.current) return;
         setState('ready');
       })
       .catch((error: unknown) => {
@@ -390,6 +437,12 @@ function ClubDetail({
 
   const rows = clubMemberRows(members, { accountId, role: club.role });
   const relayWeeks = relayRows(relays);
+  const boardStandings = clubBoardRows(board?.entries ?? []);
+  const leadChallenge = currentClubChallenge(challenges);
+  const openChallenge = leadChallenge ? clubChallengeRows([leadChallenge])[0] : undefined;
+  const standingRows = leadChallenge
+    ? clubChallengeStandingRows(challengeStandings?.entries ?? [], leadChallenge.mode)
+    : [];
   const actions = clubActions(club);
 
   const moderate = async (action: Promise<unknown>, success: string) => {
@@ -405,6 +458,74 @@ function ClubDetail({
   };
 
   const blocked = busy || working;
+
+  /**
+   * Joining or leaving club boards. The reload afterwards is what makes the
+   * change visible: leaving empties the board on the next read, which is the
+   * honest picture of what the server will now return.
+   */
+  const setBoardParticipation = async (participating: boolean) => {
+    setWorking(true);
+    try {
+      await api.setClubBoardParticipation(participating);
+      setNotice(
+        participating
+          ? 'You are on club boards. Your weekly counted minutes are visible to members of your clubs.'
+          : 'You have left club boards. Your minutes are no longer shown to other members.'
+      );
+      load();
+    } catch (error) {
+      setNotice(clubBoardFailureNotice(error));
+    }
+    if (mounted.current) setWorking(false);
+  };
+
+  /**
+   * Joining or leaving the club challenge. The reload afterwards is what makes
+   * the change visible: leaving empties the standings on the next read, which
+   * is what the server will now return.
+   */
+  const joinChallenge = async (participating: boolean) => {
+    if (!leadChallenge) return;
+    setWorking(true);
+    try {
+      await api.setClubChallengeParticipation(club.id, leadChallenge.id, participating);
+      setNotice(
+        participating
+          ? 'You are in the challenge. Your score for this window is visible to the others in it.'
+          : 'You have left the challenge. You are no longer counted or shown in it.'
+      );
+      load();
+    } catch (error) {
+      setNotice(clubChallengeFailureNotice(error));
+    }
+    if (mounted.current) setWorking(false);
+  };
+
+  const openNewChallenge = async () => {
+    setWorking(true);
+    try {
+      await api.openClubChallenge(club.id, modeDraft, lengthDraft);
+      setNotice('The challenge is open. Members join it for themselves.');
+      load();
+    } catch (error) {
+      setNotice(clubChallengeFailureNotice(error));
+    }
+    if (mounted.current) setWorking(false);
+  };
+
+  const cancelChallenge = async () => {
+    if (!leadChallenge) return;
+    setWorking(true);
+    try {
+      await api.cancelClubChallenge(club.id, leadChallenge.id);
+      setNotice('The challenge is cancelled. Nothing was scored and no result was kept.');
+      load();
+    } catch (error) {
+      setNotice(clubChallengeFailureNotice(error));
+    }
+    if (mounted.current) setWorking(false);
+  };
 
   const setTarget = async () => {
     const validation = validateRelayTarget(targetDraft);
@@ -515,6 +636,166 @@ function ClubDetail({
               <Text style={styles.rowDetail}>
                 This sets the target for the open week only. A week that has already been counted
                 cannot be retargeted.
+              </Text>
+            </View>
+          )}
+        </SettingsGroup>
+      )}
+
+      {state === 'ready' && board && (
+        <SettingsGroup title="Weekly board">
+          {!board.participating && (
+            <Text style={styles.settingsHint}>{CLUB_BOARD_OFF_EXPLANATION}</Text>
+          )}
+          {board.participating && boardStandings.length === 0 && (
+            <Text style={styles.settingsHint}>{clubBoardEmptyMessage(board.ruleVersion)}</Text>
+          )}
+          {board.participating &&
+            boardStandings.map((entry) => (
+              <View
+                key={entry.accountId}
+                accessible
+                accessibilityLabel={entry.accessibilityLabel}
+                style={styles.cardTopline}
+              >
+                <View style={styles.flexCopy}>
+                  <Text style={styles.eyebrow}>{entry.rankLabel}</Text>
+                  <Text style={styles.rowTitle}>
+                    {entry.nameLabel}
+                    {entry.isSelf ? ' (you)' : ''}
+                  </Text>
+                </View>
+                <Text style={styles.settingValue}>{entry.minutesLabel}</Text>
+              </View>
+            ))}
+          <Text style={styles.settingsHint}>
+            {board.participating ? CLUB_BOARD_EXPLANATION : CLUB_BOARD_JOIN_CONSEQUENCE}
+          </Text>
+          <PrimaryButton
+            accessibilityLabel={board.participating ? 'Leave club boards' : 'Join club boards'}
+            label={board.participating ? 'Leave club boards' : 'Join club boards'}
+            disabled={blocked}
+            onPress={() => void setBoardParticipation(!board.participating)}
+          />
+        </SettingsGroup>
+      )}
+
+      {state === 'ready' && (
+        <SettingsGroup title="Club challenge">
+          {!openChallenge && (
+            <Text style={styles.settingsHint}>
+              {clubChallengeEmptyMessage(canOpenClubChallenge(club.role))}
+            </Text>
+          )}
+          {openChallenge && (
+            <View
+              accessible
+              accessibilityLabel={openChallenge.accessibilityLabel}
+              style={styles.settingStack}
+            >
+              <View style={styles.cardTopline}>
+                <View style={styles.flexCopy}>
+                  <Text style={styles.eyebrow}>{openChallenge.statusLabel.toUpperCase()}</Text>
+                  <Text style={styles.rowTitle}>{openChallenge.modeLabel}</Text>
+                </View>
+                <Text style={styles.settingValue}>{openChallenge.participantLabel}</Text>
+              </View>
+              <Text style={styles.rowDetail}>{openChallenge.windowLabel}</Text>
+            </View>
+          )}
+          {openChallenge && !openChallenge.joined && (
+            <Text style={styles.settingsHint}>{CLUB_CHALLENGE_JOIN_CONSEQUENCE}</Text>
+          )}
+          {openChallenge && openChallenge.joined && standingRows.length === 0 && (
+            <Text style={styles.settingsHint}>
+              Nobody in this challenge has counted minutes yet.
+            </Text>
+          )}
+          {openChallenge &&
+            openChallenge.joined &&
+            standingRows.map((entry) => (
+              <View
+                key={entry.accountId}
+                accessible
+                accessibilityLabel={entry.accessibilityLabel}
+                style={styles.cardTopline}
+              >
+                <View style={styles.flexCopy}>
+                  <Text style={styles.eyebrow}>{entry.rankLabel}</Text>
+                  <Text style={styles.rowTitle}>
+                    {entry.nameLabel}
+                    {entry.isSelf ? ' (you)' : ''}
+                  </Text>
+                </View>
+                <Text style={styles.settingValue}>{entry.scoreLabel}</Text>
+              </View>
+            ))}
+          {openChallenge && !openChallenge.joined && challengeStandings?.final === false && (
+            <Text style={styles.settingsHint}>{CLUB_CHALLENGE_OFF_EXPLANATION}</Text>
+          )}
+          {openChallenge && openChallenge.open && (
+            <PrimaryButton
+              accessibilityLabel={openChallenge.joined ? 'Leave challenge' : 'Join challenge'}
+              label={openChallenge.joined ? 'Leave challenge' : 'Join challenge'}
+              disabled={blocked}
+              onPress={() => void joinChallenge(!openChallenge.joined)}
+            />
+          )}
+          <Text style={styles.settingsHint}>{CLUB_CHALLENGE_EXPLANATION}</Text>
+          {openChallenge && openChallenge.open && canOpenClubChallenge(club.role) && (
+            <View style={styles.settingStack}>
+              <Text style={styles.rowDetail}>{CLUB_CHALLENGE_CANCEL_CONSEQUENCE}</Text>
+              <Pressable
+                accessibilityLabel="Cancel challenge"
+                accessibilityRole="button"
+                disabled={blocked}
+                onPress={() => void cancelChallenge()}
+              >
+                <Text style={styles.textButton}>Cancel challenge</Text>
+              </Pressable>
+            </View>
+          )}
+          {!openChallenge?.open && canOpenClubChallenge(club.role) && (
+            <View style={styles.settingStack}>
+              <Text style={styles.fieldLabel}>OPEN A CHALLENGE</Text>
+              <View style={styles.filterRow}>
+                {(['active_minutes', 'active_days'] as const).map((mode) => (
+                  <Pressable
+                    key={mode}
+                    accessibilityLabel={`Score on ${CLUB_CHALLENGE_MODE_LABEL[mode]}`}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: modeDraft === mode }}
+                    onPress={() => setModeDraft(mode)}
+                  >
+                    <Text style={modeDraft === mode ? styles.rowTitle : styles.textButton}>
+                      {CLUB_CHALLENGE_MODE_LABEL[mode]}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              <View style={styles.filterRow}>
+                {CLUB_CHALLENGE_LENGTHS.map((length) => (
+                  <Pressable
+                    key={length}
+                    accessibilityLabel={`Run for ${length} days`}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: lengthDraft === length }}
+                    onPress={() => setLengthDraft(length)}
+                  >
+                    <Text style={lengthDraft === length ? styles.rowTitle : styles.textButton}>
+                      {length} days
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              <PrimaryButton
+                accessibilityLabel="Open challenge"
+                label={working ? 'Opening…' : 'Open challenge'}
+                disabled={blocked}
+                onPress={() => void openNewChallenge()}
+              />
+              <Text style={styles.rowDetail}>
+                Opening a challenge does not put you in it. Every member joins for themselves.
               </Text>
             </View>
           )}
@@ -651,8 +932,8 @@ function ClubDetail({
       </SettingsGroup>
 
       <Text style={styles.settingsHint}>
-        Club boards and club challenges are not built yet. When they arrive a club will still see
-        only aggregate totals — never a member&apos;s route, pace, or location.
+        The board and the challenge show only the counted minutes of members who joined them, and a
+        club will never see a member&apos;s route, pace, or location.
       </Text>
     </>
   );

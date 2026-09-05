@@ -22,8 +22,10 @@ import {
   setPushEnabled,
   setQuietHoursEdge,
   setQuietHoursEnabled,
+  setMarketingConsent,
   toggleCategory,
   unreadIds,
+  MARKETING_CONSENT_HINT,
   type NotificationsRemoteState,
   type NotificationTarget
 } from './notifications-model';
@@ -282,6 +284,17 @@ export function NotificationsScreen({
                 accessibilityLabel="Push to this phone"
                 onValueChange={(next) => setEdited(setPushEnabled(edited, next))}
                 value={edited.channels.push}
+              />
+            </View>
+            <View style={styles.setting}>
+              <View style={styles.flexCopy}>
+                <Text style={styles.rowTitle}>Product news by email</Text>
+                <Text style={styles.rowDetail}>{MARKETING_CONSENT_HINT}</Text>
+              </View>
+              <Switch
+                accessibilityLabel="Product news by email"
+                onValueChange={(next) => setEdited(setMarketingConsent(edited, next))}
+                value={edited.marketingConsent}
               />
             </View>
             <View style={styles.setting}>

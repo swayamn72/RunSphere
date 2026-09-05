@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.app.json"
   },
   "dependencies": {
+    "@runsphere/contracts": "workspace:*",
     "@runsphere/domain": "workspace:*",
     "@runsphere/ui": "workspace:*",
     "react": "19.2.3",

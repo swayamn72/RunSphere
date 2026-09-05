@@ -13,7 +13,11 @@ import {
   enqueueDueChallenges,
   scoreChallenge
 } from './challenge-scoring.js';
+import { processClubChallenges } from './club-challenges.js';
 import { processClubRelays } from './club-relays.js';
+import { CAMPAIGN_TOPIC, processCampaigns } from './campaigns.js';
+import { processCompetitions } from './competitions.js';
+import { processGlobalBoards } from './global-boards.js';
 import {
   createFcmSender,
   createPushDelivery,
@@ -129,6 +133,24 @@ export const expireSafetyShares = async (db: Database): Promise<number> => {
   return expired.rows.length;
 };
 
+/**
+ * Close out sanctions the clock has ended (milestone 3.7).
+ *
+ * A sanction with an `expires_at` in the past no longer applies, and the read
+ * paths already treat it that way. Recording the expiry gives the account and
+ * any later audit one unambiguous end time instead of a row that has to be
+ * re-derived from the clock every time it is read. Warnings never expire, so
+ * they are never touched here.
+ */
+export const expireSanctions = async (db: Database): Promise<number> => {
+  const expired = await db.query<{ id: string }>(
+    `UPDATE sanctions SET revoked_at = expires_at, revoked_reason = 'expired'
+     WHERE revoked_at IS NULL AND expires_at IS NOT NULL AND expires_at <= now()
+     RETURNING id`
+  );
+  return expired.rows.length;
+};
+
 export const processMaintenance = async (db: Database): Promise<number> => {
   // Deletion can remove the same traces and share records touched by the other jobs.
   const purgedTraces = await purgeExpiredRawTraces(db);
@@ -141,7 +163,40 @@ export const processMaintenance = async (db: Database): Promise<number> => {
   // Relay totals are a recompute, so running them last means they already
   // reflect this sweep's deletions and departures.
   const relays = await processClubRelays(db);
-  return purgedTraces + deletedAccounts + expiredShares + lapsedInvites + dueChallenges + relays;
+  // Club challenges are finished after deletion too, so a closed window is
+  // never scored with a participant the same sweep has just erased. Unlike the
+  // 1v1 flow this writes the result directly: the `status = 'active'` claim is
+  // the idempotence, so a failed pass simply retries on the next sweep.
+  const clubChallenges = await processClubChallenges(db);
+  // The global board is a full recompute of two weeks and reads the widest set
+  // of accounts, so it runs last: it then reflects every departure, deletion,
+  // and revoked opt-in this sweep has already settled.
+  const globalBoard = await processGlobalBoards(db);
+  // Competitions are advanced last: the clock decides their states, and by
+  // this point every deletion, withdrawal, and validation this sweep settled
+  // is already reflected in what a closing event will score.
+  const competitions = await processCompetitions(db);
+  // Sanctions are closed out last, after any account erased in this sweep is
+  // already gone: an expired sanction on a deleted account is nothing to
+  // record.
+  const sanctions = await expireSanctions(db);
+  // Campaign sends resolve their audience last, so consent revoked anywhere in
+  // this sweep — including by an unsubscribe — is already reflected in who the
+  // send will reach.
+  const campaigns = await processCampaigns(db);
+  return (
+    purgedTraces +
+    deletedAccounts +
+    expiredShares +
+    lapsedInvites +
+    dueChallenges +
+    relays +
+    clubChallenges +
+    globalBoard +
+    competitions +
+    sanctions +
+    campaigns
+  );
 };
 
 /**
@@ -203,7 +258,7 @@ export const processNextActivity = async (db: Database): Promise<boolean> => {
 };
 export type { DeliveryHandler };
 
-const deliveryTopics = ['notification.created', 'email.transactional'] as const;
+const deliveryTopics = ['notification.created', 'email.transactional', CAMPAIGN_TOPIC] as const;
 
 // Push (FCM) and transactional email providers are a gated dependency: the
 // Foundation gate proves inbox -> outbox -> worker end to end, but real

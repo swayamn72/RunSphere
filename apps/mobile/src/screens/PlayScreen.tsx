@@ -5,7 +5,11 @@ import type {
   ChallengeMode,
   ChallengeResult,
   ChallengeSummary,
+  CompetitionStandingsResponse,
+  CompetitionSummary,
   FriendStandingsResponse,
+  GlobalBoardResponse,
+  TerritorySeasonResponse,
   Profile
 } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
@@ -29,6 +33,22 @@ import {
   respondChallengeFailure,
   standingRows,
   standingsState,
+  COMPETITION_ENTRY_CONSEQUENCE,
+  GLOBAL_BOARD_JOIN_CONSEQUENCE,
+  TERRITORY_JOIN_CONSEQUENCE,
+  TERRITORY_NO_SEASON_MESSAGE,
+  competitionFailureNotice,
+  competitionProvisionalNotice,
+  competitionRows,
+  competitionStandingRows,
+  currentCompetition,
+  territoryFailureNotice,
+  territorySeasonRow,
+  globalBoardEmptyMessage,
+  globalBoardRows,
+  globalBoardState,
+  globalDivisionLabel,
+  globalSelfLabel,
   type PlayRemoteState
 } from './play-model';
 
@@ -55,6 +75,13 @@ interface PlayData {
   readonly results: ReadonlyMap<string, ChallengeResult>;
   readonly standings: FriendStandingsResponse | undefined;
   readonly standingsRemoteState: PlayRemoteState;
+  readonly globalBoard: GlobalBoardResponse | undefined;
+  readonly globalBoardRemoteState: PlayRemoteState;
+  readonly competitions: readonly CompetitionSummary[];
+  readonly competitionStandings: CompetitionStandingsResponse | undefined;
+  readonly competitionsRemoteState: PlayRemoteState;
+  readonly territory: TerritorySeasonResponse | undefined;
+  readonly territoryRemoteState: PlayRemoteState;
   readonly friends: readonly Profile[];
   readonly reload: () => void;
   readonly respond: (challengeId: string, accept: boolean) => Promise<string | undefined>;
@@ -64,6 +91,15 @@ interface PlayData {
     lengthDays: ChallengeLengthDays
   ) => Promise<string | undefined>;
   readonly setParticipating: (participating: boolean) => Promise<void>;
+  readonly setGlobalParticipating: (participating: boolean) => Promise<string | undefined>;
+  readonly setCompetitionEntry: (
+    competitionId: string,
+    enrolled: boolean
+  ) => Promise<string | undefined>;
+  readonly setTerritoryEnrolled: (
+    seasonId: string,
+    enrolled: boolean
+  ) => Promise<string | undefined>;
 }
 
 const usePlayData = (api: MobileApiClient, onSessionExpired: () => void): PlayData => {
@@ -72,6 +108,14 @@ const usePlayData = (api: MobileApiClient, onSessionExpired: () => void): PlayDa
   const [results, setResults] = useState<ReadonlyMap<string, ChallengeResult>>(new Map());
   const [standings, setStandings] = useState<FriendStandingsResponse>();
   const [standingsRemoteState, setStandingsRemoteState] = useState<PlayRemoteState>('loading');
+  const [globalBoard, setGlobalBoard] = useState<GlobalBoardResponse>();
+  const [globalBoardRemoteState, setGlobalBoardRemoteState] = useState<PlayRemoteState>('loading');
+  const [competitions, setCompetitions] = useState<readonly CompetitionSummary[]>([]);
+  const [competitionStandings, setCompetitionStandings] = useState<CompetitionStandingsResponse>();
+  const [competitionsRemoteState, setCompetitionsRemoteState] =
+    useState<PlayRemoteState>('loading');
+  const [territory, setTerritory] = useState<TerritorySeasonResponse>();
+  const [territoryRemoteState, setTerritoryRemoteState] = useState<PlayRemoteState>('loading');
   const [friends, setFriends] = useState<readonly Profile[]>([]);
   const mounted = useRef(true);
   const generation = useRef(0);
@@ -147,6 +191,45 @@ const usePlayData = (api: MobileApiClient, onSessionExpired: () => void): PlayDa
         setStandingsRemoteState(playErrorState(error));
       });
     void api
+      .getTerritorySeason()
+      .then((next) => {
+        if (!mounted.current || requestGeneration !== generation.current) return;
+        setTerritory(next);
+        setTerritoryRemoteState(next.season ? 'ready' : 'empty');
+      })
+      .catch((error: unknown) => {
+        if (!mounted.current || requestGeneration !== generation.current) return;
+        setTerritoryRemoteState(playErrorState(error));
+      });
+    void api
+      .listCompetitions()
+      .then(async (next) => {
+        if (!mounted.current || requestGeneration !== generation.current) return;
+        setCompetitions(next);
+        // Standings are read for the competition the tab leads with, and only
+        // that one: the rest are listed, not opened.
+        const lead = currentCompetition(next);
+        const standings = lead ? await api.getCompetitionStandings(lead.id) : undefined;
+        if (!mounted.current || requestGeneration !== generation.current) return;
+        setCompetitionStandings(standings);
+        setCompetitionsRemoteState(next.length ? 'ready' : 'empty');
+      })
+      .catch((error: unknown) => {
+        if (!mounted.current || requestGeneration !== generation.current) return;
+        setCompetitionsRemoteState(playErrorState(error));
+      });
+    void api
+      .getGlobalBoard()
+      .then((next) => {
+        if (!mounted.current || requestGeneration !== generation.current) return;
+        setGlobalBoard(next);
+        setGlobalBoardRemoteState(globalBoardState(next));
+      })
+      .catch((error: unknown) => {
+        if (!mounted.current || requestGeneration !== generation.current) return;
+        setGlobalBoardRemoteState(playErrorState(error));
+      });
+    void api
       .listFriends()
       .then((next) => {
         if (mounted.current && requestGeneration === generation.current) setFriends(next);
@@ -206,17 +289,89 @@ const usePlayData = (api: MobileApiClient, onSessionExpired: () => void): PlayDa
     [api, load]
   );
 
+  /**
+   * Joining or leaving the global board. The reload afterwards is what makes
+   * the change visible: leaving takes the reader off the published board on
+   * the server, so the next read is the truthful picture rather than a local
+   * flag flipped ahead of it.
+   */
+  const setGlobalParticipating = useCallback(
+    async (participating: boolean): Promise<string | undefined> => {
+      try {
+        await api.setGlobalBoardParticipation(participating);
+        load();
+        return undefined;
+      } catch (error) {
+        // A moderation decision arrives as a `403` carrying the statement staff
+        // wrote; showing it beats a bare "unavailable".
+        if (error instanceof ApiFailure && error.status === 403) return error.message;
+        if (mounted.current) setGlobalBoardRemoteState('error');
+        return undefined;
+      }
+    },
+    [api, load]
+  );
+
+  /**
+   * Entering or leaving a competition. The failure is returned rather than
+   * thrown so the caller can show the published reason — a missed eligibility
+   * band is a product state, not an error.
+   */
+  const setCompetitionEntry = useCallback(
+    async (competitionId: string, enrolled: boolean) => {
+      try {
+        await api.setCompetitionEnrollment(competitionId, enrolled);
+        load();
+        return undefined;
+      } catch (error) {
+        return competitionFailureNotice(error);
+      }
+    },
+    [api, load]
+  );
+
+  /**
+   * Joining or leaving the season. The failure is returned rather than thrown
+   * so the caller can show the server's own words — a season that closed while
+   * somebody was reading is a product state, not an error.
+   */
+  const setTerritoryEnrolled = useCallback(
+    async (seasonId: string, enrolled: boolean) => {
+      try {
+        const next = await api.setTerritoryEnrollment(seasonId, enrolled);
+        if (mounted.current) {
+          setTerritory(next);
+          setTerritoryRemoteState(next.season ? 'ready' : 'empty');
+        }
+        return undefined;
+      } catch (error) {
+        return territoryFailureNotice(error);
+      }
+    },
+    [api]
+  );
+
   return {
     challenges,
     challengeState,
     results,
     standings,
     standingsRemoteState,
+    globalBoard,
+    globalBoardRemoteState,
+    competitions,
+    competitionStandings,
+    competitionsRemoteState,
+    territory,
+    territoryRemoteState,
     friends,
     reload: load,
     respond,
     create,
-    setParticipating
+    setParticipating,
+    setGlobalParticipating,
+    setCompetitionEntry,
+    setTerritoryEnrolled
   };
 };
 
@@ -240,11 +395,21 @@ export function PlayScreen({
     results,
     standings,
     standingsRemoteState,
+    globalBoard,
+    globalBoardRemoteState,
+    competitions,
+    competitionStandings,
+    competitionsRemoteState,
+    territory,
+    territoryRemoteState,
     friends,
     reload,
     respond,
     create,
-    setParticipating
+    setParticipating,
+    setGlobalParticipating,
+    setCompetitionEntry,
+    setTerritoryEnrolled
   } = usePlayData(api, onSessionExpired);
   const [notice, setNotice] = useState('');
   const [busyId, setBusyId] = useState<string>();
@@ -257,6 +422,13 @@ export function PlayScreen({
   const today = todayIso();
   const available = useMemo(() => invitableFriends(friends, challenges), [friends, challenges]);
   const rows = standings ? standingRows(standings) : [];
+  const globalRows = globalBoard ? globalBoardRows(globalBoard) : [];
+  const seasonRow = territory?.season ? territorySeasonRow(territory.season) : undefined;
+  const competitionCards = competitionRows(competitions);
+  const leadCompetition = currentCompetition(competitions);
+  const competitionEntries = leadCompetition
+    ? competitionStandingRows(competitionStandings?.entries ?? [], leadCompetition.mode)
+    : [];
 
   // An invite waiting on the reader outranks an empty board: one asks for an
   // answer, the other only explains why a list is short.
@@ -524,6 +696,242 @@ export function PlayScreen({
         <Unavailable
           styles={styles}
           label="Friend standings are unavailable."
+          actionLabel="Try again"
+          onAction={reload}
+        />
+      )}
+
+      <View style={styles.sectionHeader}>
+        <Text accessibilityRole="header" style={styles.sectionTitle}>
+          Global board
+        </Text>
+      </View>
+      {globalBoardRemoteState === 'loading' && (
+        <View style={styles.card}>
+          <View style={[styles.skeleton, styles.skeletonLine]} />
+          <Text style={styles.helper}>Loading the global board.</Text>
+        </View>
+      )}
+      {globalBoard && !globalBoard.participating && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>You are not on the global board</Text>
+          <Text style={styles.body}>{GLOBAL_BOARD_JOIN_CONSEQUENCE}</Text>
+          <PrimaryButton
+            label="Join the global board"
+            onPress={() =>
+              void setGlobalParticipating(true).then((failure) => setNotice(failure ?? ''))
+            }
+          />
+        </View>
+      )}
+      {globalBoard?.participating && (
+        <View style={styles.card}>
+          <Text style={styles.weekLabel}>
+            Week of {globalBoard.periodStart} · counted active minutes
+            {globalBoard.division ? ` · ${globalDivisionLabel(globalBoard.division)}` : ''}
+          </Text>
+          {globalRows.map((row) => (
+            <View
+              key={row.accountId}
+              accessible
+              accessibilityLabel={row.accessibilityLabel}
+              style={[styles.standingRow, row.isSelf && styles.standingSelf]}
+            >
+              <Text style={styles.rank}>{row.rank}</Text>
+              <Text style={styles.standingName}>{row.nameLabel}</Text>
+              <Text style={styles.standingScore}>{row.minutesLabel}</Text>
+            </View>
+          ))}
+          {!globalRows.length && (
+            <Text style={styles.body}>{globalBoardEmptyMessage(globalBoard)}</Text>
+          )}
+          {globalSelfLabel(globalBoard) && (
+            <Text style={styles.helper}>{globalSelfLabel(globalBoard)}</Text>
+          )}
+          <Text style={styles.helper}>
+            You are ranked in your division, which is decided by how many weeks you have been active
+            — never by pace, distance, or place.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Leave the global board"
+            onPress={() => void setGlobalParticipating(false)}
+            style={styles.guideAction}
+          >
+            <Text style={styles.guideActionText}>Leave the global board</Text>
+          </Pressable>
+        </View>
+      )}
+      {globalBoardRemoteState === 'offline' && (
+        <Unavailable
+          styles={styles}
+          label="The global board is unavailable offline."
+          actionLabel="Try again"
+          onAction={reload}
+        />
+      )}
+      {globalBoardRemoteState === 'error' && (
+        <Unavailable
+          styles={styles}
+          label="The global board is unavailable."
+          actionLabel="Try again"
+          onAction={reload}
+        />
+      )}
+
+      <View style={styles.sectionHeader}>
+        <Text accessibilityRole="header" style={styles.sectionTitle}>
+          Season
+        </Text>
+      </View>
+      {territoryRemoteState === 'loading' && (
+        <View style={styles.card}>
+          <View style={[styles.skeleton, styles.skeletonLine]} />
+          <Text style={styles.helper}>Loading the season.</Text>
+        </View>
+      )}
+      {territory && !territory.season && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>No season is running</Text>
+          <Text style={styles.body}>{TERRITORY_NO_SEASON_MESSAGE}</Text>
+          <Text style={styles.helper}>{territory.captureNote}</Text>
+        </View>
+      )}
+      {territory?.season && seasonRow && (
+        <View accessible accessibilityLabel={seasonRow.accessibilityLabel} style={styles.card}>
+          <Text style={styles.weekLabel}>{seasonRow.statusLabel}</Text>
+          <Text style={styles.cardTitle}>{seasonRow.titleLabel}</Text>
+          <Text style={styles.body}>
+            {`${seasonRow.windowLabel} · ${seasonRow.participantLabel}`}
+          </Text>
+          {seasonRow.divisionLabel ? (
+            <>
+              <Text style={styles.body}>{`Your group: ${seasonRow.divisionLabel}`}</Text>
+              <Text style={styles.helper}>{seasonRow.divisionExplanation}</Text>
+            </>
+          ) : null}
+          {!seasonRow.enrolled && seasonRow.canJoin ? (
+            <Text style={styles.body}>{TERRITORY_JOIN_CONSEQUENCE}</Text>
+          ) : null}
+          {/*
+            The note is shown to anybody looking at a season, joined or not:
+            the word "season" promises a map, and there is no map yet.
+          */}
+          <Text style={styles.helper}>{territory.captureNote}</Text>
+          {seasonRow.canJoin ? (
+            <PrimaryButton
+              label={seasonRow.enrolled ? 'Leave the season' : 'Take part'}
+              onPress={() =>
+                void setTerritoryEnrolled(territory.season!.id, !seasonRow.enrolled).then(
+                  (failure) => setNotice(failure ?? '')
+                )
+              }
+            />
+          ) : null}
+        </View>
+      )}
+      {territoryRemoteState === 'offline' && (
+        <Unavailable
+          styles={styles}
+          label="The season is unavailable offline."
+          actionLabel="Try again"
+          onAction={reload}
+        />
+      )}
+      {territoryRemoteState === 'error' && (
+        <Unavailable
+          styles={styles}
+          label="The season is unavailable."
+          actionLabel="Try again"
+          onAction={reload}
+        />
+      )}
+
+      <View style={styles.sectionHeader}>
+        <Text accessibilityRole="header" style={styles.sectionTitle}>
+          Competitions
+        </Text>
+      </View>
+      {competitionsRemoteState === 'loading' && (
+        <View style={styles.card}>
+          <View style={[styles.skeleton, styles.skeletonLine]} />
+          <Text style={styles.helper}>Loading competitions.</Text>
+        </View>
+      )}
+      {competitionsRemoteState === 'empty' && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>No competition is scheduled</Text>
+          <Text style={styles.body}>
+            Competitions are announced in advance with their window, eligibility, and rewards. There
+            is nothing to enter right now.
+          </Text>
+        </View>
+      )}
+      {competitionCards.map((row) => (
+        <View
+          key={row.id}
+          accessible
+          accessibilityLabel={row.accessibilityLabel}
+          style={styles.card}
+        >
+          <Text style={styles.weekLabel}>{row.statusLabel}</Text>
+          <Text style={styles.cardTitle}>{row.title}</Text>
+          <Text style={styles.body}>{`${row.windowLabel} · ${row.participantLabel}`}</Text>
+          {row.rewardsLabel !== '' && (
+            <Text style={styles.helper}>{`Rewards: ${row.rewardsLabel}`}</Text>
+          )}
+          {row.eligibilityLabel && <Text style={styles.helper}>{row.eligibilityLabel}</Text>}
+          {!row.enrolled && row.canEnter && (
+            <Text style={styles.body}>{COMPETITION_ENTRY_CONSEQUENCE}</Text>
+          )}
+          {row.canEnter && (
+            <PrimaryButton
+              label={row.enrolled ? 'Leave the competition' : 'Enter the competition'}
+              onPress={() =>
+                void setCompetitionEntry(row.id, !row.enrolled).then((failure) =>
+                  setNotice(failure ?? '')
+                )
+              }
+            />
+          )}
+          {leadCompetition?.id === row.id && row.enrolled && (
+            <>
+              {competitionProvisionalNotice(leadCompetition) && (
+                <Text style={styles.helper}>{competitionProvisionalNotice(leadCompetition)}</Text>
+              )}
+              {competitionEntries.map((entry) => (
+                <View
+                  key={entry.accountId}
+                  accessible
+                  accessibilityLabel={entry.accessibilityLabel}
+                  style={[styles.standingRow, entry.isSelf && styles.standingSelf]}
+                >
+                  <Text style={styles.rank}>{entry.rank}</Text>
+                  <Text style={styles.standingName}>{entry.nameLabel}</Text>
+                  <Text style={styles.standingScore}>{entry.scoreLabel}</Text>
+                </View>
+              ))}
+              {!competitionEntries.length && (
+                <Text style={styles.helper}>
+                  No entrant has counted minutes in this window yet.
+                </Text>
+              )}
+            </>
+          )}
+        </View>
+      ))}
+      {competitionsRemoteState === 'offline' && (
+        <Unavailable
+          styles={styles}
+          label="Competitions are unavailable offline."
+          actionLabel="Try again"
+          onAction={reload}
+        />
+      )}
+      {competitionsRemoteState === 'error' && (
+        <Unavailable
+          styles={styles}
+          label="Competitions are unavailable."
           actionLabel="Try again"
           onAction={reload}
         />

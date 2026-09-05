@@ -77,6 +77,13 @@ import { registerProgressionRoutes } from './progression-routes.js';
 import { registerAchievementRoutes } from './achievement-routes.js';
 import { registerChallengeRoutes } from './challenge-routes.js';
 import { registerClubRoutes } from './club-routes.js';
+import { registerGlobalBoardRoutes } from './global-board-routes.js';
+import { registerCompetitionRoutes } from './competition-routes.js';
+import { registerModerationRoutes } from './moderation-routes.js';
+import { registerCampaignRoutes } from './campaign-routes.js';
+import { registerGovernanceRoutes } from './governance-routes.js';
+import { registerTerritoryRoutes } from './territory-routes.js';
+import { loadRestrictions } from './sanction-guard.js';
 import {
   hashPassword,
   issueSession,
@@ -633,7 +640,11 @@ export const buildApp = ({
         schema: {
           tags: ['auth'],
           body: LoginRequestSchema,
-          response: { 200: AuthResponseSchema, 401: ErrorResponseSchema }
+          response: {
+            200: AuthResponseSchema,
+            401: ErrorResponseSchema,
+            403: ErrorResponseSchema
+          }
         }
       },
       async (request, reply) => {
@@ -649,6 +660,16 @@ export const buildApp = ({
           !(await verifyPassword(accounts.rows[0].password_hash, request.body.password))
         )
           return reply.code(401).send(genericAuthError);
+        // A suspended account is told why, and only after its password checked
+        // out: answering before that would turn sign-in into a way to test
+        // whether somebody else has been suspended.
+        const restrictions = await loadRestrictions(database, accounts.rows[0].id);
+        if (restrictions.signInBlocked)
+          return reply.code(403).send({
+            message:
+              restrictions.statement ??
+              'This account is suspended. Contact support if you believe that is wrong.'
+          });
         return issueSession(database, accounts.rows[0].id, authSecret);
       }
     );
@@ -658,13 +679,34 @@ export const buildApp = ({
         schema: {
           tags: ['auth'],
           body: RefreshRequestSchema,
-          response: { 200: AuthResponseSchema, 401: ErrorResponseSchema }
+          response: {
+            200: AuthResponseSchema,
+            401: ErrorResponseSchema,
+            403: ErrorResponseSchema
+          }
         }
       },
       async (request, reply) => {
         if (!database) return reply.code(503).send({ message: 'Service unavailable' });
         const session = await rotateSession(database, request.body.refreshToken, authSecret);
-        return session ?? reply.code(401).send({ message: 'Invalid refresh token' });
+        if (!session) return reply.code(401).send({ message: 'Invalid refresh token' });
+        // Refresh is checked too, so a suspension applied mid-session takes
+        // effect at the next rotation rather than waiting for a sign-out. The
+        // account is read back out of the token just minted rather than
+        // widening `rotateSession`'s return shape for one caller.
+        const rotatedAccountId = verifyAccessToken(session.accessToken, authSecret);
+        const refreshed = rotatedAccountId
+          ? await loadRestrictions(database, rotatedAccountId)
+          : { sharingPaused: false, signInBlocked: false, statement: undefined };
+        if (refreshed.signInBlocked) {
+          await revokeSession(database, request.body.refreshToken);
+          return reply.code(403).send({
+            message:
+              refreshed.statement ??
+              'This account is suspended. Contact support if you believe that is wrong.'
+          });
+        }
+        return session;
       }
     );
     routes.post<{ Body: RefreshRequest }>(
@@ -1589,6 +1631,12 @@ export const buildApp = ({
     registerAchievementRoutes({ routes, database, authSecret });
     registerChallengeRoutes({ routes, database, authSecret });
     registerClubRoutes({ routes, database, authSecret });
+    registerGlobalBoardRoutes({ routes, database, authSecret });
+    registerCompetitionRoutes({ routes, database, authSecret });
+    registerModerationRoutes({ routes, database, authSecret });
+    registerCampaignRoutes({ routes, database, authSecret });
+    registerGovernanceRoutes({ routes, database, authSecret });
+    registerTerritoryRoutes({ routes, database, authSecret });
 
     done();
   });

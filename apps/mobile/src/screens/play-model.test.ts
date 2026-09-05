@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import type { ChallengeSummary, FriendStandingsResponse, Profile } from '@runsphere/contracts';
+import type {
+  ChallengeSummary,
+  CompetitionSummary,
+  FriendStandingsResponse,
+  GlobalBoardResponse,
+  Profile
+} from '@runsphere/contracts';
 import { AuthFailure } from '../auth-failure.js';
 import { ApiFailure } from '../api-client.js';
 import {
+  COMPETITION_ENTRY_CONSEQUENCE,
+  GLOBAL_BOARD_JOIN_CONSEQUENCE,
   challengeListState,
   challengeOutcomeLine,
   challengeWindowLabel,
@@ -12,6 +20,16 @@ import {
   invitableFriends,
   playErrorState,
   respondChallengeFailure,
+  competitionFailureNotice,
+  competitionProvisionalNotice,
+  competitionRows,
+  competitionStandingRows,
+  currentCompetition,
+  globalBoardEmptyMessage,
+  globalBoardRows,
+  globalBoardState,
+  globalDivisionLabel,
+  globalSelfLabel,
   standingRows,
   standingsState
 } from './play-model.js';
@@ -238,5 +256,224 @@ describe('invitableFriends', () => {
     for (const status of ['finished', 'declined', 'cancelled'] as const) {
       expect(invitableFriends(friends, [challenge({ status })])).toHaveLength(1);
     }
+  });
+});
+
+describe('global board rows', () => {
+  const board = (overrides: Partial<GlobalBoardResponse> = {}): GlobalBoardResponse => ({
+    periodStart: '2026-08-31',
+    periodEnd: '2026-09-07',
+    participating: true,
+    division: 'rising',
+    ruleVersion: 1,
+    me: { rank: 2, cappedActiveMinutes: 120 },
+    entries: [
+      {
+        profile: {
+          id: 'account-ravi',
+          displayName: 'Ravi',
+          cosmetic: { avatarKey: 'loop-1' },
+          activityVisibility: 'private'
+        },
+        rank: 1,
+        cappedActiveMinutes: 200,
+        isSelf: false
+      },
+      {
+        profile: {
+          id: 'account-me',
+          displayName: 'Maya',
+          cosmetic: { avatarKey: 'loop-1' },
+          activityVisibility: 'private'
+        },
+        rank: 2,
+        cappedActiveMinutes: 120,
+        isSelf: true
+      }
+    ],
+    ...overrides
+  });
+
+  it('renders the served ranks and marks the reader, without renumbering', () => {
+    const rows = globalBoardRows(board());
+
+    expect(rows.map((row) => row.rank)).toEqual([1, 2]);
+    expect(rows[1]?.nameLabel).toBe('Maya (you)');
+    expect(rows[0]?.accessibilityLabel).toBe('Rank 1, Ravi, 200 counted active minutes');
+  });
+
+  it('keeps a gap when a blocked account is missing from the page', () => {
+    const rows = globalBoardRows(
+      board({ entries: [board().entries[0]!, { ...board().entries[1]!, rank: 4 }] })
+    );
+
+    // The rank is a fact about the period, not about who is looking.
+    expect(rows.map((row) => row.rank)).toEqual([1, 4]);
+  });
+
+  it('names a division in words rather than showing its key', () => {
+    expect(globalDivisionLabel('newcomer')).toBe('Newcomers');
+    expect(globalDivisionLabel('rising')).toBe('Rising');
+    expect(globalDivisionLabel('established')).toBe('Established');
+    // A division published later is shown as it comes rather than dropped.
+    expect(globalDivisionLabel('veteran')).toBe('veteran');
+    expect(globalDivisionLabel(undefined)).toBe('');
+  });
+
+  /** An unranked reader has no `me` at all, rather than a `me` of undefined. */
+  const unranked = (overrides: Partial<GlobalBoardResponse> = {}): GlobalBoardResponse => {
+    const next = { ...board(overrides) };
+    delete next.me;
+    return next;
+  };
+
+  it('shows the reader own standing only once the server has ranked them', () => {
+    expect(globalSelfLabel(board())).toBe('You are #2 with 120 min');
+    expect(globalSelfLabel(unranked())).toBeUndefined();
+  });
+
+  it('separates "nobody else yet" from "you are not ranked yet"', () => {
+    expect(globalBoardEmptyMessage(board({ entries: [] }))).toContain(
+      'Nobody else in your division'
+    );
+    expect(globalBoardEmptyMessage(unranked({ entries: [] }))).toContain(
+      'Your first counted minutes'
+    );
+  });
+
+  it('treats an unloaded board as loading and an unjoined one as empty', () => {
+    expect(globalBoardState(undefined)).toBe('loading');
+    expect(globalBoardState(board({ participating: false, entries: [] }))).toBe('empty');
+    expect(globalBoardState(board({ entries: [] }))).toBe('empty');
+    expect(globalBoardState(board())).toBe('ready');
+  });
+
+  it('says what joining publishes and what it never does', () => {
+    expect(GLOBAL_BOARD_JOIN_CONSEQUENCE).toContain('display name');
+    expect(GLOBAL_BOARD_JOIN_CONSEQUENCE).toContain('Never your route, pace, distance');
+    expect(GLOBAL_BOARD_JOIN_CONSEQUENCE).toContain('leave at any time');
+  });
+});
+
+describe('scheduled competitions', () => {
+  const summary = (overrides: Partial<CompetitionSummary> = {}): CompetitionSummary => ({
+    id: 'competition-1',
+    title: 'September steady week',
+    mode: 'active_minutes',
+    status: 'published',
+    periodStart: '2026-09-07',
+    periodEnd: '2026-09-14',
+    minPriorActiveWeeks: 0,
+    rewards: 'A cosmetic badge',
+    disputePeriodHours: 48,
+    participantCount: 12,
+    enrolled: false,
+    eligible: true,
+    ruleVersion: 1,
+    createdAt: '2026-09-01T04:00:00.000Z',
+    ...overrides
+  });
+
+  it('states the window, the field, and the published rewards', () => {
+    const [row] = competitionRows([summary()]);
+
+    expect(row?.statusLabel).toBe('Announced');
+    expect(row?.windowLabel).toBe('2026-09-07 to 2026-09-14');
+    expect(row?.participantLabel).toBe('12 entrants');
+    expect(row?.rewardsLabel).toBe('A cosmetic badge');
+    expect(row?.canEnter).toBe(true);
+  });
+
+  it('states an eligibility band whether or not the reader clears it', () => {
+    const clears = competitionRows([summary({ minPriorActiveWeeks: 4, eligible: true })])[0];
+    const misses = competitionRows([summary({ minPriorActiveWeeks: 4, eligible: false })])[0];
+
+    expect(clears?.eligibilityLabel).toContain('4 or more earlier active weeks');
+    expect(clears?.eligibilityLabel).not.toContain('not you yet');
+    expect(misses?.eligibilityLabel).toContain('not you yet');
+    // An account that cannot enter is not offered a control that would fail.
+    expect(misses?.canEnter).toBe(false);
+    // An open competition states no band at all rather than an empty one.
+    expect(competitionRows([summary()])[0]?.eligibilityLabel).toBeUndefined();
+  });
+
+  it('keeps an entrant able to leave even if they would no longer qualify', () => {
+    const row = competitionRows([
+      summary({ minPriorActiveWeeks: 8, eligible: false, enrolled: true })
+    ])[0];
+
+    expect(row?.canEnter).toBe(true);
+  });
+
+  it('offers no entry once the window has closed', () => {
+    expect(competitionRows([summary({ status: 'closed' })])[0]?.canEnter).toBe(false);
+    expect(competitionRows([summary({ status: 'finalized' })])[0]?.canEnter).toBe(false);
+    expect(competitionRows([summary({ status: 'cancelled' })])[0]?.canEnter).toBe(false);
+  });
+
+  it('names each state in the words a member reads', () => {
+    expect(competitionRows([summary({ status: 'open' })])[0]?.statusLabel).toBe('Running');
+    expect(competitionRows([summary({ status: 'closed' })])[0]?.statusLabel).toBe(
+      'Provisional result'
+    );
+    expect(competitionRows([summary({ status: 'finalized' })])[0]?.statusLabel).toBe(
+      'Final result'
+    );
+  });
+
+  it('leads with the event that is open, and otherwise the last one with a result', () => {
+    const finished = summary({ id: 'old', status: 'finalized' });
+    const running = summary({ id: 'live', status: 'open' });
+
+    expect(currentCompetition([finished, running])?.id).toBe('live');
+    expect(currentCompetition([finished])?.id).toBe('old');
+    expect(currentCompetition([summary({ status: 'cancelled' })])).toBeUndefined();
+    expect(currentCompetition([])).toBeUndefined();
+  });
+
+  it('labels a standing in the unit the competition is scored in', () => {
+    const entry = (score: number) => ({
+      profile: {
+        id: ME,
+        displayName: 'Maya',
+        cosmetic: { avatarKey: 'loop-1' },
+        activityVisibility: 'private' as const
+      },
+      rank: 1,
+      score,
+      isSelf: true
+    });
+
+    expect(competitionStandingRows([entry(120)], 'active_minutes')[0]?.scoreLabel).toBe('120 min');
+    expect(competitionStandingRows([entry(1)], 'active_days')[0]?.scoreLabel).toBe('1 active day');
+    expect(competitionStandingRows([entry(1)], 'active_days')[0]?.accessibilityLabel).toBe(
+      'Rank 1, Maya (you), 1 active day'
+    );
+  });
+
+  it('says a closed result is provisional until the published deadline', () => {
+    expect(
+      competitionProvisionalNotice(
+        summary({ status: 'closed', disputeEndsAt: '2026-09-16T00:00:00.000Z' })
+      )
+    ).toContain('2026-09-16T00:00:00.000Z');
+    expect(competitionProvisionalNotice(summary({ status: 'finalized' }))).toBeUndefined();
+    expect(competitionProvisionalNotice(summary({ status: 'open' }))).toBeUndefined();
+  });
+
+  it('says what entering publishes, including that the whole window counts', () => {
+    expect(COMPETITION_ENTRY_CONSEQUENCE).toContain('however late you enter');
+    expect(COMPETITION_ENTRY_CONSEQUENCE).toContain('leave at any time');
+  });
+
+  it('passes the published eligibility message through and says nothing changed otherwise', () => {
+    expect(
+      competitionFailureNotice(
+        new ApiFailure(403, 'This competition is for accounts with at least 8 earlier active weeks')
+      )
+    ).toContain('8 earlier active weeks');
+    expect(competitionFailureNotice(new ApiFailure(409, 'closed'))).toContain('not open for entry');
+    expect(competitionFailureNotice(new AuthFailure('network'))).toContain('Nothing changed');
+    expect(competitionFailureNotice(new Error('boom'))).toContain('Nothing changed');
   });
 });

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
-import type { BlockedAccount, FriendRequest, Profile } from '@runsphere/contracts';
+import type { BlockedAccount, FriendRequest, Profile, ReportReason } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { BackHeader, PrimaryButton, SettingsGroup } from '../components/primitives';
 import { LoopCallout } from '../components/LoopCallout';
@@ -23,6 +23,13 @@ import {
   validateInviteEmail,
   type FriendsRemoteState
 } from './friends-model';
+import {
+  REPORT_ACKNOWLEDGED_NOTICE,
+  REPORT_CONSEQUENCE_HINT,
+  REPORT_REASONS_IN_ORDER,
+  REPORT_REASON_LABEL,
+  reportFailureNotice
+} from './moderation-model';
 
 /**
  * Friends, requests, and blocks (milestone 2.9). Every route here shipped with
@@ -169,6 +176,26 @@ export function FriendsScreen({
   const [email, setEmail] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  /** The account a reason is being chosen for, or none. */
+  const [reporting, setReporting] = useState<{ accountId: string; nameLabel: string }>();
+
+  /**
+   * Filing the report. The notice never says what will happen to the other
+   * account, because nothing will be reported back — saying otherwise would
+   * promise an answer this app must not give.
+   */
+  const sendReport = async (reason: ReportReason) => {
+    if (!reporting) return;
+    setBusy(true);
+    try {
+      await api.fileReport('account', reporting.accountId, reason);
+      setNotice(REPORT_ACKNOWLEDGED_NOTICE);
+      setReporting(undefined);
+    } catch (error) {
+      setNotice(reportFailureNotice(error));
+    }
+    setBusy(false);
+  };
 
   const requestList = useMemo(() => requestRows(requests), [requests]);
   const friendList = useMemo(() => friendRows(friends), [friends]);
@@ -269,6 +296,15 @@ export function FriendsScreen({
             </View>
             <Pressable
               accessibilityRole="button"
+              accessibilityLabel={`Report ${row.nameLabel}`}
+              accessibilityHint={REPORT_CONSEQUENCE_HINT}
+              disabled={busy}
+              onPress={() => setReporting({ accountId: row.accountId, nameLabel: row.nameLabel })}
+            >
+              <Text style={styles.settingValue}>Report</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
               accessibilityLabel={`Block ${row.nameLabel}`}
               accessibilityHint={BLOCK_CONSEQUENCE_HINT}
               disabled={busy}
@@ -315,6 +351,30 @@ export function FriendsScreen({
         </View>
       </SettingsGroup>
 
+      {reporting && (
+        <SettingsGroup title={`Report ${reporting.nameLabel}`}>
+          <Text style={styles.settingsHint}>{REPORT_CONSEQUENCE_HINT}</Text>
+          {REPORT_REASONS_IN_ORDER.map((reason) => (
+            <Pressable
+              key={reason}
+              accessibilityRole="button"
+              accessibilityLabel={`Report for ${REPORT_REASON_LABEL[reason]}`}
+              disabled={busy}
+              onPress={() => void sendReport(reason)}
+            >
+              <Text style={styles.rowTitle}>{REPORT_REASON_LABEL[reason]}</Text>
+            </Pressable>
+          ))}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Cancel the report"
+            onPress={() => setReporting(undefined)}
+          >
+            <Text style={styles.textButton}>Cancel</Text>
+          </Pressable>
+        </SettingsGroup>
+      )}
+
       {blockList.length > 0 && (
         <SettingsGroup title="Blocked accounts">
           {blockList.map((row) => (
@@ -324,6 +384,15 @@ export function FriendsScreen({
                   {row.nameLabel}
                 </Text>
               </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Report ${row.nameLabel}`}
+                accessibilityHint={REPORT_CONSEQUENCE_HINT}
+                disabled={busy}
+                onPress={() => setReporting({ accountId: row.accountId, nameLabel: row.nameLabel })}
+              >
+                <Text style={styles.settingValue}>Report</Text>
+              </Pressable>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Unblock ${row.nameLabel}`}
