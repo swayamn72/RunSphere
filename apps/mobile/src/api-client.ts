@@ -76,8 +76,18 @@ import type {
   SafetyShareRequest,
   SafetyShareResponse,
   TerritoryEnrollmentRequest,
+  TerritoryClaimActivityResponse,
+  TerritoryClaimBounds,
+  TerritoryClaimHistoryResponse,
+  TerritoryClaimMapResponse,
+  TerritoryClaimResult,
+  TerritoryClaimSummary,
+  TerritoryClusterListResponse,
   TerritoryLadderResponse,
+  TerritoryEventListResponse,
+  TerritoryLeaderboardResponse,
   TerritoryMapResponse,
+  TerritoryRecommendationResponse,
   TerritorySeasonResponse,
   VisibilityRequest,
   VisibilityResponse,
@@ -130,6 +140,15 @@ export const aggregateChecksum = (chunks: readonly ActivityChunk[]) =>
       .map(chunkChecksum)
       .join('')
   );
+
+/** Viewport as query parameters; every territory read is bounded by one. */
+const boundsQuery = (bounds: TerritoryClaimBounds): string =>
+  new URLSearchParams({
+    west: String(bounds.west),
+    south: String(bounds.south),
+    east: String(bounds.east),
+    north: String(bounds.north)
+  }).toString();
 
 export class MobileApiClient {
   constructor(
@@ -438,6 +457,70 @@ export class MobileApiClient {
     return this.request(`/v1/territory/seasons/${encodeURIComponent(seasonId)}/map`, {
       method: 'GET'
     });
+  }
+  /**
+   * Every claim held inside a viewport (milestone 5.1). Unlike the cell map,
+   * this one names holders: it carries display name, avatar, and the loop time
+   * to beat.
+   */
+  async getTerritoryClaims(bounds: TerritoryClaimBounds): Promise<TerritoryClaimMapResponse> {
+    return this.request(`/v1/territory/claims?${boundsQuery(bounds)}`, { method: 'GET' });
+  }
+  /**
+   * Claim the ground a run enclosed. A run that was not a loop, or was slower
+   * than the holder, comes back as a refusal with words to show rather than as
+   * a failure.
+   */
+  async claimTerritory(activityId: string): Promise<TerritoryClaimResult> {
+    return this.request('/v1/territory/claims', { method: 'POST', body: { activityId } });
+  }
+  /** Ground held and ground lost. No rank: divisions belong to the cell engine. */
+  async getTerritoryClaimSummary(): Promise<TerritoryClaimSummary> {
+    return this.request('/v1/territory/claims/summary', { method: 'GET' });
+  }
+  /** Who took what from whom, both directions. */
+  async getTerritoryClaimActivity(): Promise<TerritoryClaimActivityResponse> {
+    return this.request('/v1/territory/claims/activity', { method: 'GET' });
+  }
+  /**
+   * Activity blobs for a zoomed-out map. Individual territories are not sent at
+   * world or region zoom — thousands of polygons is a slow response and an
+   * unreadable picture.
+   */
+  async getTerritoryClusters(bounds: TerritoryClaimBounds): Promise<TerritoryClusterListResponse> {
+    return this.request(`/v1/territory/claims/clusters?${boundsQuery(bounds)}`, { method: 'GET' });
+  }
+  /** Every owner one piece of ground has passed through, oldest first. */
+  async getTerritoryClaimHistory(claimId: string): Promise<TerritoryClaimHistoryResponse> {
+    return this.request(`/v1/territory/claims/${encodeURIComponent(claimId)}/history`, {
+      method: 'GET'
+    });
+  }
+  /**
+   * Up to three territories this runner could realistically take, estimated
+   * from their own recent runs. An estimate, and the app says so.
+   */
+  async getTerritoryRecommendations(
+    bounds: TerritoryClaimBounds
+  ): Promise<TerritoryRecommendationResponse> {
+    return this.request(`/v1/territory/claims/recommendations?${boundsQuery(bounds)}`, {
+      method: 'GET'
+    });
+  }
+  /**
+   * The territory leaderboard. Only ground currently held counts — a board of
+   * ground somebody used to hold would reward having once been fast.
+   */
+  async getTerritoryLeaderboard(
+    scope: 'individual' | 'club' = 'individual',
+    metric: 'area' | 'claims' | 'defended' | 'fastest' = 'area'
+  ): Promise<TerritoryLeaderboardResponse> {
+    const query = new URLSearchParams({ scope, metric });
+    return this.request(`/v1/territory/leaderboard?${query.toString()}`, { method: 'GET' });
+  }
+  /** Map events: an area and a window inside which territory counts for something. */
+  async getTerritoryEvents(): Promise<TerritoryEventListResponse> {
+    return this.request('/v1/territory/events', { method: 'GET' });
   }
   /** Off by default, and separately revocable from every other board scope. */
   async setGlobalBoardParticipation(participating: boolean): Promise<boolean> {

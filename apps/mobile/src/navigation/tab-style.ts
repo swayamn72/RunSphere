@@ -9,6 +9,7 @@ export const tabEmphasis = (tab: Tab): 'primary' | 'quiet' =>
 export const tabIcons: Record<Tab, string> = {
   Home: '⌂',
   Explore: '⌖',
+  Turf: '⬢',
   Play: '◆',
   Clubs: '◎',
   You: '◉'

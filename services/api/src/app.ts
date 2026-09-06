@@ -84,6 +84,8 @@ import { registerCampaignRoutes } from './campaign-routes.js';
 import { registerGovernanceRoutes } from './governance-routes.js';
 import { registerTerritoryRoutes } from './territory-routes.js';
 import { registerTerritorySeasonRoutes } from './territory-season-routes.js';
+import { registerTerritoryClaimRoutes } from './territory-claim-routes.js';
+import { registerTerritoryBoardRoutes } from './territory-board-routes.js';
 import { loadRestrictions } from './sanction-guard.js';
 import {
   hashPassword,
@@ -1639,6 +1641,8 @@ export const buildApp = ({
     registerGovernanceRoutes({ routes, database, authSecret });
     registerTerritoryRoutes({ routes, database, authSecret });
     registerTerritorySeasonRoutes({ routes, database, authSecret });
+    registerTerritoryClaimRoutes({ routes, database, authSecret });
+    registerTerritoryBoardRoutes({ routes, database, authSecret });
 
     done();
   });

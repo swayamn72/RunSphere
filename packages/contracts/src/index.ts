@@ -495,3 +495,5 @@ export * from './competition.js';
 export * from './legal.js';
 export * from './campaign.js';
 export * from './territory.js';
+export * from './territory-claim.js';
+export * from './territory-leaderboard.js';

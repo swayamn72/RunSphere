@@ -12,3 +12,4 @@ ADRs record durable decisions. A new ADR is required when a change affects priva
 - [ADR-0008: Seasonal territory — weekly ownership rounds and capped control-days](0008-seasonal-territory-weekly-resets.md)
 - [ADR-0009: Durable notifications first; defer Redis and WebSockets](0009-durable-notifications-first.md)
 - [ADR-0010: Cost governance — soft target with approval bands](0010-cost-governance-approval-bands.md)
+- [ADR-0011: Enclosure territory claims — named holders and pace-based takeovers](0011-enclosure-territory-claims.md) — **reverses ADR-0005 and ADR-0008 for that mechanic only**

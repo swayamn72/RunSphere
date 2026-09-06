@@ -39,6 +39,7 @@ import { ProfileScreen } from './src/screens/ProductScreens';
 import { ClubsScreen } from './src/screens/ClubsScreen';
 import { PlayScreen } from './src/screens/PlayScreen';
 import { ExploreScreen } from './src/screens/ExploreScreen';
+import { TurfScreen } from './src/screens/TurfScreen';
 import { QuestDetailScreen } from './src/screens/QuestDetailScreen';
 import { ThemeProvider, useAppTheme } from './src/theme/theme';
 
@@ -239,6 +240,8 @@ function RunSphereApp() {
         onStart={() => openActivity('explore')}
         onSessionExpired={expireSession}
       />
+    ) : activeTab === 'Turf' ? (
+      <TurfScreen api={apiClient} onOpenRun={() => openActivity('home')} />
     ) : activeTab === 'Clubs' ? (
       <ClubsScreen api={apiClient} accountId={accountId} onSessionExpired={expireSession} />
     ) : activeTab === 'Play' ? (

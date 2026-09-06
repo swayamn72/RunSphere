@@ -3,6 +3,10 @@
 - **Status:** Accepted
 - **Date:** 2026-08-28
 
+> **Partly superseded (2026-09-06).** [ADR-0011](0011-enclosure-territory-claims.md) introduces enclosure territory
+> claims, which are scored on speed and name their holders. This ADR still governs
+> the H3 cell engine; it no longer describes the whole product.
+
 ## Context
 
 Gamification must feel useful without reintroducing performance pressure. The

@@ -997,6 +997,35 @@ by writing code, and it has not been run.
 
 ---
 
+## 🟣 Phase 5 (parallel): Turf — enclosure territory claims
+
+**Shipped 2026-09-06, and switched on.** A second territory mechanic, separate
+from the gated H3 cell engine: run a closed loop, hold the ground it encloses,
+lose it to whoever runs the same ground faster. The map names holders and shows
+their times.
+
+[ADR-0011](adr/0011-enclosure-territory-claims.md) records what this reverses —
+ADR-0005 pace neutrality, ADR-0008 anonymous cells, and the `gameplay.md`
+exclusion of pace-based takeovers — for this mechanic only. The cell engine is
+unchanged and still off.
+
+Built: `territory-claim.ts` (geometry and rules, owned outright rather than by a
+dependency), `031_territory_claims.sql` (claims plus a takeover ledger, released
+never deleted), four API routes (viewport map, claim, takeover feed, summary),
+and a new **Turf** tab with held ground, avatar pins, and the time to beat.
+
+Guarded: loops above 5 km² (a vehicle) and below 5,000 m² (a roundabout) are
+refused, sharing suspensions stop claiming and appearing, contested claims are
+locked inside the deciding transaction, and claiming is an explicit act rather
+than something that happens to a run.
+
+**Before any public launch:** privacy zones are not applied to claims — a loop
+around somebody's own block is the most natural first claim and the most
+revealing — and there is no abuse review and no concentration guardrail for this
+mechanic. See ADR-0011.
+
+---
+
 ## 📈 Phase 5: Measured Scale
 
 **Goal:** Expand platform reach based on concrete evidence and cost approvals.

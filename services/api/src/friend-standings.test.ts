@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Database } from '@runsphere/db';
 import { buildApp } from './app.js';
 import { createAccessToken } from './auth.js';
@@ -64,14 +64,30 @@ const fakeDatabase = (stubs: Stubs = {}) => {
   };
 };
 
-const apps: ReturnType<typeof buildApp>[] = [];
-afterEach(async () => {
-  await Promise.all(apps.splice(0).map((app) => app.close()));
+/**
+ * One app for the file, with the database swapped per call.
+ *
+ * Building a Fastify app registers every route in the product and costs a
+ * meaningful fraction of a second; fourteen of them put individual tests within
+ * reach of the default five-second timeout on a loaded machine. The app holds a
+ * reference to a stable proxy, so a test can still hand it a fresh fake.
+ */
+let active: ReturnType<typeof fakeDatabase> = fakeDatabase();
+const database = {
+  query: (sql: string, values?: readonly unknown[]) => active.query(sql, values),
+  connect: () => active.connect(),
+  end: async () => undefined
+} as unknown as Database;
+const app = buildApp({ db: database, authSecret: SECRET });
+beforeAll(async () => {
+  await app.ready();
+}, 120_000);
+afterAll(async () => {
+  await app.close();
 });
 
 const appWith = (db: ReturnType<typeof fakeDatabase>) => {
-  const app = buildApp({ db: db.database(), authSecret: SECRET });
-  apps.push(app);
+  active = db;
   return app;
 };
 

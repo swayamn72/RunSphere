@@ -19,6 +19,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "turbo run test",
+    "test:integration": "pnpm --filter @runsphere/api exec vitest run src/integration.test.ts src/territory-claim.integration.test.ts",
     "typecheck": "turbo run typecheck"
   },
   "devDependencies": {

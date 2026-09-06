@@ -33,3 +33,7 @@ export * from './campaign.js';
 export * from './territory.js';
 export * from './territory-scoring.js';
 export * from './territory-season.js';
+export * from './territory-claim.js';
+export * from './run-integrity.js';
+export * from './territory-recommendation.js';
+export * from './claim-trading.js';

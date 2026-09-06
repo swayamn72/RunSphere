@@ -5,9 +5,12 @@ import { tabs } from './types.js';
 
 describe('five-tab foundation', () => {
   it('preserves the product tab order and quiet visual emphasis without disabling tabs', () => {
-    expect(tabs).toEqual(['Home', 'Explore', 'Play', 'Clubs', 'You']);
+    // Turf sits beside Explore: both are map surfaces, and territory is the
+    // one people open to see what changed while they were away (ADR-0011).
+    expect(tabs).toEqual(['Home', 'Explore', 'Turf', 'Play', 'Clubs', 'You']);
     expect(tabEmphasis('Home')).toBe('primary');
     expect(tabEmphasis('Explore')).toBe('primary');
+    expect(tabEmphasis('Turf')).toBe('primary');
     expect(tabEmphasis('You')).toBe('primary');
     // Play carries real challenges and standings as of milestone 2.4;
     // Clubs is still a truthful future-state screen.

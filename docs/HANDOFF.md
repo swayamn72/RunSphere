@@ -2182,6 +2182,24 @@ competing, and treat a timeout as a real signal rather than raising the limit. A
 `testTimeout` bump would have hidden a scheduling mistake and blunted the one
 warning that would catch a genuine slowness regression.
 
+**And the same trap has a second form, found on 2026-09-06.** Even with no other
+command running, `turbo run typecheck test build lint` runs those four tasks
+**concurrently within a package** — tsc twice, ESLint, and vitest against the
+same sources. On this machine that alone was enough: the API suite reported
+**236 failures of 320** that way, and **316 passed with 4 skipped, in 35
+seconds**, when `vitest run` was invoked on its own.
+
+Constructing one Fastify app was measured at **15.6s, 10.0s and 3.8s across
+three identical runs** — the same code each time. The 5s default sits inside
+that spread, so any API test file that builds an app per test is at the mercy of
+machine load. **Verify with `--concurrency=1`.** A full serial pass is
+54 tasks: typecheck and lint 27/27, build 10/10, test 17/17.
+
+A caution about diagnosing this: adding routes back one group at a time produced
+1, then 7, then 17 failures, which reads as a clean dose-response and is not one.
+With a 4x spread between identical runs, a three-point comparison across separate
+runs cannot separate a code change from noise. Measure the variance first.
+
 ### What Phase 4 still needs
 
 - **An H3 dependency** with a pinned version, and a binding that satisfies
@@ -2291,7 +2309,7 @@ Validation:
 
 - domain 216 (22 new in `territory-season.test.ts`); worker 106 (4 new); API 316
   passed + the 4 PostGIS integration tests still skipped (20 new in
-  `territory-season-routes.test.ts`); mobile 484 (11 new in
+  `territory-season-routes.test.ts`); mobile 485 (11 new in
   `territory-model.test.ts`, 3 new in `PlayScreen.render.test.tsx`); admin 30
   (4 new);
 - workspace `typecheck`, `test`, `build`, `lint`, and `verify:migrations`;
@@ -2316,3 +2334,459 @@ PostGIS: watch the `to_version < from_version` CHECK on
 
 Until those three, everything in Phase 4 stays exactly as it is: written,
 tested, refusing, and honest about why.
+
+## Phase 5 milestone 5.1 — Turf: enclosure territory claims, 2026-09-06
+
+Run a closed loop and you hold the ground it encloses. Your name and picture sit
+on the map. Somebody who runs the same ground faster takes it off you.
+
+**This reverses three decisions this repo had already made**, and
+[ADR-0011](adr/0011-enclosure-territory-claims.md) records the reversal rather
+than leaving the documents contradicting each other:
+
+| Was                                                                     | Now                                                                                                                  |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| ADR-0005: scoring must not reward speed                                 | Speed is the entire contest, and enclosed area grows with the **square** of the perimeter, so distance compounds too |
+| ADR-0008: a cell exposes that it is held and nothing about who holds it | The holder is named and pictured, and the boundary **is** the path they ran                                          |
+| `gameplay.md`: "pace-based takeovers" listed as not built               | Built                                                                                                                |
+
+The concern was raised before implementation and the direction was confirmed, so
+it was built in full. **Nothing about the H3 cell engine changed** — it is a
+separate mechanic, shares no tables, and `TERRITORY_CAPTURE_ENABLED` is still
+false.
+
+### The rules, and why each one is where it is
+
+- **The claim is the longest closed stretch of a run** — the widest-separated
+  pair of points returning within 60 m of each other. Longest rather than
+  largest-area because it is the one a person can predict; largest-area would
+  quietly reward running a figure eight and keeping the better half.
+- **The time is measured across that stretch only.** Jogging to the block and
+  home again neither helps nor hurts, so approaching a loop is free.
+- **A tie leaves the ground where it is.** A tie is not a win, and the
+  alternative hands a claim over on a rounding error.
+- **Contesting is by area overlap (60%), not by route match.** Nobody runs the
+  same line twice; a mechanic that demanded it would never fire.
+- **Half the ground is not a claim.** If even one contested holder was faster,
+  the run takes nothing.
+- **Claiming is an explicit act.** A run reaches the public map because somebody
+  chose to put it there, not because they went running.
+- **Claims are released, never deleted**, so "who took mine" is always
+  answerable — and the takeover feed is a first-class read, because losing ground
+  silently is the fastest way to make a territory game feel broken.
+
+### Anti-abuse actually built
+
+- Above **5 km²** a loop is refused: a ~9 km perimeter at best, so in practice a
+  vehicle — the cheapest way to abuse an area-times-speed mechanic.
+- Below **5,000 m²** it is refused, so a roundabout or GPS drift is not a claim.
+- A **sharing suspension** stops both claiming and appearing, like every other
+  social surface.
+- The contested claims are **locked in the same transaction** as the decision, so
+  two runners finishing the same loop together cannot both be told they won.
+
+### What was built
+
+`packages/domain/src/territory-claim.ts` owns the geometry outright — geodesic
+area, centroid, point-in-ring, and a fixed-grid overlap ratio — rather than
+taking a geometry dependency, because these are the rules of the game and
+somebody has to be able to argue with them by reading them.
+`031_territory_claims.sql` stores claims and the takeover ledger;
+`services/api/src/territory-claim-routes.ts` serves the viewport map, the claim,
+the takeover feed, and a summary; `apps/mobile/src/screens/TurfScreen.tsx` is a
+new **Turf** tab: a zoomable map with translucent held ground, an avatar pin per
+claim, tap-for-the-time-to-beat, and the claim action.
+
+Validation: domain 242 (26 new); API 337 passed + 4 skipped (21 new); mobile 520
+(35 new across `territory-claim-model.test.ts` and `TurfScreen.render.test.tsx`).
+Workspace `typecheck`, `lint`, `build`, `test` (20/20 tasks) and
+`verify:migrations` (30), all run with `--concurrency=1`.
+
+### Unverified, and the gaps that matter
+
+**Nothing here has run against a real database, a real trace, or a device.** The
+map has never been seen rendering; it is covered by render tests against mocked
+MapLibre components. `031_territory_claims.sql` has never touched a real PostGIS
+— watch the `to_version < from_version`-style CHECK on the takeover ledger and
+the two geometry columns on first apply.
+
+Three gaps are worth blocking a public launch on, and they are listed in
+ADR-0011 as well:
+
+1. **No home-address protection.** A loop around your own block is the most
+   natural first claim and the most revealing thing you could publish. Privacy
+   zones exist in this product and are **not** applied to claims.
+2. **No abuse review.** Spoofing, cycling logged as running, and coordinated
+   claim-trading are unexamined.
+3. **No concentration guardrail.** `product.md`'s limits belong to the cell
+   engine's divisions; this mechanic has no equivalent.
+
+## Phase 5 milestones 5.2–5.3 — run integrity, zoom tiers, and recommendations, 2026-09-06
+
+The territory map built in 5.1, extended toward the full product brief. What
+follows is what was built, and — equally important — what the brief asked for
+that this codebase cannot honestly deliver yet.
+
+### What the inspection found, before anything was written
+
+| Asked for                               | What exists                                                                                                         | What was done                                                                                   |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Realtime territory updates              | **Nothing.** No WebSocket, no Redis, no socket.io anywhere. ADR-0009 defers both until measured load justifies them | Not built. Reversing ADR-0009 is a cost and architecture decision, not an implementation detail |
+| Profile pictures on the map             | **No photo system.** Identity is `profiles.cosmetic.avatarKey`; there is no upload, storage, or CDN                 | Pins render the crew mascot the key maps to, drawn locally                                      |
+| Desktop and tablet layouts              | Consumer app is React Native/Expo. `apps/admin` is a staff-only Vite console                                        | Mobile only. A desktop map would be a second consumer application, which the brief forbids      |
+| Mapbox / Google Maps                    | MapLibre native is already a dependency and already privacy-reviewed                                                | Reused. Swapping providers would re-open a settled review for nothing                           |
+| Clubs, events, auth, GPS, run recording | All present and working                                                                                             | Reused; a claim now records the club its owner was in                                           |
+
+### Run integrity (5.2)
+
+Ownership is decided by time, so a fabricated time takes real ground off a real
+person. `assessRunIntegrity` judges a trace on physics alone — peak speed,
+sustained speed, acceleration, teleports, and how straight a long stretch is —
+and returns one of three verdicts.
+
+**The middle verdict is the point.** `rejected` refuses a claim; `review` claims
+anyway and records the run; `clean` passes. Without the middle state the system
+would have to choose between banning somebody for running through a tunnel and
+letting a car win. Nothing here suspends an account, deletes an activity, or
+touches history, and no message accuses anybody — a test asserts that, because
+bad GPS and cheating look identical from here.
+
+Thresholds are published in `DEFAULT_RUN_INTEGRITY_RULE` rather than buried:
+12.5 m/s peak (above the 100 m world record), 7 m/s sustained (above an elite
+marathon), 5 m/s² acceleration, 200 m teleport, and straightness only judged
+past 1 km. What it deliberately does **not** look at: where somebody went, when,
+how often, or whether their route resembles anyone else's. Those are
+surveillance questions and none of them are needed to answer "could a person
+have run this".
+
+### Smart territory recommendation (5.3)
+
+Up to three territories a runner could realistically take, estimated from their
+own recent runs — median distance and median pace — against the holder's time.
+
+**It is a calibrated heuristic and says so, in the code and in the app.** A
+logistic on the time margin, scaled by target size, damped by sample size. No
+model, no training pipeline, no dependency. The seam is there for a model to
+replace two functions when there is data to train one and a reason to; calling
+the current thing AI would have been a story rather than a better number.
+
+Two constraints, both safety rather than accuracy:
+
+- **Nothing beyond 1.5× the runner's usual distance is ever suggested**, at any
+  probability. A nudge from an app somebody trusts should not be the thing that
+  talks them into a run they are not ready for.
+- **No estimate without its sample size and a plain-language reason**, and the
+  percentage never appears without the two times it came from.
+
+Below three runs it declines to guess at all.
+
+### The map, zoomed out and zoomed in
+
+Four tiers, as the brief describes: world and region draw **clusters** — a
+point, a count of _people_, and an area — while city and street draw individual
+territories. The grouping happens in the database on a viewport-sized grid, so a
+world view does not ship every polygon on earth to draw a dozen dots.
+
+Territories now carry what a challenger actually needs: loop distance, how many
+times the ground has changed hands, whether it is club-held or contested, and
+the full owner history via a `lineage_id` that every takeover inherits. Tapping
+a territory opens its story; taking one shows a capture result.
+
+### What the brief asked for that is not here
+
+Named honestly rather than left to be discovered:
+
+- **Realtime updates** — blocked on ADR-0009, see above.
+- **Leaderboards, events, club competitions** — the brief's Phase 2. Club
+  ownership is now recorded on every claim, which is the data those need.
+- **Live run trail feeding straight into a claim** — recording already draws a
+  live trail; claiming is still a deliberate act afterwards, per ADR-0011.
+- **Rival prediction, fatigue prediction, coaching, healthcare** — the brief's
+  Phase 3 and 4.
+- **Privacy zones are still not applied to claims.** A loop around one's own
+  block remains the most natural first claim and the most revealing. This still
+  blocks a public launch, and it has not moved since ADR-0011.
+
+Validation: domain 274 (32 new across `run-integrity.test.ts` and
+`territory-recommendation.test.ts`); API 338 passed + 4 skipped; mobile 533 (13
+new). Workspace `typecheck`, `lint`, `build`, `test` — 20/20 tasks — and
+`verify:migrations` (31), all with `--concurrency=1`.
+
+Unverified: as with 5.1, none of this has run against a real database, a real
+trace, or a device. The integrity thresholds in particular are reasoned from
+published athletic records, not calibrated against real RunSphere GPS, and the
+first thing a field test should produce is a false-positive rate.
+
+## Phase 5 milestone 5.4 — privacy zones applied to claims, 2026-09-06
+
+The launch blocker named in 5.1 and 5.3, closed. It was worse than a gap:
+**ADR-0002 requires privacy zones before any activity geometry is shared, and a
+claim boundary is shared activity geometry**, so the first version of this
+mechanic broke a documented invariant rather than merely lacking a feature.
+
+Two changes, both in the claim path:
+
+- **A loop within 200 m of one of the claimant's own privacy zones is refused.**
+  The radius is the same one `activity.ts` already trims with, read from the same
+  table, so there is one privacy boundary in this product and not two.
+  **Refused, not trimmed:** a polygon cannot be partly published — removing a
+  segment does not leave a closed ring — so the only correct answer is that the
+  loop does not become territory. The run is untouched and the message says so.
+  Only the claimant's own zones apply; a zone protects its owner's route from
+  publication, and this is their route.
+- **The stored ring no longer says where the run began.** A closed polygon never
+  showed the starting point, but the coordinate array did — and on a loop run
+  from home the first coordinate is the front door. `canonicaliseRing` rotates to
+  the westernmost-then-southernmost vertex before anything is stored: same shape,
+  same area, no chronology.
+
+What is still open, and it is the harder half: **a zone only helps somebody who
+created one.** Nothing notices that a runner's loops start and end at the same
+building every week and asks whether that should be protected, and the people
+most exposed by this map are exactly the ones who never thought to set a zone.
+That is a product decision — prompt on first claim? detect and suggest? — rather
+than a missing function, and it should be made before launch.
+
+Validation: domain 279 (5 new); API 342 passed + 4 skipped (3 new). Workspace
+`typecheck`, `lint`, `build`, `test` and `verify:migrations`, run with
+`--concurrency=1`.
+
+### 5.4 addendum — the half a zone cannot fix
+
+A privacy zone only protects somebody who created one, and the people most
+exposed by a public map of their own streets are exactly the ones who never
+thought to set one. That was the open half of 5.4.
+
+**The obvious fix was the wrong one.** Detecting that a runner's loops start at
+the same building every week means storing where that building is — the precise
+fact a zone exists to hide — and doing it for everybody, including people who
+would never have been at risk. A feature that creates the exposure it is meant
+to prevent is not a mitigation.
+
+So the app asks instead, once, at the moment the consequence becomes real: a
+line above the claim button before an account's first claim, and a prompt
+pointing at the You tab immediately after it. `isFirstClaim` on the claim result
+is how the server says which moment that is, counted inside the same transaction
+as the insert so a second run cannot race it.
+
+This is deliberately less clever than inference and needs no new location data at
+all. **Detect-and-suggest remains available and remains your call** — it would be
+more effective and it would cost a new store of home locations, which is a
+product decision rather than a missing function.
+
+Validation: domain 279; API 343 passed + 4 skipped (2 new); mobile 536 (3 new).
+Workspace 40/40 tasks with `--concurrency=1`; `verify:migrations` 31.
+
+## Phase 5 milestone 5.5 — the schema has now actually run, 2026-09-06
+
+Every migration from `018` to `032` had never touched a real database, and every
+test of the territory mechanic ran against a fake that returned whatever the test
+told it to. That proved the TypeScript and proved nothing about the SQL. It has
+now run.
+
+**All 31 migrations apply cleanly to PostGIS 18 / 3.6, in 782 ms**, through the
+repo's own `migrate()` — the same code path a deployment uses, not a hand-rolled
+loader. Nothing needed fixing, which is the good outcome and was not the
+expected one after fifteen unapplied migrations.
+
+The three things flagged as worth watching, checked in the built schema:
+
+- `boundary geometry(Polygon,4326)` and `centroid geometry(Point,4326)` are
+  correct, and `territory_claims_live_boundary_idx` is a **partial GiST index on
+  `boundary` where `released_at IS NULL`** — the shape the viewport read needs.
+- `territory_claim_takeovers_is_faster CHECK (new < previous)` exists and
+  **rejects a slower takeover at the database**, whatever the application layer
+  believes.
+- `ST_DWithin(..::geography, .., 200)` measures metres, proven from both sides.
+
+### The new integration suite
+
+`services/api/src/territory-claim.integration.test.ts`, gated on
+`RUN_POSTGIS_INTEGRATION` exactly as the M1 suite is, so `pnpm test` still needs
+no database (19 tests skip). Run it with:
+
+```
+POSTGRES_PASSWORD=... POSTGRES_HOST_PORT=55432   docker compose -f infra/compose.yaml --profile local up -d postgres
+RUN_POSTGIS_INTEGRATION=1 DATABASE_URL=postgresql://runsphere:...@127.0.0.1:55432/runsphere   pnpm test:integration
+```
+
+Fifteen tests, four of which drive the **real claim route end to end** through
+`app.inject` against the real database — integrity check, zone check, loop
+detection, transaction, insert, takeover ledger. A real closed loop became held
+ground; a faster rival took it and both times landed in the ledger; a loop
+through a privacy zone was refused; and the stored ring began at the westernmost
+vertex rather than where the runner did.
+
+**The privacy test is the one to keep.** It is the only place in this product
+where a wrong answer is a privacy failure rather than a bug, and it is asserted
+from three sides: a loop inside a zone is caught, a loop 5 km away is not, and a
+loop 600 m north — clear in metres, trivially inside 200 _degrees_ — is not. A
+missing `::geography` cast fails that third case and only that one.
+
+Result: workspace 40/40 with `--concurrency=1`, 343 API tests passing and 19
+skipped without a database, 19 passing with one.
+
+### Still unverified
+
+The map has still never rendered on a device, and no real GPS trace has ever
+been through any of this — the loops in these tests are generated squares. The
+run-integrity thresholds remain reasoned from published athletic records rather
+than calibrated against real RunSphere traces, and a false-positive rate is still
+the first thing a field test should produce.
+
+## Phase 5 milestone 5.6 — leaderboards, events, trading review, loop efficiency, 2026-09-06
+
+The four items that were buildable without a decision, all shipped and all
+verified against the real database.
+
+### Claim-trading review
+
+The last way to win dishonestly. `run-integrity.ts` asks whether one run could
+have happened; this asks whether a _pattern_ of runs is a contest at all — two
+accounts passing the same ground back and forth, each run legitimate on its own,
+manufacturing capture counts and board positions between them.
+
+**Collusion and rivalry are indistinguishable from here**, and that shaped the
+whole design. Two friends who race each other round the same park every week
+produce exactly this trace. There is no threshold that separates them, because
+the difference is intent and intent is not in the data. So the detector reads
+per piece of ground (people taking different territories off each other are
+competing across a city, which is the game working), requires the pair to
+account for ~all of that ground's history (ground several people fought over is
+a contest whatever two of them did), and then **never decides**. It writes a row
+for a human with the numbers that produced it. What the product may do about a
+confirmed case is still unanswered.
+
+### Leaderboards
+
+Individual and club, by area, territories, defended, or fastest loop. Only
+ground _currently held_ counts — a board counting ground somebody used to hold
+would reward having once been fast, and this mechanic is about keeping what you
+take. `defended` exists so the game rewards holding and not only taking;
+without it every board is a distance board wearing a different hat.
+
+A reader outside the top hundred gets their own row fetched separately, labelled
+`—` rather than a rank: the server cannot cheaply know an exact position past
+the page, so the app does not print a number nobody gave it.
+
+### Map events
+
+An area, a window, and a cosmetic reward. Deliberately **not** folded into
+`competitions`: that table scores capped active minutes over a period and has no
+geography, and a nullable boundary would put two scoring models in one table
+where every read has to ask which kind it is looking at. Event areas draw under
+the territories, so an event frames ground rather than hiding who holds it.
+
+### Loop efficiency — the honest half of "best capture route"
+
+`loopEfficiency` is the isoperimetric quotient, `4piA/P^2`: a circle is 1, a long
+thin out-and-back approaches 0. It answers **which existing loop returns the most
+ground for the least running**, exactly, from data already held, and now breaks
+ties in the recommender.
+
+It does **not** propose a new route, and that is a limit rather than an
+omission. Doing so needs a map of runnable ground — pavements, crossings, which
+roads are safe after dark — and this deployment has none: Valhalla sits in the
+compose file with no tiles and there is no eligibility dataset. A generated line
+across a motorway would be worse than no suggestion, so the app ranks loops
+people have demonstrably run instead of inventing ones nobody has.
+
+### Two defects worth recording
+
+- **A duplicate `$id` would have crashed the API at boot.** `TerritoryLeaderboardEntry`
+  appears twice in one response — the page and the reader's own row — and
+  Fastify refuses a reference that resolves to more than one schema, throwing
+  during route registration. The same trap has now caught this repo three times;
+  the rule is that an embedded-only shape should not carry an `$id` at all.
+  Found by the integration run, not by review.
+- **`friend-standings.test.ts` timed out** once the new routes made `buildApp`
+  heavier. Fixed the way this repo has settled on — build one app per file
+  rather than per test, not a `testTimeout` bump. Test time in that file went
+  from 4.91 s to 0.56 s.
+
+Validation: domain 298 (32 new); API 343 passing + 24 skipped; mobile 547 (14
+new); workspace 40/40 with `--concurrency=1`; migrations 33, all applied to real
+PostGIS; `pnpm test:integration` 24 passing.
+
+## Phase 5 milestones 5.7–5.8 — the detail page, and two decisions taken, 2026-09-06
+
+### The territory detail page, and the numbers it needed
+
+Spec section 30 asks a territory page to show "total battles" and "successful
+defences". **Neither was computable.** A challenge that came up short returned a
+message and left no trace, so the map could say how often ground changed hands
+and never how often somebody held it. Rather than approximate defences from
+takeovers — which would have been a plausible-looking invention —
+`034_territory_claim_attempts.sql` records the other half.
+
+A defence is therefore something the holder is credited with **without doing
+anything**: they set a time nobody has beaten. That is the right meaning, and a
+CHECK enforces that an attempt fast enough to win could never have been filed as
+an attempt, so the two tables cannot tell contradictory stories.
+
+The page itself is a full screen rather than a taller sheet, with a timeline
+rail: the point is that a piece of ground has a story, and a story has an order.
+It also separates **the record** from **the current holder's time** — somebody
+faster may have held it and lost it since, and a page showing only one of those
+would be quietly wrong.
+
+### Claim-trading: the consequence, decided
+
+`territory_trade_flags` recorded a question and nothing acted on it. The answer
+now exists, and it is deliberately the smallest one that works:
+
+**An upheld flag takes that ground off the leaderboards. Nothing else.** The
+claims stay on the map, both accounts are untouched, no history is rewritten, no
+run is deleted, and dismissing the flag puts the ground straight back. Passing
+ground between two accounts is only worth doing because it moves a board
+position — so the position goes, and the reason goes with it, without punishing
+two people who may simply race each other every week.
+
+An **unreviewed** flag still changes nothing. Only a human decision has effect,
+it is reversible, and the review surface deliberately shows the ground and the
+numbers without naming the pair: who they are is a separate lookup, and putting
+it on the deciding screen would prejudge it.
+
+### Turf concentration, with an honest scope
+
+`product.md` sets the guardrail per division; this mechanic has no divisions. So
+it is measured over everybody currently holding ground and **the response says
+so**. A per-city figure is the one that would mean something and needs a concept
+of a city the data model does not have — naming that beats publishing a number
+whose scope nobody can see. Reporting only: pausing awards and investigating
+scarcity are things people do.
+
+### Three defects found
+
+- **`territory-board-routes.ts` shipped with no test file at all** — flagged in
+  the previous handoff and fixed here. Writing it immediately found a real one:
+  `JSON.parse` on a geometry column with no guard, so a malformed row would
+  return 500 instead of being dropped. Every other geometry read in this codebase
+  guards; that one did not.
+- A stub matcher answered the wrong query again, because the events read counts
+  claims with a subselect and `FROM territory_claims claim` matched it first.
+  Third time this class of bug has appeared: **match on the projection, not the
+  FROM clause.**
+- An over-broad negative assertion, again — `not.toContain('account')` failed
+  because the explanatory note says "accounts" on purpose. Assert the rule
+  (which keys the row carries), not a word.
+
+Validation: domain 298; API 371 passing + 24 skipped; mobile 556; workspace
+40/40 with `--concurrency=1`; 35 migrations, all applied to real PostGIS.
+
+### What is left of "needs your decision"
+
+Two taken above. Four outstanding, and one of them conflicts with an instruction
+you gave earlier:
+
+- **Realtime** (§26) — still needs ADR-0009 reversed. It can be done without
+  Redis (server-sent events with in-process fanout, single instance), which
+  would honour the ADR's actual concern; multi-instance still needs Redis.
+- **Detect-and-suggest home zones** — costs a new store of coarse home
+  locations. The prompt-everyone-once version is shipped and needs no such data.
+- **Photo avatars** — no upload, storage, or CDN exists. Worth noting before
+  building: profile photos carry GPS EXIF, and stripping it is not optional on a
+  product that maps where people run.
+- **Desktop/tablet** (§32) — **this contradicts your own brief**, which says "Do
+  NOT create a separate application". The consumer app is React Native; a
+  desktop map is a second app. That one needs a decision, not an implementation.
