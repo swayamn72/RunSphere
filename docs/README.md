@@ -11,8 +11,9 @@
 | [`product.md`](product.md) | What the app is, who it is for, the full core loop, route suggestions, quests, territory summary, and all non-states the UI must handle | 10 min |
 | [`gameplay.md`](gameplay.md) | All gamification rules: progression, challenges, clubs, leaderboards, territory, mascot guidance, mobile tab structure | 15 min |
 | [`safety-and-privacy.md`](safety-and-privacy.md) | Every privacy invariant, consent model, location handling rule, social surface privacy guard, and safety contact design | 10 min |
-| [`territory-guide.md`](territory-guide.md) | Plain-English step-by-step explanation of both territory mechanics (Turf enclosure claims and H3 cell seasons) | 8 min |
-| [`map-ux.md`](map-ux.md) | Full spec for the live-run map (path trace, auto-follow, relocation button, zoom) and the route suggestion preview screen | 6 min |
+| [`territory-guide.md`](territory-guide.md) | Plain-English step-by-step explanation of both territory mechanics — Turf enclosure claims (H3 carving, effort grace, monthly season, Ghost Race) and H3 cell seasons | 8 min |
+| [`map-ux.md`](map-ux.md) | Full spec for the live-run map (path trace, auto-follow, relocation button, zoom, Ghost Race ghost layer) and the route suggestion preview screen | 6 min |
+| [`screens.md`](screens.md) | **Screen-by-screen UX spec for every tab and flow** — onboarding (6 screens), Turf tab, Home tab, Explore tab, live running screen, Play tab, Clubs tab, You tab, post-run flow, push notifications | 12 min |
 
 ## What is not done yet
 
@@ -74,7 +75,7 @@ Each ADR is a permanent record of a specific decision. Read the relevant ADR whe
 
 2. **Friend leaderboard is automatic.** Mutual friendship = automatic appearance on each other's weekly board. There is no opt-in toggle. Any UI or route that shows a "join board" button is outdated.
 
-3. **Route suggestions are a new, unbuilt feature.** The system must generate loop shapes from curated MMR paths, let users tune distance/time before starting, and show a live path trace on the map during the run. No server endpoint exists yet.
+3. **Route suggestions are a new, unbuilt feature.** The system must generate loop shapes from curated path data, let users tune distance/time before starting, and show a live path trace on the map during the run. Up to 3 loop options (Short/Medium/Long) with a distance slider and time input. No server endpoint exists yet.
 
 4. **The server is always authoritative.** The client records locally and syncs. The client never awards XP, completes quests, scores territory, or finalizes any result. All of those happen server-side.
 
@@ -82,10 +83,14 @@ Each ADR is a permanent record of a specific decision. Read the relevant ADR whe
 
 6. **Privacy zones are the runner's protection.** A 200 m geodesic radius around any saved private place. Server-side trimming — not a client-side visual obscuring. A Turf claim that touches a privacy zone is refused, not trimmed.
 
-7. **Two territory mechanics — completely separate.** Turf (enclosure claims) is LIVE. H3 cell season engine is BUILT but SWITCHED OFF. They share no tables, no rules, and no feature flags.
+7. **Two territory mechanics — completely separate.** Turf (enclosure claims) is the PRIMARY FEATURE — LIVE and undergoing enhancement. H3 cell season engine is BUILT but SWITCHED OFF. They share no tables, no rules, and no feature flags.
 
 8. **Cost budget is ₹3,000/month.** Any new feature that changes the infrastructure cost profile must include a cost estimate and the appropriate band owner approval before merging.
 
 9. **The frequent green release protocol is mandatory.** Every change: narrow scope, proportionate tests, migration/rollback notes when data changes, feature flag for anything not yet broadly proven.
 
-10. **Platform is MMR-only.** No other city or region is in scope. Expanding geography requires a separate safety, data, and cost review.
+10. **Territory is global. Launch market is Mumbai (MMR).** Any runner anywhere in the world can claim territory — the H3 carving and monthly season system works with any coordinates. Leaderboards are city-scoped, country-scoped, and global. Quests and route suggestion data remain MMR-only for launch because they require curated local datasets. Expanding to new cities for quests/routes requires a separate data review.
+
+11. **Turf is Tab 1.** The Turf map opens by default when the app is launched. Do not put a dashboard, home screen, or splash screen as the default tab.
+
+12. **Monthly territory season reset.** On the 1st of each month at 00:01 IST, ALL active territory claims are archived and the map resets. Every runner starts with zero territory. The reset is a single atomic DB transaction. See `territory-guide.md` for full spec.

@@ -1,7 +1,7 @@
 # Gamification rulebook
 
 **Status:** Approved product decisions for the gamified expansion
-**Market:** Mumbai Metropolitan Region (MMR)
+**Launch market:** Mumbai Metropolitan Region (MMR) — territory and leaderboards are global
 **Audience:** Adults only (18+)
 
 This document codifies the server-authoritative, pace-neutral gamification
