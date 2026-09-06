@@ -1,7 +1,8 @@
 # Product and gameplay rulebook
 
 **Status:** Approved product decisions for v1 / v1.1 planning and the gamified expansion
-**Market:** Mumbai Metropolitan Region (MMR)  
+**Launch market:** Mumbai Metropolitan Region (MMR) — Android v1 first market  
+**Geographic scope:** Global — territory can be claimed anywhere in the world; leaderboards are city-scoped, country-scoped, and global  
 **Audience:** Adults only (18+)
 
 The gamification expansion — progression, achievements, weekly consistency,
@@ -26,15 +27,14 @@ The approved visual direction is documented in the supplied mobile artifacts, no
 
 ### Explicit non-states
 
-The app must not imply that a season is always available or that every account participates.
-
-| State                                | Required UI and behavior                                                                                                                                                                |
+The app must not imply that a season is always available or that every account participate| State                                | Required UI and behavior                                                                                                                                                                |
 | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Before first territory season        | Play tab explains that seasons are not yet live, shows the next announced window only when confirmed, and links to route suggestions. No rank, map ownership, or placeholder leaderboard. |
-| Season live, not enrolled            | Show rules, division assignment explanation, an auto-opt-in status for friend standings, and a run-first alternative. Do not calculate or display a rank.                               |
+| Before first territory season        | Turf tab shows empty map; no rank, no ownership. Banner: "Season starts on [date] — start running to claim ground." |
+| Season live, not enrolled            | Show rules, auto-enrolled status for friend standings, and a run-first alternative. Do not calculate or display a rank.                               |
 | Enrolled but no qualifying time      | Show `0 qualifying minutes today`, explain the daily best-60-minute cap, and invite any run.                                                                                            |
 | No nearby eligible quest / POI issue | Explain why the quest is unavailable, offer a free run and nearby verified alternatives. Never auto-complete a POI-dependent checkpoint from proximity to an unverified place.          |
 | Offline                              | Continue local recording; mark quest and cell results pending server validation and do not present them as final.                                                                       |
+| User is outside any city with active runners | Show empty Turf map. Allow claiming (claims work globally). Show their city's leaderboard once they make their first claim. No "territory unavailable" message — territory is available everywhere. |     |
 
 ## Route suggestions
 

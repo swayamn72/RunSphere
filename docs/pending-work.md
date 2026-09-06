@@ -1,7 +1,11 @@
 # Pending Work
 
-**Last updated:** 2026-09-06  
+**Last updated:** 2026-09-06 (v4 — global territory scope, city/country leaderboards added)
 This document is the single source of truth for what work is not yet done. An agent starting a new task should read this file first and update it as work is completed.
+
+> [!IMPORTANT]
+> **Geographic scope change (2026-09-06):** Territory claims now work globally — any runner anywhere can claim ground. Leaderboards are city-scoped, country-scoped, and global. This is a product decision. The pending work in Section 2 reflects this. Quest data and route suggestions remain MMR-only for launch (requires curated datasets per city before expanding).
+
 
 ---
 
@@ -135,6 +139,33 @@ New tables:
 - Render ghost as second `LineLayer` advancing by elapsed_seconds interpolation
 - Live comparison card: `You: 3:42 in | Ghost: 3:51 in`
 - Ghost Race button and confirmation modal in TurfScreen claim detail sheet
+
+### 2.12 Geo-detection — Migration (`infra/postgres/migrations/038_territory_geo_tags.sql`)
+Add to `territory_claims`:
+- `city_tag TEXT NOT NULL` — e.g. `'Mumbai'`, `'New York'`, `'London'`
+- `country_tag TEXT NOT NULL` — ISO 3166-1 alpha-2, e.g. `'IN'`, `'US'`, `'GB'`
+- `continent_tag TEXT NOT NULL` — e.g. `'Asia'`, `'North America'`
+
+### 2.13 Geo-detection — Domain (`packages/domain/src/territory-claim.ts`)
+- `detectCityTag(lat, lng, geocodeCache)` — reverse geocodes claim centroid to city/country/continent tags
+- Uses a cached H3-cell → city mapping (one geocode call per H3 cell, cached forever in DB)
+- Must use coarse location only — not the exact GPS coordinates of the loop
+
+### 2.14 Geo-detection — API (claim submission)
+- At claim time: compute claim centroid → call `detectCityTag` → store tags on the claim row
+- Geocoding is done via a cached Nominatim proxy — never the runner's exact GPS
+
+### 2.15 Leaderboard endpoints — city/country/global
+Add to `services/api/src/territory-board-routes.ts`:
+- `GET /territory/leaderboard/city/:cityTag` — city standings (e.g. `/leaderboard/city/Mumbai`)
+- `GET /territory/leaderboard/country/:countryCode` — country standings
+- `GET /territory/leaderboard/global` — worldwide standings
+- All return: rank, display name, mascot key, total m², season month
+
+### 2.16 Mobile — leaderboard scope selector (`apps/mobile/src/screens/TurfScreen.tsx`)
+- Leaderboard tab expands to: **My City | My Country | Global**
+- Auto-detects and pre-selects the user's city tab based on their own claims' `city_tag`
+- Global board shows top 50 only for privacy/scale reasons
 
 ---
 
