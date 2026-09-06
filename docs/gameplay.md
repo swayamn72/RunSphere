@@ -5,10 +5,12 @@
 **Audience:** Adults only (18+)
 
 This document codifies the server-authoritative, pace-neutral gamification
-platform. It supplements [`product.md`](product.md) (core loop and quests) and
+platform. It supplements [`product.md`](product.md) (core loop, route suggestions, and quests) and
 [`safety-and-privacy.md`](safety-and-privacy.md). The server remains the single
 authority for validation, checkpoint completion, scoring, rank, achievements,
 challenges, clubs, competitions, and territory.
+
+**Activity type:** RunSphere supports **running only**. Walking and hiking are removed from scope.
 
 ## Product sequence
 
@@ -36,6 +38,9 @@ The expansion ships in gated phases. Every phase is preceded by its gate in
 4. **Club relay** — members contribute capped validated minutes or quest
    completions to a shared target. Clubs receive only aggregate completion
    data.
+5. **Route suggestions** — the server proposes a running loop around the user's
+   location. The user can adjust total distance or estimated time before accepting.
+   See [`product.md`](product.md#route-suggestions) for the full specification.
 5. **Global period leaderboard** — an explicitly opted-in, server-derived board
    over capped pace-neutral points, segmented by period and cohort/division
    where fairness or scale requires it. Entries reveal no location, route,
@@ -50,8 +55,8 @@ The expansion ships in gated phases. Every phase is preceded by its gate in
 
 - The server is authoritative for validation, checkpoint completion, scoring,
   rank, achievements, challenges, and territory.
-- Walk, run, and hike use the same scoring rules. Pace, speed, heart rate,
-  calories, and inferred fitness never increase a score.
+- Running is the only activity type. Pace, speed, heart rate, calories, and
+  inferred fitness never increase a score — all runs are scored equally regardless of pace.
 - Progression grants fixed cosmetic XP from capped validated active minutes,
   quest completion, active-day consistency, and versioned achievements. XP
   grants no gameplay advantage.
@@ -90,8 +95,12 @@ Leaderboards use explicit scopes and immutable periods:
   approved display identity/cosmetic, score, tier, rank band or numeric rank
   where allowed, and period — never location, route, activity timestamps or
   details, or live state.
-- **Friends** — optional friend weekly board plus private 1v1 results, with
-  independent visibility controls.
+- **Friends** — **automatic, no opt-in required**. When two accounts become
+  mutual friends, both immediately appear on each other's friend weekly board.
+  The board shows capped weekly active minutes. A block removes both accounts
+  from each other's board instantly. Leaving a friendship removes the person
+  from the board. There is no separate "join board" toggle — friendship is the
+  sole gate. Private 1v1 challenge results remain separate and unaffected.
 - **Club** — accessible only to active members of that club. Club boards,
   competitions, and challenges are isolated by `club_id`; leaving, removal,
   suspension, or club archive immediately removes access while preserving
@@ -100,8 +109,8 @@ Leaderboards use explicit scopes and immutable periods:
   the published event/division rules.
 
 There is no nearby-runner leaderboard or location-based discovery. Rank tiers
-are cosmetic season bands based on capped pace-neutral points. Global and other
-numeric ranks appear only after the person opts into the applicable scope.
+are cosmetic season bands based on capped pace-neutral points. Global numeric
+ranks appear only after the person opts into the global scope.
 
 ## Safety reconciliation
 
@@ -140,19 +149,21 @@ defined read/write gates and the forecasted overage has the required approval.
 
 ## Mobile information architecture
 
-The recommended five-tab structure is:
+The recommended six-tab structure is:
 
-- **Home** — start activity, weekly consistency, progression summary, pending
+- **Home** — start run, route suggestion card, weekly consistency, progression summary, pending
   results, next safe action.
-- **Explore** — free activity and curated quests; no initial location
-  disclosure.
-- **Play** — friend challenges, opted-in global/friend leaderboards,
+- **Explore** — route suggestions and curated quests; no initial location disclosure.
+- **Play** — friend challenges, automatic friend leaderboard, opt-in global leaderboard,
   competition cards, and truthful season states.
 - **Clubs** — club discovery by invite/exact code, active membership,
   club-isolated leaderboards/challenges/competitions, aggregate relays, and
   moderation controls.
+- **Turf** — enclosure territory claims map; held ground, avatar pins, time to beat.
 - **You** — private history, achievements, progression, account/email,
   notifications, privacy, safety, legal, export, and deletion.
+
+See [`map-ux.md`](map-ux.md) for the live-run map requirements (path overlay, relocation button, zoom controls).
 
 Loop remains a restrained guide. It may explain empty, pending, weekly reset,
 challenge-invite, and other safe states, including beside Android modal/dialog

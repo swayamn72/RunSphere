@@ -12,7 +12,7 @@ The intended UI is represented by the approved [permissions and privacy](design/
 | Account eligibility                   | Required age assertion: “I confirm I am 18 or older”         | Block account activation until asserted; store assertion timestamp and policy version, not DOB.                                                            |
 | Foreground precise location           | Just-in-time OS permission before activity recording         | Required to create a route, calculate distance, validate checkpoints, or participate in territory. A declined permission leaves browse/settings available. |
 | Background location                   | Separate, feature-specific OS permission                     | Not required for v1 core activity recording. Do not request by default.                                                                                    |
-| Motion & fitness/activity recognition | Separate just-in-time OS permission                          | Optional. Improves activity classification and may support distance quality; declining uses location-only estimates and must not block an activity.        |
+| Motion & fitness/activity recognition | Separate just-in-time OS permission                          | Optional. Improves run classification and distance quality; declining uses location-only estimates and must not block a run.                              |
 | Contacts                              | In-app entry of a safety contact or explicit platform picker | Optional; never upload a device address book.                                                                                                              |
 | Live sharing                          | Explicit per-activity start and recipient selection          | Optional and off by default.                                                                                                                               |
 
@@ -95,6 +95,11 @@ uses the relationship. Blocking is symmetric from the blocker's perspective: it
 immediately removes the other account from friend boards, challenge creation,
 and any shareable surface, and it is reversible. A blocked account is never
 notified that it was blocked.
+
+**Friend leaderboard is automatic.** When mutual friendship is established, both
+accounts immediately appear on each other's weekly friend board. There is no
+separate opt-in toggle for the friend board. A block, unfriend, or suspension
+removes the account from the board immediately.
 
 Social surfaces expose only an approved display identity and cosmetic, never
 coarse location, exact route, or activity timestamps. No location-based

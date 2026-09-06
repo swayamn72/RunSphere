@@ -2,7 +2,7 @@
 
 ## Scope and deployment posture
 
-RunSphere is an implemented pnpm/Turbo monorepo for an MMR-only launch with a constrained operating budget. **Android v1** is the launch target; **iOS v1.1** reaches parity only after Android v1 gates pass. The current codebase establishes the application shell and local development topology; the product services described in [service boundaries](#service-boundaries) remain milestone-scoped delivery work.
+RunSphere is an implemented pnpm/Turbo monorepo for an MMR-only launch with a constrained operating budget. **Android v1** is the launch target; **iOS v1.1** reaches parity only after Android v1 gates pass. The platform supports **running only** — walking and hiking are removed from scope. The current codebase establishes the application shell and local development topology; the product services described in [service boundaries](#service-boundaries) remain milestone-scoped delivery work.
 
 ## Implemented monorepo topology
 
@@ -114,6 +114,7 @@ gate. The substrate is:
 | Activity ingestion | Authenticate, size-limit, deduplicate, persist encrypted submitted trace               | Publish raw traces or award progress synchronously without validation.                |
 | Validation         | Quality checks, trim route, checkpoint/POI eligibility, H3 traversal, derived outcomes | Infer health status or silently alter policy decisions.                               |
 | Quest catalog      | Versioned POIs/checkpoints, hours/accessibility/source provenance, publication status  | Use unreviewed third-party POIs as a v1 completion dependency.                        |
+| Route suggestion   | Generate loop shapes from curated MMR paths; accept distance/time tuning from user     | Suggest routes through unverified or private land; mandate a specific pace.           |
 | Recommendation     | Rank configured quest candidates using approved non-pace signals                       | Make irreversible decisions or use raw location history beyond needed coarse context. |
 | Season scoring     | Enrollment/divisions, best-60-minute selection, cell contribution, aggregate ranks     | Expose raw traces or move participants between divisions mid-season.                  |
 | Safety sharing     | Recipient authorization, delayed/coarse transform, automatic expiry                    | Send current/exact coordinates or historic routes.                                    |

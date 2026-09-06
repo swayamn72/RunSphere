@@ -5,25 +5,24 @@
 **Audience:** Adults only (18+)
 
 The gamification expansion — progression, achievements, weekly consistency,
-friend challenges, clubs, opt-in leaderboards, scheduled competitions, and
+friend challenges, clubs, leaderboards, scheduled competitions, and
 territory — is codified in [`gameplay.md`](gameplay.md). This document retains
-the core loop, quests, and the summary of territory seasons; the full season
-rules live in [ADR-0008](adr/0008-seasonal-territory-weekly-resets.md).
+the core loop, route suggestions, quests, and the summary of territory seasons;
+the full season rules live in [ADR-0008](adr/0008-seasonal-territory-weekly-resets.md).
 
 ## Product promise
 
-RunSphere makes outdoor movement feel exploratory rather than performance-driven. Its first-class activity types are **walking, running, and hiking**. A person can complete the main loop at any pace; speed is not a prerequisite for progress, recommendations, or territory scoring.
+RunSphere makes outdoor movement feel exploratory rather than performance-driven. Its first-class and only activity type is **running**. Walking and hiking are out of scope for v1 and beyond — the platform is a running-first product. All route suggestions, quest checkpoints, scoring, and territory mechanics are designed for runners.
 
 The approved visual direction is documented in the supplied mobile artifacts, notably [onboarding](design/onboarding-welcome-default.html), [quest discovery](design/quest-discovery-default.html), [live activity](design/live-activity-default.html), and [territory](design/territory-season-default.html). See [design traceability](design-reference.md) for implementation obligations beyond the mockups.
 
 ## Entry, eligibility, and primary loop
 
 1. A person creates an account and makes an **18+ age assertion**. The assertion records that the person is eligible, when it was made, and the policy version; it does not collect a date of birth in v1.
-2. They select walking, running, or hiking and optional accessibility preferences.
-3. They grant foreground precise-location permission to record an activity. Motion/fitness permission is separately requested and optional.
-4. They choose an available quest, or start a free activity. The activity records locally first and can finish offline.
-5. The server validates the submitted trace, awards eligible quest/cell progress, and produces a privacy-safe saved route and summary.
-6. The next recommendation learns from completed, skipped, and declined quests without treating pace as a quality signal.
+2. They grant foreground precise-location permission to record an activity. Motion/fitness permission is separately requested and optional.
+3. They choose a suggested route or start a free run. The activity records locally first and can finish offline.
+4. The server validates the submitted trace, awards eligible quest/cell progress, and produces a privacy-safe saved route and summary.
+5. The next route suggestion learns from completed, skipped, and declined runs, without treating pace as a quality signal.
 
 ### Explicit non-states
 
@@ -31,20 +30,48 @@ The app must not imply that a season is always available or that every account p
 
 | State                                | Required UI and behavior                                                                                                                                                                |
 | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Before first territory season        | Play tab explains that seasons are not yet live, shows the next announced window only when confirmed, and links to quest discovery. No rank, map ownership, or placeholder leaderboard. |
-| Season live, not enrolled            | Show rules, division assignment explanation, an explicit **Join season** action, and a quest-first alternative. Do not calculate or display a rank.                                     |
-| Enrolled but no qualifying time      | Show `0 qualifying minutes today`, explain the daily best-60-minute cap, and invite any pace activity.                                                                                  |
-| No nearby eligible quest / POI issue | Explain why the quest is unavailable, offer a free activity and nearby verified alternatives. Never auto-complete a POI-dependent checkpoint from proximity to an unverified place.     |
+| Before first territory season        | Play tab explains that seasons are not yet live, shows the next announced window only when confirmed, and links to route suggestions. No rank, map ownership, or placeholder leaderboard. |
+| Season live, not enrolled            | Show rules, division assignment explanation, an auto-opt-in status for friend standings, and a run-first alternative. Do not calculate or display a rank.                               |
+| Enrolled but no qualifying time      | Show `0 qualifying minutes today`, explain the daily best-60-minute cap, and invite any run.                                                                                            |
+| No nearby eligible quest / POI issue | Explain why the quest is unavailable, offer a free run and nearby verified alternatives. Never auto-complete a POI-dependent checkpoint from proximity to an unverified place.          |
 | Offline                              | Continue local recording; mark quest and cell results pending server validation and do not present them as final.                                                                       |
 
-## Hybrid adaptive quests
+## Route suggestions
 
-A quest is a time-bounded, route-flexible outdoor objective made of one or more checkpoints. The system combines:
+A route suggestion is a server-generated running loop shown on the map before a run starts. The system generates a loop shape (a visible polygon/path) around the user's current location using curated public MMR paths. The user can interact with the suggestion before starting:
 
-- **Curated supply:** verified MMR parks, promenades, trailheads, landmarks, public paths, accessibility facts, hours, and closures.
-- **Adaptive ordering and composition:** ranks safe, open, reachable quests and can vary checkpoint sequence, distance band, time window, and movement-friendly language.
+- **Reduce total distance** — the system tightens the loop to a shorter version.
+- **Reduce total estimated time** — the system recalculates a shorter loop targeting the requested time.
+- **Accept and run** — the route is shown as a reference overlay on the map during the run. The user is not forced to follow it exactly; it is a guide, not a turn-by-turn instruction.
 
-The system never adapts by demanding a faster pace. It should prefer a feasible activity over an ambitious one when the person has high recent load, limited time, declining engagement, inaccessible routing, poor weather, or low GPS confidence.
+The system generates route suggestions using curated MMR public paths, so the shapes it proposes are safe, publicly accessible, and verified. It never suggests routes through unverified or private land.
+
+The suggestion engine learns from the user's recent history:
+- Recent run distances and durations.
+- Completed, skipped, and declined past suggestions.
+- Time of day and typical availability patterns.
+- High-load fallback: if recent run load is high, prefer a shorter suggestion.
+
+The system never adapts by demanding faster pace. A shorter suggestion is always the response to high load or a user's time request — never a pace target.
+
+### Suggestion guardrails
+
+| Guardrail | Baseline |
+| --- | --- |
+| Suggestions per session | At most 3 route options shown at once |
+| Distance range | 1–10 km; default new-user suggestion 2–4 km |
+| High-load fallback | If 7-day active minutes ≥150% of the person's trailing 28-day weekly median, default to shortest option |
+| User distance adjustment | Can reduce (or increase, up to a cap) from the suggestion; minimum loop is 1 km |
+| User time adjustment | Can request a target time (e.g. "30 minutes"); system recalculates distance at typical pace estimate |
+
+## Quests
+
+A quest is a time-bounded running objective made of one or more checkpoints at real verified MMR locations. The system combines:
+
+- **Curated supply:** verified MMR parks, promenades, landmarks, public paths, operating hours, and closure data.
+- **Adaptive ordering:** ranks safe, open, reachable quests and can vary checkpoint sequence and distance band.
+
+The system never adapts by demanding a faster pace. It should prefer a feasible run over an ambitious one when the person has high recent load, limited time, declining engagement, poor weather, or low GPS confidence.
 
 ### Quest eligibility and POI dependency
 
@@ -58,27 +85,29 @@ The server, not the client, evaluates a checkpoint against the accepted trace. I
 
 ### Initial adaptive-policy baselines
 
-These are conservative initial operating values, not assertions of field performance. They must be instrumented in Milestone 1 and **frozen only after the MMR field study** defined below.
+These are conservative initial operating values, not assertions of field performance. They must be instrumented in Milestone 1 and **frozen only after the MMR field study**.
 
-| Guardrail                            | Initial baseline                                                                                                                                                                          | Freeze rule                                                                                                 |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Recommendation daily volume          | At most 3 actionable recommendations per person per local day                                                                                                                             | Freeze after 4 weeks with ≥50 consenting pilot accounts and a reviewed opt-out/skip rate.                   |
-| Distance bands                       | 0.5–2 km, 2–5 km, 5–10 km; default new-user recommendation 0.5–2 km                                                                                                                       | Freeze per movement type after 150 completed valid activities or 6 weeks, whichever is later.               |
-| Recommended travel distance to start | ≤1.5 km walking distance from current coarse location; otherwise offer browse/free activity                                                                                               | Freeze after comparing acceptance and start abandonment across ≥100 impressions.                            |
-| Adaptation inputs                    | Last 7 days’ active minutes, selected movement/accessibility settings, completion/skip feedback, verified opening status, weather severity, and coarse availability; **not** pace ranking | Freeze input set after privacy review and pilot audit; any new signal requires ADR review.                  |
-| High-load fallback                   | If 7-day active minutes are ≥150% of the person’s trailing 28-day weekly median, prefer a shorter/optional recovery quest; never prescribe health advice                                  | Freeze threshold after pilot distribution review; retain manual “show more options.”                        |
-| POI freshness                        | Revalidate volatile hours/closure data every 30 days; immediately unpublish on confirmed closure report                                                                                   | Freeze only after city data steward validates 95% of sampled records; until then use staff-reviewed subset. |
+| Guardrail | Initial baseline | Freeze rule |
+| --- | --- | --- |
+| Quest recommendation volume | At most 3 actionable quests per person per local day | Freeze after 4 weeks with ≥50 consenting pilot accounts and a reviewed opt-out/skip rate. |
+| Distance bands | 1–3 km, 3–6 km, 6–10 km | Freeze per run type after 150 completed valid runs or 6 weeks, whichever is later. |
+| Recommended travel distance to start | ≤1.5 km from current coarse location | Freeze after comparing acceptance and start abandonment across ≥100 impressions. |
+| Adaptation inputs | Last 7 days' active minutes, completion/skip feedback, verified opening status, weather severity, and coarse availability; **not** pace ranking | Freeze input set after privacy review and pilot audit. |
+| High-load fallback | If 7-day active minutes are ≥150% of the trailing 28-day weekly median, prefer a shorter route suggestion | Freeze threshold after pilot distribution review. |
+| POI freshness | Revalidate volatile hours/closure data every 30 days; immediately unpublish on confirmed closure report | Freeze only after city data steward validates 95% of sampled records. |
 
 ## Territory seasons
 
-Territory is an **optional** competitive mode. Seasons run for a published 6–8 week period, begin only after operations approval, and use the H3 traversal model in [ADR-0001](adr/0001-h3-territory-traversal.md).
+Territory is an **optional** competitive mode for runners. Seasons run for a published 6–8 week period, begin only after operations approval, and use the H3 traversal model in [ADR-0001](adr/0001-h3-territory-traversal.md).
+
+See [`territory-guide.md`](territory-guide.md) for a plain-English explanation of both territory mechanics (H3 cell seasons and Turf enclosure claims).
 
 ### Fair scoring
 
-- A qualifying activity creates eligible traversal only after server validation.
-- For each person and local calendar day, only their **best contiguous 60 minutes** of validated eligible traversal may contribute to territory scoring. “Best” means the window with the greatest eligible cell contribution under the published rule, not the fastest pace or longest distance.
-- Walking, running, and hiking may all qualify. The same accepted traversal rule applies to each; pace, heart rate, calorie estimate, and speed do not change a cell’s value.
-- Time outside the best 60-minute window can remain in the person’s private activity history but adds no territory score that day.
+- A qualifying run creates eligible traversal only after server validation.
+- For each person and local calendar day, only their **best contiguous 60 minutes** of validated eligible traversal may contribute to territory scoring. "Best" means the window with the greatest eligible cell contribution under the published rule, not the fastest pace or longest distance.
+- Pace, heart rate, calorie estimate, and speed do not change a cell's value.
+- Time outside the best 60-minute window can remain in the person's private run history but adds no territory score that day.
 - A minimum quality requirement applies equally to all: GPS samples must satisfy the published accuracy, continuity, and anti-spoof checks. Failure produces a non-punitive “not eligible for territory” result with a reason.
 - No individual live location, raw trace, or exact start/finish is exposed by territory maps or leaderboards.
 - A participant contributes at most once per cell per local day, up to a published daily eligible-cell cap. Season ladder points use capped control-days, not uncapped cell volume.
@@ -99,6 +128,6 @@ The pre-season rules screen must state the date, duration, qualifying rule, divi
 
 ## Measurement and experimentation
 
-Product telemetry measures system safety and usefulness, not athletic worth. Initial metrics include quest impressions, starts, completions, skips, checkpoint failures, offline reconciliation, GPS rejection reasons, season enrollment, qualifying-minute distribution, division concentration, and safety feature use. Event schemas exclude raw coordinates unless an activity-submission workflow requires them; analytics receives coarse aggregates or derived counters.
+Product telemetry measures system safety and usefulness, not athletic worth. Initial metrics include route suggestion impressions, distance/time adjustments, quest impressions, starts, completions, skips, checkpoint failures, offline reconciliation, GPS rejection reasons, season enrollment, qualifying-minute distribution, division concentration, and safety feature use. Event schemas exclude raw coordinates unless an activity-submission workflow requires them; analytics receives coarse aggregates or derived counters.
 
 Adaptive changes are released behind a server-controlled configuration with an audit trail: rule version, input schema version, and rollout percentage. The default is **baseline, measure, review, then freeze**—not continuous opaque experimentation.
