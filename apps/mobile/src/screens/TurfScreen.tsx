@@ -146,7 +146,7 @@ export function TurfScreen({ api, onOpenRun }: TurfScreenProps) {
       setFeed(activity.data);
       setEvents(eventList.data);
       if (leaderboard) setBoard(leaderboard);
-      setClaimableRunId(runs.filter((run) => run.status === 'derived').at(-1)?.id);
+      setClaimableRunId(runs.filter((run) => run.status === 'derived').at(0)?.id);
     } catch {
       // The map is the point of the screen; a failed sidebar must not take it
       // down with it.

@@ -24,7 +24,7 @@ export const parseSyntheticNdjson = (source: string): LocationSample[] =>
 export const replaySamples = (
   samples: readonly LocationSample[],
   emit: (sample: LocationSample) => void,
-  intervalMs = 1
+  intervalMs = 500
 ) => {
   let index = 0;
   const timer = setInterval(() => {

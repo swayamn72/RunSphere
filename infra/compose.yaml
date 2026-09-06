@@ -15,6 +15,7 @@ x-postgres-environment: &postgres-environment
 services:
   postgres:
     image: postgis/postgis:18-3.6
+    platform: linux/amd64
     restart: unless-stopped
     profiles: [local, demo, maps, routing, ops, scale]
     environment: *postgres-environment

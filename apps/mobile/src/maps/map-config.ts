@@ -17,9 +17,10 @@ const matchesApprovedOrigin = (styleUrl: URL, approvedOrigins: readonly string[]
   approvedOrigins.some((origin) => {
     try {
       const approved = new URL(origin);
+      const isLocalhost = approved.hostname === 'localhost' && styleUrl.hostname === 'localhost';
       return (
-        approved.protocol === 'https:' &&
-        styleUrl.protocol === 'https:' &&
+        (approved.protocol === 'https:' || isLocalhost) &&
+        (styleUrl.protocol === 'https:' || isLocalhost) &&
         approved.hostname === styleUrl.hostname &&
         approved.port === styleUrl.port
       );
@@ -52,7 +53,7 @@ export const resolveMapProviderConfig = (
     return { kind: 'fallback', reason: 'invalid' };
   }
 
-  if (parsed.protocol !== 'https:') {
+  if (parsed.protocol !== 'https:' && parsed.hostname !== 'localhost') {
     return { kind: 'fallback', reason: 'invalid' };
   }
   if (!matchesApprovedOrigin(parsed, approvedOrigins)) {

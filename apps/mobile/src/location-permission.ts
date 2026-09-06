@@ -6,18 +6,24 @@ export interface ForegroundLocationPermission {
   status: 'granted' | 'denied' | 'undetermined';
   granted: boolean;
   canAskAgain: boolean;
+  ios?: {
+    scope?: 'whenInUse' | 'always' | 'none';
+    accuracy?: 'full' | 'reduced';
+  };
   android?: {
     accuracy?: 'fine' | 'coarse' | 'none';
   };
 }
 
-/** Recording requires Android fine location; Explore may continue to use the broader map state. */
+/** Recording requires Android fine location or iOS full accuracy; Explore may continue to use the broader map state. */
 export const getRecordingLocationPermissionState = (
   permission: ForegroundLocationPermission
 ): Exclude<RecordingLocationPermissionState, 'requesting' | 'failure'> => {
+  if (permission.ios?.accuracy === 'full') return 'precise';
+  if (permission.ios?.accuracy === 'reduced') return 'approximate';
   if (permission.android?.accuracy === 'fine') return 'precise';
   if (permission.android?.accuracy === 'coarse') return 'approximate';
-  // Expo responses without Android accuracy metadata cannot prove a precise grant for recording.
+  // Expo responses without accuracy metadata cannot prove a precise grant for recording.
   if (permission.status === 'granted' || permission.granted) return 'approximate';
   if (permission.status === 'undetermined') return 'unrequested';
   return permission.canAskAgain ? 'denied' : 'blocked';
