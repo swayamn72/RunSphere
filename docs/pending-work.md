@@ -55,7 +55,90 @@ This document is the single source of truth for what work is not yet done. An ag
 
 ---
 
-## 2. Route Suggestion System (New Feature) 🟠
+## 2. Turf — H3 Carving + Monthly Season + Ghost Race 🔴
+
+Turf is the primary feature. The TurfScreen.tsx UI and basic claim routes are built, but the new carving rules, monthly season, and Ghost Race are not yet implemented. See [`territory-guide.md`](territory-guide.md) for the full specification.
+
+### 2.1 H3 library dependency
+- Add `h3-js` (or equivalent) to `packages/domain` with a **pinned version**.
+- Record version in `h3_version` column on every claim row.
+- Required for H3 cell set computation and the `largestConnectedComponent` function.
+
+### 2.2 Migration: `036_territory_claim_carving.sql`
+Add to `territory_claims`:
+- `perimeter_metres NUMERIC NOT NULL`
+- `h3_resolution SMALLINT NOT NULL DEFAULT 11`
+- `h3_cell_set TEXT[] NOT NULL`
+- `h3_version TEXT NOT NULL`
+- `parent_claim_id UUID REFERENCES territory_claims(id)`
+- `season_month CHAR(7) NOT NULL`
+- New event type `'carve'` in the territory events enum
+- GIN index on `h3_cell_set` for fast overlap queries
+
+### 2.3 Domain — new carving functions (`packages/domain/src/territory-claim.ts`)
+Replace `claimOutcome` / `overlapRatio` with:
+- `runSpeed(perimeterMetres, durationSeconds)` → m/s
+- `effortGrace(challengerPerimetreMetres, holderPerimetreMetres)` → 0.0–0.15
+- `graceAdjustedSpeed(baseSpeed, grace)` → effective speed
+- `h3CellSet(ring, resolution, h3Indexer)` → string[]
+- `intersectCells(a, b)` → string[]
+- `differenceCells(a, remove)` → string[]
+- `largestConnectedComponent(cells)` → string[] (largest H3-adjacent group)
+- `minCarveArea(smallerClaimAreaSqm)` → number
+- `carvingDecision(params)` → 'carve' | 'no_contest'
+
+### 2.4 API — updated claim submission (`services/api/src/territory-claim-routes.ts`)
+- Compute `perimeter_metres` at claim time from GPS trace
+- Convert ring to H3 cells at resolution 11
+- Query overlapping claims via PostgreSQL `h3_cell_set && $1` (GIN index)
+- Run carving decision pipeline for each overlapping claim
+- Apply `largestConnectedComponent` to surviving cells
+- Write all changes in a single transaction
+- Store `grace_applied`, `effort_ratio`, `effective_speed` in the carve event
+
+### 2.5 Migration: `037_territory_seasons_monthly.sql`
+New tables:
+- `territory_seasons` (season_month, started_at, ended_at, reset_at)
+- `territory_season_snapshots` (account_id, season_month, total_area_sqm, peak_area_sqm, rank)
+- `territory_hall_of_fame` (record_type, value_sqm, account_id, season_month)
+
+### 2.6 Worker — monthly season reset (`services/worker/src/territory-season-reset-job.ts`)
+- Runs 00:01 IST on the 1st of each month
+- Snapshots all active claims BEFORE reset
+- Archives claims (`season_expired`), updates hall of fame
+- Queues push notifications
+- Idempotent — safe to run twice in the same month
+
+### 2.7 Worker — weekly rank job (`services/worker/src/territory-rank-job.ts`)
+- Runs every Monday 00:01 IST
+- Computes total area per account in current season
+- Writes weekly snapshot row
+
+### 2.8 API — leaderboard endpoints (`services/api/src/territory-board-routes.ts`)
+- `GET /territory/leaderboard/weekly`
+- `GET /territory/leaderboard/monthly`
+- `GET /territory/leaderboard/season/:month`
+- `GET /territory/leaderboard/hall-of-fame`
+
+### 2.9 Mobile — leaderboard tabs (`apps/mobile/src/screens/TurfScreen.tsx`)
+- Tab switcher: This Week | This Season | All Time
+- Season countdown banner
+- Season reset full-screen card
+
+### 2.10 Ghost Race — API (`services/api/src/territory-claim-routes.ts`)
+- `GET /territory/claims/:id/ghost-trace` — returns trimmed, time-annotated GPS trace
+- Rate-limited: 3 requests/user/hour
+- Privacy: 200 m trim both ends, authenticated + same-region only, blocked users excluded
+
+### 2.11 Ghost Race — Mobile (`apps/mobile/src/screens/ActivityScreens.tsx`)
+- Accept `ghostTrace` + `claimId` props
+- Render ghost as second `LineLayer` advancing by elapsed_seconds interpolation
+- Live comparison card: `You: 3:42 in | Ghost: 3:51 in`
+- Ghost Race button and confirmation modal in TurfScreen claim detail sheet
+
+---
+
+## 3. Route Suggestion System (New Feature) 🟠
 
 The route suggestion system does not yet exist. See [`product.md`](product.md#route-suggestions) for the specification.
 
