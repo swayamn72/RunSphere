@@ -11,6 +11,8 @@ const categories = {
   challenges: true,
   clubs: true,
   competitions: true,
+  territory: true,
+  progress: true,
   account: true,
   marketing: false
 };

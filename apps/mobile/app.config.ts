@@ -16,8 +16,15 @@ const config: ExpoConfig = {
       'android.permission.ACTIVITY_RECOGNITION',
       'android.permission.INTERNET',
       'android.permission.ACCESS_NETWORK_STATE',
+      'android.permission.POST_NOTIFICATIONS',
       'android.permission.VIBRATE'
     ],
+    // Firebase's own config, which carries the sender id FCM addresses this
+    // installation by. Not a secret — it ships inside every APK — but not
+    // committed either, because it names one specific Firebase project and a
+    // checkout building against somebody else's would silently register
+    // devices into it. See `docs/HANDOFF.md` for where to put it.
+    googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? './google-services.json',
     blockedPermissions: [
       'android.permission.ACCESS_BACKGROUND_LOCATION',
       'android.permission.ACCESS_WIFI_STATE',
@@ -48,7 +55,11 @@ const config: ExpoConfig = {
           'Allow RunSphere to access motion and fitness data to improve activity estimates.'
       }
     ],
-    ['@maplibre/maplibre-react-native', { android: { nativeVariant: 'opengl' } }]
+    ['@maplibre/maplibre-react-native', { android: { nativeVariant: 'opengl' } }],
+    // Deliberately unconfigured: no custom icon, sound, or colour. A push here
+    // is a data-only wake-up carrying an opaque id, and the app renders the
+    // entry from the durable inbox — so there is nothing for the OS to style.
+    'expo-notifications'
   ],
   experiments: {
     typedRoutes: false

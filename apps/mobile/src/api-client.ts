@@ -43,7 +43,6 @@ import type {
   FriendRequestCreateResponse,
   FriendRequestListResponse,
   FriendRequestRespondRequest,
-  FriendStandingsParticipationRequest,
   FriendStandingsResponse,
   GlobalBoardParticipationRequest,
   GlobalBoardResponse,
@@ -78,6 +77,7 @@ import type {
   TerritoryEnrollmentRequest,
   TerritoryClaimActivityResponse,
   TerritoryClaimBounds,
+  GhostTraceResponse,
   TerritoryClaimHistoryResponse,
   TerritoryClaimMapResponse,
   TerritoryClaimResult,
@@ -85,7 +85,15 @@ import type {
   TerritoryClusterListResponse,
   TerritoryLadderResponse,
   TerritoryEventListResponse,
+  TerritoryClaimSeasonListResponse,
+  TerritoryClaimSeasonRecapResponse,
+  TerritoryHallOfFameResponse,
+  TerritoryLeaderboardPeriod,
   TerritoryLeaderboardResponse,
+  RouteSuggestionFeedbackRequest,
+  RouteSuggestionFeedbackResponse,
+  RouteSuggestionResponse,
+  TerritoryLeaderboardScope,
   TerritoryMapResponse,
   TerritoryRecommendationResponse,
   TerritorySeasonResponse,
@@ -106,7 +114,7 @@ import {
 
 export type { AuthSession } from './auth-storage-core';
 export type { SafetyContactResponse } from '@runsphere/contracts';
-export type ActivityMovement = 'walk' | 'run' | 'hike';
+export type ActivityMovement = 'run';
 
 /** Typed non-auth API failure for product state decisions without parsing error strings. */
 export class ApiFailure extends Error {
@@ -365,14 +373,15 @@ export class MobileApiClient {
     return (await this.request<FriendListResponse>('/v1/friends', { method: 'GET' })).data;
   }
   /**
-   * Weekly friend board (ADR-0007). `participating` is false until the account
-   * joins, and `entries` stays empty while it is: a caller must present the
-   * opt-in, never an empty board as though nobody moved.
+   * Weekly friend board. **Mutual friendship is the only gate** (product
+   * decision 2026-09-06; `gameplay.md`), so there is nothing to join and
+   * nothing to leave — `entries` is empty only when there are no mutual
+   * friends yet. The opt-in ADR-0007 requires is for the global board below,
+   * whose audience is everybody.
    */
   async getFriendStandings(): Promise<FriendStandingsResponse> {
     return this.request('/v1/friends/standings', { method: 'GET' });
   }
-  /** Joining and leaving the friend board is independent of activity visibility. */
   /**
    * The opt-in global board (milestone 3.5). It is materialized by the worker,
    * so this is a plain read: `participating: false` comes back with no entries,
@@ -497,6 +506,18 @@ export class MobileApiClient {
     });
   }
   /**
+   * The holder's run, to race a ghost of (`territory-guide.md`).
+   *
+   * Rate-limited to three an hour by the server, and every refusal comes back
+   * with a reason in the body — so a caller reads `ghostErrorState` rather than
+   * treating a 429 or a 403 as a failure.
+   */
+  async getGhostTrace(claimId: string): Promise<GhostTraceResponse> {
+    return this.request(`/v1/territory/claims/${encodeURIComponent(claimId)}/ghost-trace`, {
+      method: 'GET'
+    });
+  }
+  /**
    * Up to three territories this runner could realistically take, estimated
    * from their own recent runs. An estimate, and the app says so.
    */
@@ -512,11 +533,80 @@ export class MobileApiClient {
    * ground somebody used to hold would reward having once been fast.
    */
   async getTerritoryLeaderboard(
-    scope: 'individual' | 'club' = 'individual',
-    metric: 'area' | 'claims' | 'defended' | 'fastest' = 'area'
+    options: {
+      scope?: TerritoryLeaderboardScope;
+      metric?: 'area' | 'claims' | 'defended' | 'fastest';
+      period?: TerritoryLeaderboardPeriod;
+      /** A named place. Omitted on a city or country board means "mine". */
+      scopeKey?: string;
+      /** A finished season. Omitted means the one being played. */
+      seasonMonth?: string;
+    } = {}
   ): Promise<TerritoryLeaderboardResponse> {
-    const query = new URLSearchParams({ scope, metric });
+    const query = new URLSearchParams({
+      scope: options.scope ?? 'individual',
+      metric: options.metric ?? 'area',
+      period: options.period ?? 'season'
+    });
+    if (options.scopeKey) query.set('scopeKey', options.scopeKey);
+    if (options.seasonMonth) query.set('seasonMonth', options.seasonMonth);
     return this.request(`/v1/territory/leaderboard?${query.toString()}`, { method: 'GET' });
+  }
+  /** The seasons there have been, and when the current one resets. */
+  async getTerritorySeasons(): Promise<TerritoryClaimSeasonListResponse> {
+    return this.request('/v1/territory/leaderboard/seasons', { method: 'GET' });
+  }
+  /** All-time records for a place. Omit `scopeKey` to use the reader's own city. */
+  async getTerritoryHallOfFame(
+    scope: 'city' | 'country' | 'global' = 'city',
+    scopeKey?: string
+  ): Promise<TerritoryHallOfFameResponse> {
+    const query = new URLSearchParams({ scope });
+    if (scopeKey) query.set('scopeKey', scopeKey);
+    return this.request(`/v1/territory/leaderboard/hall-of-fame?${query.toString()}`, {
+      method: 'GET'
+    });
+  }
+  /** The reader's recap of the last finished season, for the reset card. */
+  async getTerritorySeasonRecap(): Promise<TerritoryClaimSeasonRecapResponse> {
+    return this.request('/v1/territory/leaderboard/recap', { method: 'GET' });
+  }
+  /**
+   * Reviewed loops that could be run from about here (`product.md`).
+   *
+   * The position is deliberately approximate. Only a coarse fix is needed to
+   * ask "what is near me", and the server coarsens it again before use, so
+   * sending a precise one buys nothing and discloses more.
+   */
+  async suggestRoutes(
+    position: { latitude: number; longitude: number },
+    options: { targetDistanceKm?: number; targetMinutes?: number } = {}
+  ): Promise<RouteSuggestionResponse> {
+    const query = new URLSearchParams({
+      latitude: String(position.latitude),
+      longitude: String(position.longitude)
+    });
+    if (options.targetDistanceKm) query.set('targetDistanceKm', String(options.targetDistanceKm));
+    if (options.targetMinutes) query.set('targetMinutes', String(options.targetMinutes));
+    return this.request(`/v1/routes/suggest?${query.toString()}`, { method: 'GET' });
+  }
+  /**
+   * What the runner did about a suggestion.
+   *
+   * `declined` rests that loop for a month, so somebody is not offered the same
+   * thing they keep passing on.
+   */
+  async sendRouteSuggestionFeedback(
+    routeId: string,
+    action: 'accepted' | 'declined' | 'completed'
+  ): Promise<boolean> {
+    const body: RouteSuggestionFeedbackRequest = { action };
+    return (
+      await this.request<RouteSuggestionFeedbackResponse>(
+        `/v1/routes/suggestions/${routeId}/feedback`,
+        { method: 'POST', body: JSON.stringify(body) }
+      )
+    ).recorded;
   }
   /** Map events: an area and a window inside which territory counts for something. */
   async getTerritoryEvents(): Promise<TerritoryEventListResponse> {
@@ -530,15 +620,6 @@ export class MobileApiClient {
         method: 'PUT',
         body
       })
-    ).participating;
-  }
-  async setFriendStandingsParticipation(participating: boolean): Promise<boolean> {
-    const body: FriendStandingsParticipationRequest = { participating };
-    return (
-      await this.request<FriendStandingsParticipationRequest>(
-        '/v1/friends/standings/participation',
-        { method: 'PUT', body }
-      )
     ).participating;
   }
   /**

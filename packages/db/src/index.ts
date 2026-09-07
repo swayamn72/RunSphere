@@ -25,6 +25,38 @@ export const defaultDatabaseUrl = (environment: NodeJS.ProcessEnv): string => {
   return `postgresql://${user}:${password}@127.0.0.1:${port}/${database}`;
 };
 
+/**
+ * Whether the PostGIS integration suites should run.
+ *
+ * They are gated because the default `pnpm test` must work with no database.
+ * The danger in that is quiet: with the gate closed every `describePostgis`
+ * becomes `describe.skip`, the run is **green**, and nothing says that the only
+ * tests which exercise real SQL did not execute. CI has had a PostGIS service
+ * and these variables since the first workflow, so a green run there has always
+ * meant they ran — but one typo in the workflow would have turned that off
+ * silently and forever.
+ *
+ * Defined once, here, so `requirePostgisInCi` below can make that failure loud.
+ */
+export const postgisIntegrationEnabled = (environment: NodeJS.ProcessEnv = process.env): boolean =>
+  Boolean(environment.RUN_POSTGIS_INTEGRATION) &&
+  Boolean(environment.DATABASE_URL ?? environment.POSTGRES_PASSWORD);
+
+/**
+ * In CI, a skipped PostGIS suite is a failure rather than a silence.
+ *
+ * Called from a plain `it` in every integration file, so it runs whether or not
+ * the suite itself does. Outside CI it asserts nothing: a developer with no
+ * database is the case the gate exists for.
+ */
+export const requirePostgisInCi = (environment: NodeJS.ProcessEnv = process.env): void => {
+  if (environment.CI !== 'true') return;
+  if (postgisIntegrationEnabled(environment)) return;
+  throw new Error(
+    'PostGIS integration tests are gated off in CI. Set RUN_POSTGIS_INTEGRATION=1 and DATABASE_URL, or these suites pass by not running.'
+  );
+};
+
 export const sha256 = (value: string): string => createHash('sha256').update(value).digest('hex');
 
 const migrationDirectory = join(

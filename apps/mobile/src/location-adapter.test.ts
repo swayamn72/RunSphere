@@ -40,19 +40,69 @@ describe('foreground location adapter', () => {
   });
 
   it('replays synthetic fixes through the same subscription seam', async () => {
-    const onSample = vi.fn();
-    const adapter = createSyntheticLocationAdapter([
-      {
-        recordedAt: '2026-08-28T06:00:00Z',
-        latitude: 19,
-        longitude: 72,
-        accuracy: 8,
-        altitude: null
-      }
-    ]);
-    const subscription = await adapter.subscribe(onSample);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    subscription.remove();
-    expect(onSample).toHaveBeenCalledTimes(1);
+    // Fake timers, because `replaySamples` emits on a 500 ms `setInterval`.
+    // This test used to wait `setTimeout(0)` and then remove the subscription,
+    // which cleared the interval before its first tick — so it asserted one
+    // call and got zero, every time. It was not flaky; it was wrong.
+    vi.useFakeTimers();
+    try {
+      const onSample = vi.fn();
+      const adapter = createSyntheticLocationAdapter([
+        {
+          recordedAt: '2026-08-28T06:00:00Z',
+          latitude: 19,
+          longitude: 72,
+          accuracy: 8,
+          altitude: null
+        }
+      ]);
+      const subscription = await adapter.subscribe(onSample);
+
+      await vi.advanceTimersByTimeAsync(500);
+      expect(onSample).toHaveBeenCalledTimes(1);
+      expect(onSample).toHaveBeenCalledWith(
+        expect.objectContaining({ latitude: 19, longitude: 72 })
+      );
+
+      // The replay stops when the fixture runs out rather than looping.
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(onSample).toHaveBeenCalledTimes(1);
+      subscription.remove();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stops emitting once the subscription is removed', async () => {
+    vi.useFakeTimers();
+    try {
+      const onSample = vi.fn();
+      const adapter = createSyntheticLocationAdapter([
+        {
+          recordedAt: '2026-08-28T06:00:00Z',
+          latitude: 19,
+          longitude: 72,
+          accuracy: 8,
+          altitude: null
+        },
+        {
+          recordedAt: '2026-08-28T06:00:05Z',
+          latitude: 19.001,
+          longitude: 72,
+          accuracy: 8,
+          altitude: null
+        }
+      ]);
+      const subscription = await adapter.subscribe(onSample);
+
+      await vi.advanceTimersByTimeAsync(500);
+      subscription.remove();
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      // The second fixture never arrives: a removed subscription is removed.
+      expect(onSample).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

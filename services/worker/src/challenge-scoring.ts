@@ -1,10 +1,15 @@
 import { withTransaction, type Database } from '@runsphere/db';
 import {
+  CHALLENGE_SCORE_UNIT,
+  challengeDrawn,
+  challengeLost,
   challengeModeScore,
   challengeWindow,
   challengeWinner,
+  challengeWon,
   parseChallengeRule,
   type ChallengeMode,
+  type ChallengeResultParams,
   type ChallengeParticipantScore,
   type ChallengeRule,
   type ScoredActivity
@@ -173,14 +178,50 @@ export const scoreChallenge = async (db: Database, challengeId: string): Promise
         [challenge.id, participant.accountId, participant.score]
       );
     }
-    // The 014 inbox trigger fans each row out to `notification.created`; the
-    // body carries no score, so a push payload can never leak one.
+    // `CHALLENGE_WON` / `CHALLENGE_LOST` (`screens.md`). The result names the
+    // other person and both scores, which the previous generic body did not.
+    //
+    // **This does not put a score in a push payload.** ADR-0009 requires the
+    // push to carry "an opaque notification ID and a safe deep link, never
+    // location or sensitive scores", and `push-delivery.ts` selects only
+    // `id, account_id, kind, deep_link` — never the title or body. The body is
+    // read from the inbox over an authenticated request, by one of the two
+    // people who can already see both scores in the challenge itself.
+    const names = new Map<string, string | null>();
+    if (scores.length > 0) {
+      const profiles = await client.query<{ account_id: string; display_name: string | null }>(
+        'SELECT account_id, display_name FROM profiles WHERE account_id = ANY($1)',
+        [scores.map((participant) => participant.accountId)]
+      );
+      for (const profile of profiles.rows) names.set(profile.account_id, profile.display_name);
+    }
+    const unit = CHALLENGE_SCORE_UNIT[challenge.mode] ?? 'points';
     for (const participant of scores) {
+      const opponent = scores.find((other) => other.accountId !== participant.accountId);
+      const result: ChallengeResultParams = {
+        challengeId: challenge.id,
+        runnerName: names.get(opponent?.accountId ?? '') ?? undefined,
+        yourScore: participant.score,
+        theirScore: opponent?.score ?? 0,
+        unit
+      };
+      const copy = !winnerAccountId
+        ? challengeDrawn(result)
+        : winnerAccountId === participant.accountId
+          ? challengeWon(result)
+          : challengeLost(result);
       await client.query(
-        `INSERT INTO notification_inbox (account_id, kind, title, body, deep_link)
-         VALUES ($1, 'challenge_finished', 'Challenge finished',
-           'Your challenge is complete. Open it to see the result.', $2)`,
-        [participant.accountId, `runsphere://challenges/${challenge.id}`]
+        `INSERT INTO notification_inbox (account_id, kind, title, body, deep_link, dedupe_key)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (account_id, dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`,
+        [
+          participant.accountId,
+          copy.kind,
+          copy.title,
+          copy.body,
+          copy.deepLink,
+          `challenge-finished:${challenge.id}`
+        ]
       );
     }
   });

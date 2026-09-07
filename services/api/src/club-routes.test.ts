@@ -178,7 +178,11 @@ const fakeDatabase = (stubs: Stubs = {}) => {
         rows: [
           {
             id: RELAY,
-            period_start: '2026-08-31',
+            // Echoed back from what the route inserted, not hardcoded. The
+            // response's `current` flag compares this against the real current
+            // Kolkata Monday, so a fixed date made the test pass only during
+            // the week of 2026-08-31 and fail every week after it.
+            period_start: values?.[1] ?? '2026-08-31',
             period_end: '2026-09-07',
             target_units: values?.[2] ?? 600,
             rule_version: values?.[3] ?? 1

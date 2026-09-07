@@ -27,6 +27,11 @@ interface Stubs {
   flags?: Record<string, unknown>[];
   reviewed?: Record<string, unknown>[];
   holders?: Record<string, unknown>[];
+  place?: Record<string, unknown>[];
+  snapshots?: Record<string, unknown>[];
+  seasons?: Record<string, unknown>[];
+  records?: Record<string, unknown>[];
+  recap?: Record<string, unknown>[];
 }
 
 let stubs: Stubs = {};
@@ -34,6 +39,17 @@ let calls: { sql: string; values: readonly unknown[] | undefined }[] = [];
 
 const respond = (sql: string) => {
   if (sql.includes('FROM staff_role_assignments')) return { rows: stubs.roles ?? [] };
+  // The place inference reads a tag column aliased as `scope_key`, which no
+  // other query in this file does. Checked first for that reason.
+  if (sql.includes('AS scope_key') && sql.includes('FROM territory_claims'))
+    return { rows: stubs.place ?? [] };
+  if (sql.includes('FROM territory_claim_season_snapshots') && sql.includes("kind = 'final'"))
+    return { rows: stubs.recap ?? stubs.snapshots ?? [] };
+  if (sql.includes('FROM territory_claim_season_snapshots')) return { rows: stubs.snapshots ?? [] };
+  if (sql.includes('FROM territory_claim_seasons')) return { rows: stubs.seasons ?? [] };
+  if (sql.includes('FROM territory_claim_hall_of_fame record'))
+    return { rows: stubs.records ?? [] };
+  if (sql.includes('FROM territory_claim_hall_of_fame')) return { rows: stubs.records ?? [] };
   // Checked before the claims branch: the events query counts claims inside an
   // event with a subselect, so a looser order answers the wrong one.
   if (sql.includes('ST_AsGeoJSON(event.boundary)')) return { rows: stubs.events ?? [] };
@@ -84,6 +100,290 @@ const boardRow = (overrides: Record<string, unknown> = {}) => ({
   defended_count: '1',
   fastest_seconds: 1662,
   ...overrides
+});
+
+const snapshotRow = (overrides: Record<string, unknown> = {}) => ({
+  account_id: RIVAL,
+  display_name: 'Ravi',
+  cosmetic: { avatarKey: 'orbit-04' },
+  total_area_sqm: 48_200,
+  claim_count: 4,
+  rank: 1,
+  ...overrides
+});
+
+describe('leaderboard scopes and periods', () => {
+  const read = (query = '') =>
+    app.inject({ method: 'GET', url: `/v1/territory/leaderboard${query}`, headers: auth });
+
+  it('scopes the live board to a named city', async () => {
+    stubs = { board: [boardRow()] };
+    const body = (await read('?scope=city&scopeKey=Mumbai')).json();
+
+    expect(body.scope).toBe('city');
+    expect(body.scopeKey).toBe('Mumbai');
+    expect(sql()).toContain('claim.city_tag = $3');
+    const page = calls.find((call) => call.sql.includes('claim.city_tag = $3'));
+    expect(page?.values).toContain('Mumbai');
+  });
+
+  it('works out the reader own city when none is named', async () => {
+    // What the app My City tab asks for: no city picker, no list of every city
+    // on earth. Their own held ground says where they run.
+    stubs = { place: [{ scope_key: 'Mumbai' }], board: [boardRow()] };
+    const body = (await read('?scope=city')).json();
+
+    expect(body.scopeKey).toBe('Mumbai');
+    expect(body.scopeInferred).toBe(true);
+  });
+
+  it('says it does not know where somebody runs, rather than showing an empty city', async () => {
+    // Distinct from a city with nobody on it: one is "we have no idea", the
+    // other is "you are first".
+    stubs = { place: [] };
+    const body = (await read('?scope=city')).json();
+
+    expect(body.unavailableReason).toBe('no_place_yet');
+    expect(body.entries).toEqual([]);
+  });
+
+  it('scopes to a country by its code', async () => {
+    stubs = { board: [boardRow()] };
+    await read('?scope=country&scopeKey=IN');
+
+    expect(sql()).toContain('claim.country_tag = $3');
+  });
+
+  it('puts everybody on the global board, tagged or not', async () => {
+    stubs = { board: [boardRow()] };
+    const body = (await read('?scope=global')).json();
+
+    expect(body.scope).toBe('global');
+    expect(body.scopeKey).toBeUndefined();
+    // No place filter at all: untagged ground is still held ground.
+    expect(sql()).not.toContain('claim.city_tag =');
+    expect(sql()).not.toContain('claim.country_tag =');
+  });
+
+  it('reads a week from the frozen snapshot, not from live claims', async () => {
+    // A live board recomputed on every read is this moment, not this week, and
+    // a runner refreshing it twice would see two different positions.
+    stubs = { snapshots: [snapshotRow()] };
+    const body = (await read('?scope=global&period=week')).json();
+
+    expect(body.period).toBe('week');
+    expect(body.entries[0]).toMatchObject({ rank: 1, totalAreaSqm: 48_200 });
+    expect(sql()).toContain('FROM territory_claim_season_snapshots');
+    expect(body.note).toContain('does not move until next Monday');
+  });
+
+  it('reads a finished season from its final snapshot', async () => {
+    stubs = { snapshots: [snapshotRow()] };
+    const body = (await read('?scope=global&seasonMonth=2026-08')).json();
+
+    expect(body.seasonMonth).toBe('2026-08');
+    expect(sql()).toContain("kind = 'final'");
+    expect(body.note).toContain('2026-08');
+  });
+
+  it('scopes every live board to the season being played', async () => {
+    stubs = { board: [boardRow()] };
+    await read();
+
+    // Ground from a finished month is history, not a standing.
+    expect(sql()).toContain('claim.season_month = $2');
+  });
+
+  it('refuses a season month that is not one', async () => {
+    expect((await read('?seasonMonth=August')).statusCode).toBe(400);
+  });
+
+  it('refuses a scope it does not have', async () => {
+    expect((await read('?scope=planet')).statusCode).toBe(400);
+  });
+});
+
+describe('GET /v1/territory/leaderboard/seasons', () => {
+  const read = () =>
+    app.inject({
+      method: 'GET',
+      url: '/v1/territory/leaderboard/seasons',
+      headers: auth
+    });
+
+  it('lists the seasons and marks the one being played', async () => {
+    stubs = {
+      seasons: [
+        {
+          season_month: '2026-09',
+          started_at: new Date('2026-09-01T00:00:00.000Z'),
+          ended_at: null,
+          claims_archived: 0
+        },
+        {
+          season_month: '2026-08',
+          started_at: new Date('2026-08-01T00:00:00.000Z'),
+          ended_at: new Date('2026-09-01T00:00:00.000Z'),
+          claims_archived: 12
+        }
+      ]
+    };
+    const body = (await read()).json();
+
+    expect(body.data[1]).toMatchObject({ seasonMonth: '2026-08', claimsArchived: 12 });
+    expect(body.data.filter((season: { isCurrent: boolean }) => season.isCurrent)).toHaveLength(1);
+  });
+
+  it('says when the current season resets, so no client needs timezone rules', async () => {
+    const body = (await read()).json();
+
+    // 00:01 Asia/Kolkata on the 1st is 18:31 UTC on the last day of the month.
+    expect(body.currentSeasonEndsAt).toMatch(/T18:31:00/);
+    expect(body.currentSeasonMonth).toMatch(/^\d{4}-\d{2}$/);
+  });
+
+  it('needs a token it can verify', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/v1/territory/leaderboard/seasons',
+      headers: { authorization: 'Bearer nope' }
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+});
+
+describe('GET /v1/territory/leaderboard/hall-of-fame', () => {
+  const read = (query = '') =>
+    app.inject({
+      method: 'GET',
+      url: `/v1/territory/leaderboard/hall-of-fame${query}`,
+      headers: auth
+    });
+
+  const record = (overrides: Record<string, unknown> = {}) => ({
+    record_type: 'largest_holding',
+    value_sqm: 91_000,
+    display_name: 'Dev S.',
+    account_id: RIVAL,
+    cosmetic: { avatarKey: 'orbit-04' },
+    season_month: '2026-08',
+    achieved_at: new Date('2026-08-20T00:00:00.000Z'),
+    ...overrides
+  });
+
+  it('names the record, the holder, and what it counts', async () => {
+    stubs = { place: [{ scope_key: 'Mumbai' }], records: [record()] };
+    const body = (await read()).json();
+
+    expect(body.entries[0]).toMatchObject({
+      recordType: 'largest_holding',
+      valueSqm: 91_000,
+      displayName: 'Dev S.',
+      seasonMonth: '2026-08'
+    });
+    expect(body.entries[0].note).toContain('most ground');
+  });
+
+  it('still reads after the account that set it is erased', async () => {
+    // The run happened either way, so the name is stored on the record rather
+    // than joined from an account that may be gone.
+    stubs = {
+      place: [{ scope_key: 'Mumbai' }],
+      records: [record({ account_id: null, cosmetic: null })]
+    };
+    const body = (await read()).json();
+
+    expect(body.entries[0].displayName).toBe('Dev S.');
+    expect(body.entries[0].owner).toBeUndefined();
+  });
+
+  it('drops a record type it does not recognise rather than failing the read', async () => {
+    stubs = { place: [{ scope_key: 'Mumbai' }], records: [record({ record_type: 'invented' })] };
+
+    expect((await read()).json().entries).toEqual([]);
+  });
+
+  it('says it does not know where somebody runs', async () => {
+    stubs = { place: [] };
+    const body = (await read()).json();
+
+    expect(body.unavailableReason).toBe('no_place_yet');
+  });
+
+  it('needs no place for the global records', async () => {
+    stubs = { records: [record()] };
+    const body = (await read('?scope=global')).json();
+
+    expect(body.scope).toBe('global');
+    expect(body.scopeKey).toBeUndefined();
+    const query = calls.find((call) => call.sql.includes('territory_claim_hall_of_fame'));
+    expect(query?.values).toContain('GLOBAL');
+  });
+
+  it('is honest about having no records yet', async () => {
+    stubs = { records: [] };
+    const body = (await read('?scope=global')).json();
+
+    expect(body.entries).toEqual([]);
+    expect(body.note).toContain('No records here yet');
+  });
+});
+
+describe('GET /v1/territory/leaderboard/recap', () => {
+  const read = () =>
+    app.inject({ method: 'GET', url: '/v1/territory/leaderboard/recap', headers: auth });
+
+  it('says there is nothing to recap before any season has ended', async () => {
+    stubs = { seasons: [] };
+
+    expect((await read()).json().unavailableReason).toBe('no_finished_season');
+  });
+
+  it('says so plainly when they held nothing', async () => {
+    // A full-screen card reading "you finished nowhere with no ground" is worse
+    // than no card.
+    stubs = { seasons: [{ season_month: '2026-08' }], recap: [] };
+
+    expect((await read()).json().unavailableReason).toBe('held_nothing');
+  });
+
+  it('reports the peak, the rank, and the city', async () => {
+    stubs = {
+      seasons: [{ season_month: '2026-08' }],
+      recap: [
+        {
+          scope: 'city',
+          scope_key: 'Mumbai',
+          rank: 4,
+          total_area_sqm: 20_000,
+          peak_area_sqm: 48_200,
+          claim_count: 4,
+          longest_held_days: 18
+        }
+      ],
+      records: []
+    };
+    const body = (await read()).json();
+
+    expect(body.recap).toMatchObject({
+      seasonMonth: '2026-08',
+      rank: 4,
+      cityTag: 'Mumbai',
+      // Peak, not final: the month is remembered by the most they held.
+      peakAreaSqm: 48_200,
+      finalAreaSqm: 20_000,
+      longestHeldDays: 18
+    });
+  });
+
+  it('prefers the city standing over the global one', async () => {
+    stubs = { seasons: [{ season_month: '2026-08' }], recap: [], records: [] };
+    await read();
+
+    const query = calls.find((call) => call.sql.includes("kind = 'final'"));
+    expect(query?.sql).toContain("CASE scope WHEN 'city' THEN 0");
+  });
 });
 
 describe('GET /v1/territory/leaderboard', () => {

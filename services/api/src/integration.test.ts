@@ -1,13 +1,18 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { activityFinalizeChecksumInput } from '@runsphere/contracts';
-import { createDatabase, defaultDatabaseUrl, migrate, withTransaction } from '@runsphere/db';
+import {
+  createDatabase,
+  defaultDatabaseUrl,
+  migrate,
+  withTransaction,
+  postgisIntegrationEnabled,
+  requirePostgisInCi
+} from '@runsphere/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
 import { processActivity, chunkHash } from './activity.js';
 
-const enabled = Boolean(
-  process.env.RUN_POSTGIS_INTEGRATION && (process.env.DATABASE_URL || process.env.POSTGRES_PASSWORD)
-);
+const enabled = postgisIntegrationEnabled();
 const describePostgis = enabled ? describe : describe.skip;
 const db = createDatabase(defaultDatabaseUrl(process.env));
 const app = buildApp({ db, authSecret: 'integration-test-secret' });
@@ -49,7 +54,7 @@ describePostgis('M1 PostGIS activity flow', () => {
       method: 'POST',
       url: '/v1/activities',
       headers: { authorization: `Bearer ${auth.accessToken}`, 'idempotency-key': idempotencyKey },
-      payload: { movementType: 'walk' }
+      payload: { movementType: 'run' }
     });
     expect(activity.statusCode).toBe(201);
     const id = (activity.json() as { id: string }).id;
@@ -57,30 +62,36 @@ describePostgis('M1 PostGIS activity flow', () => {
       method: 'POST',
       url: '/v1/activities',
       headers: { authorization: `Bearer ${auth.accessToken}`, 'idempotency-key': idempotencyKey },
-      payload: { movementType: 'walk' }
+      payload: { movementType: 'run' }
     });
     expect(replay.statusCode).toBe(200);
     expect((replay.json() as { id: string }).id).toBe(id);
-    const alteredReplay = await app.inject({
+    // An altered replay used to be asserted here with a different
+    // `movementType`. Running-only (`product.md`, 2026-09-06) leaves the body
+    // one legal value, so a replay of the same key cannot differ and the 409
+    // is unreachable through this route. The guard stays in `app.ts` — see the
+    // comment on `fingerprint` — because it is what makes the pattern correct
+    // and a second approved activity type revives it.
+    const rejectedBody = await app.inject({
       method: 'POST',
       url: '/v1/activities',
-      headers: { authorization: `Bearer ${auth.accessToken}`, 'idempotency-key': idempotencyKey },
-      payload: { movementType: 'run' }
+      headers: { authorization: `Bearer ${auth.accessToken}`, 'idempotency-key': randomUUID() },
+      payload: { movementType: 'walk' }
     });
-    expect(alteredReplay.statusCode).toBe(409);
+    expect(rejectedBody.statusCode).toBe(400);
     const concurrentKey = randomUUID();
     const concurrent = await Promise.all([
       app.inject({
         method: 'POST',
         url: '/v1/activities',
         headers: { authorization: `Bearer ${auth.accessToken}`, 'idempotency-key': concurrentKey },
-        payload: { movementType: 'hike' }
+        payload: { movementType: 'run' }
       }),
       app.inject({
         method: 'POST',
         url: '/v1/activities',
         headers: { authorization: `Bearer ${auth.accessToken}`, 'idempotency-key': concurrentKey },
-        payload: { movementType: 'hike' }
+        payload: { movementType: 'run' }
       })
     ]);
     expect(concurrent.map((response) => response.statusCode).sort()).toEqual([200, 201]);
@@ -150,7 +161,7 @@ describePostgis('M1 PostGIS activity flow', () => {
       method: 'POST',
       url: '/v1/activities',
       headers: { authorization: `Bearer ${auth.accessToken}`, 'idempotency-key': randomUUID() },
-      payload: { movementType: 'walk' }
+      payload: { movementType: 'run' }
     });
     const secondId = (second.json() as { id: string }).id;
     await app.inject({
@@ -512,5 +523,16 @@ describePostgis('M1 PostGIS activity flow', () => {
     expect(
       (await db.query('SELECT id FROM activity_derivations WHERE activity_id = $1', [id])).rows
     ).toHaveLength(0);
+  });
+});
+
+/**
+ * A gated suite that quietly does not run is a green tick that means nothing.
+ * This is the one test in the file that always runs, and in CI it fails if the
+ * rest were skipped.
+ */
+describe('the PostGIS gate', () => {
+  it('is open in CI', () => {
+    expect(() => requirePostgisInCi()).not.toThrow();
   });
 });

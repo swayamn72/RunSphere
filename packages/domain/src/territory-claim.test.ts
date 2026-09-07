@@ -1,17 +1,32 @@
 import { describe, expect, it } from 'vitest';
+import { h3Indexer } from './h3-indexer.js';
 import {
   CLAIM_REFUSAL_MESSAGE,
   canonicaliseRing,
   DEFAULT_CLAIM_RULE,
-  claimOutcome,
+  assessCarve,
+  carveOutcome,
+  carvingDecision,
+  cellSetAreaSqm,
+  cellSetBoundary,
   detectLoopClaim,
+  differenceCells,
+  effortGrace,
+  h3CellSet,
   haversineMetres,
-  overlapRatio,
+  intersectCells,
+  largestConnectedComponent,
+  minCarveArea,
   pointInRing,
   ringAreaSqm,
   ringCentroid,
+  runSpeed,
+  seasonMonthFor,
+  type CarveAssessment,
+  type ClaimCandidate,
   type ClaimPoint,
   type ClaimRing,
+  type H3Indexer,
   type HeldClaim
 } from './territory-claim.js';
 
@@ -127,42 +142,6 @@ describe('the geometry the game is scored on', () => {
   });
 });
 
-describe('how much two loops share', () => {
-  const block = ringOf(squareLoop(300, 600, { close: false }));
-
-  it('is total for the same ground', () => {
-    expect(overlapRatio(block, block)).toBeCloseTo(1, 5);
-  });
-
-  it('is nothing for a loop somewhere else', () => {
-    const elsewhere = ringOf(
-      squareLoop(300, 600, { close: false, originLat: BASE_LAT + 0.05, originLng: BASE_LNG + 0.05 })
-    );
-
-    expect(overlapRatio(block, elsewhere)).toBe(0);
-  });
-
-  it('is partial for a loop over the same neighbourhood shifted along', () => {
-    // Half a block over: the runs are around roughly the same ground.
-    const shifted = ringOf(
-      squareLoop(300, 600, {
-        close: false,
-        originLng: BASE_LNG + 150 / metresPerDegreeLng(BASE_LAT)
-      })
-    );
-    const ratio = overlapRatio(block, shifted);
-
-    expect(ratio).toBeGreaterThan(0.4);
-    expect(ratio).toBeLessThan(0.6);
-  });
-
-  it('gives the same answer every time it is asked', () => {
-    // The sample grid is fixed, so two claims never trade ground because a
-    // comparison was rerun.
-    expect(overlapRatio(block, block)).toBe(overlapRatio(block, block));
-  });
-});
-
 describe('reading a claim off a run', () => {
   it('claims the loop and times it', () => {
     const detection = detectLoopClaim(squareLoop(300, 600));
@@ -172,6 +151,33 @@ describe('reading a claim off a run', () => {
     expect(detection.claim.areaSqm).toBeGreaterThan(80_000);
     expect(detection.claim.durationSeconds).toBeGreaterThan(0);
     expect(detection.claim.boundary.length).toBeGreaterThan(3);
+  });
+
+  it('measures the perimeter from the trace, not from the drawn boundary', () => {
+    // Four 300 m sides is a 1.2 km loop, and it is the numerator of the speed
+    // a challenger has to beat — so it comes from the points that were run
+    // rather than from a boundary that has been thinned for drawing.
+    const detection = detectLoopClaim(squareLoop(300, 600, { perSide: 300 }));
+    if (!('claim' in detection)) throw new Error('expected a claim');
+
+    expect(detection.claim.perimeterMetres).toBeGreaterThan(1_150);
+    expect(detection.claim.perimeterMetres).toBeLessThan(1_250);
+    expect(detection.claim.boundary.length).toBeLessThan(1_200);
+  });
+
+  it('excludes a warm-up from the perimeter as well as from the time', () => {
+    const loop = squareLoop(300, 600);
+    const walkIn: ClaimPoint[] = Array.from({ length: 5 }, (_unused, index) => ({
+      latitude: BASE_LAT - 0.02 + index * 0.004,
+      longitude: BASE_LNG - 0.02,
+      at: new Date(loop[0]!.at.getTime() - (5 - index) * 60_000)
+    }));
+
+    const bare = detectLoopClaim(loop);
+    const padded = detectLoopClaim([...walkIn, ...loop]);
+    if (!('claim' in bare) || !('claim' in padded)) throw new Error('expected both to claim');
+
+    expect(padded.claim.perimeterMetres).toBeCloseTo(bare.claim.perimeterMetres, 0);
   });
 
   it('refuses a run that never came back to its start', () => {
@@ -243,74 +249,482 @@ describe('reading a claim off a run', () => {
   });
 });
 
-describe('taking ground off somebody', () => {
-  const loop = detectLoopClaim(squareLoop(300, 600));
-  if (!('claim' in loop)) throw new Error('fixture must produce a claim');
-  const candidate = loop.claim;
+/**
+ * A square grid standing in for H3.
+ *
+ * The carving rules only ask an indexer four things, and none of them need
+ * hexagons. A grid of 1,000 m² cells keyed `row:col` makes every assertion below
+ * arithmetic somebody can check by hand — which is the point, because these are
+ * the numbers that decide who owns a piece of a city. `h3-indexer.test.ts`
+ * covers the real binding.
+ */
+const GRID_CELL_SQM = 1_000;
+const gridIndexer: H3Indexer = {
+  version: 'test-grid-1',
+  cellsInRing: () => [],
+  cellAreaSqm: () => GRID_CELL_SQM,
+  neighbours: (cell) => {
+    const [row, col] = cell.split(':').map(Number) as [number, number];
+    return [`${row - 1}:${col}`, `${row + 1}:${col}`, `${row}:${col - 1}`, `${row}:${col + 1}`];
+  },
+  ringAround: (cells) => {
+    // A bounding box is enough: nothing here asserts on the drawn shape, only
+    // that a drawable ring comes back.
+    const parsed = cells.map((cell) => cell.split(':').map(Number) as [number, number]);
+    const rows = parsed.map(([row]) => row);
+    const cols = parsed.map(([, col]) => col);
+    const [west, east] = [Math.min(...cols), Math.max(...cols) + 1];
+    const [south, north] = [Math.min(...rows), Math.max(...rows) + 1];
+    return [
+      [west, south],
+      [east, south],
+      [east, north],
+      [west, north]
+    ];
+  }
+};
 
-  const holder = (durationSeconds: number, id = 'held-1'): HeldClaim => ({
-    id,
-    boundary: candidate.boundary,
-    durationSeconds
+/** `row:col` cells for a rectangle, sorted the way `h3CellSet` sorts. */
+const gridCells = (rows: readonly number[], cols: readonly number[]): readonly string[] =>
+  rows.flatMap((row) => cols.map((col) => `${row}:${col}`)).sort();
+
+const range = (from: number, to: number): number[] =>
+  Array.from({ length: to - from + 1 }, (_unused, index) => from + index);
+
+describe('cell sets', () => {
+  it('is the same set however the loop was run', () => {
+    // The array is sorted, so it carries no trace of where somebody started —
+    // the same privacy property `canonicaliseRing` gives the boundary.
+    const clockwise = ringOf(squareLoop(300, 600, { close: false }));
+    const anticlockwise = [...clockwise].reverse();
+
+    expect(h3CellSet(clockwise, DEFAULT_CLAIM_RULE.h3Resolution, h3Indexer)).toEqual(
+      h3CellSet(anticlockwise, DEFAULT_CLAIM_RULE.h3Resolution, h3Indexer)
+    );
   });
 
-  it('takes the ground when the new loop is faster', () => {
-    const outcome = claimOutcome(candidate, [holder(candidate.durationSeconds + 60)]);
+  it('covers a 300 metre block with cells that add up to about its area', () => {
+    const cells = h3CellSet(
+      ringOf(squareLoop(300, 600, { close: false })),
+      DEFAULT_CLAIM_RULE.h3Resolution,
+      h3Indexer
+    );
 
-    expect(outcome).toEqual({ takenOverIds: ['held-1'] });
+    expect(cells.length).toBeGreaterThan(20);
+    // Quantised to whole cells, so within a cell or two of 90,000 m².
+    expect(cellSetAreaSqm(cells, h3Indexer)).toBeGreaterThan(80_000);
+    expect(cellSetAreaSqm(cells, h3Indexer)).toBeLessThan(100_000);
   });
 
-  it('refuses when the holder was faster', () => {
-    const outcome = claimOutcome(candidate, [holder(candidate.durationSeconds - 60)]);
-
-    expect(outcome).toEqual({ refusal: 'slower_than_holder', contestedIds: ['held-1'] });
-  });
-
-  it('leaves the ground with the holder on a tie', () => {
-    // A tie is not a win, and the alternative hands a claim over on a rounding
-    // error.
-    const outcome = claimOutcome(candidate, [holder(candidate.durationSeconds)]);
-
-    expect(outcome).toEqual({ refusal: 'slower_than_holder', contestedIds: ['held-1'] });
-  });
-
-  it('claims open ground when nobody holds it', () => {
-    expect(claimOutcome(candidate, [])).toEqual({ takenOverIds: [] });
-  });
-
-  it('ignores a claim somewhere else entirely', () => {
-    const elsewhere: HeldClaim = {
-      id: 'far',
-      boundary: ringOf(
+  it('shares nothing with a loop somewhere else', () => {
+    const here = h3CellSet(
+      ringOf(squareLoop(300, 600, { close: false })),
+      DEFAULT_CLAIM_RULE.h3Resolution,
+      h3Indexer
+    );
+    const elsewhere = h3CellSet(
+      ringOf(
         squareLoop(300, 600, {
           close: false,
           originLat: BASE_LAT + 0.05,
           originLng: BASE_LNG + 0.05
         })
       ),
-      durationSeconds: 1
+      DEFAULT_CLAIM_RULE.h3Resolution,
+      h3Indexer
+    );
+
+    expect(intersectCells(here, elsewhere)).toEqual([]);
+  });
+
+  it('shares about half with a loop shifted half a block along', () => {
+    const here = h3CellSet(
+      ringOf(squareLoop(300, 600, { close: false })),
+      DEFAULT_CLAIM_RULE.h3Resolution,
+      h3Indexer
+    );
+    const shifted = h3CellSet(
+      ringOf(
+        squareLoop(300, 600, {
+          close: false,
+          originLng: BASE_LNG + 150 / metresPerDegreeLng(BASE_LAT)
+        })
+      ),
+      DEFAULT_CLAIM_RULE.h3Resolution,
+      h3Indexer
+    );
+    const shared = intersectCells(here, shifted).length / here.length;
+
+    expect(shared).toBeGreaterThan(0.4);
+    expect(shared).toBeLessThan(0.6);
+  });
+
+  it('subtracts one set from another', () => {
+    expect(differenceCells(['a', 'b', 'c'], ['b'])).toEqual(['a', 'c']);
+    expect(differenceCells(['a', 'b'], ['a', 'b'])).toEqual([]);
+  });
+
+  it('keeps the largest connected group and drops the fragments', () => {
+    // Two islands, 3 cells and 1 cell, with a gap between them.
+    const islands = gridCells([0], [0, 1, 2]).concat(gridCells([0], [9]));
+
+    expect(largestConnectedComponent(islands, gridIndexer)).toEqual(gridCells([0], [0, 1, 2]));
+  });
+
+  it('gives the same answer when two groups are the same size', () => {
+    const twins = gridCells([0], [0, 1]).concat(gridCells([0], [9, 10]));
+    const first = largestConnectedComponent(twins, gridIndexer);
+
+    // The group holding the lowest-sorted cell wins, whichever order the set
+    // arrived in — otherwise two equal halves would change hands depending on
+    // how a query happened to come back.
+    expect(largestConnectedComponent([...twins].reverse(), gridIndexer)).toEqual(first);
+    expect(first).toEqual(gridCells([0], [0, 1]));
+  });
+});
+
+describe('speed, effort, and grace', () => {
+  it('reads a speed off a loop', () => {
+    expect(runSpeed(1_000, 300)).toBeCloseTo(3.333, 3);
+  });
+
+  it('is zero rather than infinite for a loop with no time on it', () => {
+    expect(runSpeed(1_000, 0)).toBe(0);
+    expect(runSpeed(0, 300)).toBe(0);
+  });
+
+  it('grants the published grace at each effort multiple', () => {
+    // The table in `territory-guide.md`, asserted directly.
+    expect(effortGrace(1_000, 1_000)).toBeCloseTo(0, 6);
+    expect(effortGrace(2_000, 1_000)).toBeCloseTo(0.05, 6);
+    expect(effortGrace(3_000, 1_000)).toBeCloseTo(0.1, 6);
+    expect(effortGrace(4_000, 1_000)).toBeCloseTo(0.15, 6);
+  });
+
+  it('caps grace so a very long slow loop cannot buy a sprinter out', () => {
+    expect(effortGrace(50_000, 1_000)).toBe(DEFAULT_CLAIM_RULE.maxEffortGrace);
+    expect(effortGrace(500_000, 1_000)).toBe(DEFAULT_CLAIM_RULE.maxEffortGrace);
+  });
+
+  it('never gives grace for running a shorter loop', () => {
+    expect(effortGrace(500, 1_000)).toBe(0);
+  });
+
+  it('requires a real perimeter on both sides before comparing effort', () => {
+    expect(effortGrace(1_000, 0)).toBe(0);
+    expect(effortGrace(0, 1_000)).toBe(0);
+  });
+
+  it('floors the carve threshold at a minimum claim and scales past it', () => {
+    expect(minCarveArea(20_000)).toBe(DEFAULT_CLAIM_RULE.minAreaSqm);
+    expect(minCarveArea(200_000)).toBe(20_000);
+  });
+});
+
+describe('the worked examples from the rulebook', () => {
+  /** Everything but the two loops, held constant so only effort and pace vary. */
+  const contest = (
+    challenger: { perimetre: number; seconds: number },
+    holder: { perimetre: number; seconds: number }
+  ): CarveAssessment =>
+    assessCarve({
+      challengerPerimeterMetres: challenger.perimetre,
+      challengerDurationSeconds: challenger.seconds,
+      challengerAreaSqm: 100_000,
+      holderPerimeterMetres: holder.perimetre,
+      holderDurationSeconds: holder.seconds,
+      holderAreaSqm: 100_000,
+      intersectionAreaSqm: 30_000
+    });
+
+  it('A: same loop size, challenger faster — carves', () => {
+    const outcome = contest({ perimetre: 1_000, seconds: 240 }, { perimetre: 1_000, seconds: 300 });
+
+    expect(outcome.graceApplied).toBeCloseTo(0, 6);
+    expect(outcome.effectiveSpeedMps).toBeCloseTo(4.17, 2);
+    expect(outcome.holderSpeedMps).toBeCloseTo(3.33, 2);
+    expect(outcome.decision).toBe('carve');
+  });
+
+  it('B: bigger loop, slightly slower pace — no contest', () => {
+    const outcome = contest({ perimetre: 3_000, seconds: 900 }, { perimetre: 1_000, seconds: 240 });
+
+    expect(outcome.effortRatio).toBeCloseTo(3, 6);
+    expect(outcome.graceApplied).toBeCloseTo(0.1, 6);
+    expect(outcome.effectiveSpeedMps).toBeCloseTo(3.67, 2);
+    expect(outcome.decision).toBe('no_contest');
+  });
+
+  it('C: four times the loop at a decent pace — carves', () => {
+    const outcome = contest(
+      { perimetre: 4_000, seconds: 1_200 },
+      { perimetre: 1_000, seconds: 270 }
+    );
+
+    expect(outcome.effortRatio).toBeCloseTo(4, 6);
+    expect(outcome.graceApplied).toBeCloseTo(0.15, 6);
+    expect(outcome.effectiveSpeedMps).toBeCloseTo(3.83, 2);
+    expect(outcome.holderSpeedMps).toBeCloseTo(3.7, 2);
+    // Ten percent slower over four times the distance still takes the ground.
+    expect(outcome.decision).toBe('carve');
+  });
+
+  it('leaves the ground with the holder when the speeds are equal', () => {
+    const outcome = contest({ perimetre: 1_000, seconds: 300 }, { perimetre: 1_000, seconds: 300 });
+
+    expect(outcome.decision).toBe('no_contest');
+  });
+
+  it('does not contest an overlap under the carve floor', () => {
+    const outcome = assessCarve({
+      challengerPerimeterMetres: 1_000,
+      challengerDurationSeconds: 200,
+      challengerAreaSqm: 100_000,
+      holderPerimeterMetres: 1_000,
+      holderDurationSeconds: 600,
+      holderAreaSqm: 100_000,
+      // Far faster, but they only clipped a corner.
+      intersectionAreaSqm: 4_000
+    });
+
+    expect(outcome.minCarveAreaSqm).toBe(10_000);
+    expect(outcome.decision).toBe('no_contest');
+  });
+
+  it('reports the same decision through the thin wrapper', () => {
+    const params = {
+      challengerPerimeterMetres: 1_000,
+      challengerDurationSeconds: 240,
+      challengerAreaSqm: 100_000,
+      holderPerimeterMetres: 1_000,
+      holderDurationSeconds: 300,
+      holderAreaSqm: 100_000,
+      intersectionAreaSqm: 30_000
     };
 
-    expect(claimOutcome(candidate, [elsewhere])).toEqual({ takenOverIds: [] });
+    expect(carvingDecision(params)).toBe(assessCarve(params).decision);
+  });
+});
+
+describe('carving ground off somebody', () => {
+  /** A loop with the numbers the contest needs and a boundary nothing reads. */
+  const challenger = (overrides: Partial<ClaimCandidate> = {}): ClaimCandidate => ({
+    boundary: ringOf(squareLoop(300, 600, { close: false })),
+    centroid: [BASE_LNG, BASE_LAT],
+    areaSqm: 24_000,
+    perimeterMetres: 1_000,
+    durationSeconds: 240,
+    startedAt: new Date('2026-09-06T05:00:00.000Z'),
+    finishedAt: new Date('2026-09-06T05:04:00.000Z'),
+    ...overrides
   });
 
-  it('takes several overlapping claims at once when it beat all of them', () => {
-    const outcome = claimOutcome(candidate, [
-      holder(candidate.durationSeconds + 30, 'a'),
-      holder(candidate.durationSeconds + 60, 'b')
-    ]);
-
-    expect(outcome).toEqual({ takenOverIds: ['a', 'b'] });
+  /** The holder from the rulebook's example D: a 30-cell line, 30,000 m². */
+  const lineHolder = (overrides: Partial<HeldClaim> = {}): HeldClaim => ({
+    id: 'held-1',
+    cellSet: gridCells([0], range(0, 29)),
+    areaSqm: 30_000,
+    perimeterMetres: 1_000,
+    durationSeconds: 300,
+    ...overrides
   });
 
-  it('takes nothing if even one contested holder was faster', () => {
-    // Half the ground is not a claim. Beat everyone on it or beat nobody.
-    const outcome = claimOutcome(candidate, [
-      holder(candidate.durationSeconds + 30, 'slower'),
-      holder(candidate.durationSeconds - 30, 'faster')
-    ]);
+  /** A strip crossing that line at cols 18-25. */
+  const crossingCells = gridCells([-1, 0, 1], range(18, 25));
 
-    expect(outcome).toEqual({ refusal: 'slower_than_holder', contestedIds: ['faster'] });
+  it('takes the shared cells and leaves the rest', () => {
+    const outcome = carveOutcome(challenger(), crossingCells, [lineHolder()], gridIndexer);
+    if ('refusal' in outcome) throw new Error('expected a claim');
+
+    expect(outcome.carved).toHaveLength(1);
+    expect(outcome.carved[0]!.carvedCells).toEqual(gridCells([0], range(18, 25)));
+    // The challenger keeps its whole loop: it won the only contest it had.
+    expect(outcome.cellSet).toEqual(crossingCells);
+    expect(outcome.areaSqm).toBe(24_000);
+  });
+
+  it('drops the holder disconnected fragment, exactly as example D says', () => {
+    const outcome = carveOutcome(challenger(), crossingCells, [lineHolder()], gridIndexer);
+    if ('refusal' in outcome) throw new Error('expected a claim');
+
+    // 30,000 m² minus an 8,000 m² bite leaves 18,000 and 4,000. The 4,000
+    // island is not connected to the rest, so it is not held by anybody.
+    expect(outcome.carved[0]!.survivingCells).toEqual(gridCells([0], range(0, 17)));
+    expect(outcome.carved[0]!.survivingAreaSqm).toBe(18_000);
+    expect(outcome.carved[0]!.wipedOut).toBe(false);
+  });
+
+  it('releases the whole claim when too little survives to defend', () => {
+    // A nine-cell holder losing five keeps 4,000 m², under the 5,000 floor. The
+    // five taken are also exactly the carve floor, so the contest does run.
+    const outcome = carveOutcome(
+      challenger(),
+      gridCells([0], range(0, 4)),
+      [
+        lineHolder({
+          cellSet: gridCells([0], range(0, 8)),
+          areaSqm: 9_000
+        })
+      ],
+      gridIndexer
+    );
+    if ('refusal' in outcome) throw new Error('expected a claim');
+
+    expect(outcome.carved[0]!.wipedOut).toBe(true);
+    expect(outcome.carved[0]!.survivingCells).toEqual([]);
+    expect(outcome.carved[0]!.survivingAreaSqm).toBe(0);
+  });
+
+  it('gives up the contested cells when the holder was faster', () => {
+    // The holder ran the same length loop in less time, so nothing is carved —
+    // and the challenger does not get to keep ground somebody else holds. The
+    // holder sits on the top row so giving it up leaves the rest connected;
+    // a holder across the middle would also split the loop, which is the next
+    // test but one.
+    const outcome = carveOutcome(
+      challenger({ durationSeconds: 400 }),
+      crossingCells,
+      [lineHolder({ cellSet: gridCells([1], range(18, 25)), areaSqm: 8_000 })],
+      gridIndexer
+    );
+    if ('refusal' in outcome) throw new Error('expected a claim');
+
+    expect(outcome.carved).toEqual([]);
+    expect(outcome.defended).toHaveLength(1);
+    expect(intersectCells(outcome.cellSet, gridCells([1], range(18, 25)))).toEqual([]);
+    expect(outcome.cellSet).toEqual(gridCells([-1, 0], range(18, 25)));
+    expect(outcome.areaSqm).toBe(16_000);
+  });
+
+  it('gives up cells it could not contest, not only ones it lost', () => {
+    // A one-cell overlap is under the carve floor, so no contest runs. The
+    // holder still keeps it — otherwise staying under the threshold would be a
+    // way to claim a city for free.
+    const outcome = carveOutcome(
+      challenger(),
+      gridCells([0], range(29, 40)),
+      [lineHolder()],
+      gridIndexer
+    );
+    if ('refusal' in outcome) throw new Error('expected a claim');
+
+    expect(outcome.carved).toEqual([]);
+    expect(outcome.defended[0]!.assessment.decision).toBe('no_contest');
+    expect(outcome.cellSet).toEqual(gridCells([0], range(30, 40)));
+  });
+
+  it('carves one neighbour and loses to another in the same run', () => {
+    // The change from whole-claim takeover: a run used to be refused outright
+    // if any contested holder was faster.
+    const slower = lineHolder({
+      id: 'slower',
+      cellSet: gridCells([-1], range(18, 25)),
+      areaSqm: 8_000,
+      durationSeconds: 300
+    });
+    const faster = lineHolder({
+      id: 'faster',
+      cellSet: gridCells([1], range(18, 25)),
+      areaSqm: 8_000,
+      durationSeconds: 120
+    });
+
+    const outcome = carveOutcome(challenger(), crossingCells, [slower, faster], gridIndexer);
+    if ('refusal' in outcome) throw new Error('expected a claim');
+
+    expect(outcome.carved.map((entry) => entry.id)).toEqual(['slower']);
+    expect(outcome.defended.map((entry) => entry.id)).toEqual(['faster']);
+    // It keeps its own row and the row it took, and not the row it lost.
+    expect(outcome.cellSet).toEqual(gridCells([-1, 0], range(18, 25)));
+  });
+
+  it('settles every contest against the original loop, not the leftovers', () => {
+    // Two holders over the same cells would make a sequential settlement depend
+    // on which row the database returned first.
+    const first = lineHolder({ id: 'first', durationSeconds: 300 });
+    const second = lineHolder({ id: 'second', durationSeconds: 320 });
+
+    const forwards = carveOutcome(challenger(), crossingCells, [first, second], gridIndexer);
+    const backwards = carveOutcome(challenger(), crossingCells, [second, first], gridIndexer);
+    if ('refusal' in forwards || 'refusal' in backwards) throw new Error('expected claims');
+
+    expect([...forwards.carved.map((entry) => entry.id)].sort()).toEqual(['first', 'second']);
+    expect(forwards.cellSet).toEqual(backwards.cellSet);
+    expect(forwards.areaSqm).toBe(backwards.areaSqm);
+  });
+
+  it('claims open ground when nobody holds it', () => {
+    const outcome = carveOutcome(challenger(), crossingCells, [], gridIndexer);
+    if ('refusal' in outcome) throw new Error('expected a claim');
+
+    expect(outcome.carved).toEqual([]);
+    expect(outcome.defended).toEqual([]);
+    expect(outcome.cellSet).toEqual(crossingCells);
+  });
+
+  it('ignores a claim somewhere else entirely', () => {
+    const outcome = carveOutcome(
+      challenger(),
+      crossingCells,
+      [lineHolder({ cellSet: gridCells([90], range(0, 29)) })],
+      gridIndexer
+    );
+    if ('refusal' in outcome) throw new Error('expected a claim');
+
+    expect(outcome.carved).toEqual([]);
+    expect(outcome.defended).toEqual([]);
+  });
+
+  it('refuses when faster holders leave nothing worth claiming', () => {
+    const outcome = carveOutcome(
+      challenger({ durationSeconds: 400 }),
+      gridCells([0], range(18, 25)),
+      [lineHolder()],
+      gridIndexer
+    );
+    if (!('refusal' in outcome)) throw new Error('expected a refusal');
+
+    expect(outcome.refusal).toBe('slower_than_holder');
+    expect(outcome.contested).toHaveLength(1);
+  });
+
+  it('keeps only the largest piece of its own carved-up loop', () => {
+    // An undefeated holder sitting across the middle of the challenger loop
+    // splits it in two. A claim is one piece of ground, so the smaller half goes.
+    const wall = lineHolder({
+      cellSet: gridCells([0], range(0, 20)),
+      areaSqm: 21_000,
+      durationSeconds: 120
+    });
+    const straddling = gridCells(range(0, 5), [10])
+      .concat(gridCells(range(-8, -1), [10]))
+      .sort();
+
+    const outcome = carveOutcome(challenger(), straddling, [wall], gridIndexer);
+    if ('refusal' in outcome) throw new Error('expected a claim');
+
+    expect(outcome.cellSet).toEqual(gridCells(range(-8, -1), [10]));
+    expect(outcome.areaSqm).toBe(8_000);
+  });
+
+  it('redraws a boundary for whatever ground survived', () => {
+    const ring = cellSetBoundary(gridCells([0, 1], range(0, 3)), gridIndexer);
+
+    expect(ring.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('the season a claim belongs to', () => {
+  it('is the Kolkata month, not the UTC one', () => {
+    // 19:00 UTC on the 31st is already the 1st in Kolkata, where the reset runs.
+    expect(seasonMonthFor(new Date('2026-09-30T19:00:00.000Z'))).toBe('2026-10');
+    expect(seasonMonthFor(new Date('2026-09-30T17:00:00.000Z'))).toBe('2026-09');
+  });
+
+  it('is the shape the schema stores', () => {
+    expect(seasonMonthFor(new Date('2026-01-15T00:00:00.000Z'))).toMatch(
+      /^[0-9]{4}-(0[1-9]|1[0-2])$/
+    );
   });
 });
 
@@ -319,7 +733,9 @@ describe('what a person is told', () => {
     for (const message of Object.values(CLAIM_REFUSAL_MESSAGE)) {
       expect(message.length).toBeGreaterThan(20);
     }
-    expect(CLAIM_REFUSAL_MESSAGE.slower_than_holder).toContain('Run it quicker');
+    // Time is no longer what gets compared, so the words must not promise it is.
+    expect(CLAIM_REFUSAL_MESSAGE.slower_than_holder).toContain('speed');
+    expect(CLAIM_REFUSAL_MESSAGE.slower_than_holder).not.toContain('quicker');
     expect(CLAIM_REFUSAL_MESSAGE.not_closed).toContain('Finish near the point you began');
   });
 });

@@ -1,5 +1,5 @@
 import { Type, type Static } from '@sinclair/typebox';
-import { DateTimeSchema, Strict, UuidSchema } from './common.js';
+import { DateSchema, DateTimeSchema, Strict, UuidSchema } from './common.js';
 
 /**
  * Enclosure territory claims (Phase 5, milestone 5.1; ADR-0011).
@@ -46,11 +46,34 @@ export const TerritoryClaimSchema = Type.Object(
     boundary: Type.Array(CoordinateSchema, { minItems: 3, maxItems: 256 }),
     /** Where the holder's avatar sits. */
     centroid: CoordinateSchema,
+    /** Ground held. After a carve this is the surviving cells, not the original loop. */
     areaSqm: Type.Number({ minimum: 0 }),
-    /** Length of the loop. What a challenger has to run, so it is published. */
-    distanceMetres: Type.Optional(Type.Number({ minimum: 0 })),
-    /** The time to beat. Published because the contest is meaningless hidden. */
+    /**
+     * Length of the loop the holder ran. The numerator of `speedMps`, and what
+     * a challenger's effort allowance is measured against, so it is published.
+     */
+    distanceMetres: Type.Number({ minimum: 0 }),
+    /** How long that loop took them. */
     durationSeconds: Type.Integer({ minimum: 1 }),
+    /**
+     * The number to beat: perimeter over duration.
+     *
+     * Sent derived rather than left to the app to divide, because it is the
+     * single quantity the contest turns on and two clients computing it
+     * differently would show two different targets for the same ground.
+     */
+    speedMps: Type.Number({ minimum: 0 }),
+    /** `YYYY-MM` in Asia/Kolkata. Claims expire with their month. */
+    seasonMonth: Type.String({ pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$' }),
+    /**
+     * Where this ground is, coarsely — the same tags the boards group by.
+     *
+     * Absent when no geocode was available for the area, which happens outside
+     * the seeded launch market until a proxy is configured. An untagged claim
+     * is real held ground; it is simply missing from its city board.
+     */
+    cityTag: Type.Optional(Type.String({ minLength: 1, maxLength: 80 })),
+    countryTag: Type.Optional(Type.String({ pattern: '^[A-Z]{2}$' })),
     /** How many times this ground has changed hands. A first claim is 1. */
     captureCount: Type.Integer({ minimum: 1 }),
     /**
@@ -193,6 +216,42 @@ export const TerritoryClaimRequestSchema = Type.Object(
 );
 
 /**
+ * One contest this run had with one existing holder.
+ *
+ * The post-run screen shows these line by line, won and lost together, with the
+ * numbers behind each verdict (`screens.md` LR.3). Publishing the losing side's
+ * reasoning is the point: a mechanic that silently declines to hand over ground
+ * reads as broken, and "his speed was 3.70, your effective speed was 3.54 after
+ * a 10% allowance" is a sentence somebody can act on.
+ */
+export const TerritoryCarveSchema = Type.Object(
+  {
+    /** True when the ground changed hands. */
+    carved: Type.Boolean(),
+    /** The holder, by display identity only. Absent if their profile is gone. */
+    holder: Type.Optional(TerritoryClaimOwnerSchema),
+    /** Ground taken from them, 0 on a failed challenge. */
+    areaSqm: Type.Number({ minimum: 0 }),
+    /** The challenger's raw speed, before the effort allowance. */
+    yourSpeedMps: Type.Number({ minimum: 0 }),
+    /** Their speed, which is what had to be beaten. */
+    theirSpeedMps: Type.Number({ minimum: 0 }),
+    /** The allowance the longer loop earned, 0 to 0.15. */
+    graceApplied: Type.Number({ minimum: 0, maximum: 0.15 }),
+    /** `yourSpeedMps` with the allowance applied. The number that was compared. */
+    effectiveSpeedMps: Type.Number({ minimum: 0 }),
+    /** True when the holder lost everything and their claim was released whole. */
+    holderWipedOut: Type.Boolean(),
+    /**
+     * Present when the contest never ran because the shared ground was under
+     * the carve floor. Not a defeat, and should not be worded as one.
+     */
+    overlapTooSmall: Type.Boolean()
+  },
+  { $id: 'TerritoryCarve' }
+);
+
+/**
  * What happened to a run.
  *
  * A refusal is a normal outcome — most runs are not loops — so this is a 200
@@ -203,6 +262,12 @@ export const TerritoryClaimResultSchema = Type.Object(
   {
     claimed: Type.Boolean(),
     claim: Type.Optional(TerritoryClaimSchema),
+    /**
+     * Every contest, carried on a refusal as well as on a claim: a run that
+     * came away with nothing still needs to say who held the ground and by how
+     * much they were faster.
+     */
+    carves: Type.Array(TerritoryCarveSchema, { maxItems: 50 }),
     refusal: Type.Optional(
       Type.Union([
         Type.Literal('not_closed'),
@@ -220,6 +285,8 @@ export const TerritoryClaimResultSchema = Type.Object(
     message: Type.String({ minLength: 1, maxLength: 400 }),
     /** How many people lost ground to this run. */
     takenOverCount: Type.Integer({ minimum: 0 }),
+    /** Ground taken from other people by this run, in square metres. */
+    carvedAreaSqm: Type.Number({ minimum: 0 }),
     /**
      * True on an account's first ever claim, so the app can say once — at the
      * moment it becomes true — that this puts a loop on a public map, and point
@@ -260,12 +327,83 @@ export const TerritoryClaimSummarySchema = Type.Object(
   { $id: 'TerritoryClaimSummary' }
 );
 
+/**
+ * Ghost Race (`territory-guide.md`; `screens.md` 1.4 and LR.1).
+ *
+ * The holder's loop, trimmed and timed, so a challenger can race the pace it
+ * was actually run at. **A motivational layer and nothing more** — the carving
+ * rules are identical whether a ghost was on screen or not.
+ *
+ * What this discloses beyond the claim itself: pacing *within* the loop. The
+ * route, the perimeter, and the average pace are already on `TerritoryClaim`
+ * for anybody who can see the map.
+ */
+export const GhostPointSchema = Type.Object(
+  {
+    /** Longitude then latitude, GeoJSON order, like every other coordinate. */
+    at: CoordinateSchema,
+    /** Seconds from the first point of the trimmed trace, so it starts at 0. */
+    elapsedSeconds: Type.Integer({ minimum: 0 })
+  },
+  { $id: 'GhostPoint' }
+);
+
+export const GhostTraceResponseSchema = Type.Object(
+  {
+    /** The claim being raced, so a client cannot mix up two ghosts. */
+    claimId: UuidSchema,
+    /** Whose run it is. Display identity only, as everywhere else. */
+    owner: TerritoryClaimOwnerSchema,
+    points: Type.Array(GhostPointSchema, { minItems: 4, maxItems: 2048 }),
+    /** Along the trimmed trace. Always less than the claim's perimeter. */
+    distanceMetres: Type.Number({ minimum: 0 }),
+    /** Along the trimmed trace. Always less than the claim's duration. */
+    durationSeconds: Type.Integer({ minimum: 1 }),
+    /** How much was cut from each end, so the app can state it in metres. */
+    trimMetres: Type.Integer({ minimum: 0 }),
+    /**
+     * When the run happened, so nobody races a ghost from three weeks ago
+     * without knowing it. Date only — the time of day is not published,
+     * because when somebody runs is a routine.
+     */
+    recordedOn: DateSchema,
+    /** Said wherever a ghost is offered: what was trimmed, and that no rule changed. */
+    privacyNote: Type.String({ minLength: 1, maxLength: 300 }),
+    rulesNote: Type.String({ minLength: 1, maxLength: 300 }),
+    /** Views left in this hour after this one, so the app can stop offering it. */
+    viewsRemaining: Type.Integer({ minimum: 0 })
+  },
+  { $id: 'GhostTraceResponse' }
+);
+
+/**
+ * Why a ghost is not available, in a shape the app can turn into words.
+ *
+ * `rate_limited` is answered with 429 and the rest with 404 or 409 — but the
+ * body carries the reason either way, because "unavailable" with no
+ * explanation is what makes somebody tap a button four more times.
+ */
+export const GhostTraceUnavailableSchema = Type.Object(
+  {
+    reason: Type.Union([
+      Type.Literal('no_trace'),
+      Type.Literal('own_claim'),
+      Type.Literal('not_held'),
+      Type.Literal('out_of_region'),
+      Type.Literal('rate_limited')
+    ]),
+    message: Type.String({ minLength: 1, maxLength: 300 })
+  },
+  { $id: 'GhostTraceUnavailable' }
+);
+
 export type Coordinate = Static<typeof CoordinateSchema>;
 export type TerritoryClaimOwner = Static<typeof TerritoryClaimOwnerSchema>;
 export type TerritoryClaim = Static<typeof TerritoryClaimSchema>;
 export type TerritoryClaimMapResponse = Static<typeof TerritoryClaimMapResponseSchema>;
 export type TerritoryClaimBounds = Static<typeof TerritoryClaimBoundsSchema>;
 export type TerritoryClaimRequest = Static<typeof TerritoryClaimRequestSchema>;
+export type TerritoryCarve = Static<typeof TerritoryCarveSchema>;
 export type TerritoryClaimResult = Static<typeof TerritoryClaimResultSchema>;
 export type TerritoryClaimActivityItem = Static<typeof TerritoryClaimActivityItemSchema>;
 export type TerritoryClaimActivityResponse = Static<typeof TerritoryClaimActivityResponseSchema>;
@@ -276,3 +414,6 @@ export type TerritoryCluster = Static<typeof TerritoryClusterSchema>;
 export type TerritoryClusterListResponse = Static<typeof TerritoryClusterListResponseSchema>;
 export type TerritoryRecommendation = Static<typeof TerritoryRecommendationSchema>;
 export type TerritoryRecommendationResponse = Static<typeof TerritoryRecommendationResponseSchema>;
+export type GhostPoint = Static<typeof GhostPointSchema>;
+export type GhostTraceResponse = Static<typeof GhostTraceResponseSchema>;
+export type GhostTraceUnavailable = Static<typeof GhostTraceUnavailableSchema>;

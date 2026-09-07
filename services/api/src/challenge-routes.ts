@@ -20,8 +20,10 @@ import {
 } from '@runsphere/contracts';
 import { withTransaction, type Database } from '@runsphere/db';
 import {
+  CHALLENGE_MODE_LABEL,
   challengeLengthEnabled,
   challengeModeEnabled,
+  challengeReceived,
   kolkataDate,
   kolkataDayStart,
   parseChallengeRule,
@@ -236,11 +238,32 @@ export const registerChallengeRoutes = ({
       if (!created.rows[0])
         return reply.code(409).send({ message: 'A challenge with this friend is already open' });
 
+      // `CHALLENGE_RECEIVED` (`screens.md`): names the challenger, the length,
+      // and what it is scored on, because those are the three things somebody
+      // needs before they answer. The block check above already ran, and the
+      // two are friends, so naming is not a disclosure.
+      const inviter = await database.query<{ display_name: string | null }>(
+        'SELECT display_name FROM profiles WHERE account_id = $1',
+        [accountId]
+      );
+      const invite = challengeReceived({
+        challengeId: created.rows[0].id,
+        runnerName: inviter.rows[0]?.display_name ?? undefined,
+        days: request.body.lengthDays,
+        modeLabel: CHALLENGE_MODE_LABEL[request.body.mode] ?? 'Active minutes'
+      });
       await database.query(
-        `INSERT INTO notification_inbox (account_id, kind, title, body, deep_link)
-         VALUES ($1, 'challenge_invite', 'New challenge invite',
-           'A friend invited you to a challenge.', $2)`,
-        [request.body.friendAccountId, `runsphere://challenges/${created.rows[0].id}`]
+        `INSERT INTO notification_inbox (account_id, kind, title, body, deep_link, dedupe_key)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (account_id, dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`,
+        [
+          request.body.friendAccountId,
+          invite.kind,
+          invite.title,
+          invite.body,
+          invite.deepLink,
+          `challenge-invite:${created.rows[0].id}`
+        ]
       );
 
       const summary = await database.query<ChallengeRow>(

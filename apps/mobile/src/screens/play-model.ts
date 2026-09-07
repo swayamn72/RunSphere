@@ -183,7 +183,10 @@ export const standingRows = (standings: FriendStandingsResponse): readonly Stand
 
 export const standingsState = (standings: FriendStandingsResponse | undefined): PlayRemoteState => {
   if (!standings) return 'loading';
-  return standings.participating && standings.entries.length ? 'ready' : 'empty';
+  // Empty now means "no mutual friends yet" and nothing else. It used to also
+  // mean "has not joined the board", which stopped being a state on 2026-09-06
+  // when friendship became the sole gate (`gameplay.md`).
+  return standings.entries.length ? 'ready' : 'empty';
 };
 
 /** Friends who already have an open challenge cannot receive a second one. */

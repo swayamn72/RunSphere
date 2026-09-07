@@ -20,12 +20,12 @@ import { processCompetitions } from './competitions.js';
 import { processGlobalBoards } from './global-boards.js';
 import { processTerritory } from './territory-scoring.js';
 import { processTerritorySeasons } from './territory-season.js';
-import {
-  createFcmSender,
-  createPushDelivery,
-  readFcmCredentials,
-  type DeliveryHandler
-} from './push-delivery.js';
+import { processTerritoryGeoTags } from './territory-geo-backfill.js';
+import { processTerritoryRanks } from './territory-rank-job.js';
+import { processTerritorySeasonReset } from './territory-season-reset-job.js';
+import { processTerritorySeasonEnding } from './territory-season-ending-job.js';
+import { createConfiguredDelivery } from './delivery.js';
+import type { DeliveryHandler } from './push-delivery.js';
 
 const maxAttempts = 5;
 const staleClaimSeconds = 300;
@@ -191,6 +191,26 @@ export const processMaintenance = async (db: Database, now: Date = new Date()): 
   // contributions the same sweep has already accepted.
   const territory = await processTerritory({ db }, now);
   const territorySeasons = await processTerritorySeasons({ db }, now);
+  // Turf's own season, which is switched *on*. Order inside these three is the
+  // order a month actually happens in:
+  //
+  //   1. Tag any claim whose place was unknown when it was made, so a snapshot
+  //      taken a moment later puts it on the right city board rather than on
+  //      none.
+  //   2. Take the weekly rank if this Kolkata week has not been recorded,
+  //      because the peak a season is remembered by is built from these.
+  //   3. Warn anybody holding ground that the month is nearly over, using the
+  //      standings the two steps above have just made accurate.
+  //   4. Reset any month that has ended — last, so the final standing it
+  //      freezes already reflects all of the above.
+  //
+  // All four are driven by state rather than by a clock, so a sweep that has
+  // nothing to do costs a handful of indexed reads
+  // (`territory-season-reset-job.ts`).
+  const territoryGeo = await processTerritoryGeoTags({ db }, now);
+  const territoryRanks = await processTerritoryRanks({ db }, now);
+  const territoryEnding = await processTerritorySeasonEnding({ db }, now);
+  const territoryReset = await processTerritorySeasonReset({ db }, now);
   // Campaign sends resolve their audience last, so consent revoked anywhere in
   // this sweep — including by an unsubscribe — is already reflected in who the
   // send will reach.
@@ -208,6 +228,10 @@ export const processMaintenance = async (db: Database, now: Date = new Date()): 
     sanctions +
     territory.contributionsWritten +
     territorySeasons.weeksFinalized +
+    territoryGeo.tagged +
+    territoryRanks.rowsWritten +
+    (territoryEnding?.notificationsQueued ?? 0) +
+    territoryReset.claimsArchived +
     campaigns
   );
 };
@@ -321,16 +345,11 @@ export const runWorker = async (): Promise<void> => {
   const logger = createLogger('worker');
   await migrate(db);
   startWorker(logger);
-  // Push is gated on provider credentials. Without them the handler is a
-  // logged no-op rather than a failure, so notification events still drain and
-  // the durable inbox stays the delivery of record (ADR-0009).
-  const credentials = readFcmCredentials(process.env);
-  const deliver = createPushDelivery({
-    db,
-    logger,
-    ...(credentials ? { sender: createFcmSender(credentials) } : {})
-  });
-  logger.info('worker.push_provider', { configured: credentials !== undefined });
+  // Push and email are both gated on provider credentials. Without them each
+  // handler is a logged no-op rather than a failure, so events still drain and
+  // the durable inbox stays the delivery of record (ADR-0009). Which providers
+  // are actually configured is logged at startup by `createConfiguredDelivery`.
+  const deliver = createConfiguredDelivery(db, logger);
   const once = process.env.WORKER_ONCE === 'true';
   try {
     do {

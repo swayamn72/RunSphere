@@ -213,7 +213,6 @@ describe('standings', () => {
   const standings: FriendStandingsResponse = {
     periodStart: '2026-08-31',
     periodEnd: '2026-09-07',
-    participating: true,
     ruleVersion: '1',
     entries: [
       { profile: profile(RAVI, 'Ravi'), rank: 1, cappedActiveMinutes: 200, isSelf: false },
@@ -233,8 +232,10 @@ describe('standings', () => {
     expect(JSON.stringify(rows)).not.toMatch(/pace|speed|distance|km|route|latitude|longitude/i);
   });
 
-  it('is empty rather than ready when the account has not joined the board', () => {
-    expect(standingsState({ ...standings, participating: false, entries: [] })).toBe('empty');
+  it('is empty when there are no mutual friends yet', () => {
+    // Empty used to also mean "has not joined the board". Friendship became the
+    // sole gate on 2026-09-06 (`gameplay.md`), so there is one empty state now
+    // and it means what it says.
     expect(standingsState({ ...standings, entries: [] })).toBe('empty');
     expect(standingsState(standings)).toBe('ready');
     expect(standingsState(undefined)).toBe('loading');

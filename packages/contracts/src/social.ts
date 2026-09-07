@@ -95,24 +95,28 @@ export const FriendStandingEntrySchema = Type.Object(
 );
 
 /**
- * The friend board is opt-in and revocable, independently of activity
- * visibility (ADR-0007). `entries` is empty while `participating` is false: an
- * account that is not on the board does not read other people's scores.
+ * The weekly friend board. **Mutual friendship is the only gate** — product
+ * decision 2026-09-06, and `gameplay.md`: "there is no separate 'join board'
+ * toggle".
+ *
+ * This carried a `participating` flag and a matching toggle until then. The
+ * opt-in ADR-0007 requires is for the **global** board, whose audience is
+ * everybody; a friend board's audience is people this account has already
+ * accepted, and accepting them is the consent. Asking twice mostly produced
+ * empty boards, because one only appeared once *both* sides had found the
+ * toggle.
+ *
+ * `entries` is empty when there are no mutual friends yet, which the app says
+ * in words rather than showing a board of one.
  */
 export const FriendStandingsResponseSchema = Type.Object(
   {
     periodStart: DateSchema,
     periodEnd: DateSchema,
-    participating: Type.Boolean(),
     ruleVersion: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
     entries: Type.Array(FriendStandingEntrySchema, { maxItems: 200 })
   },
   { $id: 'FriendStandingsResponse' }
-);
-
-export const FriendStandingsParticipationRequestSchema = Type.Object(
-  { participating: Type.Boolean() },
-  { ...Strict, $id: 'FriendStandingsParticipationRequest' }
 );
 
 export const BlockCreateRequestSchema = Type.Object(
@@ -188,6 +192,3 @@ export type BlockedAccount = Static<typeof BlockedAccountSchema>;
 export type BlockListResponse = Static<typeof BlockListResponseSchema>;
 export type FriendStandingEntry = Static<typeof FriendStandingEntrySchema>;
 export type FriendStandingsResponse = Static<typeof FriendStandingsResponseSchema>;
-export type FriendStandingsParticipationRequest = Static<
-  typeof FriendStandingsParticipationRequestSchema
->;

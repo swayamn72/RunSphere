@@ -7,17 +7,21 @@ export const selectAppShell = ({
   activityRoute,
   hasRecording,
   hasSelectedQuest,
+  hasRoutePreview = false,
   liveInteractive,
   exploreInteractive
 }: {
   activityRoute: ActivityRoute['screen'];
   hasRecording: boolean;
   hasSelectedQuest: boolean;
+  /** Choosing a route is a decision taken before a run, with its own back. */
+  hasRoutePreview?: boolean;
   liveInteractive: boolean;
   exploreInteractive: boolean;
 }): AppShell => {
   if (hasRecording && liveInteractive) return 'focused-flex';
-  if (activityRoute !== 'idle' || hasSelectedQuest || hasRecording) return 'focused-scroll';
+  if (activityRoute !== 'idle' || hasSelectedQuest || hasRoutePreview || hasRecording)
+    return 'focused-scroll';
   if (exploreInteractive) return 'tab-map';
   return 'tab-scroll';
 };

@@ -54,6 +54,9 @@ const required = new Set([
   'android.permission.ACCESS_NETWORK_STATE',
   'android.permission.ACTIVITY_RECOGNITION',
   'android.permission.INTERNET',
+  // Android 13+ runtime grant, added by the expo-notifications plugin and
+  // requested in context after sign-in.
+  'android.permission.POST_NOTIFICATIONS',
   'android.permission.VIBRATE'
 ]);
 

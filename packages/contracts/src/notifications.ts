@@ -7,6 +7,25 @@ export const NotificationKindSchema = Type.Union([
   Type.Literal('challenge_finished'),
   Type.Literal('club_invite'),
   Type.Literal('competition'),
+  /**
+   * A Turf season ended, or a weekly rank was taken. Territory is its own
+   * category rather than folded into `competitions`: a season is not something
+   * anybody entered, so somebody who wants no competition notices should still
+   * be told the month they held ground in is over.
+   */
+  Type.Literal('territory_season'),
+  /**
+   * Something happened to a specific claim: it was carved, it was defended, or
+   * somebody is racing its ghost. Separate from `territory_season` because the
+   * two arrive on completely different rhythms - a carve lands minutes after
+   * somebody else's run, a season summary once a month - and a runner who
+   * wants one may not want the other.
+   */
+  Type.Literal('territory_claim'),
+  /** A quest became available nearby, or one was validated. */
+  Type.Literal('quest'),
+  /** A consistency milestone. Nobody else is involved. */
+  Type.Literal('streak'),
   Type.Literal('account'),
   Type.Literal('system')
 ]);
@@ -43,6 +62,13 @@ export const NotificationCategorySchema = Type.Union([
   Type.Literal('challenges'),
   Type.Literal('clubs'),
   Type.Literal('competitions'),
+  Type.Literal('territory'),
+  /**
+   * Your own progress: quests and streaks. Its own toggle because it is the
+   * only group where nobody else appears - somebody who wants nothing to do
+   * with other runners may still want to hear that a quest validated.
+   */
+  Type.Literal('progress'),
   Type.Literal('account'),
   Type.Literal('marketing')
 ]);

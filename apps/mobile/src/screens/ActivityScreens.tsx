@@ -4,11 +4,7 @@ import { AppState, Linking, Pressable, Text, View } from 'react-native';
 import type { LngLat } from '@maplibre/maplibre-react-native';
 import type { Geometry } from 'geojson';
 import { activityRecorder } from '../activity-recorder.native';
-import {
-  type ActivitySession,
-  type MovementType,
-  type RecordingState
-} from '../activity-recorder-core';
+import { type ActivitySession, type RecordingState } from '../activity-recorder-core';
 import { recordingLocationAdapter } from '../location-adapter';
 import {
   ACQUISITION_TIMEOUT_MS,
@@ -36,10 +32,11 @@ import {
   derivedRouteCenter
 } from './activity-results-model';
 import { LoopCallout } from '../components/LoopCallout';
-import { MovementChoice, PrimaryButton, Stat } from '../components/primitives';
+import { PrimaryButton, Stat } from '../components/primitives';
 import { useLoopGuidance } from '../components/useLoopGuidance';
 import type { LoopGuidanceCue } from '../loop-guidance';
 import { useAppStyles } from '../components/styles';
+import { useAppTheme } from '../theme/theme';
 import { MapSurface } from '../maps/MapSurface';
 import {
   classifyLiveGps,
@@ -50,23 +47,25 @@ import {
   liveRouteLayers,
   provisionalPace
 } from './live-activity-model';
+import { ROUTE_GUIDE_CAPTION, routeGuideLayers, type RouteGuide } from './route-preview-model';
+import { ghostCard, ghostLayers, type GhostRun } from './ghost-race-model';
 import type { RecordedLocationSample } from '../activity-recorder-core';
 
 export function ActivityPreparation({
   accountId,
-  initialMovement,
   originLabel,
+  guide,
   onChange,
   onExit
 }: {
   accountId: string;
-  initialMovement: MovementType;
   originLabel?: string;
+  /** Named here so nobody starts a run wondering whether their choice took. */
+  guide?: RouteGuide;
   onChange: (session: ActivitySession) => void;
   onExit: () => void;
 }) {
   const styles = useAppStyles();
-  const [movement, setMovement] = useState<MovementType>(initialMovement);
   const [permission, setPermission] = useState<RecordingLocationPermissionState>('unrequested');
   const [acquisition, setAcquisition] = useState<AcquisitionState>();
   const [message, setMessage] = useState<string>();
@@ -129,7 +128,9 @@ export function ActivityPreparation({
       await activityRecorder.create({
         id,
         accountId,
-        movementType: movement,
+        // Running only (`product.md`, 2026-09-06). There is nothing to choose,
+        // so nothing is threaded down here to be chosen.
+        movementType: 'run',
         state: 'active',
         startedAt: now,
         updatedAt: now,
@@ -235,12 +236,12 @@ export function ActivityPreparation({
   const isAcquiring = acquisition?.status === 'acquiring';
   const isActivating = acquisition?.status === 'ready';
   const needsSettings = permission === 'blocked';
-  // Only a hike gets a cue here, and only before recording starts: mid-record
+  // No cue here any more. The one that lived on this card was the hike safety
+  // prompt, and hiking left the product on 2026-09-06 (`product.md`). Kept as
+  // an explicit empty list rather than dropping the hook, because this card is
+  // where a pre-recording cue belongs if one is ever approved — mid-record
   // guidance would compete with the GPS notices for the same attention.
-  const guidanceCandidates = useMemo<readonly LoopGuidanceCue[]>(
-    () => (movement === 'hike' ? ['hike-prep'] : []),
-    [movement]
-  );
+  const guidanceCandidates = useMemo<readonly LoopGuidanceCue[]>(() => [], []);
   const guidance = useLoopGuidance(guidanceCandidates);
   return (
     <View style={styles.recordCard}>
@@ -252,7 +253,11 @@ export function ActivityPreparation({
         requested.
       </Text>
       {originLabel && <Text style={styles.privateNote}>Started from {originLabel}</Text>}
-      <MovementChoice selected={movement} onChoose={setMovement} />
+      {guide && (
+        <Text style={styles.privateNote}>
+          {`Route guide: ${guide.name}, ${(guide.distanceMetres / 1_000).toFixed(1)} km. ${ROUTE_GUIDE_CAPTION}`}
+        </Text>
+      )}
       {guidance.cue && <LoopCallout cue={guidance.cue} onDismiss={guidance.dismiss} />}
       {isAcquiring && (
         <View style={styles.notice} accessibilityLiveRegion="polite">
@@ -316,17 +321,33 @@ export function ActivityPreparation({
 export function ActivityRecording({
   session,
   accountId,
+  guide,
+  ghost,
   onChange,
   onExit,
   sync
 }: {
   session: ActivitySession;
   accountId: string;
+  /**
+   * An accepted route suggestion, drawn as a static dashed reference
+   * (`map-ux.md` 1.5). Going off it costs nothing and is not measured.
+   */
+  guide?: RouteGuide;
+  /**
+   * A ghost to race (`screens.md` LR.1). Unlike the guide it advances, because
+   * it is a record of where somebody had got to at this point in *their* run.
+   * It changes no rule: the loop is won on time whether it is on screen or not.
+   */
+  ghost?: GhostRun;
   onChange: (session: ActivitySession | undefined) => void;
   onExit: () => void;
   sync: ReturnType<typeof createActivitySyncCoordinator>;
 }) {
   const styles = useAppStyles();
+  // The ghost card takes a status colour that changes as the race does, so the
+  // token has to be read here rather than baked into a stylesheet entry.
+  const { tokens } = useAppTheme();
   const [current, setCurrent] = useState(session);
   const [samples, setSamples] = useState<RecordedLocationSample[]>([]);
   const [now, setNow] = useState(() => Date.now());
@@ -432,7 +453,24 @@ export function ActivityRecording({
     const latest = latestUsableSample(samples);
     return latest ? ([latest.longitude, latest.latitude] as LngLat) : undefined;
   }, [samples]);
-  const layers = useMemo(() => liveRouteLayers(samples), [samples]);
+  // Elapsed seconds of the recording, which is what the ghost advances on.
+  // Derived from the session rather than from a separate timer so the ghost
+  // and the clock on screen can never disagree.
+  const elapsedSeconds = Math.max(0, Math.round(current.durationSeconds));
+  // Guide, then ghost, then the runner's own trace on top: the line that
+  // matters most is the one they are drawing.
+  const layers = useMemo(
+    () => [
+      ...routeGuideLayers(guide),
+      ...ghostLayers(ghost, elapsedSeconds),
+      ...liveRouteLayers(samples)
+    ],
+    [elapsedSeconds, ghost, guide, samples]
+  );
+  const ghostStatus = useMemo(
+    () => (ghost ? ghostCard(ghost, elapsedSeconds, current.distanceMeters) : undefined),
+    [current.distanceMeters, elapsedSeconds, ghost]
+  );
   const recoveredPause = current.state === 'paused' && current.pauseReason === 'recovered';
 
   if (current.state === 'completed-local')
@@ -480,6 +518,25 @@ export function ActivityRecording({
         <Text style={styles.eyebrow}>
           {current.movementType.toUpperCase()} · PRIVATE ON THIS DEVICE
         </Text>
+        {guide ? (
+          <Text style={styles.rowDetail}>{`${guide.name} · ${ROUTE_GUIDE_CAPTION}`}</Text>
+        ) : null}
+        {ghostStatus ? (
+          // Announced politely rather than assertively: it changes every five
+          // seconds, and a screen reader interrupting a run to say somebody is
+          // four seconds ahead is worse than saying nothing.
+          <View
+            accessible
+            accessibilityLiveRegion="polite"
+            accessibilityLabel={ghostStatus.accessibilityLabel}
+            style={[styles.ghostCard, { borderColor: tokens.status[ghostStatus.tone] }]}
+          >
+            <Text style={[styles.ghostHeadline, { color: tokens.status[ghostStatus.tone] }]}>
+              {ghostStatus.headline}
+            </Text>
+            <Text style={styles.ghostDetail}>{ghostStatus.detail}</Text>
+          </View>
+        ) : null}
         <Text style={styles.liveDistance}>{formatProvisionalDistance(current.distanceMeters)}</Text>
         <Text style={styles.provisional}>PROVISIONAL DISTANCE · ACCURACY-FILTERED</Text>
         <Text style={styles.privateNote}>

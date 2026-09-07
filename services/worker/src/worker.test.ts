@@ -137,6 +137,26 @@ describe('privacy maintenance', () => {
           calls.push('campaigns');
           return { rows: [] };
         }
+        // Turf's season loop. Named rather than left to the catch-all so this
+        // stays an assertion about the order of the sweep: the geo backfill
+        // runs before the ranks, and the ranks before the reset, because each
+        // one reads what the previous one settled.
+        if (sql.includes('city_tag IS NULL')) {
+          calls.push('territory-geo');
+          return { rows: [] };
+        }
+        if (sql.includes('territory_claim_season_snapshots')) {
+          calls.push('territory-week');
+          return { rows: [] };
+        }
+        if (sql.includes('SELECT 1 AS one FROM territory_claims')) {
+          calls.push('territory-held');
+          return { rows: [] };
+        }
+        if (sql.includes('territory_claim_seasons')) {
+          calls.push('territory-season');
+          return { rows: [] };
+        }
         calls.push('expire');
         return { rows: [] };
       })
@@ -160,6 +180,12 @@ describe('privacy maintenance', () => {
       'global-board-rule',
       'competitions',
       'sanctions',
+      'territory-geo',
+      'territory-week',
+      'territory-held',
+      // `openCurrentSeason` then the open-season read.
+      'territory-season',
+      'territory-season',
       'campaigns'
     ]);
   });

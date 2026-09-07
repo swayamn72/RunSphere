@@ -12,7 +12,6 @@ import {
   FriendRequestListResponseSchema,
   FriendRequestParamsSchema,
   FriendRequestRespondRequestSchema,
-  FriendStandingsParticipationRequestSchema,
   FriendStandingsResponseSchema,
   NotificationPreferencesSchema,
   NotificationPreferencesUpdateRequestSchema,
@@ -27,7 +26,6 @@ import {
   type FriendRequestCreateRequest,
   type FriendRequestRespondRequest,
   type FriendStandingEntry,
-  type FriendStandingsParticipationRequest,
   type FriendStandingsResponse,
   type NotificationPreferences,
   type NotificationPreferencesUpdateRequest,
@@ -40,7 +38,8 @@ import type { Database } from '@runsphere/db';
 import {
   cappedWeeklyActiveMinutes,
   competitionRanking,
-  defaultNotificationPreferences
+  defaultNotificationPreferences,
+  notificationCategoriesFrom
 } from '@runsphere/domain';
 import { verifyAccessToken } from './auth.js';
 import { currentWeek, loadActiveProgressionRule } from './progression-core.js';
@@ -658,7 +657,7 @@ export const registerGamificationRoutes = ({
       const row = result.rows[0];
       if (!row) return defaultNotificationPreferences();
       return {
-        categories: row.categories as NotificationPreferences['categories'],
+        categories: notificationCategoriesFrom(row.categories),
         ...(row.quiet_hours
           ? { quietHours: row.quiet_hours as NotificationPreferences['quietHours'] }
           : {}),
@@ -706,10 +705,12 @@ export const registerGamificationRoutes = ({
           ? (request.body.quietHours ?? undefined)
           : ((previous?.quiet_hours as NotificationPreferences['quietHours']) ?? undefined);
       const merged: NotificationPreferences = {
-        categories:
-          request.body.categories ??
-          (previous?.categories as NotificationPreferences['categories']) ??
-          defaultNotificationPreferences().categories,
+        // Merged rather than replaced, so a partial body cannot drop a
+        // category and a stored blob missing one cannot fail the response.
+        categories: notificationCategoriesFrom({
+          ...notificationCategoriesFrom(previous?.categories),
+          ...(request.body.categories ?? {})
+        }),
         maxPerDay: request.body.maxPerDay ?? previous?.max_per_day ?? 50,
         channels:
           request.body.channels ??
@@ -756,7 +757,7 @@ export const registerGamificationRoutes = ({
         );
       const row = saved.rows[0]!;
       return {
-        categories: row.categories as NotificationPreferences['categories'],
+        categories: notificationCategoriesFrom(row.categories),
         ...(row.quiet_hours
           ? { quietHours: row.quiet_hours as NotificationPreferences['quietHours'] }
           : {}),
@@ -858,10 +859,25 @@ export const registerGamificationRoutes = ({
   );
 
   /**
-   * Weekly friend board (ADR-0007). Mutual friendship is the authorization
-   * boundary, participation is a separate opt-in from activity visibility, and
-   * an entry carries exactly one published pace-neutral score. Location,
-   * route, activity timestamps, pace, and distance are never selected here.
+   * Weekly friend board (ADR-0007; `gameplay.md`).
+   *
+   * **Mutual friendship is the only gate.** Product decision 2026-09-06: "there
+   * is no separate 'join board' toggle — friendship is the sole gate". Becoming
+   * mutual friends puts both accounts on each other's board; unfriending or
+   * blocking removes them immediately.
+   *
+   * That reverses the opt-in this route shipped with, and the reasoning is
+   * narrower than it looks. ADR-0007 requires an opt-in for the **global**
+   * board, where the audience is everybody and a display name reaches strangers.
+   * A friend board's audience is people this account has already accepted, and
+   * accepting them is the consent — a second toggle asked the same question
+   * twice and mostly produced empty boards, since a board only appears once
+   * *both* sides have found and used it.
+   *
+   * What did not change: an entry still carries exactly one published
+   * pace-neutral score, and location, route, activity timestamps, pace, and
+   * distance are never selected here. A sharing suspension still removes an
+   * account from every board, including this one.
    *
    * The score is the same capped weekly active-minute total the account sees on
    * its own Home consistency card, computed by `@runsphere/domain` from the
@@ -888,28 +904,15 @@ export const registerGamificationRoutes = ({
       const { weekStart, weekEnd, periodStart } = currentWeek(new Date());
       const period = { periodStart, periodEnd: weekEnd.toISOString().slice(0, 10) };
 
-      const own = await database.query<{ participating: boolean }>(
-        `SELECT EXISTS (
-           SELECT 1 FROM leaderboard_opt_ins optin
-           WHERE optin.account_id = $1 AND optin.scope = 'friends' AND optin.revoked_at IS NULL
-         ) AS participating`,
-        [accountId]
-      );
-      const participating = Boolean(own.rows[0]?.participating);
-      // Reading other people's scores requires being on the board yourself.
-      if (!participating) {
-        const response: FriendStandingsResponse = { ...period, participating: false, entries: [] };
-        return response;
-      }
-
       const rule = await loadActiveProgressionRule(database);
       if (!rule) {
-        const response: FriendStandingsResponse = { ...period, participating: true, entries: [] };
+        const response: FriendStandingsResponse = { ...period, entries: [] };
         return response;
       }
 
-      // Mutual friendship plus a live opt-in on both sides, minus any block in
-      // either direction. The account itself is included once it has opted in.
+      // Mutual friendship, minus any block in either direction. The account
+      // itself is always included: a board it cannot find itself on tells it
+      // nothing.
       const members = await database.query<{
         account_id: string;
         display_name: string | null;
@@ -935,17 +938,14 @@ export const registerGamificationRoutes = ({
                 account.profile_visibility AS activity_visibility
          FROM mutual
          JOIN accounts account ON account.id = mutual.account_id AND account.deleted_at IS NULL
-         JOIN leaderboard_opt_ins optin ON optin.account_id = mutual.account_id
-           AND optin.scope = 'friends' AND optin.revoked_at IS NULL
-           AND ${notSharingSuspended('mutual.account_id')}
          LEFT JOIN profiles profile ON profile.account_id = mutual.account_id
+         WHERE ${notSharingSuspended('mutual.account_id')}
          LIMIT 200`,
         [accountId]
       );
       if (!members.rows.length) {
         const response: FriendStandingsResponse = {
           ...period,
-          participating: true,
           ruleVersion: String(rule.version),
           entries: []
         };
@@ -1009,63 +1009,8 @@ export const registerGamificationRoutes = ({
       }));
       const response: FriendStandingsResponse = {
         ...period,
-        participating: true,
         ruleVersion: String(rule.version),
         entries
-      };
-      return response;
-    }
-  );
-
-  /**
-   * Join or leave the friend board. Leaving revokes rather than deletes, so the
-   * opt-in history stays auditable, and re-joining reopens the same row.
-   */
-  routes.put<{ Body: FriendStandingsParticipationRequest }>(
-    '/v1/friends/standings/participation',
-    {
-      schema: {
-        tags: ['friends'],
-        headers: ActivityAuthorizationHeadersSchema,
-        body: FriendStandingsParticipationRequestSchema,
-        response: {
-          200: FriendStandingsParticipationRequestSchema,
-          401: ErrorResponseSchema,
-          503: ErrorResponseSchema
-        }
-      }
-    },
-    async (request, reply) => {
-      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
-      const accountId = requireAccount(request, reply, authSecret);
-      if (!accountId) return;
-      // Joining publishes this account to mutual friends, so a paused account
-      // cannot; leaving is never guarded.
-      if (request.body.participating && !(await requireSharingAllowed(database, reply, accountId)))
-        return;
-      if (request.body.participating) {
-        await database.query(
-          `INSERT INTO leaderboard_opt_ins (account_id, scope) VALUES ($1, 'friends')
-           ON CONFLICT (account_id, scope)
-           DO UPDATE SET opted_in_at = now(), revoked_at = NULL`,
-          [accountId]
-        );
-      } else {
-        await database.query(
-          `UPDATE leaderboard_opt_ins SET revoked_at = now()
-           WHERE account_id = $1 AND scope = 'friends' AND revoked_at IS NULL`,
-          [accountId]
-        );
-      }
-      await audit(
-        database,
-        accountId,
-        request.body.participating ? 'friend_standings.joined' : 'friend_standings.left',
-        'account',
-        accountId
-      );
-      const response: FriendStandingsParticipationRequest = {
-        participating: request.body.participating
       };
       return response;
     }

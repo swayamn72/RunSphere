@@ -4,6 +4,9 @@ export const androidPermissionAllowlist = [
   'android.permission.ACCESS_NETWORK_STATE',
   'android.permission.ACTIVITY_RECOGNITION',
   'android.permission.INTERNET',
+  // Android 13+ runtime grant for notifications. Requested in context after
+  // sign-in rather than at first launch (`gameplay.md`).
+  'android.permission.POST_NOTIFICATIONS',
   'android.permission.VIBRATE'
 ] as const;
 

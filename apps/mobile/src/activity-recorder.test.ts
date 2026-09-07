@@ -137,7 +137,7 @@ class MemoryDatabase implements RecorderDatabase {
 const base = {
   id: 'activity-1',
   accountId: 'account-a',
-  movementType: 'walk' as const,
+  movementType: 'run' as const,
   state: 'prepare' as const,
   startedAt: '2026-08-28T10:00:00Z',
   updatedAt: '2026-08-28T10:00:00Z',

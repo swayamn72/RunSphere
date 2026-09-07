@@ -1,6 +1,14 @@
 import type { ActivityLifecycleStatus } from '@runsphere/contracts';
 
-export type MovementType = 'walk' | 'run' | 'hike';
+/**
+ * RunSphere is running-only (`product.md`, 2026-09-06). Walking and hiking were
+ * legal values until then.
+ *
+ * Kept as a named single-member type rather than deleted: it names what the
+ * field means at every call site, and a second approved activity type is a
+ * change here instead of a change to the shape of a recorded session.
+ */
+export type MovementType = 'run';
 export type RecordingState =
   | 'prepare'
   | 'acquiring'
@@ -71,7 +79,10 @@ export const activityRecorderSchema = `
   CREATE TABLE IF NOT EXISTS recorded_activities (
     id TEXT PRIMARY KEY NOT NULL,
     account_id TEXT NOT NULL,
-    movement_type TEXT NOT NULL CHECK (movement_type IN ('walk', 'run', 'hike')),
+    -- Running only. A device that already has this table keeps its original,
+    -- wider constraint — the schema is created IF NOT EXISTS — which is
+    -- harmless, because nothing writes anything but 'run' any more.
+    movement_type TEXT NOT NULL CHECK (movement_type = 'run'),
     state TEXT NOT NULL CHECK (state IN ('prepare', 'acquiring', 'active', 'paused', 'resumed', 'finishing', 'completed-local', 'queued', 'syncing', 'processed', 'failed', 'discarded')),
     started_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,

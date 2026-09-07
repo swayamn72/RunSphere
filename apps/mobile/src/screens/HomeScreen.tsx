@@ -6,11 +6,10 @@ import type {
   QuestSummary,
   WeeklyGoalResponse
 } from '@runsphere/contracts';
-import type { MovementType } from '../activity-recorder-core';
 import type { MobileApiClient } from '../api-client';
 import { LoopCallout } from '../components/LoopCallout';
 import { LoopMascot } from '../components/Mascot';
-import { MovementChoice, PrimaryButton } from '../components/primitives';
+import { PrimaryButton } from '../components/primitives';
 import { useLoopGuidance } from '../components/useLoopGuidance';
 import type { LoopGuidanceCue } from '../loop-guidance';
 import { useAppTheme } from '../theme/theme';
@@ -173,17 +172,16 @@ const useHomeRemoteData = (api: MobileApiClient, onSessionExpired: () => void): 
 
 export function HomeScreen({
   api,
-  movement,
-  onMovementChange,
   onStart,
+  onChooseRoute,
   onOpenQuests,
   onOpenProfile,
   onSessionExpired
 }: {
   api: MobileApiClient;
-  movement: MovementType;
-  onMovementChange: (movement: MovementType) => void;
   onStart: () => void;
+  /** "Choose a route instead" (`screens.md` 2.1) - secondary to starting. */
+  onChooseRoute: () => void;
   onOpenQuests: () => void;
   onOpenProfile: () => void;
   onSessionExpired: () => void;
@@ -305,7 +303,7 @@ export function HomeScreen({
           <View style={styles.flexCopy}>
             <Text style={styles.eyebrow}>FREE ACTIVITY</Text>
             <Text accessibilityRole="header" style={styles.cardTitle}>
-              Move your way
+              Free run
             </Text>
           </View>
           <Text style={styles.privateBadge}>PRIVATE</Text>
@@ -313,8 +311,11 @@ export function HomeScreen({
         <Text style={styles.body}>
           Records locally first. Exact route, start, and finish stay private.
         </Text>
-        <MovementChoice selected={movement} onChoose={onMovementChange} />
-        <PrimaryButton label={`Start ${movement}`} onPress={onStart} />
+        <PrimaryButton label="Start run" onPress={onStart} />
+        {/* Deliberately a link and not a button: most runs do not want one. */}
+        <Pressable accessibilityRole="button" onPress={onChooseRoute}>
+          <Text style={styles.chooseRoute}>Choose a route instead →</Text>
+        </Pressable>
       </View>
 
       <ProgressionCard
@@ -692,6 +693,13 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
     },
     progressFill: { backgroundColor: t.action.primary, borderRadius: 8, height: '100%' },
     helper: { color: t.text.secondary, fontSize: 12, lineHeight: 18, marginTop: 12 },
+    chooseRoute: {
+      color: t.action.primary,
+      fontSize: 14,
+      fontWeight: '800',
+      marginTop: 14,
+      textAlign: 'center'
+    },
     tierBadge: {
       backgroundColor: t.background.surfaceInset,
       borderRadius: 14,

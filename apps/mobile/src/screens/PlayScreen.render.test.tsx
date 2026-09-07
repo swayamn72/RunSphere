@@ -120,7 +120,6 @@ const challenge = (overrides: Partial<ChallengeSummary> = {}): ChallengeSummary 
 const emptyStandings: FriendStandingsResponse = {
   periodStart: '2026-08-31',
   periodEnd: '2026-09-07',
-  participating: false,
   entries: []
 };
 
@@ -393,13 +392,27 @@ describe('Play tab render', () => {
     expect(text).toContain('120 to 45 active minutes.');
   });
 
-  it('gates the friend board behind an explicit join rather than showing it empty', async () => {
+  it('shows the friend board with no toggle to find', async () => {
+    // Product decision 2026-09-06: friendship is the sole gate, so there is no
+    // join card, no leave button, and no state in which somebody is a mutual
+    // friend but absent from the board (`gameplay.md`).
     const renderer = await renderPlay(stubApi({}));
 
     const text = renderedText(renderer);
-    expect(text).toContain('You are not on the friend board');
-    expect(text).toContain('Join the friend board');
+    expect(text).toContain('Friend standings');
+    expect(text).not.toContain('Join the friend board');
     expect(text).not.toContain('Leave the board');
+    expect(text).not.toContain('not on the friend board');
+  });
+
+  it('explains an empty friend board as having no friends yet', async () => {
+    const renderer = await renderPlay(stubApi({}));
+
+    const text = renderedText(renderer);
+    expect(text).toContain('Add a friend and you will both appear here');
+    // Still says what a board row is, since that is the part worth knowing
+    // before somebody adds anybody.
+    expect(text).toContain('never a route');
   });
 
   it('renders served standings rows with one score each and a self marker', async () => {
@@ -408,7 +421,6 @@ describe('Play tab render', () => {
         standings: {
           periodStart: '2026-08-31',
           periodEnd: '2026-09-07',
-          participating: true,
           ruleVersion: '1',
           entries: [
             { profile: profile(RAVI, 'Ravi'), rank: 1, cappedActiveMinutes: 200, isSelf: false },
@@ -422,7 +434,9 @@ describe('Play tab render', () => {
     expect(text).toContain('Ravi');
     expect(text).toContain('200 min');
     expect(text).toContain('Maya (you)');
-    expect(text).toContain('Leave the board');
+    // No way off the board, because there is no board to be on: unfriending or
+    // blocking is how somebody leaves it now (`gameplay.md`).
+    expect(text).not.toContain('Leave the board');
     expect(
       hostsMatching(renderer, (props) =>
         String(props['accessibilityLabel'] ?? '').startsWith('Rank 2, Maya (you)')

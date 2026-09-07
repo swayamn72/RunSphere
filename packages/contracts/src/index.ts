@@ -301,8 +301,21 @@ export const ActivityParamsSchema = Type.Object(
   { activityId: UuidSchema },
   { ...Strict, $id: 'ActivityParams' }
 );
+/**
+ * Starting an activity.
+ *
+ * `movementType` has one legal value. RunSphere is running-only
+ * (`product.md`, 2026-09-06): walking and hiking were removed from scope, and
+ * `walk` and `hike` were legal here until then.
+ *
+ * The field is kept rather than dropped so the request still says what it is
+ * starting, and so a second approved type is a change to this union rather than
+ * a change to the shape of every activity payload. A client that sends the old
+ * values now gets a 400, which is the correct answer: the product does not
+ * record those.
+ */
 export const ActivityCreateRequestSchema = Type.Object(
-  { movementType: Type.Union([Type.Literal('walk'), Type.Literal('run'), Type.Literal('hike')]) },
+  { movementType: Type.Literal('run') },
   { ...Strict, $id: 'ActivityCreateRequest' }
 );
 const PointSchema = Type.Object(
@@ -406,9 +419,8 @@ export const ActivityStatusResponseSchema = Type.Object(
   {
     id: UuidSchema,
     status: ActivityStatusSchema,
-    movementType: Type.Optional(
-      Type.Union([Type.Literal('walk'), Type.Literal('run'), Type.Literal('hike')])
-    ),
+    /** Always `run`; see `ActivityCreateRequestSchema`. */
+    movementType: Type.Optional(Type.Literal('run')),
     createdAt: Type.Optional(Type.String({ format: 'date-time' })),
     summary: Type.Optional(ActivitySummarySchema),
     rejectionReason: Type.Optional(Type.String()),
@@ -421,9 +433,8 @@ export const ActivityDetailResponseSchema = Type.Object(
   {
     id: UuidSchema,
     status: ActivityStatusSchema,
-    movementType: Type.Optional(
-      Type.Union([Type.Literal('walk'), Type.Literal('run'), Type.Literal('hike')])
-    ),
+    /** Always `run`; see `ActivityCreateRequestSchema`. */
+    movementType: Type.Optional(Type.Literal('run')),
     createdAt: Type.Optional(Type.String({ format: 'date-time' })),
     summary: Type.Optional(ActivitySummarySchema),
     rejectionReason: Type.Optional(Type.String()),
@@ -497,3 +508,4 @@ export * from './campaign.js';
 export * from './territory.js';
 export * from './territory-claim.js';
 export * from './territory-leaderboard.js';
+export * from './route-suggestion.js';

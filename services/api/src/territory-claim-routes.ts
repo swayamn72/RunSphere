@@ -2,6 +2,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   ActivityAuthorizationHeadersSchema,
   ErrorResponseSchema,
+  GhostTraceResponseSchema,
+  GhostTraceUnavailableSchema,
   TerritoryClaimActivityResponseSchema,
   TerritoryClaimBoundsSchema,
   TerritoryClaimHistoryResponseSchema,
@@ -14,6 +16,9 @@ import {
   type Coordinate,
   type TerritoryClaim,
   type TerritoryClaimActivityResponse,
+  type TerritoryCarve,
+  type GhostTraceResponse,
+  type GhostTraceUnavailable,
   type TerritoryClaimBounds,
   type TerritoryClaimMapResponse,
   type TerritoryClaimRequest,
@@ -27,20 +32,40 @@ import { withTransaction, type Database } from '@runsphere/db';
 import {
   CLAIM_REFUSAL_MESSAGE,
   DEFAULT_CLAIM_RULE,
+  H3_VERSION,
   RECOMMENDATION_NOTE,
   RUN_INTEGRITY_MESSAGE,
   abilityFrom,
   assessRunIntegrity,
   canonicaliseRing,
+  carveOutcome,
+  GHOST_PRIVACY_NOTE,
+  GHOST_RULES_NOTE,
+  GHOST_TRIM_METRES,
+  GHOST_VIEWS_PER_HOUR,
+  carveDefended,
+  carveSuccess,
+  cellSetAreaSqm,
+  cellSetBoundary,
+  detectCityTag,
   detectClaimTrading,
-  claimOutcome,
   detectLoopClaim,
-  haversineMetres,
+  ghostIncoming,
+  ghostTraceFrom,
+  h3CellSet,
+  h3Indexer,
   recommendCaptures,
+  ringCentroid,
+  runSpeed,
+  seasonMonthFor,
   type CandidateTerritory,
   type ClaimPoint,
   type ClaimRing,
-  type HeldClaim
+  type ContestedHolder,
+  type GeoTagResolver,
+  type GeoTags,
+  type HeldClaim,
+  type NotificationCopy
 } from '@runsphere/domain';
 import { verifyAccessToken } from './auth.js';
 import { notSharingSuspended, requireSharingAllowed } from './sanction-guard.js';
@@ -104,6 +129,10 @@ interface GeoJsonPoint {
   type: 'Point';
   coordinates: number[];
 }
+interface GeoJsonLineString {
+  type: 'LineString';
+  coordinates: number[][];
+}
 
 const asJson = <T>(value: unknown): T | undefined => {
   if (typeof value === 'string') {
@@ -133,6 +162,25 @@ const ringFromGeoJson = (value: unknown): Coordinate[] => {
   );
 };
 
+/**
+ * An open line, every point kept.
+ *
+ * Deliberately not `ringFromGeoJson`: that one reads a `Polygon` and drops the
+ * repeated closing point, which for a ghost trace would silently discard the
+ * last vertex and leave the coordinates one shorter than the timing array it
+ * has to line up with.
+ */
+const lineFromGeoJson = (value: unknown): Coordinate[] => {
+  const line = asJson<GeoJsonLineString>(value);
+  const points = line?.coordinates;
+  if (!Array.isArray(points)) return [];
+  return points.flatMap((pair) =>
+    Array.isArray(pair) && typeof pair[0] === 'number' && typeof pair[1] === 'number'
+      ? [[pair[0], pair[1]] as Coordinate]
+      : []
+  );
+};
+
 const pointFromGeoJson = (value: unknown): Coordinate | undefined => {
   const point = asJson<GeoJsonPoint>(value);
   const pair = point?.coordinates;
@@ -148,6 +196,73 @@ const polygonGeoJson = (ring: ClaimRing): string =>
     coordinates: [[...ring.map(([lng, lat]) => [lng, lat]), [ring[0]![0], ring[0]![1]]]]
   });
 
+/**
+ * What a successful claim says.
+ *
+ * Carving means a run can win and lose in the same breath, and the message has
+ * to be true of whichever happened. It never says "you beat them on time",
+ * because time is no longer what was compared.
+ */
+const claimMessage = (carved: number, defended: number, carvedAreaSqm: number): string => {
+  const ground = `${Math.round(carvedAreaSqm).toLocaleString('en-IN')} m²`;
+  if (carved === 0 && defended === 0) return 'Ground claimed. Nobody held it before you.';
+  if (carved === 0)
+    return `Ground claimed around ${defended === 1 ? 'a claim' : `${defended} claims`} you did not beat. What was already held stayed held.`;
+  const took = `You took ${ground} off ${carved === 1 ? 'the holder' : `${carved} holders`}.`;
+  return defended === 0
+    ? `Ground claimed. ${took}`
+    : `Ground claimed. ${took} ${defended === 1 ? 'One holder' : `${defended} holders`} were faster and kept theirs.`;
+};
+
+/**
+ * Where a claim is, from the geocode cache and nothing else.
+ *
+ * **No geocoder at claim time, deliberately.** Resolving a new cell means an
+ * outbound HTTP call, and this runs inside the transaction that decides who
+ * owns what — a provider that hangs would hold locks on other people's ground
+ * until it timed out. So a claim reads the cache, which is an indexed lookup,
+ * and takes whatever is there.
+ *
+ * `038` seeds the cache for the launch market, so an MMR claim is tagged the
+ * moment it is made. A claim elsewhere lands untagged, counts on the global
+ * board, and is picked up by `territory-geo-backfill.ts` afterwards.
+ */
+const cachedPlaceResolver = (client: Pick<Database, 'query'>): GeoTagResolver => ({
+  cached: async (cell) => {
+    const found = await client.query<{
+      city_tag: string;
+      country_tag: string;
+      continent_tag: string;
+    }>(
+      `SELECT city_tag, country_tag, continent_tag FROM territory_geo_cells
+       WHERE h3_cell = $1`,
+      [cell]
+    );
+    const row = found.rows[0];
+    return row
+      ? { cityTag: row.city_tag, countryTag: row.country_tag, continentTag: row.continent_tag }
+      : undefined;
+  },
+  // Nothing to remember: without a geocoder nothing new is ever resolved here.
+  remember: async () => undefined
+});
+
+/** Tags for a claim centroid, or nothing. Never throws — a place is not a gate. */
+const placeTagsFor = async (
+  client: Pick<Database, 'query'>,
+  centroid: readonly [number, number]
+): Promise<GeoTags | undefined> => {
+  const found = await detectCityTag(
+    centroid[1],
+    centroid[0],
+    cachedPlaceResolver(client),
+    h3Indexer
+  );
+  return found
+    ? { cityTag: found.cityTag, countryTag: found.countryTag, continentTag: found.continentTag }
+    : undefined;
+};
+
 /** Display identity lives in `profiles.cosmetic`, not on the account row. */
 const avatarKeyFrom = (cosmetic: unknown): string => {
   const key = (cosmetic as { avatarKey?: unknown } | null)?.avatarKey;
@@ -162,13 +277,25 @@ interface ClaimRow {
   boundary: unknown;
   centroid: unknown;
   area_sqm: number;
-  distance_metres: number | null;
+  /** The loop perimeter. NOT NULL since `036`; the speed to beat divides by it. */
+  distance_metres: number;
   duration_seconds: number;
   capture_count: number;
   club_id: string | null;
   club_name: string | null;
+  season_month: string;
+  city_tag: string | null;
+  country_tag: string | null;
   claimed_at: Date;
 }
+
+/** Every live-claim read is scoped to the month, which is the reset cycle. */
+const CLAIM_COLUMNS = `claim.id, claim.account_id, profile.display_name, profile.cosmetic,
+           ST_AsGeoJSON(claim.boundary) AS boundary,
+           ST_AsGeoJSON(claim.centroid) AS centroid, claim.area_sqm,
+           claim.distance_metres, claim.duration_seconds, claim.capture_count,
+           claim.club_id, club.name AS club_name, claim.season_month,
+           claim.city_tag, claim.country_tag, claim.claimed_at`;
 
 const claimView = (row: ClaimRow, readerId: string): TerritoryClaim | undefined => {
   const boundary = ringFromGeoJson(row.boundary);
@@ -187,13 +314,17 @@ const claimView = (row: ClaimRow, readerId: string): TerritoryClaim | undefined 
     boundary: boundary.slice(0, 256),
     centroid,
     areaSqm: Number(row.area_sqm),
-    // Guarded rather than compared to null: rows written before `032` have no
-    // column at all, and `Number(undefined)` is NaN, which no schema will
-    // serialise.
-    ...(Number.isFinite(Number(row.distance_metres))
-      ? { distanceMetres: Number(row.distance_metres) }
-      : {}),
+    distanceMetres: Number(row.distance_metres),
     durationSeconds: Number(row.duration_seconds),
+    // Derived here rather than in the app: this is the single number the
+    // contest turns on, and two clients dividing it differently would show two
+    // different targets for the same ground.
+    speedMps: runSpeed(Number(row.distance_metres), Number(row.duration_seconds)),
+    seasonMonth: row.season_month,
+    // Absent rather than a placeholder when the area has no geocode yet: a
+    // claim tagged `unknown` would show up as a city on the leaderboard.
+    ...(row.city_tag ? { cityTag: row.city_tag } : {}),
+    ...(row.country_tag ? { countryTag: row.country_tag } : {}),
     captureCount: Number(row.capture_count ?? 1),
     // Ground that has changed hands more than once is what people are actually
     // fighting over, and the map draws it differently.
@@ -205,20 +336,6 @@ const claimView = (row: ClaimRow, readerId: string): TerritoryClaim | undefined 
     ...(row.club_id && row.club_name ? { club: { id: row.club_id, name: row.club_name } } : {}),
     claimedAt: row.claimed_at.toISOString()
   };
-};
-
-/** Loop length from the stored boundary, for rows written before `032`. */
-const perimeterOf = (boundary: readonly Coordinate[]): number => {
-  let total = 0;
-  for (let index = 0; index < boundary.length; index += 1) {
-    const from = boundary[index]!;
-    const to = boundary[(index + 1) % boundary.length]!;
-    total += haversineMetres(
-      { longitude: from[0], latitude: from[1] },
-      { longitude: to[0], latitude: to[1] }
-    );
-  }
-  return total;
 };
 
 /**
@@ -245,6 +362,58 @@ const pointsFrom = (payload: unknown): ClaimPoint[] => {
       ? []
       : [{ latitude: raw.latitude, longitude: raw.longitude, at }];
   });
+};
+
+/**
+ * Tells one holder what happened to their ground.
+ *
+ * Three refusals live here rather than at each call site, because every one of
+ * them is a rule `screens.md` states for *all* notifications and each was easy
+ * to forget once:
+ *
+ *   * **Never yourself.** Running over your own ground is ordinary - a second
+ *     lap contests the first - and is not news.
+ *   * **Never across a block.** "Blocked users never appear in any
+ *     notification", checked both ways: a notice naming somebody you blocked
+ *     is as wrong as one naming you to somebody who blocked you.
+ *   * **Never twice for the same event.** The key is the *activity* and the
+ *     holder's claim, not the new claim, because a rolled-back and retried
+ *     submission produces a fresh claim id but the same run.
+ *
+ * Written inside the claim transaction, so a carve and the notice about it are
+ * committed together or not at all. A notice about a carve that did not happen
+ * is worse than a carve nobody was told about.
+ */
+const queueClaimNotice = async (
+  client: Pick<Database, 'query'>,
+  options: {
+    readonly recipientAccountId: string;
+    readonly challengerAccountId: string;
+    readonly copy: NotificationCopy;
+    readonly dedupeKey: string;
+  }
+): Promise<void> => {
+  if (options.recipientAccountId === options.challengerAccountId) return;
+  const blocked = await client.query<{ blocked: boolean }>(
+    `SELECT EXISTS (SELECT 1 FROM blocks block WHERE block.revoked_at IS NULL
+       AND ((block.blocker_account_id = $1 AND block.blocked_account_id = $2)
+         OR (block.blocker_account_id = $2 AND block.blocked_account_id = $1))) AS blocked`,
+    [options.recipientAccountId, options.challengerAccountId]
+  );
+  if (blocked.rows[0]?.blocked) return;
+  await client.query(
+    `INSERT INTO notification_inbox (account_id, kind, title, body, deep_link, dedupe_key)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (account_id, dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`,
+    [
+      options.recipientAccountId,
+      options.copy.kind,
+      options.copy.title,
+      options.copy.body,
+      options.copy.deepLink,
+      options.dedupeKey
+    ]
+  );
 };
 
 export const registerTerritoryClaimRoutes = ({
@@ -279,23 +448,23 @@ export const registerTerritoryClaimRoutes = ({
       if (!accountId) return;
 
       const { west, south, east, north } = request.query;
+      // Scoped to the month: a claim from a finished season is history, and the
+      // live map is this season's ground. The reset job archives them; this
+      // filter means the month boundary is correct even before it has run.
       const found = await database.query<ClaimRow>(
-        `SELECT claim.id, claim.account_id, profile.display_name, profile.cosmetic,
-           ST_AsGeoJSON(claim.boundary) AS boundary,
-           ST_AsGeoJSON(claim.centroid) AS centroid, claim.area_sqm,
-           claim.distance_metres, claim.duration_seconds, claim.capture_count,
-           claim.club_id, club.name AS club_name, claim.claimed_at
+        `SELECT ${CLAIM_COLUMNS}
          FROM territory_claims claim
          JOIN accounts account ON account.id = claim.account_id
          LEFT JOIN profiles profile ON profile.account_id = claim.account_id
          LEFT JOIN clubs club ON club.id = claim.club_id
          WHERE claim.released_at IS NULL
+           AND claim.season_month = $6
            AND account.deleted_at IS NULL
            AND ${notSharingSuspended('claim.account_id')}
            AND claim.boundary && ST_MakeEnvelope($1, $2, $3, $4, 4326)
          ORDER BY claim.area_sqm DESC
          LIMIT $5`,
-        [west, south, east, north, MAP_LIMIT + 1]
+        [west, south, east, north, MAP_LIMIT + 1, seasonMonthFor(new Date())]
       );
 
       const truncated = found.rows.length > MAP_LIMIT;
@@ -392,7 +561,9 @@ export const registerTerritoryClaimRoutes = ({
           claimed: false,
           refusal: 'run_integrity',
           message: RUN_INTEGRITY_MESSAGE[integrity.findings[0] ?? 'impossible_speed'],
+          carves: [],
           takenOverCount: 0,
+          carvedAreaSqm: 0,
           isFirstClaim: false
         };
         return result;
@@ -404,17 +575,57 @@ export const registerTerritoryClaimRoutes = ({
           claimed: false,
           refusal: detection.refusal,
           message: CLAIM_REFUSAL_MESSAGE[detection.refusal],
+          carves: [],
           takenOverCount: 0,
+          carvedAreaSqm: 0,
           isFirstClaim: false
         };
         return result;
       }
       const candidate = detection.claim;
+
+      /**
+       * The ghost, built from the loop this claim was decided on.
+       *
+       * Computed here rather than on request because the points are already in
+       * hand, and because the raw trace is purged after 30 days
+       * (`activity_submissions.raw_trace_retention_until`) while a claim lives
+       * until the season ends — a claim whose trace had aged out would lose
+       * its ghost partway through the month.
+       *
+       * A refusal is not a refusal of the *claim*. A loop too short to trim
+       * 200 m off each end is a perfectly good claim that simply cannot be
+       * shown as a ghost without publishing the arc the trim exists to hide
+       * (`ghost-race.ts`), so the claim stands and no ghost row is written.
+       */
+      const ghost = ghostTraceFrom(points, candidate, GHOST_TRIM_METRES);
+
       // Rotated to a vertex chosen by geography before anything is stored: a
       // polygon never showed where somebody started, but the array did, and on
       // a loop run from home the first coordinate is the front door.
       const boundary = canonicaliseRing(candidate.boundary);
       const boundaryJson = polygonGeoJson(boundary);
+
+      // The ground, as cells. Everything downstream — what overlaps, what is
+      // carved, what survives, what the claim is worth — is set arithmetic on
+      // this array rather than polygon intersection, which is the change
+      // `territory-guide.md` v3 asks for.
+      const candidateCells = h3CellSet(boundary, DEFAULT_CLAIM_RULE.h3Resolution, h3Indexer);
+      if (cellSetAreaSqm(candidateCells, h3Indexer) < DEFAULT_CLAIM_RULE.minAreaSqm) {
+        // The polygon cleared the floor but the cells it covers do not. At
+        // resolution 11 a cell is ~1,963 m², so a loop just over 5,000 m² can
+        // round below it. The cells are what would be held, so the cells decide.
+        const result: TerritoryClaimResult = {
+          claimed: false,
+          refusal: 'too_small',
+          message: CLAIM_REFUSAL_MESSAGE.too_small,
+          carves: [],
+          takenOverCount: 0,
+          carvedAreaSqm: 0,
+          isFirstClaim: false
+        };
+        return result;
+      }
 
       // ADR-0002: privacy zones apply before any activity geometry is shared,
       // and a claim boundary is shared activity geometry. A polygon cannot be
@@ -438,78 +649,253 @@ export const registerTerritoryClaimRoutes = ({
           claimed: false,
           refusal: 'privacy_zone',
           message: CLAIM_REFUSAL_MESSAGE.privacy_zone,
+          carves: [],
           takenOverCount: 0,
+          carvedAreaSqm: 0,
           isFirstClaim: false
         };
         return result;
       }
 
+      const seasonMonth = seasonMonthFor(new Date());
+
       return withTransaction(database, async (client) => {
-        // Lock the claims this loop could contest before deciding anything, so
+        // Lock every claim this loop could contest before deciding anything, so
         // two runners finishing together cannot both be told they won.
+        //
+        // Two overlap tests, deliberately. `h3_cell_set &&` is the real one and
+        // uses the GIN index from `036`. `boundary &&` is there for claims
+        // written before `036`, which have no cells at all and would otherwise
+        // be invisible to carving — meaning anybody could claim straight over
+        // them. Those rows get their cells computed below, once.
         const contested = await client.query<{
           id: string;
           account_id: string;
+          area_sqm: number;
+          distance_metres: number;
           duration_seconds: number;
           capture_count: number;
           lineage_id: string | null;
+          h3_cell_set: string[] | null;
+          h3_resolution: number;
+          city_tag: string | null;
           boundary: unknown;
         }>(
-          `SELECT claim.id, claim.account_id, claim.duration_seconds, claim.capture_count,
-             claim.lineage_id, ST_AsGeoJSON(claim.boundary) AS boundary
+          `SELECT claim.id, claim.account_id, claim.area_sqm, claim.distance_metres,
+             claim.duration_seconds, claim.capture_count, claim.lineage_id,
+             claim.h3_cell_set, claim.h3_resolution, claim.city_tag,
+             ST_AsGeoJSON(claim.boundary) AS boundary
            FROM territory_claims claim
            WHERE claim.released_at IS NULL
-             AND claim.boundary && ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)
+             AND claim.season_month = $3
+             AND (claim.h3_cell_set && $1::text[]
+                  OR claim.boundary && ST_SetSRID(ST_GeomFromGeoJSON($2), 4326))
            FOR UPDATE`,
-          [boundaryJson]
+          [candidateCells, boundaryJson, seasonMonth]
         );
 
-        const held: HeldClaim[] = contested.rows.flatMap((row) => {
-          const boundary = ringFromGeoJson(row.boundary);
-          return boundary.length >= 3
-            ? [{ id: row.id, boundary, durationSeconds: Number(row.duration_seconds) }]
-            : [];
-        });
-        const outcome = claimOutcome(candidate, held, DEFAULT_CLAIM_RULE);
-        if ('refusal' in outcome) {
-          // A challenge that came up short is the other half of the record: it
-          // is what lets a territory say how often it has been *held*, not only
-          // how often it changed hands.
-          for (const contestedId of outcome.contestedIds) {
-            const holder = contested.rows.find((row) => row.id === contestedId);
-            if (!holder) continue;
-            await client.query(
-              `INSERT INTO territory_claim_attempts (lineage_id, defending_claim_id,
-                 defending_account_id, challenger_account_id, holder_duration_seconds,
-                 challenger_duration_seconds)
-               VALUES ($1, $2, $3, $4, $5, $6)`,
-              [
-                holder.lineage_id ?? holder.id,
-                holder.id,
-                holder.account_id,
-                accountId,
-                Number(holder.duration_seconds),
-                candidate.durationSeconds
-              ]
+        // Display identity for everyone involved, in one read.
+        const holderIds = [...new Set(contested.rows.map((row) => row.account_id))];
+        const holderProfiles = new Map<
+          string,
+          { display_name: string | null; cosmetic: unknown }
+        >();
+        if (holderIds.length > 0) {
+          const profiles = await client.query<{
+            account_id: string;
+            display_name: string | null;
+            cosmetic: unknown;
+          }>('SELECT account_id, display_name, cosmetic FROM profiles WHERE account_id = ANY($1)', [
+            holderIds
+          ]);
+          for (const profile of profiles.rows) holderProfiles.set(profile.account_id, profile);
+        }
+
+        // The challenger's own name, for the notices the holders get. Read
+        // separately because the challenger is only in `holderProfiles` when
+        // they are contesting their own earlier claim, which is a case that
+        // sends nothing.
+        const challenger = await client.query<{ display_name: string | null }>(
+          'SELECT display_name FROM profiles WHERE account_id = $1',
+          [accountId]
+        );
+        const challengerName = challenger.rows[0]?.display_name ?? undefined;
+
+        const held: HeldClaim[] = [];
+        for (const row of contested.rows) {
+          let cellSet: readonly string[] = row.h3_cell_set ?? [];
+          // Repaired lazily, inside the deciding transaction, when a claim has
+          // no cells or was indexed at a resolution the current rule no longer
+          // uses. Comparing two sets at different resolutions intersects to
+          // nothing and would hand over held ground in silence, so it is fixed
+          // rather than tolerated.
+          if (
+            cellSet.length === 0 ||
+            Number(row.h3_resolution) !== DEFAULT_CLAIM_RULE.h3Resolution
+          ) {
+            cellSet = h3CellSet(
+              ringFromGeoJson(row.boundary),
+              DEFAULT_CLAIM_RULE.h3Resolution,
+              h3Indexer
             );
+            if (cellSet.length > 0) {
+              await client.query(
+                `UPDATE territory_claims
+                 SET h3_cell_set = $2::text[], h3_resolution = $3, h3_version = $4
+                 WHERE id = $1`,
+                [row.id, cellSet, DEFAULT_CLAIM_RULE.h3Resolution, H3_VERSION]
+              );
+            }
+          }
+          if (cellSet.length === 0) continue;
+          held.push({
+            id: row.id,
+            cellSet,
+            areaSqm: Number(row.area_sqm),
+            perimeterMetres: Number(row.distance_metres),
+            durationSeconds: Number(row.duration_seconds)
+          });
+        }
+
+        const outcome = carveOutcome(
+          candidate,
+          candidateCells,
+          held,
+          h3Indexer,
+          DEFAULT_CLAIM_RULE
+        );
+
+        /** One contest, as the post-run screen shows it. */
+        const carveView = (entry: ContestedHolder, carved: boolean): TerritoryCarve => {
+          const row = contested.rows.find((candidateRow) => candidateRow.id === entry.id);
+          const profile = holderProfiles.get(row?.account_id ?? '');
+          return {
+            carved,
+            ...(row
+              ? {
+                  holder: {
+                    id: row.account_id,
+                    displayName: profile?.display_name ?? 'RunSphere member',
+                    avatarKey: avatarKeyFrom(profile?.cosmetic ?? null),
+                    isSelf: row.account_id === accountId
+                  }
+                }
+              : {}),
+            areaSqm: carved ? cellSetAreaSqm(entry.carvedCells, h3Indexer) : 0,
+            yourSpeedMps: entry.assessment.challengerSpeedMps,
+            theirSpeedMps: entry.assessment.holderSpeedMps,
+            graceApplied: entry.assessment.graceApplied,
+            effectiveSpeedMps: entry.assessment.effectiveSpeedMps,
+            holderWipedOut: entry.wipedOut,
+            overlapTooSmall:
+              !carved && entry.assessment.intersectionAreaSqm < entry.assessment.minCarveAreaSqm
+          };
+        };
+
+        /** A challenge that came up short, so a territory can count its defences. */
+        const recordAttempt = async (entry: ContestedHolder): Promise<void> => {
+          const row = contested.rows.find((candidateRow) => candidateRow.id === entry.id);
+          if (!row) return;
+          const tooSmall = entry.assessment.intersectionAreaSqm < entry.assessment.minCarveAreaSqm;
+          await client.query(
+            `INSERT INTO territory_claim_attempts (lineage_id, defending_claim_id,
+               defending_account_id, challenger_account_id, holder_duration_seconds,
+               challenger_duration_seconds, effort_ratio, grace_applied,
+               effective_speed_mps, holder_speed_mps, outcome)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+            [
+              row.lineage_id ?? row.id,
+              row.id,
+              row.account_id,
+              accountId,
+              Number(row.duration_seconds),
+              candidate.durationSeconds,
+              entry.assessment.effortRatio,
+              entry.assessment.graceApplied,
+              entry.assessment.effectiveSpeedMps,
+              entry.assessment.holderSpeedMps,
+              tooSmall ? 'overlap_too_small' : 'slower'
+            ]
+          );
+        };
+
+        if ('refusal' in outcome) {
+          // Nothing survived. Every contest still happened, and each one is the
+          // other half of the record: it is what lets a territory say how often
+          // it has been *held*, not only how often it changed hands.
+          // Every holder here kept their ground, and this is the commonest way
+          // that happens: somebody ran the loop and was not fast enough. It
+          // would be strange to tell a defender only when the challenger
+          // succeeded somewhere else.
+          for (const entry of outcome.contested) {
+            await recordAttempt(entry);
+            const previous = contested.rows.find((candidateRow) => candidateRow.id === entry.id);
+            if (!previous) continue;
+            await queueClaimNotice(client, {
+              recipientAccountId: previous.account_id,
+              challengerAccountId: accountId,
+              copy: carveDefended({
+                claimId: entry.id,
+                runnerName: challengerName,
+                ...(previous.city_tag ? { areaName: previous.city_tag } : {})
+              }),
+              dedupeKey: `defended:${request.body.activityId}:${entry.id}`
+            });
           }
           const result: TerritoryClaimResult = {
             claimed: false,
             refusal: outcome.refusal,
             message: CLAIM_REFUSAL_MESSAGE[outcome.refusal],
+            carves: outcome.contested.map((entry) => carveView(entry, false)),
             takenOverCount: 0,
+            carvedAreaSqm: 0,
             isFirstClaim: false
           };
           return result;
         }
 
-        // Ground carries its story forward: the lineage of whatever it takes
-        // over, the running count of hands it has passed through, and who held
-        // it last. A first claim starts its own lineage.
-        const superseded = contested.rows.filter((row) => outcome.takenOverIds.includes(row.id));
-        const inheritedLineage = superseded[0]?.lineage_id ?? superseded[0]?.id;
+        for (const entry of outcome.defended) {
+          await recordAttempt(entry);
+          const previous = contested.rows.find((candidateRow) => candidateRow.id === entry.id);
+          if (!previous) continue;
+          await queueClaimNotice(client, {
+            recipientAccountId: previous.account_id,
+            challengerAccountId: accountId,
+            copy: carveDefended({
+              claimId: entry.id,
+              runnerName: challengerName,
+              ...(previous.city_tag ? { areaName: previous.city_tag } : {})
+            }),
+            dedupeKey: `defended:${request.body.activityId}:${entry.id}`
+          });
+        }
+
+        // The ground actually claimed. When an undefeated holder kept part of
+        // the loop, the stored polygon has to be redrawn from the cells that
+        // survived — otherwise the map would show this account territory it does
+        // not hold, which is the one thing a territory map must not do.
+        const withheldAny = outcome.cellSet.length !== candidateCells.length;
+        const claimBoundary = withheldAny
+          ? cellSetBoundary(outcome.cellSet, h3Indexer, DEFAULT_CLAIM_RULE)
+          : boundary;
+        if (claimBoundary.length < 3) throw new Error('carved claim has no drawable boundary');
+        const claimCentroid = withheldAny ? ringCentroid(claimBoundary) : candidate.centroid;
+
+        // Lineage and parentage follow the *largest* carve. Only one of each can
+        // be stored, and a run that carves three neighbours belongs most to the
+        // ground it took most of.
+        const carvedBySize = [...outcome.carved].sort(
+          (left, right) => right.carvedCells.length - left.carvedCells.length
+        );
+        const principalRow = carvedBySize[0]
+          ? contested.rows.find((row) => row.id === carvedBySize[0]!.id)
+          : undefined;
+        const inheritedLineage = principalRow?.lineage_id ?? principalRow?.id;
         const captureCount =
-          superseded.reduce((most, row) => Math.max(most, Number(row.capture_count ?? 1)), 0) + 1;
+          carvedBySize.reduce((most, entry) => {
+            const row = contested.rows.find((candidateRow) => candidateRow.id === entry.id);
+            return Math.max(most, Number(row?.capture_count ?? 1));
+          }, 0) + 1;
 
         // Whether this account has ever claimed before. Read inside the same
         // transaction as the insert so the answer cannot race a second run.
@@ -528,54 +914,164 @@ export const registerTerritoryClaimRoutes = ({
           [accountId]
         );
 
+        // Where this ground is, read from the cache before the insert so the
+        // claim lands on its city board immediately rather than on the next
+        // backfill sweep.
+        const place = await placeTagsFor(client, claimCentroid);
+
         const inserted = await client.query<ClaimRow>(
           `INSERT INTO territory_claims (account_id, activity_id, boundary, centroid,
              area_sqm, distance_metres, duration_seconds, capture_count,
-             previous_owner_account_id, club_id, lineage_id)
+             previous_owner_account_id, club_id, lineage_id, h3_cell_set, h3_resolution,
+             h3_version, season_month, parent_claim_id, city_tag, country_tag,
+             continent_tag)
            VALUES ($1, $2, ST_SetSRID(ST_GeomFromGeoJSON($3), 4326),
              ST_SetSRID(ST_MakePoint($4, $5), 4326), $6, $7, $8, $9, $10, $11,
-             coalesce($12::uuid, gen_random_uuid()))
+             coalesce($12::uuid, gen_random_uuid()), $13::text[], $14, $15, $16, $17,
+             $18, $19, $20)
            RETURNING id, account_id, ST_AsGeoJSON(boundary) AS boundary,
              ST_AsGeoJSON(centroid) AS centroid, area_sqm, distance_metres,
-             duration_seconds, capture_count, club_id, claimed_at`,
+             duration_seconds, capture_count, club_id, season_month, city_tag,
+             country_tag, claimed_at`,
           [
             accountId,
             request.body.activityId,
-            boundaryJson,
-            candidate.centroid[0],
-            candidate.centroid[1],
-            candidate.areaSqm,
-            perimeterOf(boundary.map(([lng, lat]) => [lng, lat] as Coordinate)),
+            polygonGeoJson(claimBoundary),
+            claimCentroid[0],
+            claimCentroid[1],
+            // Area follows the cells, never the polygon: it is the ground held,
+            // and the only figure consistent with the carve arithmetic that
+            // produced it.
+            outcome.areaSqm,
+            // The distance the runner covered around the loop. A carve never
+            // changes it — their run is their run, and it is the perimeter half
+            // of the speed a future challenger has to beat.
+            candidate.perimeterMetres,
             candidate.durationSeconds,
             captureCount,
-            superseded[0]?.account_id ?? null,
+            principalRow?.account_id ?? null,
             membership.rows[0]?.club_id ?? null,
-            inheritedLineage ?? null
+            inheritedLineage ?? null,
+            outcome.cellSet,
+            DEFAULT_CLAIM_RULE.h3Resolution,
+            H3_VERSION,
+            seasonMonth,
+            principalRow?.id ?? null,
+            place?.cityTag ?? null,
+            place?.countryTag ?? null,
+            place?.continentTag ?? null
           ]
         );
         const row = inserted.rows[0];
         if (!row) throw new Error('territory claim insert returned no row');
 
-        for (const taken of outcome.takenOverIds) {
-          const previous = contested.rows.find((entry) => entry.id === taken);
-          if (!previous) continue;
+        if ('trace' in ghost) {
+          // The trimmed line and the timing that goes with it. `043` checks
+          // that the two arrays are the same length, so a mismatch is a failed
+          // insert rather than a ghost that drifts out of time with itself.
           await client.query(
-            `UPDATE territory_claims SET released_at = now(), released_to_claim_id = $2
-             WHERE id = $1 AND released_at IS NULL`,
-            [taken, row.id]
+            `INSERT INTO territory_claim_ghost_traces (claim_id, path, elapsed_seconds,
+               distance_metres, duration_seconds, trim_metres)
+             VALUES ($1, ST_SetSRID(ST_GeomFromGeoJSON($2), 4326), $3::integer[], $4, $5, $6)
+             ON CONFLICT (claim_id) DO NOTHING`,
+            [
+              row.id,
+              JSON.stringify({
+                type: 'LineString',
+                coordinates: ghost.trace.points.map((point) => [point.longitude, point.latitude])
+              }),
+              ghost.trace.points.map((point) => point.elapsedSeconds),
+              ghost.trace.distanceMetres,
+              ghost.trace.durationSeconds,
+              ghost.trace.trimMetres
+            ]
           );
+        }
+
+        let carvedAreaSqm = 0;
+        for (const entry of outcome.carved) {
+          const previous = contested.rows.find((candidateRow) => candidateRow.id === entry.id);
+          if (!previous) continue;
+          const carvedArea = cellSetAreaSqm(entry.carvedCells, h3Indexer);
+          carvedAreaSqm += carvedArea;
+
+          if (entry.wipedOut) {
+            // Nothing defensible left, so the claim is released whole rather
+            // than left as a sliver. Rows are never deleted.
+            await client.query(
+              `UPDATE territory_claims SET released_at = now(), released_to_claim_id = $2
+               WHERE id = $1 AND released_at IS NULL`,
+              [entry.id, row.id]
+            );
+          } else {
+            // The holder keeps the rest. Their perimeter and duration are left
+            // alone: those record the run they did, and changing them would
+            // rewrite a speed somebody has already been measured against.
+            const survivingBoundary = cellSetBoundary(
+              entry.survivingCells,
+              h3Indexer,
+              DEFAULT_CLAIM_RULE
+            );
+            if (survivingBoundary.length < 3)
+              throw new Error('carved holder has no drawable boundary');
+            const survivingCentroid = ringCentroid(survivingBoundary);
+            await client.query(
+              `UPDATE territory_claims
+               SET h3_cell_set = $2::text[], area_sqm = $3,
+                 boundary = ST_SetSRID(ST_GeomFromGeoJSON($4), 4326),
+                 centroid = ST_SetSRID(ST_MakePoint($5, $6), 4326),
+                 h3_resolution = $7, h3_version = $8
+               WHERE id = $1 AND released_at IS NULL`,
+              [
+                entry.id,
+                entry.survivingCells,
+                entry.survivingAreaSqm,
+                polygonGeoJson(survivingBoundary),
+                survivingCentroid[0],
+                survivingCentroid[1],
+                DEFAULT_CLAIM_RULE.h3Resolution,
+                H3_VERSION
+              ]
+            );
+          }
+
+          await queueClaimNotice(client, {
+            recipientAccountId: previous.account_id,
+            challengerAccountId: accountId,
+            copy: carveSuccess({
+              claimId: entry.id,
+              runnerName: challengerName,
+              ...(previous.city_tag ? { areaName: previous.city_tag } : {}),
+              takenSqm: carvedArea,
+              // A wipe-out leaves nothing, and the copy says so rather than
+              // reporting 0 m² still held.
+              heldSqm: entry.wipedOut ? 0 : entry.survivingAreaSqm
+            }),
+            dedupeKey: `carve:${request.body.activityId}:${entry.id}`
+          });
+
           await client.query(
             `INSERT INTO territory_claim_takeovers (taken_claim_id, taken_from_account_id,
                taken_by_claim_id, taken_by_account_id, previous_duration_seconds,
-               new_duration_seconds)
-             VALUES ($1, $2, $3, $4, $5, $6)`,
+               new_duration_seconds, kind, carved_area_sqm, carved_cell_count,
+               holder_survived, effort_ratio, grace_applied, effective_speed_mps,
+               holder_speed_mps)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
             [
-              taken,
+              entry.id,
               previous.account_id,
               row.id,
               accountId,
               Number(previous.duration_seconds),
-              candidate.durationSeconds
+              candidate.durationSeconds,
+              entry.wipedOut ? 'takeover' : 'carve',
+              carvedArea,
+              entry.carvedCells.length,
+              !entry.wipedOut,
+              entry.assessment.effortRatio,
+              entry.assessment.graceApplied,
+              entry.assessment.effectiveSpeedMps,
+              entry.assessment.holderSpeedMps
             ]
           );
         }
@@ -584,7 +1080,7 @@ export const registerTerritoryClaimRoutes = ({
         // worth a human looking at. Written as a question, never acted on: two
         // friends who race each other every week produce the same pattern, and
         // nothing in the data separates them (`claim-trading.ts`).
-        if (outcome.takenOverIds.length > 0 && inheritedLineage) {
+        if (outcome.carved.length > 0 && inheritedLineage) {
           const history = await client.query<{
             taken_from_account_id: string | null;
             taken_by_account_id: string | null;
@@ -648,11 +1144,13 @@ export const registerTerritoryClaimRoutes = ({
         const result: TerritoryClaimResult = {
           claimed: true,
           ...(view ? { claim: view } : {}),
-          message:
-            outcome.takenOverIds.length === 0
-              ? 'Ground claimed. Nobody held it before you.'
-              : `Ground taken. You beat ${outcome.takenOverIds.length === 1 ? 'the holder' : `${outcome.takenOverIds.length} holders`} on time.`,
-          takenOverCount: outcome.takenOverIds.length,
+          message: claimMessage(outcome.carved.length, outcome.defended.length, carvedAreaSqm),
+          carves: [
+            ...outcome.carved.map((entry) => carveView(entry, true)),
+            ...outcome.defended.map((entry) => carveView(entry, false))
+          ],
+          takenOverCount: outcome.carved.length,
+          carvedAreaSqm,
           isFirstClaim
         };
         return result;
@@ -729,6 +1227,204 @@ export const registerTerritoryClaimRoutes = ({
           takenFromSelf: row.taken_from_account_id === accountId,
           createdAt: row.created_at.toISOString()
         }))
+      };
+      return response;
+    }
+  );
+
+  /**
+   * The holder's run, as a ghost to race (`territory-guide.md` "Ghost Race").
+   *
+   * Five gates, in this order and for these reasons:
+   *
+   *   1. **The claim must still be held.** A released claim is somebody's
+   *      former ground; racing its ghost would be racing a contest that is
+   *      already over.
+   *   2. **Not your own.** `screens.md` 1.3: "No Ghost Race button on your own
+   *      territory." Checked on the server too, because a client can ask.
+   *   3. **Not across a block**, in either direction.
+   *   4. **The same region.** `territory-guide.md` limits a ghost to users "in
+   *      the same region", and region here is the city the requester has held
+   *      ground in this season — the only region signal the server has without
+   *      collecting a position for the purpose. **A requester who holds no
+   *      ground anywhere is allowed through**, deliberately: Ghost Race is a
+   *      hook for somebody who has not claimed yet, and locking it to existing
+   *      holders would remove it from exactly the people it is for. What bounds
+   *      them is the hourly budget. Closing the gap properly needs a coarse
+   *      position on the request, which is a new collection and is not done.
+   *   5. **Three an hour**, counted in the database.
+   *
+   * The order matters: every refusal above the rate limit is about the
+   * *requester's relationship to this claim*, so none of them spends a view.
+   */
+  routes.get<{ Params: { claimId: string } }>(
+    '/v1/territory/claims/:claimId/ghost-trace',
+    {
+      schema: {
+        tags: ['territory'],
+        headers: ActivityAuthorizationHeadersSchema,
+        params: TerritoryClaimParamsSchema,
+        response: {
+          200: GhostTraceResponseSchema,
+          401: ErrorResponseSchema,
+          403: GhostTraceUnavailableSchema,
+          404: GhostTraceUnavailableSchema,
+          429: GhostTraceUnavailableSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+
+      const unavailable = (
+        code: 403 | 404 | 429,
+        reason: GhostTraceUnavailable['reason'],
+        message: string
+      ) => reply.code(code).send({ reason, message });
+
+      const claim = await database.query<{
+        id: string;
+        account_id: string;
+        city_tag: string | null;
+        claimed_at: Date;
+        display_name: string | null;
+        cosmetic: unknown;
+        path: unknown;
+        elapsed_seconds: number[] | null;
+        distance_metres: number | null;
+        duration_seconds: number | null;
+        trim_metres: number | null;
+      }>(
+        `SELECT claim.id, claim.account_id, claim.city_tag, claim.claimed_at,
+           profile.display_name, profile.cosmetic,
+           ST_AsGeoJSON(ghost.path) AS path, ghost.elapsed_seconds,
+           ghost.distance_metres, ghost.duration_seconds, ghost.trim_metres
+         FROM territory_claims claim
+         LEFT JOIN profiles profile ON profile.account_id = claim.account_id
+         LEFT JOIN territory_claim_ghost_traces ghost ON ghost.claim_id = claim.id
+         WHERE claim.id = $1 AND claim.released_at IS NULL`,
+        [request.params.claimId]
+      );
+      const row = claim.rows[0];
+      // One answer for "no such claim" and "no longer held", because which of
+      // the two it is is not the asker's business.
+      if (!row)
+        return unavailable(404, 'not_held', 'This ground is not held by anybody right now.');
+
+      if (row.account_id === accountId)
+        return unavailable(403, 'own_claim', 'This is your own ground. There is no ghost to race.');
+
+      const blocked = await database.query<{ blocked: boolean }>(
+        `SELECT EXISTS (SELECT 1 FROM blocks block WHERE block.revoked_at IS NULL
+           AND ((block.blocker_account_id = $1 AND block.blocked_account_id = $2)
+             OR (block.blocker_account_id = $2 AND block.blocked_account_id = $1))) AS blocked`,
+        [accountId, row.account_id]
+      );
+      // Answered as "not held" rather than "you are blocked": a refusal that
+      // names the block tells the asker something about the holder's choices.
+      if (blocked.rows[0]?.blocked)
+        return unavailable(404, 'not_held', 'This ground is not held by anybody right now.');
+
+      if (row.city_tag) {
+        const mine = await database.query<{ city_tag: string }>(
+          `SELECT DISTINCT city_tag FROM territory_claims
+           WHERE account_id = $1 AND released_at IS NULL AND season_month = $2
+             AND city_tag IS NOT NULL`,
+          [accountId, seasonMonthFor(new Date())]
+        );
+        const cities = mine.rows.map((place) => place.city_tag);
+        if (cities.length > 0 && !cities.includes(row.city_tag))
+          return unavailable(
+            403,
+            'out_of_region',
+            'Ghost races are limited to places you have run in this season.'
+          );
+      }
+
+      if (!row.path || !row.elapsed_seconds || !row.duration_seconds)
+        return unavailable(
+          404,
+          'no_trace',
+          'This run cannot be shown as a ghost. Its loop was too short to trim safely, or it was claimed before ghost races existed.'
+        );
+
+      const views = await database.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM territory_claim_ghost_views
+         WHERE account_id = $1 AND created_at > now() - interval '1 hour'`,
+        [accountId]
+      );
+      const used = Number(views.rows[0]?.count ?? 0);
+      if (used >= GHOST_VIEWS_PER_HOUR)
+        return unavailable(
+          429,
+          'rate_limited',
+          `Ghost races are limited to ${GHOST_VIEWS_PER_HOUR} an hour. Try again shortly.`
+        );
+
+      const coordinates = lineFromGeoJson(row.path);
+      const elapsed = row.elapsed_seconds;
+      // The `043` constraint makes this impossible, so it is a guard against a
+      // row written around it rather than an expected case.
+      if (coordinates.length !== elapsed.length)
+        return unavailable(404, 'no_trace', 'This run cannot be shown as a ghost.');
+
+      await withTransaction(database, async (client) => {
+        await client.query(
+          'INSERT INTO territory_claim_ghost_views (account_id, claim_id) VALUES ($1, $2)',
+          [accountId, row.id]
+        );
+        // `GHOST_INCOMING` (`screens.md` push catalogue). Written in the same
+        // transaction as the view, so the holder is told exactly as often as
+        // their pacing is handed out — no more, and no less.
+        //
+        // The key is the pair, not the view: somebody who opens the sheet
+        // three times in an hour has not started three races, and three
+        // identical notices would read as harassment.
+        await client.query(
+          `INSERT INTO notification_inbox (account_id, kind, title, body, deep_link, dedupe_key)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT (account_id, dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`,
+          (() => {
+            const copy = ghostIncoming({
+              claimId: row.id,
+              runnerName: undefined
+            });
+            return [
+              row.account_id,
+              copy.kind,
+              copy.title,
+              copy.body,
+              copy.deepLink,
+              `ghost:${row.id}:${accountId}`
+            ];
+          })()
+        );
+      });
+
+      const response: GhostTraceResponse = {
+        claimId: row.id,
+        owner: {
+          id: row.account_id,
+          displayName: row.display_name ?? 'RunSphere member',
+          avatarKey: avatarKeyFrom(row.cosmetic ?? null),
+          isSelf: false
+        },
+        points: coordinates.map((coordinate, index) => ({
+          at: [coordinate[0], coordinate[1]] as Coordinate,
+          elapsedSeconds: Number(elapsed[index] ?? 0)
+        })),
+        distanceMetres: Number(row.distance_metres ?? 0),
+        durationSeconds: Number(row.duration_seconds),
+        trimMetres: Number(row.trim_metres ?? GHOST_TRIM_METRES),
+        // Date only. When somebody runs is a routine, and a routine is not
+        // something a stranger needs from a claim.
+        recordedOn: row.claimed_at.toISOString().slice(0, 10),
+        privacyNote: GHOST_PRIVACY_NOTE,
+        rulesNote: GHOST_RULES_NOTE,
+        viewsRemaining: Math.max(0, GHOST_VIEWS_PER_HOUR - used - 1)
       };
       return response;
     }
@@ -879,11 +1575,12 @@ export const registerTerritoryClaimRoutes = ({
          WHERE claim.released_at IS NULL
            AND account.deleted_at IS NULL
            AND ${notSharingSuspended('claim.account_id')}
+           AND claim.season_month = $7
            AND claim.centroid && ST_MakeEnvelope($1, $2, $3, $4, 4326)
          GROUP BY floor(ST_X(claim.centroid) / $6), floor(ST_Y(claim.centroid) / $6)
          ORDER BY count(*) DESC
          LIMIT 500`,
-        [west, south, east, north, accountId, cellDegrees]
+        [west, south, east, north, accountId, cellDegrees, seasonMonthFor(new Date())]
       );
 
       const response: TerritoryClusterListResponse = {
@@ -967,23 +1664,20 @@ export const registerTerritoryClaimRoutes = ({
 
       const { west, south, east, north } = request.query;
       const nearby = await database.query<ClaimRow>(
-        `SELECT claim.id, claim.account_id, profile.display_name, profile.cosmetic,
-           ST_AsGeoJSON(claim.boundary) AS boundary,
-           ST_AsGeoJSON(claim.centroid) AS centroid, claim.area_sqm,
-           claim.distance_metres, claim.duration_seconds, claim.capture_count,
-           claim.club_id, club.name AS club_name, claim.claimed_at
+        `SELECT ${CLAIM_COLUMNS}
          FROM territory_claims claim
          JOIN accounts account ON account.id = claim.account_id
          LEFT JOIN profiles profile ON profile.account_id = claim.account_id
          LEFT JOIN clubs club ON club.id = claim.club_id
          WHERE claim.released_at IS NULL
+           AND claim.season_month = $6
            AND account.deleted_at IS NULL
            AND claim.account_id <> $5
            AND ${notSharingSuspended('claim.account_id')}
            AND claim.boundary && ST_MakeEnvelope($1, $2, $3, $4, 4326)
          ORDER BY claim.area_sqm DESC
          LIMIT 100`,
-        [west, south, east, north, accountId]
+        [west, south, east, north, accountId, seasonMonthFor(new Date())]
       );
 
       const views = new Map<string, TerritoryClaim>();
@@ -994,9 +1688,7 @@ export const registerTerritoryClaimRoutes = ({
         views.set(view.id, view);
         candidates.push({
           claimId: view.id,
-          // Rows written before `032` have no stored distance; the boundary is
-          // what the runner would have to go round either way.
-          perimeterMetres: view.distanceMetres ?? perimeterOf(view.boundary),
+          perimeterMetres: view.distanceMetres,
           holderDurationSeconds: view.durationSeconds,
           areaSqm: view.areaSqm,
           isSelf: view.owner.isSelf
@@ -1051,11 +1743,12 @@ export const registerTerritoryClaimRoutes = ({
         lost_count: string;
       }>(
         `SELECT
-           count(*) FILTER (WHERE released_at IS NULL)::text AS claim_count,
-           coalesce(sum(area_sqm) FILTER (WHERE released_at IS NULL), 0)::text AS total_area,
+           count(*) FILTER (WHERE released_at IS NULL AND season_month = $2)::text AS claim_count,
+           coalesce(sum(area_sqm) FILTER (WHERE released_at IS NULL AND season_month = $2), 0)::text
+             AS total_area,
            count(*) FILTER (WHERE released_at IS NOT NULL)::text AS lost_count
          FROM territory_claims WHERE account_id = $1`,
-        [accountId]
+        [accountId, seasonMonthFor(new Date())]
       );
       const row = summary.rows[0];
       const response: TerritoryClaimSummary = {

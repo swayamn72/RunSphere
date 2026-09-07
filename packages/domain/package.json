@@ -19,6 +19,7 @@
     "vitest": "4.1.11"
   },
   "dependencies": {
-    "@runsphere/contracts": "workspace:*"
+    "@runsphere/contracts": "workspace:*",
+    "h3-js": "4.1.0"
   }
 }

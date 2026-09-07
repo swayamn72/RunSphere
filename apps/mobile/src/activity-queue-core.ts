@@ -6,7 +6,7 @@ export const ACTIVITY_QUEUE_SCHEMA_VERSION = 3;
  */
 export interface QueuedActivity {
   id: string;
-  movementType: 'walk' | 'run' | 'hike';
+  movementType: 'run';
   createdAt: string;
   status: 'ready';
 }
@@ -20,7 +20,7 @@ export interface ActivityQueueDatabase {
 export const activityQueueSchema = `
   CREATE TABLE IF NOT EXISTS activity_queue (
     id TEXT PRIMARY KEY NOT NULL,
-    movement_type TEXT NOT NULL CHECK (movement_type IN ('walk', 'run', 'hike')),
+    movement_type TEXT NOT NULL CHECK (movement_type = 'run'),
     created_at TEXT NOT NULL,
     status TEXT NOT NULL CHECK (status = 'ready')
   );

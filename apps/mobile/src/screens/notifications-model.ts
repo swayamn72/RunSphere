@@ -6,6 +6,7 @@ import type {
   NotificationPreferencesUpdateRequest
 } from '@runsphere/contracts';
 import { AuthFailure } from '../auth-failure';
+import type { Tab } from '../navigation/types';
 
 /**
  * The notification inbox and its delivery preferences (milestone 2.9).
@@ -37,28 +38,59 @@ export const NOTIFICATION_KIND_LABEL: Readonly<Record<NotificationKind, string>>
   challenge_finished: 'Challenge',
   club_invite: 'Club',
   competition: 'Competition',
+  territory_season: 'Turf',
+  territory_claim: 'Your ground',
+  quest: 'Quest',
+  streak: 'Streak',
   account: 'Account',
   system: 'RunSphere'
 };
 
 /**
- * Where an entry can actually take the reader. Only two destinations exist
- * today: challenge notices carry a `runsphere://challenges/<id>` link and Play
- * is the surface that lists challenges, and a friend request belongs to the
- * friends screen. Anything else offers no navigation rather than a dead end —
- * there is no challenge detail screen to deep-link into.
+ * Where an entry can actually take the reader.
+ *
+ * Matched on the link the catalogue writes, not on the kind, so a link and its
+ * destination cannot drift apart: `notification-catalogue.ts` is the only
+ * thing that mints these, and every prefix here appears there.
+ *
+ * A kind with no tab to open offers no navigation rather than a dead end.
+ * Turf notices land on the tab, not on the specific claim — `screens.md` asks
+ * for "Turf → highlight claim" and the claim id is in the link ready for it,
+ * but no screen takes one yet, and a button that opens the wrong claim would
+ * be worse than a button that opens the map.
  */
-export type NotificationTarget = 'play' | 'friends';
+export type NotificationTarget = 'play' | 'friends' | 'turf' | 'explore' | 'home';
 
 export const notificationTarget = (entry: InboxEntry): NotificationTarget | undefined => {
-  if (entry.deepLink?.startsWith('runsphere://challenges/')) return 'play';
+  const link = entry.deepLink ?? '';
+  if (link.startsWith('runsphere://challenges/')) return 'play';
+  if (link.startsWith('runsphere://turf')) return 'turf';
+  if (link.startsWith('runsphere://explore')) return 'explore';
+  if (link.startsWith('runsphere://home')) return 'home';
   if (entry.kind === 'friend_request') return 'friends';
   return undefined;
 };
 
+/**
+ * The tab each destination is on. Data rather than a chain of comparisons in
+ * `App.tsx`, so adding a destination cannot silently keep sending it to Play —
+ * which is what the previous `target === 'friends' ? 'friends' : 'play'` did to
+ * everything that was not a friend request.
+ */
+export const NOTIFICATION_TARGET_TAB: Readonly<Record<NotificationTarget, Tab>> = {
+  play: 'Play',
+  friends: 'Play',
+  turf: 'Turf',
+  explore: 'Explore',
+  home: 'Home'
+};
+
 export const NOTIFICATION_TARGET_LABEL: Readonly<Record<NotificationTarget, string>> = {
   play: 'Open Play',
-  friends: 'Open friends'
+  friends: 'Open friends',
+  turf: 'Open Turf',
+  explore: 'Open Explore',
+  home: 'Open Home'
 };
 
 const MINUTE = 60_000;
@@ -132,6 +164,8 @@ export const NOTIFICATION_CATEGORY_ORDER: readonly NotificationCategory[] = [
   'challenges',
   'clubs',
   'competitions',
+  'territory',
+  'progress',
   'account'
 ];
 
@@ -140,6 +174,8 @@ export const NOTIFICATION_CATEGORY_LABEL: Readonly<Record<NotificationCategory, 
   challenges: 'Challenges',
   clubs: 'Clubs',
   competitions: 'Competitions',
+  territory: 'Turf and territory',
+  progress: 'Quests and streaks',
   account: 'Account and security',
   marketing: 'Product news'
 };
@@ -150,7 +186,13 @@ export const NOTIFICATION_CATEGORY_LABEL: Readonly<Record<NotificationCategory, 
  */
 export const NOTIFICATION_CATEGORY_HINT: Readonly<Partial<Record<NotificationCategory, string>>> = {
   clubs: 'Nothing sends this yet. Clubs arrive in a later release.',
-  competitions: 'Nothing sends this yet. Competitions arrive in a later release.'
+  competitions: 'Nothing sends this yet. Competitions arrive in a later release.',
+  // Quests are a published catalogue nobody is assigned from, and nothing
+  // counts consecutive runs yet, so this toggle currently governs nothing.
+  // Saying so beats a switch that silently does nothing
+  // (`NOTIFICATION_TYPES_WITHOUT_PRODUCERS`).
+  progress: 'Nothing sends this yet. Quest and streak notices arrive with those features.',
+  territory: 'Carves, defences, weekly ranks, and the monthly season result.'
 };
 
 export const toggleCategory = (

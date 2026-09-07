@@ -5,7 +5,7 @@ import { createActivitySyncCoordinator, samplesToChunks } from './activity-sync.
 const session: ActivitySession = {
   id: 'local-1',
   accountId: 'account-1',
-  movementType: 'walk',
+  movementType: 'run',
   state: 'queued',
   startedAt: '2026-08-28T06:00:00Z',
   updatedAt: '2026-08-28T06:01:00Z',

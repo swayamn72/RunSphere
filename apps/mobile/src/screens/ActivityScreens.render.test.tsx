@@ -38,13 +38,24 @@ vi.mock('../location-adapter', () => ({
   recordingLocationAdapter: { subscribe: vi.fn().mockResolvedValue({ remove: vi.fn() }) }
 }));
 vi.mock('../components/styles', () => ({ useAppStyles: () => new Proxy({}, { get: () => ({}) }) }));
+// The live screen reads one token directly: the ghost comparison card takes a
+// status colour that changes as the race does, so it cannot come from a
+// stylesheet entry.
+vi.mock('../theme/theme', () => ({
+  useAppTheme: () => ({
+    colorScheme: 'light',
+    reduceMotion: true,
+    tokens: {
+      status: { success: '#075F52', warning: '#8A5A00', error: '#A83E2B', info: '#246D84' }
+    }
+  })
+}));
 // Guidance has its own render tests; this file is about lifecycle, and the
 // callout would otherwise need the whole theme provider.
 vi.mock('../components/LoopCallout', () => ({ LoopCallout: () => null }));
 vi.mock('../components/primitives', async () => {
   const React = await import('react');
   return {
-    MovementChoice: () => null,
     PrimaryButton: ({ label, onPress }: { label: string; onPress: () => void }) =>
       React.createElement('PrimaryButton' as React.ElementType, { label, onPress }),
     Stat: () => null
@@ -70,7 +81,7 @@ const {
 const session: ActivitySession = {
   id: 'local-1',
   accountId: 'account-1',
-  movementType: 'walk',
+  movementType: 'run',
   state: 'active',
   startedAt: '2026-08-28T06:00:00Z',
   updatedAt: '2026-08-28T06:01:00Z',

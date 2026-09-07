@@ -20,12 +20,7 @@ import { AuthFailure } from '../auth-failure';
 import { getLocationPermissionState } from '../location-permission';
 import { canSubmitAccount } from '../onboarding';
 import type { initialOnboardingState, onboardingReducer } from '../onboarding';
-import {
-  MovementChoice,
-  PermissionCard,
-  PrimaryButton,
-  StepHeader
-} from '../components/primitives';
+import { PermissionCard, PrimaryButton, StepHeader } from '../components/primitives';
 import { useAppStyles } from '../components/styles';
 
 type AuthStatus = 'idle' | 'loading' | 'error';
@@ -132,13 +127,8 @@ export function Onboarding({
               <Text style={styles.teal}>Make it yours.</Text>
             </Text>
             <Text style={styles.lead}>
-              Turn everyday walks, runs, and hikes into exploration quests—with seasonal competition
-              that stays fair.
+              Turn everyday runs into exploration quests—with seasonal competition that stays fair.
             </Text>
-            <MovementChoice
-              selected={state.movement}
-              onChoose={(movement) => dispatch({ type: 'chooseMovement', movement })}
-            />
             <PrimaryButton
               label="Create account"
               onPress={() => dispatch({ type: 'startAccount', mode: 'register' })}

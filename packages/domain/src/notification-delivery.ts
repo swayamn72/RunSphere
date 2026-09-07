@@ -31,6 +31,13 @@ export const NOTIFICATION_CATEGORY_BY_KIND: Readonly<
   challenge_finished: 'challenges',
   club_invite: 'clubs',
   competition: 'competitions',
+  territory_season: 'territory',
+  // A carve, a defence, or a ghost race. Same toggle as the season summaries:
+  // both are Turf, and splitting the switch would mean somebody could turn off
+  // being told their ground was taken while still being ranked on holding it.
+  territory_claim: 'territory',
+  quest: 'progress',
+  streak: 'progress',
   account: 'account',
   system: 'account'
 };
@@ -47,6 +54,8 @@ export const defaultNotificationPreferences = (): NotificationPreferences => ({
     challenges: true,
     clubs: true,
     competitions: true,
+    territory: true,
+    progress: true,
     account: true,
     marketing: false
   },
@@ -56,6 +65,44 @@ export const defaultNotificationPreferences = (): NotificationPreferences => ({
   // unset account has not given it.
   marketingConsent: false
 });
+
+/**
+ * Stored category toggles, filled in from the defaults.
+ *
+ * `notification_preferences.categories` is a JSON blob, and a blob written
+ * before a category existed does not have its key. Read verbatim that is two
+ * bugs at once, and both were live:
+ *
+ *   * The API's response schema requires every key, so serialising a blob that
+ *     is missing one answers **500** — an account could not read or write its
+ *     own notification settings at all.
+ *   * The worker reads the same blob to decide whether to send, and a missing
+ *     key is `undefined`, which is falsy, so an entire category is **silently
+ *     suppressed** for that account. Silence is the worse of the two: nothing
+ *     reports it.
+ *
+ * Migrating existing rows fixes neither on its own, because a deploy can reach
+ * the read path before the migration runs and because nothing stops a partial
+ * write. So the merge lives here, next to the definition of what "unset"
+ * means, and every reader goes through it.
+ *
+ * Unknown and non-boolean keys are dropped rather than passed along: the
+ * response schema would reject them, and a toggle nothing governs is worse than
+ * no toggle.
+ */
+export const notificationCategoriesFrom = (
+  stored: unknown
+): NotificationPreferences['categories'] => {
+  const defaults = defaultNotificationPreferences().categories;
+  if (typeof stored !== 'object' || stored === null) return defaults;
+  const raw = stored as Record<string, unknown>;
+  const merged = { ...defaults };
+  for (const key of Object.keys(defaults) as NotificationCategory[]) {
+    const value = raw[key];
+    if (typeof value === 'boolean') merged[key] = value;
+  }
+  return merged;
+};
 
 export type PushSuppressionReason =
   'channel_off' | 'category_off' | 'quiet_hours' | 'daily_cap' | 'no_devices';

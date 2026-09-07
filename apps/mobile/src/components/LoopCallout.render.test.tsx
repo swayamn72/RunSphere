@@ -78,7 +78,7 @@ describe('LoopCallout', () => {
     const press = vi.fn();
     const renderer = await render(
       <LoopCallout
-        cue="hike-prep"
+        cue="quest-empty"
         onDismiss={() => undefined}
         action={{ label: 'Open safety sharing', onPress: press }}
       />

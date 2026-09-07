@@ -30,6 +30,12 @@ jobs:
     env:
       DATABASE_URL: postgresql://runsphere:runsphere_test@localhost:5432/runsphere_test
       AUTH_TOKEN_SECRET: ci-auth-token-secret-with-at-least-32-characters
+      # These reach the test processes only because `turbo.json` lists them
+      # under the `test` task's `env`. Turbo 2 runs tasks in strict env mode and
+      # strips anything undeclared, and the failure is silent: every PostGIS
+      # suite reports `skipped` and the run goes green. `requirePostgisInCi`
+      # now fails loudly instead, but the list in `turbo.json` is what makes the
+      # suites actually run.
       RUN_POSTGIS_INTEGRATION: '1'
       CI: 'true'
     steps:
@@ -61,17 +67,29 @@ jobs:
       - name: Verify MapLibre New Architecture compatibility
         run: pnpm verify:maplibre
 
+      # Static, no database needed. This is the check that catches a migration
+      # seeding a value its own CHECK forbids — the defect milestone 3.12 found
+      # by reading the SQL, which would otherwise fail on first apply.
+      - name: Verify migrations statically
+        run: pnpm verify:migrations
+
       - name: Lint
         run: pnpm lint
 
       - name: Type-check
         run: pnpm typecheck
 
-      - name: Test
-        run: pnpm test
-
-      - name: Test API health endpoint
-        run: pnpm --filter @runsphere/api test
-
       - name: Build
         run: pnpm build
+
+      # Applied as its own step, after the build it imports, so a schema failure
+      # is a red step that says "migrations" rather than surfacing later as a
+      # confusing assertion inside whichever integration suite ran first.
+      - name: Apply migrations
+        run: pnpm migrate
+
+      # Runs every suite, PostGIS integration included: the service container
+      # and `RUN_POSTGIS_INTEGRATION` above are what open that gate, and
+      # `requirePostgisInCi` fails the run if they ever stop doing so.
+      - name: Test
+        run: pnpm test

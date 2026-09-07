@@ -25,6 +25,8 @@ import { useAppTheme } from '../theme/theme';
 import { resolveMapRenderPlan } from '../maps/map-config';
 import { CrewMascot } from '../components/CrewMascot';
 import { TerritoryDetailScreen } from './TerritoryDetailScreen';
+import { GhostRaceSheet } from './GhostRaceSheet';
+import type { GhostRun } from './ghost-race-model';
 import { CLAIM_PUBLISHES_NOTICE, FIRST_CLAIM_PRIVACY_PROMPT } from '@runsphere/domain';
 import {
   TIER_HINT,
@@ -68,6 +70,12 @@ import {
 export interface TurfScreenProps {
   readonly api: MobileApiClient;
   readonly onOpenRun?: () => void;
+  /**
+   * Leaves the tab to start a run with a ghost on the map. Optional, so a
+   * caller that has nowhere to send the runner simply never shows the button.
+   */
+  readonly onGhostRace?: (run: GhostRun) => void;
+  readonly onSessionExpired?: () => void;
 }
 
 /** Mumbai, so an empty first launch opens somewhere rather than at null island. */
@@ -76,7 +84,7 @@ const INITIAL_ZOOM = 13;
 /** The ring around a cluster that contains any of the reader's own ground. */
 const SELF_RING = '#C9F15A';
 
-export function TurfScreen({ api, onOpenRun }: TurfScreenProps) {
+export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: TurfScreenProps) {
   const { tokens, reduceMotion } = useAppTheme();
   const styles = useMemo(() => createStyles(tokens), [tokens]);
   const renderPlan = useMemo(() => resolveMapRenderPlan(), []);
@@ -94,6 +102,14 @@ export function TurfScreen({ api, onOpenRun }: TurfScreenProps) {
   const [claiming, setClaiming] = useState(false);
   const [clusters, setClusters] = useState<readonly TerritoryCluster[]>([]);
   const [history, setHistory] = useState<TerritoryClaimHistoryResponse>();
+  /**
+   * The claim whose ghost is being confirmed.
+   *
+   * Only an id, not the claim: the sheet fetches the trace itself, and holding
+   * a copy of the claim here would let the two drift apart if the map
+   * refreshed underneath.
+   */
+  const [ghostClaimId, setGhostClaimId] = useState<string>();
   const [recommendations, setRecommendations] = useState<readonly TerritoryRecommendation[]>([]);
   const [recommendationNote, setRecommendationNote] = useState('');
   const [notEnoughRuns, setNotEnoughRuns] = useState(false);
@@ -243,9 +259,36 @@ export function TurfScreen({ api, onOpenRun }: TurfScreenProps) {
 
   // A full page rather than a taller sheet: the story of a piece of ground is
   // the point of this screen, and it does not belong squeezed under a map.
+  // The confirmation is a screen of its own rather than a sheet over the
+  // detail page, because opening it spends one of three ghost views an hour —
+  // that is a decision, and a decision should not look like a tooltip.
+  if (ghostClaimId && chosen && onGhostRace)
+    return (
+      <View style={styles.root}>
+        <GhostRaceSheet
+          api={api}
+          claimId={ghostClaimId}
+          holderName={chosen.owner.displayName}
+          onStart={(run) => {
+            setGhostClaimId(undefined);
+            onGhostRace(run);
+          }}
+          onCancel={() => setGhostClaimId(undefined)}
+          onSessionExpired={onSessionExpired ?? (() => setGhostClaimId(undefined))}
+        />
+      </View>
+    );
+
   if (showDetail && chosen)
     return (
-      <TerritoryDetailScreen claim={chosen} history={history} onBack={() => setShowDetail(false)} />
+      <TerritoryDetailScreen
+        claim={chosen}
+        history={history}
+        onBack={() => setShowDetail(false)}
+        {...(onGhostRace && !chosen.owner.isSelf
+          ? { onGhostRace: () => setGhostClaimId(chosen.id) }
+          : {})}
+      />
     );
 
   return (

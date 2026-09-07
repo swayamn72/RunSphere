@@ -26,7 +26,7 @@ export const loopGuidanceCues = [
   'challenge-invite',
   'play-empty',
   'quest-empty',
-  'hike-prep'
+  'turf-empty'
 ] as const;
 
 export type LoopGuidanceCue = (typeof loopGuidanceCues)[number];
@@ -91,11 +91,20 @@ export const loopGuidance: Readonly<Record<LoopGuidanceCue, LoopGuidanceCopy>> =
     maxPerDay: 1,
     dismissalDays: 7
   },
-  'hike-prep': {
+  /**
+   * Bram's cue, and the reason he has one.
+   *
+   * His only line used to be the hike safety prompt, and hiking left the
+   * product on 2026-09-06. Rather than leave the territory mascot mute — which
+   * `loop-guidance.test.ts` rightly fails on, since a decorative mascot is a
+   * character nobody has a reason to recognise — he says the thing
+   * `screens.md` already assigns him: the Turf empty state.
+   */
+  'turf-empty': {
     character: 'bram',
     speaker: 'Bram',
     message:
-      'Heading out on a hike? A delayed, coarse safety share lets one contact know roughly where you are, without a live route.',
+      'The city is wide open. Run a loop that comes back to where it started and the ground inside it is yours.',
     maxPerDay: 1,
     dismissalDays: 7
   }

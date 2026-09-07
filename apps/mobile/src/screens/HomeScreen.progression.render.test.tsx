@@ -28,7 +28,6 @@ vi.mock('react-native', async () => {
 });
 vi.mock('../components/Mascot', () => ({ LoopMascot: () => null }));
 vi.mock('../components/primitives', () => ({
-  MovementChoice: () => null,
   PrimaryButton: () => null
 }));
 vi.mock('../theme/theme', () => ({
@@ -92,9 +91,8 @@ const renderHome = async (api: MobileApiClient): Promise<ReactTestRenderer> => {
     renderer = create(
       <HomeScreen
         api={api}
-        movement="walk"
-        onMovementChange={() => undefined}
         onStart={() => undefined}
+        onChooseRoute={() => undefined}
         onOpenQuests={() => undefined}
         onOpenProfile={() => undefined}
         onSessionExpired={() => undefined}

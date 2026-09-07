@@ -31,7 +31,6 @@ const activity = (accountId: string, minutes: number, processedAt: string) => ({
 });
 
 interface Stubs {
-  participating?: boolean;
   rule?: Record<string, unknown>[];
   members?: Record<string, unknown>[];
   activities?: Record<string, unknown>[];
@@ -40,8 +39,6 @@ interface Stubs {
 const fakeDatabase = (stubs: Stubs = {}) => {
   const calls: { sql: string; values: readonly unknown[] | undefined }[] = [];
   const respond = (sql: string) => {
-    if (sql.includes('AS participating'))
-      return { rows: [{ participating: stubs.participating ?? true }] };
     if (sql.includes("kind = 'progression'"))
       return { rows: stubs.rule ?? [{ version: 4, definition: progressionRule }] };
     if (sql.includes('WITH mutual AS')) return { rows: stubs.members ?? [] };
@@ -96,7 +93,7 @@ const standings = (db: ReturnType<typeof fakeDatabase>) =>
   appWith(db).inject({ method: 'GET', url: '/v1/friends/standings', headers: auth });
 
 describe('GET /v1/friends/standings', () => {
-  it('ranks opted-in mutual friends by capped weekly active minutes', async () => {
+  it('ranks mutual friends by capped weekly active minutes', async () => {
     // The current Kolkata week is whatever week the test runs in, so activity
     // instants are derived from the period the route reports.
     const db = fakeDatabase({
@@ -120,7 +117,6 @@ describe('GET /v1/friends/standings', () => {
     expect(first.statusCode).toBe(200);
     expect(response.statusCode).toBe(200);
     const body = response.json();
-    expect(body.participating).toBe(true);
     expect(body.ruleVersion).toBe('4');
     expect(body.entries).toEqual([
       {
@@ -181,31 +177,49 @@ describe('GET /v1/friends/standings', () => {
     expect(response.json().entries[0].cappedActiveMinutes).toBe(60);
   });
 
-  it('returns an empty board with participating false until the account joins', async () => {
-    const db = fakeDatabase({ participating: false, members: [member(ME, 'Maya')] });
+  it('asks nobody whether they joined, because friendship is the only gate', async () => {
+    // Product decision 2026-09-06 (`gameplay.md`): "there is no separate 'join
+    // board' toggle". The read used to probe `leaderboard_opt_ins` first and
+    // return an empty board to anybody who had not joined; both are gone.
+    const db = fakeDatabase({ members: [member(ME, 'Maya')] });
+    await standings(db);
+
+    expect(db.calls.some((call) => call.sql.includes('leaderboard_opt_ins'))).toBe(false);
+    expect(db.calls.some((call) => call.sql.includes('WITH mutual AS'))).toBe(true);
+  });
+
+  it('shows a mutual friend without either side opting in', async () => {
+    const db = fakeDatabase({ members: [member(ME, 'Maya'), member(RAVI, 'Ravi')] });
     const response = await standings(db);
 
-    expect(response.json()).toMatchObject({ participating: false, entries: [] });
-    // Not on the board means not reading anyone else's score.
-    expect(db.calls.some((call) => call.sql.includes('WITH mutual AS'))).toBe(false);
-    expect(db.calls.some((call) => call.sql.includes('FROM activity_submissions'))).toBe(false);
+    expect(response.json().entries).toHaveLength(2);
+    expect(response.json().participating).toBeUndefined();
   });
 
   it('returns an empty board when no progression rule publishes the cap', async () => {
     const response = await standings(fakeDatabase({ rule: [], members: [member(ME, 'Maya')] }));
-    expect(response.json()).toMatchObject({ participating: true, entries: [] });
+    expect(response.json()).toMatchObject({ entries: [] });
     expect(response.json().ruleVersion).toBeUndefined();
   });
 
-  it('requires mutual friendship, a live opt-in, and no block on either side', async () => {
+  it('requires mutual friendship and no block on either side', async () => {
     const db = fakeDatabase({ members: [member(ME, 'Maya')] });
     await standings(db);
     const sql = db.calls.find((call) => call.sql.includes('WITH mutual AS'))?.sql ?? '';
     expect(sql).toContain('back.friend_account_id = $1');
     expect(sql).toContain('blocks block');
-    expect(sql).toContain("optin.scope = 'friends'");
-    expect(sql).toContain('optin.revoked_at IS NULL');
     expect(sql).toContain('account.deleted_at IS NULL');
+  });
+
+  it('still keeps a suspended account off the board', async () => {
+    // The one exclusion the opt-in removal must not take with it: a sharing
+    // suspension pauses being visible to other people, and a name on a board
+    // is exactly that.
+    const db = fakeDatabase({ members: [member(ME, 'Maya')] });
+    await standings(db);
+    const sql = db.calls.find((call) => call.sql.includes('WITH mutual AS'))?.sql ?? '';
+
+    expect(sql).toContain('NOT EXISTS (SELECT 1 FROM sanctions');
   });
 
   it('never selects or returns location, route, pace, distance, or timestamps', async () => {
@@ -235,73 +249,5 @@ describe('GET /v1/friends/standings', () => {
       displayName: 'RunSphere member',
       cosmetic: { avatarKey: 'default' }
     });
-  });
-});
-
-describe('PUT /v1/friends/standings/participation', () => {
-  const participation = (db: ReturnType<typeof fakeDatabase>, participating: boolean) =>
-    appWith(db).inject({
-      method: 'PUT',
-      url: '/v1/friends/standings/participation',
-      headers: auth,
-      payload: { participating }
-    });
-
-  it('joins by opening or reopening the friends opt-in row', async () => {
-    const db = fakeDatabase();
-    const response = await participation(db, true);
-
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ participating: true });
-    const write = db.calls.find((call) => call.sql.includes('INSERT INTO leaderboard_opt_ins'));
-    expect(write?.sql).toContain('revoked_at = NULL');
-    expect(write?.values).toEqual([ME]);
-  });
-
-  it('leaves by revoking rather than deleting, keeping the opt-in auditable', async () => {
-    const db = fakeDatabase();
-    const response = await participation(db, false);
-
-    expect(response.json()).toEqual({ participating: false });
-    const write = db.calls.find((call) => call.sql.includes('UPDATE leaderboard_opt_ins'));
-    expect(write?.sql).toContain('SET revoked_at = now()');
-    expect(db.calls.some((call) => call.sql.includes('DELETE FROM leaderboard_opt_ins'))).toBe(
-      false
-    );
-    expect(db.calls.some((call) => call.sql.includes('privacy_audit_events'))).toBe(true);
-  });
-
-  // Fastify's ajv coerces scalars app-wide, so `1`/`0`/`null` become booleans
-  // rather than failing validation. Only genuinely unusable bodies are listed.
-  it.each([
-    ['missing', {}],
-    ['a non-boolean string', { participating: 'yes' }],
-    ['an object', { participating: { on: true } }]
-  ])('rejects %s participating', async (_label, payload) => {
-    const response = await appWith(fakeDatabase()).inject({
-      method: 'PUT',
-      url: '/v1/friends/standings/participation',
-      headers: auth,
-      payload
-    });
-    expect(response.statusCode).toBe(400);
-  });
-
-  it('ignores an unknown scope key rather than acting on it', async () => {
-    // Fastify's ajv strips unknown properties app-wide, so an extra key is
-    // dropped instead of rejected. What matters is that it changes nothing:
-    // only the 'friends' scope is ever written.
-    const db = fakeDatabase();
-    const response = await appWith(db).inject({
-      method: 'PUT',
-      url: '/v1/friends/standings/participation',
-      headers: auth,
-      payload: { participating: true, scope: 'global' }
-    });
-
-    expect(response.json()).toEqual({ participating: true });
-    const write = db.calls.find((call) => call.sql.includes('INSERT INTO leaderboard_opt_ins'));
-    expect(write?.sql).toContain("'friends'");
-    expect(write?.sql).not.toContain('global');
   });
 });

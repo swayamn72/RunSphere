@@ -96,7 +96,6 @@ interface PlayData {
     mode: ChallengeMode,
     lengthDays: ChallengeLengthDays
   ) => Promise<string | undefined>;
-  readonly setParticipating: (participating: boolean) => Promise<void>;
   readonly setGlobalParticipating: (participating: boolean) => Promise<string | undefined>;
   readonly setCompetitionEntry: (
     competitionId: string,
@@ -310,18 +309,6 @@ const usePlayData = (api: MobileApiClient, onSessionExpired: () => void): PlayDa
     [api, load]
   );
 
-  const setParticipating = useCallback(
-    async (participating: boolean) => {
-      try {
-        await api.setFriendStandingsParticipation(participating);
-        load();
-      } catch {
-        if (mounted.current) setStandingsRemoteState('error');
-      }
-    },
-    [api, load]
-  );
-
   /**
    * Joining or leaving the global board. The reload afterwards is what makes
    * the change visible: leaving takes the reader off the published board on
@@ -403,7 +390,6 @@ const usePlayData = (api: MobileApiClient, onSessionExpired: () => void): PlayDa
     reload: load,
     respond,
     create,
-    setParticipating,
     setGlobalParticipating,
     setCompetitionEntry,
     setTerritoryEnrolled
@@ -443,7 +429,6 @@ export function PlayScreen({
     reload,
     respond,
     create,
-    setParticipating,
     setGlobalParticipating,
     setCompetitionEntry,
     setTerritoryEnrolled
@@ -676,20 +661,7 @@ export function PlayScreen({
           <Text style={styles.helper}>Loading standings.</Text>
         </View>
       )}
-      {standings && !standings.participating && (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>You are not on the friend board</Text>
-          <Text style={styles.body}>
-            Joining shares one number with mutual friends who have also joined: your counted active
-            minutes this week. Never your route, pace, or where you went. You can leave at any time.
-          </Text>
-          <PrimaryButton
-            label="Join the friend board"
-            onPress={() => void setParticipating(true)}
-          />
-        </View>
-      )}
-      {standings?.participating && (
+      {standings && (
         <View style={styles.card}>
           <Text style={styles.weekLabel}>
             Week of {standings.periodStart} · counted active minutes
@@ -708,17 +680,10 @@ export function PlayScreen({
           ))}
           {!rows.length && (
             <Text style={styles.body}>
-              No mutual friend has joined the board yet. It fills in as they do.
+              Add a friend and you will both appear here. The board shows one number — counted
+              active minutes this week — and never a route, a pace, or where anybody went.
             </Text>
           )}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Leave the friend board"
-            onPress={() => void setParticipating(false)}
-            style={styles.guideAction}
-          >
-            <Text style={styles.guideActionText}>Leave the board</Text>
-          </Pressable>
         </View>
       )}
       {standingsRemoteState === 'offline' && (

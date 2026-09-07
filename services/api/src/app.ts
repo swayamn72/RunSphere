@@ -86,6 +86,8 @@ import { registerTerritoryRoutes } from './territory-routes.js';
 import { registerTerritorySeasonRoutes } from './territory-season-routes.js';
 import { registerTerritoryClaimRoutes } from './territory-claim-routes.js';
 import { registerTerritoryBoardRoutes } from './territory-board-routes.js';
+import { registerEmailWebhookRoutes } from './email-webhook-routes.js';
+import { registerRouteSuggestionRoutes } from './route-suggestion-routes.js';
 import { loadRestrictions } from './sanction-guard.js';
 import {
   hashPassword,
@@ -144,7 +146,7 @@ type ActivityRow = {
   rejection_reason: string | null;
   validation_errors: unknown;
   expected_chunk_count: number | null;
-  movement_type?: 'walk' | 'run' | 'hike';
+  movement_type?: 'run';
   created_at?: Date | string;
 };
 const validationErrors = (value: unknown): string[] =>
@@ -318,13 +320,15 @@ export const buildApp = ({
         timestamp: new Date().toISOString()
       })
     );
-    routes.get('/satellite.json', async (_request, reply) => {
+    routes.get('/satellite.json', async (_request, _reply) => {
       return {
         version: 8,
         sources: {
           esri: {
             type: 'raster',
-            tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+            tiles: [
+              'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+            ],
             tileSize: 256,
             attribution: 'Tiles © Esri'
           }
@@ -1299,6 +1303,16 @@ export const buildApp = ({
         const accountId = requireAccount(request, reply, authSecret);
         if (!accountId) return;
         const key = request.headers['idempotency-key']!;
+        // The fingerprint is what makes an idempotency key safe: replaying a key
+        // with a *different* body is a client bug, and answering 200 with the
+        // first activity's id would hide it.
+        //
+        // Since 2026-09-06 the body has exactly one legal value
+        // (`product.md`: running only), so two requests carrying the same key
+        // necessarily agree and the 409 below is currently unreachable. It is
+        // kept rather than removed: it is the correctness guard for this
+        // pattern, it costs one hash, and a second approved activity type
+        // revives it the moment the union widens.
         const fingerprint = sha256(JSON.stringify({ movementType: request.body.movementType }));
         const insert = await database.query<{ id: string; status: 'received' }>(
           `INSERT INTO activity_submissions (account_id, idempotency_key, movement_type, request_fingerprint)
@@ -1665,6 +1679,14 @@ export const buildApp = ({
     registerTerritorySeasonRoutes({ routes, database, authSecret });
     registerTerritoryClaimRoutes({ routes, database, authSecret });
     registerTerritoryBoardRoutes({ routes, database, authSecret });
+    registerRouteSuggestionRoutes({ routes, database, authSecret });
+    // The provider's bounce and complaint webhook. Unauthenticated but signed,
+    // and disabled entirely when no secret is configured.
+    registerEmailWebhookRoutes({
+      routes,
+      database,
+      webhookSecret: process.env.EMAIL_WEBHOOK_SECRET?.trim() || undefined
+    });
 
     done();
   });

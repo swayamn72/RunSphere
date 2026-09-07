@@ -166,17 +166,20 @@ describe('a paused account cannot publish itself', () => {
     expect(db.sql()).not.toContain('INSERT INTO leaderboard_opt_ins');
   });
 
-  it('refuses the friend board', async () => {
+  it('is left off the friend board rather than refused entry to it', async () => {
+    // The friend board became automatic on 2026-09-06 (`gameplay.md`), so there
+    // is no join to refuse. The invariant moved rather than went: a suspension
+    // pauses being visible to other people, so the read excludes the account
+    // instead of turning it away.
     const db = paused();
     const response = await appWith(db).inject({
-      method: 'PUT',
-      url: '/v1/friends/standings/participation',
-      headers: auth,
-      payload: { participating: true }
+      method: 'GET',
+      url: '/v1/friends/standings',
+      headers: auth
     });
 
-    expect(response.statusCode).toBe(403);
-    expect(db.sql()).not.toContain('INSERT INTO leaderboard_opt_ins');
+    expect(response.statusCode).toBe(200);
+    expect(db.sql()).toContain('NOT EXISTS (SELECT 1 FROM sanctions');
   });
 
   it('refuses a friend request before it looks at the address', async () => {

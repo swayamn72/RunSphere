@@ -1,39 +1,6 @@
 import type React from 'react';
 import { Pressable, Text, View } from 'react-native';
-import type { MovementPreference } from '../onboarding';
 import { useAppStyles } from './styles';
-
-export function MovementChoice({
-  selected,
-  onChoose
-}: {
-  selected: MovementPreference;
-  onChoose: (movement: MovementPreference) => void;
-}) {
-  const styles = useAppStyles();
-  const labels: Record<MovementPreference, [string, string]> = {
-    walk: ['Walk', 'Every step counts'],
-    run: ['Run', 'Find your pace'],
-    hike: ['Hike', 'Explore farther']
-  };
-  return (
-    <View style={styles.choiceGrid} accessibilityRole="radiogroup">
-      {(Object.keys(labels) as MovementPreference[]).map((movement) => (
-        <Pressable
-          key={movement}
-          accessibilityRole="radio"
-          accessibilityState={{ selected: selected === movement }}
-          accessibilityLabel={`Choose ${labels[movement][0].toLowerCase()}`}
-          onPress={() => onChoose(movement)}
-          style={[styles.choice, selected === movement && styles.choiceSelected]}
-        >
-          <Text style={styles.choiceTitle}>{labels[movement][0]}</Text>
-          <Text style={styles.rowDetail}>{labels[movement][1]}</Text>
-        </Pressable>
-      ))}
-    </View>
-  );
-}
 
 export function StepHeader({ step, onBack }: { step: string; onBack: () => void }) {
   const styles = useAppStyles();

@@ -4,7 +4,7 @@ import { createActivityQueue, type ActivityQueueDatabase } from './activity-queu
 class MemoryDatabase implements ActivityQueueDatabase {
   readonly rows = new Map<
     string,
-    { id: string; movementType: 'walk' | 'run'; createdAt: string; status: 'ready' }
+    { id: string; movementType: 'run'; createdAt: string; status: 'ready' }
   >();
   version = 0;
 
@@ -14,12 +14,7 @@ class MemoryDatabase implements ActivityQueueDatabase {
 
   async runAsync(sql: string, ...params: unknown[]): Promise<{ changes: number }> {
     if (sql.startsWith('INSERT')) {
-      const [id, movementType, createdAt, status] = params as [
-        string,
-        'walk' | 'run',
-        string,
-        'ready'
-      ];
+      const [id, movementType, createdAt, status] = params as [string, 'run', string, 'ready'];
       if (this.rows.has(id)) return { changes: 0 };
       this.rows.set(id, { id, movementType, createdAt, status });
       return { changes: 1 };
@@ -47,7 +42,7 @@ describe('activity queue', () => {
 
     const activity = {
       id: 'activity-1',
-      movementType: 'hike' as const,
+      movementType: 'run' as const,
       createdAt: '2026-08-27T00:00:00Z',
       status: 'ready' as const
     };

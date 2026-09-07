@@ -25,6 +25,15 @@ describe('app shell selection', () => {
     expect(isTabBarVisible('tab-scroll')).toBe(true);
   });
 
+  it('gives the route preview a focused shell, so choosing is not a tab', () => {
+    // The screen owns a back header and a decision; the tab bar underneath it
+    // would offer two ways out of the same choice.
+    expect(selectAppShell({ ...standard, hasRoutePreview: true, exploreInteractive: true })).toBe(
+      'focused-scroll'
+    );
+    expect(isTabBarVisible('focused-scroll')).toBe(false);
+  });
+
   it('reserves focused flex ownership for interactive Live recording', () => {
     expect(
       selectAppShell({

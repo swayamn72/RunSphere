@@ -5,8 +5,12 @@ import {
   TerritoryEventCreateRequestSchema,
   TerritoryEventListResponseSchema,
   TerritoryConcentrationReportSchema,
+  TerritoryHallOfFameQuerySchema,
+  TerritoryHallOfFameResponseSchema,
   TerritoryLeaderboardQuerySchema,
   TerritoryLeaderboardResponseSchema,
+  TerritoryClaimSeasonListResponseSchema,
+  TerritoryClaimSeasonRecapResponseSchema,
   TerritoryTradeFlagListResponseSchema,
   TerritoryTradeReviewRequestSchema,
   type Coordinate,
@@ -14,11 +18,17 @@ import {
   type TerritoryEvent,
   type TerritoryEventCreateRequest,
   type TerritoryEventListResponse,
+  type TerritoryHallOfFameEntry,
+  type TerritoryHallOfFameQuery,
+  type TerritoryHallOfFameResponse,
   type TerritoryLeaderboardEntry,
   type TerritoryLeaderboardMetric,
+  type TerritoryLeaderboardPeriod,
   type TerritoryLeaderboardQuery,
   type TerritoryLeaderboardResponse,
   type TerritoryLeaderboardScope,
+  type TerritoryClaimSeasonListResponse,
+  type TerritoryClaimSeasonRecapResponse,
   type TerritoryTradeFlagListResponse,
   type TerritoryTradeReviewRequest
 } from '@runsphere/contracts';
@@ -27,7 +37,10 @@ import {
   CLAIM_TRADING_REVIEW_NOTE,
   canModerate,
   canOperateCompetitions,
-  divisionConcentration
+  divisionConcentration,
+  rankWeekStart,
+  seasonEndsAt,
+  seasonMonthFor
 } from '@runsphere/domain';
 import { verifyAccessToken } from './auth.js';
 import { notSharingSuspended } from './sanction-guard.js';
@@ -154,6 +167,76 @@ interface BoardRow {
   fastest_seconds: number | null;
 }
 
+/** A place board is city, country, or the whole world. */
+const PLACE_SCOPES = new Set<TerritoryLeaderboardScope>(['city', 'country', 'global']);
+
+/**
+ * What the reader's own claims say about where they run.
+ *
+ * `screens.md` 1.2 wants the My City tab pre-selected without asking anybody to
+ * pick a city from a list of every city on earth, so it is inferred from their
+ * own held ground — the most ground first, because somebody who has one claim
+ * in Pune and nine in Mumbai is a Mumbai runner.
+ *
+ * Nothing is stored. This is derived per request from claims that are already
+ * on a public map, so it adds no new record of where anybody lives.
+ */
+const inferPlace = async (
+  database: Database,
+  accountId: string,
+  scope: 'city' | 'country',
+  seasonMonth: string
+): Promise<string | undefined> => {
+  const column = scope === 'city' ? 'city_tag' : 'country_tag';
+  const found = await database.query<{ scope_key: string }>(
+    `SELECT ${column} AS scope_key
+     FROM territory_claims
+     WHERE account_id = $1 AND ${column} IS NOT NULL AND season_month = $2
+     GROUP BY ${column}
+     ORDER BY sum(area_sqm) DESC
+     LIMIT 1`,
+    [accountId, seasonMonth]
+  );
+  if (found.rows[0]) return found.rows[0].scope_key;
+  // Fall back to any season: a runner between seasons still has a city.
+  const ever = await database.query<{ scope_key: string }>(
+    `SELECT ${column} AS scope_key FROM territory_claims
+     WHERE account_id = $1 AND ${column} IS NOT NULL
+     GROUP BY ${column} ORDER BY sum(area_sqm) DESC LIMIT 1`,
+    [accountId]
+  );
+  return ever.rows[0]?.scope_key;
+};
+
+/** The SQL filter for a place scope, and the value it binds. */
+const placeFilterFor = (
+  scope: TerritoryLeaderboardScope,
+  scopeKey: string | undefined,
+  parameterIndex: number
+): { clause: string; value?: string } => {
+  if (scope === 'city' && scopeKey)
+    return { clause: `AND claim.city_tag = $${parameterIndex}`, value: scopeKey };
+  if (scope === 'country' && scopeKey)
+    return { clause: `AND claim.country_tag = $${parameterIndex}`, value: scopeKey };
+  return { clause: '' };
+};
+
+/** What each all-time record counts, said next to it. */
+const HALL_OF_FAME_NOTE: Readonly<Record<'largest_holding' | 'largest_claim', string>> = {
+  largest_holding: 'The most ground one runner has ever held at once here.',
+  largest_claim: 'The single biggest loop anybody has ever kept here.'
+};
+
+/**
+ * When the season being played resets: 00:01 IST on the 1st of next month.
+ *
+ * Sent so the app's countdown badge needs no timezone rules of its own — the
+ * server owns when a season ends, as it owns everything else about scoring.
+ */
+// The instant itself lives in the domain (`seasonEndsAt`), because the
+// three-day warning job has to agree with what this route publishes.
+const seasonEndsAtIso = (now: Date): string => seasonEndsAt(now).toISOString();
+
 export const registerTerritoryBoardRoutes = ({
   routes,
   database,
@@ -187,7 +270,103 @@ export const registerTerritoryBoardRoutes = ({
 
       const scope: TerritoryLeaderboardScope = request.query.scope ?? 'individual';
       const metric: TerritoryLeaderboardMetric = request.query.metric ?? 'area';
+      const period: TerritoryLeaderboardPeriod = request.query.period ?? 'season';
       const club = scope === 'club';
+      const currentSeason = seasonMonthFor(new Date());
+      const seasonMonth = request.query.seasonMonth ?? currentSeason;
+
+      // A place board needs a place. Asked for, or inferred from the reader's
+      // own ground, which is what the app's My City tab wants.
+      let scopeKey: string | undefined;
+      let scopeInferred = false;
+      if (scope === 'city' || scope === 'country') {
+        scopeKey = request.query.scopeKey;
+        if (!scopeKey) {
+          scopeKey = await inferPlace(database, accountId, scope, seasonMonth);
+          scopeInferred = true;
+        }
+        if (!scopeKey) {
+          // They hold no tagged ground, so there is no city to show them. Said
+          // as its own reason rather than as an empty board, which would read
+          // as "nobody here" instead of "we do not know where you run".
+          const empty: TerritoryLeaderboardResponse = {
+            scope,
+            metric,
+            period,
+            seasonMonth,
+            entries: [],
+            unavailableReason: 'no_place_yet',
+            note: LEADERBOARD_NOTE[metric]
+          };
+          return empty;
+        }
+      }
+
+      // A finished season, or a week, is read from the frozen snapshot rather
+      // than recomputed: by then the claims are archived and the ground belongs
+      // to somebody else, so a live query would answer a different question.
+      const fromSnapshot = period === 'week' || seasonMonth !== currentSeason;
+      if (fromSnapshot && PLACE_SCOPES.has(scope)) {
+        const snapshotScope = scope === 'global' ? 'global' : scope;
+        const snapshotKey = scope === 'global' ? 'GLOBAL' : scopeKey!;
+        const values: unknown[] =
+          period === 'week'
+            ? [seasonMonth, snapshotScope, snapshotKey, rankWeekStart(new Date()), BOARD_LIMIT]
+            : [seasonMonth, snapshotScope, snapshotKey, BOARD_LIMIT];
+        const rows = await database.query<{
+          account_id: string;
+          display_name: string | null;
+          cosmetic: unknown;
+          total_area_sqm: number;
+          claim_count: number;
+          rank: number;
+        }>(
+          `SELECT snapshot.account_id, profile.display_name, profile.cosmetic,
+             snapshot.total_area_sqm, snapshot.claim_count, snapshot.rank
+           FROM territory_claim_season_snapshots snapshot
+           LEFT JOIN profiles profile ON profile.account_id = snapshot.account_id
+           WHERE snapshot.season_month = $1 AND snapshot.scope = $2 AND snapshot.scope_key = $3
+             AND snapshot.kind = ${period === 'week' ? "'weekly' AND snapshot.week_start = $4::date" : "'final'"}
+           ORDER BY snapshot.rank
+           LIMIT ${period === 'week' ? '$5' : '$4'}`,
+          values
+        );
+
+        const snapshotEntries: TerritoryLeaderboardEntry[] = rows.rows.map((row) => ({
+          rank: Number(row.rank),
+          owner: {
+            id: row.account_id,
+            displayName: row.display_name ?? 'RunSphere member',
+            avatarKey: avatarKeyFrom(row.cosmetic),
+            isSelf: row.account_id === accountId
+          },
+          totalAreaSqm: Number(row.total_area_sqm),
+          claimCount: Number(row.claim_count),
+          // A snapshot records ground and rank, not how it was won. Sending a
+          // zero would read as "defended nothing"; it means "not recorded".
+          defendedCount: 0,
+          isSelf: row.account_id === accountId
+        }));
+
+        const response: TerritoryLeaderboardResponse = {
+          scope,
+          metric: 'area',
+          period,
+          seasonMonth,
+          ...(scope !== 'global' && scopeKey ? { scopeKey } : {}),
+          ...(scopeInferred ? { scopeInferred: true } : {}),
+          entries: snapshotEntries,
+          note:
+            period === 'week'
+              ? 'Ground held when the week was recorded, on Monday. It does not move until next Monday.'
+              : `Where everybody finished in ${seasonMonth}. This season is over and its ground has been released.`
+        };
+        return response;
+      }
+
+      const place = placeFilterFor(scope, scopeKey, 3);
+      const values: unknown[] = [BOARD_LIMIT, seasonMonth];
+      if (place.value) values.push(place.value);
 
       // `capture_count > 1` is ground taken off somebody: the holder won a
       // challenge for it, which is what "defended" means here.
@@ -205,14 +384,16 @@ export const registerTerritoryBoardRoutes = ({
          LEFT JOIN profiles profile ON profile.account_id = claim.account_id
          LEFT JOIN clubs club ON club.id = claim.club_id
          WHERE claim.released_at IS NULL
+           AND claim.season_month = $2
            AND account.deleted_at IS NULL
            AND ${notSharingSuspended('claim.account_id')}
            AND ${NOT_TRADED_GROUND}
            ${club ? 'AND claim.club_id IS NOT NULL' : ''}
+           ${place.clause}
          GROUP BY ${club ? 'claim.club_id' : 'claim.account_id'}
          ORDER BY ${ORDER_BY[metric]}
          LIMIT $1`,
-        [BOARD_LIMIT]
+        values
       );
 
       const entries: TerritoryLeaderboardEntry[] = rows.rows.map((row, index) => ({
@@ -239,6 +420,9 @@ export const registerTerritoryBoardRoutes = ({
       // boards skip it: a club standing is not one person's row.
       let own: TerritoryLeaderboardEntry | undefined;
       if (!club && !entries.some((entry) => entry.isSelf)) {
+        const selfPlace = placeFilterFor(scope, scopeKey, 3);
+        const selfValues: unknown[] = [accountId, seasonMonth];
+        if (selfPlace.value) selfValues.push(selfPlace.value);
         const mine = await database.query<BoardRow>(
           `SELECT claim.account_id::text AS key, max(profile.display_name) AS display_name,
              (array_agg(profile.cosmetic))[1] AS cosmetic, NULL::text AS club_name,
@@ -249,9 +433,11 @@ export const registerTerritoryBoardRoutes = ({
            FROM territory_claims claim
            LEFT JOIN profiles profile ON profile.account_id = claim.account_id
            WHERE claim.released_at IS NULL AND claim.account_id = $1
+             AND claim.season_month = $2
              AND ${NOT_TRADED_GROUND}
+             ${selfPlace.clause}
            GROUP BY claim.account_id`,
-          [accountId]
+          selfValues
         );
         const row = mine.rows[0];
         if (row) {
@@ -276,9 +462,274 @@ export const registerTerritoryBoardRoutes = ({
       const response: TerritoryLeaderboardResponse = {
         scope,
         metric,
+        period,
+        seasonMonth,
+        ...((scope === 'city' || scope === 'country') && scopeKey ? { scopeKey } : {}),
+        ...(scopeInferred ? { scopeInferred: true } : {}),
         entries,
         ...(own ? { self: own } : {}),
         note: LEADERBOARD_NOTE[metric]
+      };
+      return response;
+    }
+  );
+
+  /**
+   * The seasons there have been, and when this one ends.
+   *
+   * A season picker needs a list, and a countdown badge needs a deadline. The
+   * deadline is computed here rather than in the app so nothing client-side has
+   * to know that a Turf month ends at 00:01 Asia/Kolkata.
+   */
+  routes.get(
+    '/v1/territory/leaderboard/seasons',
+    {
+      schema: {
+        tags: ['territory'],
+        headers: ActivityAuthorizationHeadersSchema,
+        response: {
+          200: TerritoryClaimSeasonListResponseSchema,
+          401: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+
+      const now = new Date();
+      const current = seasonMonthFor(now);
+      const seasons = await database.query<{
+        season_month: string;
+        started_at: Date;
+        ended_at: Date | null;
+        claims_archived: number;
+      }>(
+        `SELECT season_month, started_at, ended_at, claims_archived
+         FROM territory_claim_seasons ORDER BY season_month DESC LIMIT 60`
+      );
+
+      const response: TerritoryClaimSeasonListResponse = {
+        data: seasons.rows.map((row) => ({
+          seasonMonth: row.season_month,
+          startedAt: row.started_at.toISOString(),
+          ...(row.ended_at ? { endedAt: row.ended_at.toISOString() } : {}),
+          claimsArchived: Number(row.claims_archived),
+          isCurrent: row.season_month === current
+        })),
+        currentSeasonMonth: current,
+        currentSeasonEndsAt: seasonEndsAtIso(now)
+      };
+      return response;
+    }
+  );
+
+  /**
+   * All-time records for a place.
+   *
+   * Kept per place because a worldwide record is unreachable for almost
+   * everybody, and a record nobody can beat is a fact rather than a game. A
+   * Mumbai record is something a Mumbai runner can go and take.
+   *
+   * The holder is display identity, which every board and the map already
+   * publish (ADR-0011). `displayName` is stored on the record rather than
+   * joined, so a record set by an account that has since been erased still
+   * reads as a sentence — the run happened either way.
+   */
+  routes.get<{ Querystring: TerritoryHallOfFameQuery }>(
+    '/v1/territory/leaderboard/hall-of-fame',
+    {
+      schema: {
+        tags: ['territory'],
+        headers: ActivityAuthorizationHeadersSchema,
+        querystring: TerritoryHallOfFameQuerySchema,
+        response: {
+          200: TerritoryHallOfFameResponseSchema,
+          401: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+
+      const scope = request.query.scope ?? 'city';
+      let scopeKey = request.query.scopeKey;
+      if (scope !== 'global' && !scopeKey) {
+        scopeKey = await inferPlace(database, accountId, scope, seasonMonthFor(new Date()));
+        if (!scopeKey) {
+          const empty: TerritoryHallOfFameResponse = {
+            scope,
+            entries: [],
+            unavailableReason: 'no_place_yet',
+            note: 'Claim some ground and the records for where you run will show up here.'
+          };
+          return empty;
+        }
+      }
+
+      const rows = await database.query<{
+        record_type: string;
+        value_sqm: number;
+        display_name: string;
+        account_id: string | null;
+        cosmetic: unknown;
+        season_month: string;
+        achieved_at: Date;
+      }>(
+        `SELECT record.record_type, record.value_sqm, record.display_name,
+           record.account_id, profile.cosmetic, record.season_month, record.achieved_at
+         FROM territory_claim_hall_of_fame record
+         LEFT JOIN profiles profile ON profile.account_id = record.account_id
+         WHERE record.scope = $1 AND record.scope_key = $2
+         ORDER BY record.record_type`,
+        [scope, scope === 'global' ? 'GLOBAL' : scopeKey]
+      );
+
+      const entries: TerritoryHallOfFameEntry[] = rows.rows.flatMap((row) => {
+        const recordType = row.record_type;
+        if (recordType !== 'largest_holding' && recordType !== 'largest_claim') return [];
+        return [
+          {
+            recordType,
+            valueSqm: Number(row.value_sqm),
+            displayName: row.display_name,
+            ...(row.account_id
+              ? {
+                  owner: {
+                    id: row.account_id,
+                    displayName: row.display_name,
+                    avatarKey: avatarKeyFrom(row.cosmetic),
+                    isSelf: row.account_id === accountId
+                  }
+                }
+              : {}),
+            seasonMonth: row.season_month,
+            achievedAt: row.achieved_at.toISOString(),
+            note: HALL_OF_FAME_NOTE[recordType]
+          }
+        ];
+      });
+
+      const response: TerritoryHallOfFameResponse = {
+        scope,
+        ...(scope !== 'global' && scopeKey ? { scopeKey } : {}),
+        entries,
+        note:
+          entries.length === 0
+            ? 'No records here yet. The first runner to hold ground through a season sets them.'
+            : 'All-time records. Beating one replaces it.'
+      };
+      return response;
+    }
+  );
+
+  /**
+   * The reader's own recap of the last finished season (`screens.md` 1.5).
+   *
+   * Read from the final snapshot, which is the only place it survives: by now
+   * the claims are archived and their ground belongs to whoever took it in the
+   * new month.
+   *
+   * Absent with a reason rather than empty, because the app shows this as a
+   * full-screen card once and a card that says "you finished nowhere with no
+   * ground" is worse than no card.
+   */
+  routes.get(
+    '/v1/territory/leaderboard/recap',
+    {
+      schema: {
+        tags: ['territory'],
+        headers: ActivityAuthorizationHeadersSchema,
+        response: {
+          200: TerritoryClaimSeasonRecapResponseSchema,
+          401: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+
+      const finished = await database.query<{ season_month: string }>(
+        `SELECT season_month FROM territory_claim_seasons
+         WHERE ended_at IS NOT NULL ORDER BY season_month DESC LIMIT 1`
+      );
+      const seasonMonth = finished.rows[0]?.season_month;
+      if (!seasonMonth) {
+        const none: TerritoryClaimSeasonRecapResponse = { unavailableReason: 'no_finished_season' };
+        return none;
+      }
+
+      // The city row where they have one, because a city rank is the fact worth
+      // showing; the global row otherwise.
+      const mine = await database.query<{
+        scope: string;
+        scope_key: string;
+        rank: number;
+        total_area_sqm: number;
+        peak_area_sqm: number;
+        claim_count: number;
+        longest_held_days: number;
+      }>(
+        `SELECT scope, scope_key, rank, total_area_sqm, peak_area_sqm, claim_count,
+           longest_held_days
+         FROM territory_claim_season_snapshots
+         WHERE account_id = $1 AND season_month = $2 AND kind = 'final'
+         ORDER BY CASE scope WHEN 'city' THEN 0 WHEN 'country' THEN 1 ELSE 2 END
+         LIMIT 1`,
+        [accountId, seasonMonth]
+      );
+      const row = mine.rows[0];
+      if (!row) {
+        const none: TerritoryClaimSeasonRecapResponse = { unavailableReason: 'held_nothing' };
+        return none;
+      }
+
+      const records = await database.query<{
+        record_type: string;
+        value_sqm: number;
+        display_name: string;
+        season_month: string;
+        achieved_at: Date;
+      }>(
+        `SELECT record_type, value_sqm, display_name, season_month, achieved_at
+         FROM territory_claim_hall_of_fame
+         WHERE season_month = $1 AND scope = $2 AND scope_key = $3
+         ORDER BY record_type`,
+        [seasonMonth, row.scope, row.scope_key]
+      );
+
+      const response: TerritoryClaimSeasonRecapResponse = {
+        recap: {
+          seasonMonth,
+          rank: Number(row.rank),
+          ...(row.scope === 'city' ? { cityTag: row.scope_key } : {}),
+          peakAreaSqm: Number(row.peak_area_sqm),
+          finalAreaSqm: Number(row.total_area_sqm),
+          claimCount: Number(row.claim_count),
+          longestHeldDays: Number(row.longest_held_days),
+          records: records.rows.flatMap((record) => {
+            const recordType = record.record_type;
+            if (recordType !== 'largest_holding' && recordType !== 'largest_claim') return [];
+            return [
+              {
+                recordType,
+                valueSqm: Number(record.value_sqm),
+                displayName: record.display_name,
+                seasonMonth: record.season_month,
+                achievedAt: record.achieved_at.toISOString(),
+                note: HALL_OF_FAME_NOTE[recordType]
+              }
+            ];
+          })
+        }
       };
       return response;
     }

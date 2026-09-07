@@ -3,6 +3,7 @@ import type { Database } from '@runsphere/db';
 import type { Logger } from '@runsphere/observability';
 import {
   defaultNotificationPreferences,
+  notificationCategoriesFrom,
   pushCapWindowStart,
   pushDeliveryDecision,
   type NotificationKind,
@@ -208,7 +209,7 @@ interface PreferencesRow {
 const preferencesFromRow = (row: PreferencesRow | undefined): NotificationPreferences => {
   if (!row) return defaultNotificationPreferences();
   const preferences: NotificationPreferences = {
-    categories: row.categories as NotificationPreferences['categories'],
+    categories: notificationCategoriesFrom(row.categories),
     maxPerDay: row.max_per_day,
     channels: row.channels as NotificationPreferences['channels'],
     // Push delivery never consults campaign consent — it is here only because

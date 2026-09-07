@@ -31,6 +31,7 @@ vi.mock('../theme/theme', () => ({
     tokens: {
       background: { canvas: '#fff', surface: '#f7f7f7', surfaceInset: '#eee' },
       border: { subtle: '#ddd' },
+      action: { primary: '#184F3D' },
       text: { primary: '#111', secondary: '#555', tertiary: '#888', onAccent: '#fff' },
       mascot: {
         body: '#D9EAE0',
@@ -58,6 +59,8 @@ const claim = (overrides: Partial<TerritoryClaim> = {}): TerritoryClaim => ({
   areaSqm: 482_000,
   distanceMetres: 5100,
   durationSeconds: 1662,
+  speedMps: 5100 / 1662,
+  seasonMonth: '2026-09',
   captureCount: 4,
   status: 'contested',
   claimedAt: '2026-09-06T05:10:00.000Z',
@@ -189,6 +192,48 @@ describe('the territory detail page', () => {
     });
 
     expect(onBack).toHaveBeenCalled();
+  });
+
+  describe('the Ghost Race button', () => {
+    it('offers a race against the holder', async () => {
+      const onGhostRace = vi.fn();
+      const renderer = await render({
+        claim: claim(),
+        history: history(),
+        onBack: () => {},
+        onGhostRace
+      });
+
+      const [button] = byLabel(renderer, "Race Ravi's ghost");
+      await act(async () => {
+        (button!.props as { onPress: () => void }).onPress();
+      });
+
+      expect(onGhostRace).toHaveBeenCalled();
+    });
+
+    it('is absent on your own ground', async () => {
+      // `screens.md` 1.3: "No Ghost Race button on your own territory." The
+      // server refuses it too, but a button that exists only to be refused is
+      // worse than no button.
+      const renderer = await render({
+        claim: claim({
+          owner: { id: ME, displayName: 'You', avatarKey: 'orbit-01', isSelf: true }
+        }),
+        history: history(),
+        onBack: () => {},
+        onGhostRace: vi.fn()
+      });
+
+      expect(byLabel(renderer, "Race You's ghost")).toHaveLength(0);
+      expect(textOf(renderer)).not.toContain('Ghost Race');
+    });
+
+    it('is absent when the caller has nowhere to send the runner', async () => {
+      const renderer = await render({ claim: claim(), history: history(), onBack: () => {} });
+
+      expect(textOf(renderer)).not.toContain('Ghost Race');
+    });
   });
 
   it('names the club when ground is held for one', async () => {

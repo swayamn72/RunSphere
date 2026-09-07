@@ -64,6 +64,20 @@ const polygonJson = JSON.stringify({
 });
 const pointJson = JSON.stringify({ type: 'Point', coordinates: [72.879, 19.0773] });
 
+/** The same block again, doubled eastward: ~180,000 m² instead of ~90,000. */
+const widePolygonJson = JSON.stringify({
+  type: 'Polygon',
+  coordinates: [
+    [
+      [72.8777, 19.076],
+      [72.8858, 19.076],
+      [72.8858, 19.0787],
+      [72.8777, 19.0787],
+      [72.8777, 19.076]
+    ]
+  ]
+});
+
 const claimRow = (overrides: Record<string, unknown> = {}) => ({
   id: CLAIM,
   account_id: RIVAL,
@@ -72,8 +86,35 @@ const claimRow = (overrides: Record<string, unknown> = {}) => ({
   boundary: polygonJson,
   centroid: pointJson,
   area_sqm: 90_000,
+  // Four 300 m sides. NOT NULL since `036` — it is the perimeter half of the
+  // speed a challenger has to beat.
+  distance_metres: 1_200,
   duration_seconds: 600,
+  season_month: '2026-09',
   claimed_at: new Date('2026-09-06T05:10:00.000Z'),
+  ...overrides
+});
+
+/**
+ * A claim on the map, as the contest query reads it.
+ *
+ * `h3_cell_set` is left empty on purpose in most tests: that is what every
+ * claim written before `036` looks like, and it makes the route compute the
+ * cells from `boundary` inside the transaction — so these tests exercise the
+ * real cell arithmetic rather than a hand-written set, and cover the backfill
+ * at the same time.
+ */
+const heldRow = (overrides: Record<string, unknown> = {}) => ({
+  id: CLAIM,
+  account_id: RIVAL,
+  area_sqm: 90_000,
+  distance_metres: 1_200,
+  duration_seconds: 900,
+  capture_count: 1,
+  lineage_id: null,
+  h3_cell_set: [],
+  h3_resolution: 11,
+  boundary: polygonJson,
   ...overrides
 });
 
@@ -87,6 +128,7 @@ interface Stubs {
   contested?: Record<string, unknown>[];
   inserted?: Record<string, unknown>[];
   profile?: Record<string, unknown>[];
+  holderProfiles?: Record<string, unknown>[];
   takeovers?: Record<string, unknown>[];
   summary?: Record<string, unknown>[];
 }
@@ -107,6 +149,15 @@ const respond = (sql: string) => {
   if (sql.includes('FOR UPDATE')) return { rows: stubs.contested ?? [] };
   if (sql.includes('INSERT INTO territory_claims'))
     return { rows: stubs.inserted ?? [claimRow({ account_id: ME, display_name: null })] };
+  // Checked before the single-account read below, because the carve path asks
+  // for every holder's display identity in one query and both match on
+  // 'FROM profiles WHERE account_id'.
+  if (sql.includes('account_id = ANY($1)'))
+    return {
+      rows: stubs.holderProfiles ?? [
+        { account_id: RIVAL, display_name: 'Ravi', cosmetic: { avatarKey: 'orbit-04' } }
+      ]
+    };
   if (sql.includes('FROM profiles WHERE account_id'))
     return { rows: stubs.profile ?? [{ display_name: 'Me', cosmetic: { avatarKey: 'orbit-01' } }] };
   if (sql.includes('FROM territory_claim_takeovers')) return { rows: stubs.takeovers ?? [] };
@@ -205,6 +256,13 @@ describe('GET /v1/territory/claims', () => {
     stubs = { mapClaims: [claimRow({ boundary: 'not json' })] };
 
     expect((await read()).json().claims).toEqual([]);
+  });
+
+  it('shows this season ground and not a finished one', async () => {
+    await read();
+
+    const envelope = calls.find((call) => call.sql.includes('ST_MakeEnvelope'));
+    expect(envelope?.sql).toContain('claim.season_month = $6');
   });
 
   it('says what the map records about people', async () => {
@@ -375,32 +433,136 @@ describe('POST /v1/territory/claims', () => {
     expect((await claim()).json().isFirstClaim).toBe(false);
   });
 
-  it('takes the ground when it beat the holder time', async () => {
-    runnable(300, {
-      contested: [{ id: CLAIM, account_id: RIVAL, duration_seconds: 900, boundary: polygonJson }]
-    });
+  it('stores the cells it holds, the library that produced them, and the season', async () => {
+    runnable(600);
+    await claim();
+
+    const insert = calls.find((call) => call.sql.includes('INSERT INTO territory_claims'));
+    expect(insert?.sql).toContain('h3_cell_set');
+    // Reproducibility (ADR-0001): the pinned version travels with the claim so
+    // a disputed carve can be recomputed by the code that decided it.
+    expect(insert?.values).toContain('4.1.0');
+    expect(insert?.values).toContain(11);
+    expect(insert?.values?.some((value) => /^\d{4}-\d{2}$/.test(String(value)))).toBe(true);
+  });
+
+  it('takes the whole claim when nothing defensible is left of it', async () => {
+    // The two loops are the same block, so the holder keeps no connected
+    // remainder above the 5,000 m2 floor and the claim is released whole.
+    runnable(300, { contested: [heldRow()] });
     const body = (await claim()).json();
 
     expect(body).toMatchObject({ claimed: true, takenOverCount: 1 });
     expect(sql()).toContain('UPDATE territory_claims SET released_at');
     expect(sql()).toContain('INSERT INTO territory_claim_takeovers');
+    expect(body.carves[0]).toMatchObject({ carved: true, holderWipedOut: true });
   });
 
-  it('refuses when the holder was faster, and says how to win it', async () => {
-    runnable(900, {
-      contested: [{ id: CLAIM, account_id: RIVAL, duration_seconds: 300, boundary: polygonJson }]
+  it('carves the shared part and leaves the holder the rest', async () => {
+    // The mechanic ADR-0011 v3 asks for, and the one the old rule could not do:
+    // the holder loses the half that was run and keeps the half that was not.
+    runnable(300, {
+      contested: [heldRow({ boundary: widePolygonJson, area_sqm: 180_000 })]
     });
     const body = (await claim()).json();
 
+    expect(body.takenOverCount).toBe(1);
+    expect(body.carves[0]).toMatchObject({ carved: true, holderWipedOut: false });
+    expect(body.carvedAreaSqm).toBeGreaterThan(50_000);
+    // Their ground is rewritten, not released: the map must not keep showing
+    // somebody territory they no longer hold.
+    expect(sql()).toContain('SET h3_cell_set');
+    expect(sql()).not.toContain('UPDATE territory_claims SET released_at');
+  });
+
+  it('leaves the holder time and distance alone when it carves them', async () => {
+    runnable(300, {
+      contested: [heldRow({ boundary: widePolygonJson, area_sqm: 180_000 })]
+    });
+    await claim();
+
+    // Their perimeter and duration record the run they did. Rewriting either
+    // would change a speed somebody has already been measured against.
+    const update = calls.find((call) =>
+      call.sql.includes('SET h3_cell_set = $2::text[], area_sqm')
+    );
+    expect(update).toBeDefined();
+    expect(update?.sql).not.toContain('duration_seconds');
+    expect(update?.sql).not.toContain('distance_metres');
+  });
+
+  it('publishes both speeds and the grace behind the verdict', async () => {
+    runnable(300, { contested: [heldRow()] });
+    const [carve] = (await claim()).json().carves;
+
+    // The challenger's perimeter comes from the trace — ~1,167 m, because the
+    // loop is measured between the two points that closed it and not around
+    // the drawn polygon — over 300 s. The holder's is the stored 1,200 m over
+    // 900 s. Same loop length either way, so no grace is earned.
+    expect(carve.yourSpeedMps).toBeGreaterThan(3.8);
+    expect(carve.yourSpeedMps).toBeLessThan(4);
+    expect(carve.theirSpeedMps).toBeCloseTo(1.33, 1);
+    expect(carve.graceApplied).toBe(0);
+    expect(carve.effectiveSpeedMps).toBe(carve.yourSpeedMps);
+    expect(carve.holder.displayName).toBe('Ravi');
+  });
+
+  it('refuses when the holder was faster, and says how to win it', async () => {
+    runnable(900, { contested: [heldRow({ duration_seconds: 300 })] });
+    const body = (await claim()).json();
+
     expect(body).toMatchObject({ claimed: false, refusal: 'slower_than_holder' });
-    expect(body.message).toContain('Run it quicker');
-    expect(sql()).not.toContain('INSERT INTO territory_claims');
+    // Time is no longer what gets compared, so the words must not promise it is.
+    expect(body.message).toContain('speed');
+    expect(sql()).not.toContain('INSERT INTO territory_claims (');
+  });
+
+  it('records a failed challenge with the numbers it lost by', async () => {
+    runnable(900, { contested: [heldRow({ duration_seconds: 300 })] });
+    const body = (await claim()).json();
+
+    // A defence is what lets a territory say how often it has been *held*, not
+    // only how often it changed hands.
+    const attempt = calls.find((call) => call.sql.includes('INSERT INTO territory_claim_attempts'));
+    expect(attempt?.sql).toContain('effective_speed_mps');
+    expect(attempt?.values).toContain('slower');
+    expect(body.carves[0]).toMatchObject({ carved: false, overlapTooSmall: false });
+  });
+
+  it('computes the cells for a claim written before carving existed', async () => {
+    // A pre-036 claim has no cell set. Left alone it would be invisible to the
+    // contest, and anybody could claim straight over it.
+    runnable(300, { contested: [heldRow({ h3_cell_set: [] })] });
+    await claim();
+
+    const repair = calls.find((call) =>
+      call.sql.includes('SET h3_cell_set = $2::text[], h3_resolution')
+    );
+    expect(repair).toBeDefined();
+    expect(repair?.values?.[0]).toBe(CLAIM);
+  });
+
+  it('finds ground to contest by cells and by outline, so no claim is missed', async () => {
+    runnable(300, { contested: [heldRow()] });
+    await claim();
+
+    const contest = calls.find((call) => call.sql.includes('FOR UPDATE'));
+    expect(contest?.sql).toContain('h3_cell_set && $1::text[]');
+    expect(contest?.sql).toContain('claim.boundary &&');
+  });
+
+  it('only contests ground held in the current season', async () => {
+    runnable(300, { contested: [heldRow()] });
+    await claim();
+
+    // A finished month is history. The reset job archives it; this filter is
+    // what makes the month boundary correct before that job has run.
+    const contest = calls.find((call) => call.sql.includes('FOR UPDATE'));
+    expect(contest?.sql).toContain('claim.season_month = $3');
   });
 
   it('locks the ground it is contesting before deciding', async () => {
-    runnable(300, {
-      contested: [{ id: CLAIM, account_id: RIVAL, duration_seconds: 900, boundary: polygonJson }]
-    });
+    runnable(300, { contested: [heldRow()] });
     await claim();
 
     // Two runners finishing the same loop together must not both be told they
@@ -412,9 +574,7 @@ describe('POST /v1/territory/claims', () => {
   });
 
   it('records the two times on the takeover, not just the winner', async () => {
-    runnable(300, {
-      contested: [{ id: CLAIM, account_id: RIVAL, duration_seconds: 900, boundary: polygonJson }]
-    });
+    runnable(300, { contested: [heldRow()] });
     await claim();
 
     const takeover = calls.find((call) =>

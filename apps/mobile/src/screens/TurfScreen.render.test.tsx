@@ -89,6 +89,8 @@ const claim = (overrides: Partial<TerritoryClaim> = {}): TerritoryClaim => ({
   areaSqm: 90_000,
   distanceMetres: 1200,
   durationSeconds: 600,
+  speedMps: 2,
+  seasonMonth: '2026-09',
   captureCount: 1,
   status: 'owned',
   claimedAt: '2026-09-06T05:10:00.000Z',
@@ -123,6 +125,8 @@ const stubApi = (overrides: {
       Promise.resolve(
         overrides.board ?? {
           scope: 'individual',
+          period: 'season',
+          seasonMonth: '2026-09',
           metric: 'area',
           entries: [],
           note: 'Total ground currently held.'
@@ -460,6 +464,8 @@ describe('the turf map', () => {
       stubApi({
         board: {
           scope: 'individual',
+          period: 'season',
+          seasonMonth: '2026-09',
           metric: 'area',
           entries: [
             {

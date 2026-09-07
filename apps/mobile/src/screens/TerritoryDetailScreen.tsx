@@ -28,9 +28,20 @@ export interface TerritoryDetailScreenProps {
   readonly claim: TerritoryClaim;
   readonly history: TerritoryClaimHistoryResponse | undefined;
   readonly onBack: () => void;
+  /**
+   * Opens the Ghost Race confirmation (`screens.md` 1.3 and 1.4). Absent on
+   * your own ground, which is also why this is optional rather than always
+   * passed and disabled: there is no ghost of your own run to offer.
+   */
+  readonly onGhostRace?: () => void;
 }
 
-export function TerritoryDetailScreen({ claim, history, onBack }: TerritoryDetailScreenProps) {
+export function TerritoryDetailScreen({
+  claim,
+  history,
+  onBack,
+  onGhostRace
+}: TerritoryDetailScreenProps) {
   const { tokens } = useAppTheme();
   const styles = useMemo(() => createStyles(tokens), [tokens]);
   const colour = ownerColour(claim.owner.id, claim.owner.isSelf);
@@ -89,6 +100,22 @@ export function TerritoryDetailScreen({ claim, history, onBack }: TerritoryDetai
         <Text style={styles.helper}>
           {`The record here is ${formatLoopTime(record)}, set by an earlier holder. The current holder took it in ${formatLoopTime(claim.durationSeconds)}.`}
         </Text>
+      ) : null}
+
+      {/*
+        `screens.md` 1.3: "No Ghost Race button on your own territory." The
+        server refuses it too — a client can always ask — but a button that
+        exists only to be refused is worse than no button.
+      */}
+      {onGhostRace && !claim.owner.isSelf ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Race ${claim.owner.displayName}'s ghost`}
+          onPress={onGhostRace}
+          style={styles.ghostButton}
+        >
+          <Text style={styles.ghostButtonText}>Ghost Race →</Text>
+        </Pressable>
       ) : null}
 
       <Text style={styles.callout}>
@@ -195,6 +222,14 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       lineHeight: 20,
       padding: 12
     },
+    ghostButton: {
+      alignItems: 'center',
+      backgroundColor: tokens.action.primary,
+      borderRadius: 16,
+      justifyContent: 'center',
+      minHeight: 52
+    },
+    ghostButtonText: { color: tokens.text.onAccent, fontSize: 15, fontWeight: '900' },
     section: { color: tokens.text.primary, fontSize: 16, fontWeight: '800', marginTop: 4 },
     timelineRow: { flexDirection: 'row', gap: 10 },
     rail: { alignItems: 'center', width: 14 },

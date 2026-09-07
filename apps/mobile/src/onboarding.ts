@@ -1,4 +1,3 @@
-export type MovementPreference = 'walk' | 'run' | 'hike';
 export type LocationStatus = 'idle' | 'granted' | 'denied' | 'blocked';
 export type MotionStatus = 'idle' | 'granted' | 'denied' | 'skipped';
 export type AccountMode = 'register' | 'login';
@@ -8,7 +7,6 @@ export type OnboardingStep = 'welcome' | 'account' | 'privacy' | 'location-denie
 export interface OnboardingState {
   step: OnboardingStep;
   accountMode: AccountMode;
-  movement: MovementPreference;
   name: string;
   email: string;
   password: string;
@@ -22,7 +20,6 @@ export interface OnboardingState {
 export const initialOnboardingState: OnboardingState = {
   step: 'welcome',
   accountMode: 'register',
-  movement: 'walk',
   name: '',
   email: '',
   password: '',
@@ -34,7 +31,6 @@ export const initialOnboardingState: OnboardingState = {
 };
 
 export type OnboardingAction =
-  | { type: 'chooseMovement'; movement: MovementPreference }
   | { type: 'startAccount'; mode: AccountMode }
   | { type: 'updateAccount'; name?: string; email?: string; password?: string; isAdult?: boolean }
   | { type: 'authenticationSucceeded' }
@@ -61,8 +57,6 @@ export const onboardingReducer = (
   action: OnboardingAction
 ): OnboardingState => {
   switch (action.type) {
-    case 'chooseMovement':
-      return { ...state, movement: action.movement };
     case 'startAccount':
       return { ...state, accountMode: action.mode, step: 'account' };
     case 'updateAccount':

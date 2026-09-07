@@ -123,12 +123,30 @@ describe('scoreChallenge', () => {
     const notices = writes(db, 'INSERT INTO notification_inbox');
     expect(notices).toHaveLength(2);
     expect(notices.map((call) => call.values?.[0])).toEqual([CHALLENGER, OPPONENT]);
-    // The title/body literals must carry no score: a push payload is built from
-    // them, and only the opaque challenge id may travel in the deep link.
-    expect(notices[0]?.sql).not.toMatch(/score|won|lost|minute|\bdays?\b/i);
-    expect(notices.map((call) => String(call.values?.[1]))).toEqual([
+    // `CHALLENGE_WON` / `CHALLENGE_LOST` (`screens.md`), with both scores.
+    //
+    // This test used to assert the opposite — that no score appeared anywhere —
+    // on the grounds that "a push payload is built from them". It is not:
+    // `push-delivery.ts` selects `id, account_id, kind, deep_link` and never
+    // the title or body, so what reaches the device is the opaque id and the
+    // link, exactly as ADR-0009 requires. The body is read back from the inbox
+    // over an authenticated request, by one of the two people who can already
+    // see both scores in the challenge itself.
+    expect(notices.map((call) => String(call.values?.[3]))).toEqual([
+      'You beat RunSphere member. 120 min vs 45 min.',
+      'RunSphere member edged you. 45 min vs 120 min. Rematch?'
+    ]);
+    // What does reach the device: the link, carrying nothing but an id.
+    expect(notices.map((call) => String(call.values?.[4]))).toEqual([
       'runsphere://challenges/challenge-1',
       'runsphere://challenges/challenge-1'
+    ]);
+    expect(String(notices[0]?.values?.[4])).not.toMatch(/\d+ min/);
+    // One notice per person per challenge, enforced by `042`'s unique index
+    // rather than by hoping the sweep runs once.
+    expect(notices.map((call) => String(call.values?.[5]))).toEqual([
+      'challenge-finished:challenge-1',
+      'challenge-finished:challenge-1'
     ]);
     expect(db.clientCalls[0]?.sql).toBe('BEGIN');
     expect(db.clientCalls.at(-1)?.sql).toBe('COMMIT');
@@ -145,6 +163,15 @@ describe('scoreChallenge', () => {
     await scoreChallenge(db.database(), 'challenge-1');
 
     expect(writes(db, 'INSERT INTO challenge_results')[0]?.values?.[2]).toBeNull();
+    // `screens.md` has copy for winning and for losing, and none for a draw,
+    // which two people with 60 active minutes each will genuinely produce.
+    // Neither "you beat them" nor "they edged you" is true.
+    expect(
+      writes(db, 'INSERT INTO notification_inbox').map((call) => String(call.values?.[3]))
+    ).toEqual([
+      'You and RunSphere member finished level. 60 min vs 60 min. Rematch?',
+      'You and RunSphere member finished level. 60 min vs 60 min. Rematch?'
+    ]);
   });
 
   it('scores a zero-activity window as zero rather than skipping the challenge', async () => {

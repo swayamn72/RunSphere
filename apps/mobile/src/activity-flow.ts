@@ -4,6 +4,13 @@ import type { Tab } from './navigation/types';
 export type ActivityOrigin =
   | { readonly kind: 'home' }
   | { readonly kind: 'explore' }
+  /**
+   * Started from the Turf map — including a Ghost Race, which begins by
+   * tapping somebody's ground. Its own origin rather than reusing `home`
+   * because the map is where the result matters: somebody who has just run a
+   * loop to take a claim wants to see the claim, not the Home tab.
+   */
+  | { readonly kind: 'turf' }
   | { readonly kind: 'quest-detail'; readonly quest: QuestSummary };
 
 export type ActivityRoute =
@@ -47,7 +54,9 @@ export const activityOriginReturn = (
 } =>
   origin.kind === 'quest-detail'
     ? { activeTab: 'Explore', selectedQuest: origin.quest }
-    : { activeTab: origin.kind === 'home' ? 'Home' : 'Explore' };
+    : {
+        activeTab: origin.kind === 'home' ? 'Home' : origin.kind === 'turf' ? 'Turf' : 'Explore'
+      };
 
 export const routeOrigin = (route: ActivityRoute): ActivityOrigin | undefined =>
   route.screen === 'idle' ? undefined : route.origin;

@@ -5,6 +5,16 @@
     "dev": { "cache": false, "persistent": true },
     "lint": { "dependsOn": ["^lint"] },
     "typecheck": { "dependsOn": ["^build"] },
-    "test": { "dependsOn": ["^build"], "outputs": ["coverage/**"] }
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"],
+      "env": [
+        "DATABASE_URL",
+        "POSTGRES_PASSWORD",
+        "RUN_POSTGIS_INTEGRATION",
+        "AUTH_TOKEN_SECRET",
+        "CI"
+      ]
+    }
   }
 }

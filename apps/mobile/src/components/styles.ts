@@ -503,6 +503,45 @@ export const createAppStyles = (t: SemanticTokens) =>
       textAlignVertical: 'center',
       width: 28
     },
+    // Route preview (`map-ux.md` section 2). The map is taller than a
+    // `miniMap` because the whole loop has to be legible before somebody
+    // commits to running it.
+    routePreviewMap: { borderRadius: 20, height: 250, marginBottom: 14, overflow: 'hidden' },
+    routeCardRow: { flexDirection: 'row', gap: 10, paddingBottom: 4, paddingRight: 20 },
+    routeCard: {
+      backgroundColor: t.background.surface,
+      borderColor: t.border.subtle,
+      borderRadius: 16,
+      borderWidth: 1,
+      padding: 14,
+      width: 216
+    },
+    routeCardSelected: {
+      backgroundColor: t.background.surfaceInset,
+      borderColor: t.status.success,
+      borderWidth: 2
+    },
+    routeFactRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+    // The live ghost comparison (`screens.md` LR.1). The border carries the
+    // colour rather than the background, so the text stays legible whichever
+    // status colour it takes.
+    ghostCard: {
+      backgroundColor: t.background.surfaceInset,
+      borderRadius: 14,
+      borderWidth: 2,
+      gap: 3,
+      padding: 12
+    },
+    ghostHeadline: { fontSize: 15, fontWeight: '900' },
+    ghostDetail: { color: t.text.secondary, fontSize: 12, lineHeight: 17 },
+    stepperRow: { alignItems: 'center', flexDirection: 'row', gap: 14, marginBottom: 4 },
+    stepperValue: {
+      color: t.text.primary,
+      flex: 1,
+      fontSize: 22,
+      fontWeight: '900',
+      textAlign: 'center'
+    },
     contactRow: {
       alignItems: 'center',
       borderBottomColor: t.border.subtle,

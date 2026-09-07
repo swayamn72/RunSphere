@@ -16,3 +16,12 @@ ios/Pods/
 .DS_Store
 .vscode/
 .idea/
+
+# Firebase config. Not a secret (it ships in every APK) but it names one
+# specific Firebase project, and a checkout building against somebody else's
+# would register devices into it. Supply per environment.
+google-services.json
+GoogleService-Info.plist
+
+# Local toolchain shims (a corepack pnpm wrapper for this machine).
+scratch/

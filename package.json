@@ -15,12 +15,13 @@
     "dev:mobile": "pnpm --filter @runsphere/mobile start",
     "verify:maplibre": "node scripts/verify-maplibre-compatibility.mjs",
     "verify:migrations": "node scripts/verify-migrations.mjs",
-    "lint": "turbo run lint",
+    "lint": "turbo run lint --continue",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "turbo run test",
-    "test:integration": "pnpm --filter @runsphere/api exec vitest run src/integration.test.ts src/territory-claim.integration.test.ts",
-    "typecheck": "turbo run typecheck"
+    "test": "turbo run test --continue",
+    "migrate": "node scripts/migrate.mjs",
+    "test:integration": "pnpm --filter @runsphere/api exec vitest run src/integration.test.ts src/territory-claim.integration.test.ts src/friend-standings.integration.test.ts && pnpm --filter @runsphere/worker exec vitest run src/territory-claim-season.integration.test.ts src/email-delivery.integration.test.ts",
+    "typecheck": "turbo run typecheck --continue"
   },
   "devDependencies": {
     "@eslint/js": "9.39.4",

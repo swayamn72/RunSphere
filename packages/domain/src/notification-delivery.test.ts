@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { NotificationPreferences } from '@runsphere/contracts';
 import {
   NOTIFICATION_CATEGORY_BY_KIND,
+  defaultNotificationPreferences,
   localMinuteOfDay,
+  notificationCategoriesFrom,
   pushCapWindowStart,
   pushDeliveryDecision,
   withinQuietHours
@@ -16,6 +18,7 @@ const preferences = (
     challenges: true,
     clubs: true,
     competitions: true,
+    territory: true,
     account: true,
     marketing: false
   },
@@ -164,5 +167,57 @@ describe('push delivery decision', () => {
     const partial = preferences();
     delete (partial.categories as Partial<typeof partial.categories>).friends;
     expect(decide({ preferences: partial })).toEqual({ deliver: false, reason: 'category_off' });
+  });
+});
+
+describe('reading stored category toggles', () => {
+  const defaults = defaultNotificationPreferences().categories;
+
+  it('fills in a category the stored blob has never heard of', () => {
+    // The bug this exists for. `territory` was added to the union after rows
+    // had already been written, and reading the blob verbatim answered 500
+    // from the API and silently suppressed every territory push in the worker.
+    const stored = { ...defaults } as Record<string, boolean>;
+    delete stored.territory;
+
+    expect(notificationCategoriesFrom(stored).territory).toBe(true);
+  });
+
+  it('keeps every choice the account actually made', () => {
+    const stored = { ...defaults, friends: false, marketing: true };
+
+    expect(notificationCategoriesFrom(stored)).toMatchObject({
+      friends: false,
+      marketing: true
+    });
+  });
+
+  it('keeps a false the account chose, rather than treating it as missing', () => {
+    // The trap in a merge like this: `false` is falsy, and a naive fallback
+    // would silently switch a category the account turned off back on.
+    const stored = { ...defaults, challenges: false };
+
+    expect(notificationCategoriesFrom(stored).challenges).toBe(false);
+  });
+
+  it('drops a key that is not a category, and one that is not a boolean', () => {
+    const stored = { ...defaults, invented: true, clubs: 'yes' };
+    const merged = notificationCategoriesFrom(stored) as Record<string, unknown>;
+
+    expect(merged.invented).toBeUndefined();
+    // A non-boolean is not an answer, so the default stands.
+    expect(merged.clubs).toBe(true);
+  });
+
+  it('answers the defaults for a blob that is not an object at all', () => {
+    expect(notificationCategoriesFrom(null)).toEqual(defaults);
+    expect(notificationCategoriesFrom(undefined)).toEqual(defaults);
+    expect(notificationCategoriesFrom('{}')).toEqual(defaults);
+  });
+
+  it('always answers every category, so a response can never fail to serialise', () => {
+    expect(Object.keys(notificationCategoriesFrom({})).sort()).toEqual(
+      Object.keys(defaults).sort()
+    );
   });
 });

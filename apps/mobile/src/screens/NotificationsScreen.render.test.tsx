@@ -7,6 +7,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { InboxEntry, NotificationPreferences } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
+import type { NotificationTarget } from './notifications-model';
 
 vi.mock('react-native', async () => {
   const React = await import('react');
@@ -44,6 +45,8 @@ const preferences = (
     challenges: true,
     clubs: true,
     competitions: true,
+    territory: true,
+    progress: true,
     account: true,
     marketing: false
   },
@@ -80,7 +83,7 @@ const stubApi = (
 
 const render = async (
   api: MobileApiClient,
-  onOpenTarget: (target: 'play' | 'friends') => void = () => undefined
+  onOpenTarget: (target: NotificationTarget) => void = () => undefined
 ): Promise<ReactTestRenderer> => {
   let renderer!: ReactTestRenderer;
   await act(async () => {

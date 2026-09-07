@@ -1,16 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import type { InboxEntry, NotificationPreferences } from '@runsphere/contracts';
+import type { InboxEntry, NotificationKind, NotificationPreferences } from '@runsphere/contracts';
+import { NOTIFICATION_CATEGORY_BY_KIND } from '@runsphere/domain';
 import { AuthFailure } from '../auth-failure';
 import {
   DEFAULT_QUIET_HOURS,
   NOTIFICATION_CATEGORY_LABEL,
+  NOTIFICATION_CATEGORY_HINT,
   NOTIFICATION_CATEGORY_ORDER,
   NOTIFICATION_KIND_LABEL,
+  NOTIFICATION_TARGET_LABEL,
+  NOTIFICATION_TARGET_TAB,
   hasPreferenceEdits,
   inboxRows,
   inboxState,
   notificationAgeLabel,
   notificationTarget,
+  type NotificationTarget,
   notificationsErrorState,
   notificationsStatusMessage,
   parseDailyCap,
@@ -44,6 +49,8 @@ const preferences = (
     challenges: true,
     clubs: true,
     competitions: true,
+    territory: true,
+    progress: true,
     account: true,
     marketing: false
   },
@@ -118,6 +125,36 @@ describe('deep-link target', () => {
     expect(notificationTarget(entry({ kind: 'friend_request' }))).toBe('friends');
   });
 
+  it('sends every link the catalogue mints to a tab that exists', () => {
+    // The twelve types in `notification-catalogue.ts` write exactly these
+    // prefixes. A link with nowhere to go is a button that does nothing.
+    const links: readonly [string, NotificationTarget][] = [
+      ['runsphere://turf/claim/abc', 'turf'],
+      ['runsphere://turf/season/2026-09', 'turf'],
+      ['runsphere://turf/leaderboard/week/2026-09-07', 'turf'],
+      ['runsphere://explore/quest/abc', 'explore'],
+      ['runsphere://home/xp', 'home'],
+      ['runsphere://home', 'home'],
+      ['runsphere://challenges/abc', 'play']
+    ];
+
+    for (const [deepLink, target] of links) {
+      expect(notificationTarget(entry({ deepLink }))).toBe(target);
+      expect(NOTIFICATION_TARGET_TAB[target]).toBeTruthy();
+      expect(NOTIFICATION_TARGET_LABEL[target]).toBeTruthy();
+    }
+  });
+
+  it('puts each destination on its own tab rather than everything on Play', () => {
+    // What `App.tsx` used to do: anything that was not a friend request went
+    // to Play, which would have opened Play for a carve notice.
+    expect(NOTIFICATION_TARGET_TAB.turf).toBe('Turf');
+    expect(NOTIFICATION_TARGET_TAB.explore).toBe('Explore');
+    expect(NOTIFICATION_TARGET_TAB.home).toBe('Home');
+    // Friends are a screen inside Play, so that one really is Play.
+    expect(NOTIFICATION_TARGET_TAB.friends).toBe('Play');
+  });
+
   it('offers no navigation rather than a dead end for anything else', () => {
     expect(notificationTarget(entry({ kind: 'system' }))).toBeUndefined();
     expect(notificationTarget(entry({ kind: 'account' }))).toBeUndefined();
@@ -132,6 +169,22 @@ describe('categories', () => {
     expect(NOTIFICATION_CATEGORY_ORDER).not.toContain('marketing');
     for (const category of NOTIFICATION_CATEGORY_ORDER)
       expect(NOTIFICATION_CATEGORY_LABEL[category]).toBeTruthy();
+  });
+
+  it('gives every notification kind a label and a category', () => {
+    // `screens.md` wants every type switchable; a kind with no label shows as
+    // a blank chip, and one with no category cannot be switched at all.
+    for (const kind of Object.keys(NOTIFICATION_KIND_LABEL) as NotificationKind[]) {
+      expect(NOTIFICATION_KIND_LABEL[kind]).toBeTruthy();
+      const category = NOTIFICATION_CATEGORY_BY_KIND[kind];
+      expect(NOTIFICATION_CATEGORY_ORDER).toContain(category);
+    }
+  });
+
+  it('says so where a toggle currently governs nothing', () => {
+    // Quests are never assigned and nothing counts consecutive runs, so
+    // `progress` has no producer yet. A silent switch would imply otherwise.
+    expect(NOTIFICATION_CATEGORY_HINT.progress).toContain('Nothing sends this yet');
   });
 
   it('flips one category and leaves the rest alone', () => {
