@@ -24,6 +24,12 @@ import { processTerritoryGeoTags } from './territory-geo-backfill.js';
 import { processTerritoryRanks } from './territory-rank-job.js';
 import { processTerritorySeasonReset } from './territory-season-reset-job.js';
 import { processTerritorySeasonEnding } from './territory-season-ending-job.js';
+import { processMlFeatureExtraction } from './ml-feature-extractor-job.js';
+import {
+  processAnticheatRetrain,
+  processQuestRecommendRetrain,
+  readMlTrainerConfig
+} from './ml-retrain-job.js';
 import { createConfiguredDelivery } from './delivery.js';
 import type { DeliveryHandler } from './push-delivery.js';
 
@@ -211,6 +217,19 @@ export const processMaintenance = async (db: Database, now: Date = new Date()): 
   const territoryRanks = await processTerritoryRanks({ db }, now);
   const territoryEnding = await processTerritorySeasonEnding({ db }, now);
   const territoryReset = await processTerritorySeasonReset({ db }, now);
+  // Anti-cheat features, before the campaign step because it is the same shape
+  // of work: a bounded batch of rows that nothing else is waiting on. A run's
+  // raw trace is purged after thirty days, so this is the only window in which
+  // its features can be extracted at all (`ml.md`).
+  const mlFeatures = await processMlFeatureExtraction({ db });
+  // And the model proposals, which are state-driven like the season jobs: a
+  // month since the last anti-cheat proposal, a week since the last
+  // recommender one. Both no-op without a training service, which is the state
+  // this deployment is in.
+  const mlTrainer = readMlTrainerConfig(process.env);
+  const mlDeps = { db, ...(mlTrainer ? { trainer: mlTrainer } : {}) };
+  await processAnticheatRetrain(mlDeps, now);
+  await processQuestRecommendRetrain(mlDeps, now);
   // Campaign sends resolve their audience last, so consent revoked anywhere in
   // this sweep — including by an unsubscribe — is already reflected in who the
   // send will reach.
@@ -232,6 +251,7 @@ export const processMaintenance = async (db: Database, now: Date = new Date()): 
     territoryRanks.rowsWritten +
     (territoryEnding?.notificationsQueued ?? 0) +
     territoryReset.claimsArchived +
+    mlFeatures.extracted +
     campaigns
   );
 };

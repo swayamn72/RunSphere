@@ -50,8 +50,10 @@ import {
   detectCityTag,
   detectClaimTrading,
   detectLoopClaim,
+  extractMlRunFeatures,
   ghostIncoming,
   ghostTraceFrom,
+  mlLabelFor,
   h3CellSet,
   h3Indexer,
   recommendCaptures,
@@ -65,9 +67,14 @@ import {
   type GeoTagResolver,
   type GeoTags,
   type HeldClaim,
-  type NotificationCopy
+  type MlDecision,
+  type MlPoint,
+  type MlRunFeatures,
+  type NotificationCopy,
+  type RunIntegrityVerdict
 } from '@runsphere/domain';
 import { verifyAccessToken } from './auth.js';
+import { adviseOnRun, type MlScorer } from './ml-scoring.js';
 import { notSharingSuspended, requireSharingAllowed } from './sanction-guard.js';
 
 /**
@@ -89,6 +96,13 @@ export interface TerritoryClaimRouteDeps {
   routes: FastifyInstance;
   database: Database | undefined;
   authSecret: string;
+  /**
+   * The anti-cheat model, when one is configured (`ml.md` System 1).
+   *
+   * Optional on purpose: no scorer means no call and no flag, and a claim goes
+   * through exactly as it does today. It is advice, never a gate.
+   */
+  mlScorer?: MlScorer;
 }
 
 /**
@@ -365,6 +379,113 @@ const pointsFrom = (payload: unknown): ClaimPoint[] => {
 };
 
 /**
+ * The same points, with the reported GPS accuracy kept.
+ *
+ * `pointsFrom` drops it because `ClaimPoint` has no use for it, but two of the
+ * anti-cheat features are about signal quality — and a synthesised trace is
+ * often given away by having none (`ml.md`, "Jitter features").
+ */
+const mlPointsFrom = (payload: unknown): MlPoint[] => {
+  const chunk = payload as { points?: unknown };
+  if (!Array.isArray(chunk.points)) return [];
+  return chunk.points.flatMap((value) => {
+    const raw = value as {
+      latitude?: unknown;
+      longitude?: unknown;
+      recordedAt?: unknown;
+      accuracyMeters?: unknown;
+    };
+    if (
+      typeof raw.latitude !== 'number' ||
+      typeof raw.longitude !== 'number' ||
+      typeof raw.recordedAt !== 'string'
+    )
+      return [];
+    const at = new Date(raw.recordedAt);
+    if (Number.isNaN(at.getTime())) return [];
+    return [
+      {
+        latitude: raw.latitude,
+        longitude: raw.longitude,
+        at,
+        ...(typeof raw.accuracyMeters === 'number' ? { accuracyMetres: raw.accuracyMeters } : {})
+      }
+    ];
+  });
+};
+
+/**
+ * Store the run's features, and whatever the model made of them.
+ *
+ * Written for **every** submission that reaches this point, accepted or not.
+ * `ml.md` is explicit that the training set needs both: "This trains the ML
+ * model to learn what a genuine 'stopped the timer too fast' looks like versus
+ * a 'tried to spoof a tiny loop.'" A feature store of successes only would
+ * teach the model that everything is normal.
+ *
+ * Never fails a claim. A feature row is training data; a claim is somebody's
+ * run. If the insert fails, the run still counts.
+ */
+const recordMlFeatures = async (
+  database: Pick<Database, 'query'>,
+  input: {
+    readonly activityId: string;
+    readonly features: MlRunFeatures | undefined;
+    readonly ruleVerdict: RunIntegrityVerdict;
+    readonly decision: MlDecision;
+  }
+): Promise<void> => {
+  if (!input.features) return;
+  const { label, source } = mlLabelFor({ ruleVerdict: input.ruleVerdict });
+  const f = input.features;
+  try {
+    await database.query(
+      `INSERT INTO ml_run_features (activity_submission_id,
+         mean_speed_mps, max_speed_mps, speed_variance, p95_speed_mps, speed_skew,
+         mean_horizontal_accuracy_m, accuracy_variance, lateral_deviation_m, signal_loss_gaps,
+         mean_turn_rate_deg_per_sec, max_turn_rate_deg_per_sec, sharp_turn_count,
+         loop_closure_gap_m, loop_area_sqm, loop_perimeter_m, isoperimetric_ratio,
+         total_duration_seconds, total_distance_m, accepted_point_fraction, hour_of_day,
+         label, label_source, ml_anomaly_score, ml_model_version, ml_flagged)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+         $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+       ON CONFLICT (activity_submission_id) DO NOTHING`,
+      [
+        input.activityId,
+        f.meanSpeedMps,
+        f.maxSpeedMps,
+        f.speedVariance,
+        f.p95SpeedMps,
+        f.speedSkew,
+        f.meanHorizontalAccuracyM,
+        f.accuracyVariance,
+        f.lateralDeviationM,
+        f.signalLossGaps,
+        f.meanTurnRateDegPerSec,
+        f.maxTurnRateDegPerSec,
+        f.sharpTurnCount,
+        f.loopClosureGapM,
+        f.loopAreaSqm,
+        f.loopPerimeterM,
+        f.isoperimetricRatio,
+        f.totalDurationSeconds,
+        f.totalDistanceM,
+        f.acceptedPointFraction,
+        f.hourOfDay,
+        label,
+        source,
+        input.decision.confidence ?? null,
+        input.decision.modelVersion ?? null,
+        input.decision.flagged
+      ]
+    );
+  } catch {
+    // Deliberately swallowed. See above: a claim must not fail because its
+    // training row did.
+  }
+};
+
+/**
  * Tells one holder what happened to their ground.
  *
  * Three refusals live here rather than at each call site, because every one of
@@ -419,7 +540,8 @@ const queueClaimNotice = async (
 export const registerTerritoryClaimRoutes = ({
   routes,
   database,
-  authSecret
+  authSecret,
+  mlScorer
 }: TerritoryClaimRouteDeps): void => {
   /**
    * Every claim held inside the viewport.
@@ -568,6 +690,32 @@ export const registerTerritoryClaimRoutes = ({
         };
         return result;
       }
+
+      /**
+       * The advisory ML step (`ml.md`, "Integration into the Run Submission
+       * Pipeline"): after the rule-based gates, before the claim is written.
+       *
+       * Two things it deliberately is not. It is not a gate — the strongest
+       * outcome is `hold_for_review`, and `run-integrity.ts` remains the only
+       * thing that can refuse a run. And it is not on the critical path — an
+       * unconfigured or unreachable scorer costs nothing and decides nothing.
+       */
+      const mlFeatures = extractMlRunFeatures(
+        chunks.rows.flatMap((row) => mlPointsFrom(row.payload))
+      );
+      const mlDecision = await adviseOnRun(
+        { database, ...(mlScorer ? { scorer: mlScorer } : {}) },
+        { features: mlFeatures, ruleVerdict: integrity.verdict }
+      );
+      // Written for every submission that got this far, accepted or not: the
+      // model learns the difference between a short honest run and a spoofed
+      // one only if it is shown both.
+      await recordMlFeatures(database, {
+        activityId: request.body.activityId,
+        features: mlFeatures,
+        ruleVerdict: integrity.verdict,
+        decision: mlDecision
+      });
 
       const detection = detectLoopClaim(points, DEFAULT_CLAIM_RULE);
       if (!('claim' in detection)) {

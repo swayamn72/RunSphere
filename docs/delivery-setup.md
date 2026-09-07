@@ -245,11 +245,20 @@ smaller one.
 
 ## Still outstanding
 
-- **The 12-type notification catalogue** (`screens.md`). Five types can be
-  produced today — challenge invites and results, and the two Turf season
-  types. Carve success and defence, ghost-race notices, quest availability and
-  completion, the 3-day season warning, and the streak milestone have no
-  producers yet.
+- **The notification catalogue: 9 of 12 types have producers** (`screens.md`;
+  `packages/domain/src/notification-catalogue.ts`). Carve success and defence,
+  the 3-day season warning, and ghost-race notices were added after this
+  document was first written. The three without producers are
+  `QUEST_AVAILABLE`, `QUEST_COMPLETE`, and `STREAK`, and none of them is a
+  notification problem: no quest is ever assigned or recorded as finished, and
+  nothing counts consecutive runs. `NOTIFICATION_TYPES_WITHOUT_PRODUCERS`
+  carries the reason for each, and the settings screen says "Nothing sends this
+  yet" rather than showing a switch that governs nothing.
 - **iOS push.** `expo-notifications` is configured for Android only; iOS needs
   an APNs key and its own entitlement, and is gated behind the Android v1 gates
   anyway (`pending-work.md` §6).
+- **The ML services** (`docs/ml.md`, `services/ml`). Same treatment as push and
+  email: built, tested on the TypeScript side, and honest about being
+  unconfigured. `ML_SCORER_URL` unset means no call and no flag; nothing is
+  scored until the feature store holds 2,000 labelled runs regardless. The
+  Python itself has never run — there is no Python toolchain in CI.

@@ -509,3 +509,4 @@ export * from './territory.js';
 export * from './territory-claim.js';
 export * from './territory-leaderboard.js';
 export * from './route-suggestion.js';
+export * from './quest-recommendation.js';

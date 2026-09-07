@@ -157,6 +157,10 @@ describe('privacy maintenance', () => {
           calls.push('territory-season');
           return { rows: [] };
         }
+        if (sql.includes('ml_run_features')) {
+          calls.push('ml-features');
+          return { rows: [] };
+        }
         calls.push('expire');
         return { rows: [] };
       })
@@ -186,6 +190,11 @@ describe('privacy maintenance', () => {
       // `openCurrentSeason` then the open-season read.
       'territory-season',
       'territory-season',
+      // Anti-cheat features, before campaigns for the same reason relays run
+      // late: it is a bounded batch nothing else is waiting on. The two model
+      // proposal jobs make no query at all without a training service, which
+      // is the state this deployment is in.
+      'ml-features',
       'campaigns'
     ]);
   });

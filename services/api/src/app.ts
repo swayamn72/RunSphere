@@ -88,6 +88,8 @@ import { registerTerritoryClaimRoutes } from './territory-claim-routes.js';
 import { registerTerritoryBoardRoutes } from './territory-board-routes.js';
 import { registerEmailWebhookRoutes } from './email-webhook-routes.js';
 import { registerRouteSuggestionRoutes } from './route-suggestion-routes.js';
+import { registerQuestRecommendationRoutes } from './quest-recommendation-routes.js';
+import { createMlScorer, readMlScorerConfig } from './ml-scoring.js';
 import { loadRestrictions } from './sanction-guard.js';
 import {
   hashPassword,
@@ -1677,9 +1679,20 @@ export const buildApp = ({
     registerGovernanceRoutes({ routes, database, authSecret });
     registerTerritoryRoutes({ routes, database, authSecret });
     registerTerritorySeasonRoutes({ routes, database, authSecret });
-    registerTerritoryClaimRoutes({ routes, database, authSecret });
+    // The anti-cheat scorer, when one is configured. Unconfigured is the
+    // normal state: no `ML_SCORER_URL` means no call and no flag, and a claim
+    // behaves exactly as it did before the model existed (`ml.md`).
+    const mlScorerConfig = readMlScorerConfig(process.env);
+    const mlScorer = mlScorerConfig ? createMlScorer(mlScorerConfig) : undefined;
+    registerTerritoryClaimRoutes({
+      routes,
+      database,
+      authSecret,
+      ...(mlScorer ? { mlScorer } : {})
+    });
     registerTerritoryBoardRoutes({ routes, database, authSecret });
     registerRouteSuggestionRoutes({ routes, database, authSecret });
+    registerQuestRecommendationRoutes({ routes, database, authSecret });
     // The provider's bounce and complaint webhook. Unauthenticated but signed,
     // and disabled entirely when no secret is configured.
     registerEmailWebhookRoutes({

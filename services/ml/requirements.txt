@@ -1,0 +1,13 @@
+# Pinned, for the same reason `h3-js` is pinned: a model artifact fitted by one
+# version of scikit-learn and loaded by another is not guaranteed to score the
+# same way, and `ml.md` requires that a disputed flag can be replayed.
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+scikit-learn==1.6.0
+pandas==2.2.3
+numpy==2.2.1
+scipy==1.15.0
+joblib==1.4.2
+psycopg2-binary==2.9.10
+implicit==0.7.2
