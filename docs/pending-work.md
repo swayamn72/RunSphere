@@ -1,10 +1,335 @@
 # Pending Work
 
-**Last updated:** 2026-09-06 (v4 — global territory scope, city/country leaderboards added)
+**Last updated:** 2026-09-07 (v5 — post code review; reflects actual codebase state)
 This document is the single source of truth for what work is not yet done. An agent starting a new task should read this file first and update it as work is completed.
 
 > [!IMPORTANT]
-> **Geographic scope change (2026-09-06):** Territory claims now work globally — any runner anywhere can claim ground. Leaderboards are city-scoped, country-scoped, and global. This is a product decision. The pending work in Section 2 reflects this. Quest data and route suggestions remain MMR-only for launch (requires curated datasets per city before expanding).
+> **What was implemented in the 2026-09-07 pull:** Migrations 036–043 (H3 carving, monthly seasons, geo-tags, running-only, automatic friend board, curated routes, notification catalogue, Ghost Race DB), all domain carving functions, Ghost Race domain + DB, season reset worker, rank worker, geo-backfill worker, notification catalogue (all 12 types), territory-claim-snapshots worker. These are **DONE** and do not need to be re-implemented.
+
+---
+
+## Priority Legend
+- 🔴 **BLOCKER** — Android v1 cannot ship without this.
+- 🟠 **IMPORTANT** — Required for a specific gated feature or user-facing quality.
+- 🟡 **PLANNED** — Approved and in scope; not yet started.
+- 🔵 **KNOWN GAP** — Known issue documented but no implementation decision taken yet.
+- ✅ **DONE** — Implemented and verified in code review.
+
+---
+
+## 1. Android v1 Launch Blockers 🔴
+
+### 1.1 FCM (Push Notifications) — External Config Only
+- Firebase project not created.
+- `google-services.json` not added to `apps/mobile/android/`.
+- Worker's FCM HTTP v1 sender has no service-account credentials.
+- **Note:** The notification pipeline (all 12 types, durable inbox, delivery logic) is fully implemented in code. This is purely a cloud credential configuration task.
+
+### 1.2 Mascot Artwork Missing
+- Rho, Mira, Coda, Bram images do not exist in `apps/mobile/assets/`.
+- `crew-assets.ts` references these paths but they return missing asset errors.
+- **Impact:** Mascot guidance callouts, Turf map pins, empty state screens, and the onboarding mascot-selection screen all render broken or blank.
+- **Action:** An illustrator must produce 5 mascot illustrations (Loop already exists). Spec in `docs/mascot-assets.md`.
+
+### 1.3 Onboarding Screen — Remove Walk/Hike UI
+- The onboarding screen currently shows Walk / Run / Hike activity type selection.
+- Walking and hiking are removed from scope per product decision (2026-09-06).
+- The activity selection step must be removed or replaced with a "running only" confirmation screen.
+- **File:** `apps/mobile/src/screens/OnboardingScreen.tsx`
+- The DB (`040_running_only_and_automatic_friend_board.sql`) already enforces `movement_type = 'run'` — the UI is the only thing left.
+
+### 1.4 Friend Leaderboard — Remove Opt-In Toggle from UI
+- The DB correctly revoked all `scope = 'friends'` opt-in rows (migration 040). The DB no longer reads them.
+- BUT the UI in `PlayScreen.tsx` likely still shows a "Join board" button.
+- **Files affected:**
+  - `apps/mobile/src/screens/PlayScreen.tsx` — remove "join board" button
+  - `services/api/src/gamification-routes.ts` — remove or no-op the opt-in route for friend scope
+  - `services/api/src/friend-standings.test.ts` — update test cases
+
+### 1.5 App.tsx: Default Tab Must Be Turf, Not Home
+- **File:** `apps/mobile/App.tsx` line 69
+- Current: `const [activeTab, setActiveTab] = useState<Tab>('Home');`
+- **Fix:** `const [activeTab, setActiveTab] = useState<Tab>('Turf');`
+- `screens.md` and all product docs are explicit: Turf is Tab 1 and the default. The app must open on the territory map, not the Home tab.
+
+### 1.6 PostGIS Integration Tests (4 skipped)
+- Four integration tests are marked skipped because local PostGIS is not running in CI.
+- These cover privacy trimming, H3 traversal logic, and territory claim integration.
+- **Action required:** Either run them in a Docker-based CI step or document them as manual-only.
+
+---
+
+## 2. Territory API Routes — Verify and Complete 🔴
+
+The DB schema (migrations 036–043) and domain logic (`territory-claim.ts`, `ghost-race.ts`, `h3-indexer.ts`) are complete. The worker jobs are complete. **The API route handlers that wire them together need verification and likely completion.**
+
+### 2.1 Territory Claim Submission Route
+**File:** `services/api/src/territory-claim-routes.ts`
+
+Verify (and complete if missing) that the run submission pipeline does all of the following in a single DB transaction:
+1. Receive GPS trace from mobile
+2. Run `detectLoopClaim` to find the closed loop
+3. Compute H3 cell set via `h3CellSet(boundary, 11, h3Indexer)`
+4. Query overlapping live claims: `SELECT * FROM territory_claims WHERE h3_cell_set && $1 AND released_at IS NULL AND season_month = $2` (uses GIN index from migration 036)
+5. For each overlapping claim: run `assessCarve(params)` to get decision, `effortGrace`, `effectiveSpeed`
+6. If `decision = 'carve'`: compute `differenceCells` for holder's remaining cells, run `largestConnectedComponent` on remaining cells, update holder's claim boundary and cell set
+7. Write new claim row with `h3_cell_set`, `h3_version`, `h3_resolution`, `season_month`, `parent_claim_id`
+8. Write `territory_claim_takeovers` row with `kind='carve'`, `carved_area_sqm`, `effort_ratio`, `grace_applied`, `effective_speed_mps`, `holder_speed_mps`
+9. If `decision = 'no_contest'`: write `territory_claim_attempts` row
+10. Call `tagClaimPlace` to set `city_tag`, `country_tag`, `continent_tag`
+11. Build ghost trace via `ghostTraceFrom` and write to `territory_claim_ghost_traces`
+
+### 2.2 Ghost Race API Route
+**File:** `services/api/src/territory-claim-routes.ts`
+
+- `GET /territory/claims/:id/ghost-trace`
+- Check that the requesting user has not exceeded 3 ghost views in the last hour (query `territory_claim_ghost_views`)
+- Return the trimmed trace from `territory_claim_ghost_traces`
+- Write a row to `territory_claim_ghost_views`
+- Send `GHOST_INCOMING` notification to the claim holder (via the durable inbox)
+- Return `404` if no ghost trace exists (too short to trim), `429` if rate limit hit
+
+---
+
+## 3. Leaderboard API Endpoints 🔴
+
+These endpoints do not yet exist. Without them, the Turf leaderboard tabs have no data.
+
+**File:** `services/api/src/territory-board-routes.ts` (create or update)
+
+Required endpoints:
+```
+GET /territory/leaderboard/city/:cityTag
+GET /territory/leaderboard/country/:countryCode
+GET /territory/leaderboard/global
+GET /territory/leaderboard/season/:seasonMonth
+GET /territory/leaderboard/hall-of-fame
+```
+
+Each endpoint returns: `rank`, `displayName`, `mascotKey`, `totalAreaSqm`, `seasonMonth`. No coordinates, no route data, no run counts.
+
+- City and country boards: read from `territory_claims` filtered by `city_tag`/`country_tag` WHERE `released_at IS NULL AND season_month = current_month`
+- Global board: top 50 only (privacy/scale). Global opt-in is required — query `leaderboard_opt_ins WHERE scope='global'`.
+- Takeover feed: `GET /territory/feed` — returns the last 50 `territory_claim_takeovers` events with holder and challenger display names.
+
+---
+
+## 4. Mobile — Turf Tab Completion 🟠
+
+### 4.1 Leaderboard Sheet — City/Country/Global Tabs
+**File:** `apps/mobile/src/screens/TurfScreen.tsx`
+
+Current state: TurfScreen has placeholder leaderboard content. It needs:
+- Three-tab sheet: **My City | My Country | Global**
+- Auto-select the user's city tab based on their own claims' `city_tag` (or default to Global if no claims)
+- Global tab shows top 50 only with user's own row pinned at the bottom if outside top 50
+- Takeover feed tab showing the last 50 carve/defend events
+
+### 4.2 Season Countdown Banner
+**File:** `apps/mobile/src/screens/TurfScreen.tsx`
+
+Top-left of the Turf map:
+- Season badge: `"OCT · 12 days left"` — calculate from current date to end of month
+- Rank badge: `"#4 in Mumbai"` — from the city leaderboard API
+
+### 4.3 Season Reset Full-Screen Card
+**File:** `apps/mobile/src/screens/TurfScreen.tsx` or a new `SeasonResetScreen.tsx`
+
+Shown once per month, first app open after the season-reset worker runs:
+- Full-screen confetti animation (lime and white)
+- Final rank, peak territory, longest-held claim this season
+- Hall of fame card if a record was broken
+- Dismisses after 5 seconds or on tap → Turf map (now empty)
+- Use `AsyncStorage` to track whether the current season's reset card has been shown
+
+### 4.4 Claim Detail Sheet — Ghost Race Button
+**File:** `apps/mobile/src/screens/TurfScreen.tsx`
+
+When tapping a rival's territory polygon:
+- Show claim detail sheet with speed-to-beat, perimeter, and duration
+- "Ghost Race →" lime button that opens the Ghost Race confirmation sheet (see `screens.md` 1.4)
+- Confirmation sheet shows the animated ghost silhouette, privacy note, and "Start Ghost Race" button
+- On confirm: call `GET /territory/claims/:id/ghost-trace`, construct a `GhostRun` object, call `onGhostRace(run)` (prop already exists in `App.tsx`)
+
+---
+
+## 5. ML Implementation 🟠
+
+The ML system is fully designed. See [`ml.md`](ml.md) for the complete specification. Not yet started.
+
+### 5.1 Database migration
+- Create `infra/postgres/migrations/044_ml_run_features.sql` (schema in `ml.md`)
+
+### 5.2 Feature extractor worker
+- Create `services/worker/src/ml-feature-extractor-job.ts`
+- Reads `activity_submissions` within the 30-day retention window
+- Extracts all 20 features listed in `ml.md` (no raw coordinates)
+- Writes to `ml_run_features`
+
+### 5.3 Anti-cheat microservice
+- Create `services/ml/` directory with Python FastAPI app
+- Create `services/ml/src/anticheat/train.py` — Isolation Forest training
+- Create `services/ml/src/anticheat/server.py` — FastAPI inference endpoint
+- Create `services/ml/src/anticheat/features.py` — feature extraction helpers
+
+### 5.4 Quest recommendation microservice
+- Create `services/ml/src/recommend/train.py` — Collaborative Filtering training
+- Create `services/ml/src/recommend/server.py` — recommendation endpoint
+- Integrate with `GET /quests/recommended`
+
+### 5.5 Integration into territory claim route
+- In `territory-claim-routes.ts`, after rule-based gates pass, call the ML `/score` endpoint
+- If `ml_flagged = true`: hold claim for staff review, do not award territory yet
+- Write `ml_anomaly_score` and `ml_model_version` back to `ml_run_features`
+
+### 5.6 Monthly retrain worker
+- Create `services/worker/src/ml-retrain-job.ts`
+- Triggers model retraining on the 1st of each month
+- Staff reviewer must promote the new model artifact before it goes live
+
+---
+
+## 6. Route Suggestion System 🟠
+
+The curated routes schema (`041_curated_routes.sql`) is complete. The table ships empty. No API or mobile UI exists yet.
+
+### 6.1 Seed curated route data
+- The table `curated_routes` is empty. Needs human-reviewed MMR running loops.
+- Each route needs: `name`, `path` (GeoJSON LineString, closed loop), `distance_metres`, `city_tag`, `surface`, `lit`, `traffic_exposure`, `accessibility`, `review_note`
+- Minimum: 5–10 reviewed loops around Mumbai for launch
+- This is a data task, not a code task
+
+### 6.2 Route suggestion API endpoint
+**File:** `services/api/src/route-suggestion-routes.ts` (create)
+
+```
+GET /routes/suggest?lat=...&lng=...&targetDistanceKm=...&targetMinutes=...
+```
+- Returns up to 3 published `curated_routes` nearest to the user's coarse location
+- Ordered as Short / Medium / Long by `distance_metres`
+- Filters: `status = 'published'`, `revalidate_before > now()`
+- If `targetDistanceKm` provided: return the 3 routes closest in distance to that target
+- If `targetMinutes` provided: convert to distance at 6 min/km default pace, then apply above
+- Returns `no_curated_routes` if the table is empty or no published routes exist nearby
+
+### 6.3 Route preview screen (mobile)
+**File:** `apps/mobile/src/screens/RoutePreviewScreen.tsx` — already exists but may need the API wired in.
+
+Verify:
+- Calls `GET /routes/suggest` and displays the 3 cards
+- Distance slider and time input controls update which card is highlighted
+- "Use this route" → creates a `RouteGuide` and returns to `App.tsx` via `onUseRoute`
+
+---
+
+## 7. Documentation Fix — H3 Resolution Cell Size 🟠
+
+`territory-guide.md` and `docs/README.md` Key Fact #10 both say **"resolution 11 (~15 m² per cell)"**. This is wrong.
+
+H3 resolution 11 cells are approximately **1,963 m²** each (~15 m² is resolution 14).
+
+The code uses resolution 11 (correctly — per the migration default). Only the documentation is wrong.
+
+**Files to fix:**
+- `docs/territory-guide.md` — find and replace "~15 m² per cell" with "~1,963 m² per cell"
+- Any other doc that cites this figure
+
+This matters because a reviewer reading the docs will think the grid is 130× finer than it is, and will misunderstand the minimum carve area (5,000 m² = ~2.5 cells, not ~333 cells).
+
+---
+
+## 8. Gamification — Walking/Hiking References in Mobile Code 🟠
+
+Product decision (2026-09-06): RunSphere is running-only. Migration 040 enforces this at the DB level. The following mobile files still contain walk/hike references:
+
+| File | Change needed |
+|------|---------------|
+| `apps/mobile/src/screens/OnboardingScreen.tsx` | Remove activity type selection (walk/hike options) — see Blocker 1.3 |
+| `apps/mobile/src/activity-flow.ts` | Verify `activityType` enum is restricted to `running` only |
+| `apps/mobile/src/activity-recorder-core.ts` | Remove walk/hike type handling if present |
+| `apps/mobile/src/screens/ActivityScreens.tsx` | Remove any walking/hiking UI branches |
+| `packages/contracts` | Update activityType schemas — remove walk and hike values |
+
+---
+
+## 9. Known Gaps — Turf Mechanic 🔵
+
+The Turf mechanic is implemented but has documented gaps with no resolution plan yet:
+
+| Gap | Detail |
+|-----|--------|
+| No concentration guardrail | A single runner could theoretically hold all territory in a city. No cap or guardrail is designed yet. |
+| Coordinated claim-trading | Two accounts can hand ground back and forth. No detection exists. |
+| Privacy zone prompt | A user without a privacy zone set who runs near their home may expose their address via a territory claim. No auto-detection or onboarding prompt exists. |
+| Not tested against real GPS | All tests use synthetic data. Real GPS traces are needed before the first public season. |
+
+---
+
+## 10. iOS v1.1 🟡
+
+iOS work does not begin until Android v1 gates pass. Pending:
+- Permission copy and denial behavior for iOS foreground location and optional motion.
+- Encrypted offline queue, idempotent upload, GPS recovery (iOS).
+- 200 m server-side trim and provenance on iOS-originated traces.
+- iOS battery and distance field study.
+- App Store privacy disclosures matching the actual collection/retention design.
+- `expo-notifications` iOS configuration.
+
+---
+
+## 11. Admin Console — Incomplete Areas 🟡
+
+| Area | Status |
+|------|--------|
+| Quest/place catalog & closure controls | Placeholder. Privacy review pending before implementing. |
+| Quest availability map (staff view) | Not started. |
+| Route suggestion path dataset management | Not started. |
+| ML flag review queue | Not started. Required for Section 5 ML system. |
+
+---
+
+## 12. MMR Field Study 🟠
+
+The following baselines are not yet frozen:
+- GPS accepted-point cadence on real MMR devices
+- Average trace size per run
+- Upload retry rate
+- Battery drain per hour of running
+- Map/geocoding cache hit rate
+- Quest recommendation acceptance and skip rates
+- Route suggestion acceptance rates
+
+**Action:** Conduct field study with ≥50 consenting pilot accounts over 4+ weeks. Do not use synthetic GPS as a substitute.
+
+---
+
+## DONE — Completed in 2026-09-07 Implementation
+
+The following items from earlier versions of this document are now complete:
+
+| Item | What was done |
+|------|---------------|
+| H3 library dependency | `h3-js@4.1.0` pinned in `packages/domain`. `H3_VERSION = '4.1.0'` constant in `h3-indexer.ts`. |
+| Migration 036 (carving) | `h3_cell_set`, `h3_resolution`, `h3_version`, `parent_claim_id`, `season_month` added to `territory_claims`. GIN index created. Old duration-based constraint replaced with speed-based. |
+| Domain carving functions | `runSpeed`, `effortGrace`, `graceAdjustedSpeed`, `h3CellSet`, `intersectCells`, `differenceCells`, `largestConnectedComponent`, `minCarveArea`, `assessCarve`, `carvingDecision` — all implemented in `packages/domain/src/territory-claim.ts`. |
+| Migration 037 (monthly seasons) | `territory_claim_seasons`, `territory_claim_season_snapshots`, `territory_hall_of_fame` tables created. |
+| Monthly season reset worker | `services/worker/src/territory-season-reset-job.ts` — state-driven, idempotent, atomic, self-healing. |
+| Weekly rank worker | `services/worker/src/territory-rank-job.ts` |
+| Territory snapshots worker | `services/worker/src/territory-claim-snapshots.ts` |
+| Ghost Race domain | `packages/domain/src/ghost-race.ts` — `ghostTraceFrom` (200m trim), `ghostPositionAt` (interpolated), `ghostComparison` (distance-based), `ghostSecondsAtDistance`. |
+| Migration 043 (Ghost Race DB) | `territory_claim_ghost_traces` and `territory_claim_ghost_views` tables. Rate limit of 3/hour enforced at DB level. |
+| Migration 038 (geo tags) | `city_tag`, `country_tag`, `continent_tag` on `territory_claims`. H3 resolution 6 geocode cache seeded for MMR. |
+| Geo-detection domain | `detectCityTag`, `territory-geo.ts` in `packages/domain`. |
+| Geo-backfill worker | `services/worker/src/territory-geo-backfill.ts` — 2-pass cache-first, budget-limited geocode. |
+| Migration 039 (email delivery) | Email delivery infrastructure. |
+| Migration 040 (running-only + auto friend board) | `CHECK (movement_type = 'run')` constraint. Friends board opt-in rows revoked. |
+| Migration 041 (curated routes) | `curated_routes` table with safety fields and review workflow. Ships empty. |
+| Migration 042 (notification catalogue) | `notification_inbox` `dedupe_key` and all 12 notification kinds registered. |
+| Notification catalogue (all 12 types) | `packages/domain/src/notification-catalogue.ts` — all 12 types with copy, privacy-safe `safeName()`, category mapping. |
+| Season reset notification | Sends city rank (not global) and peak area (not final) per runner who held ground. |
+| H3 Indexer | `packages/domain/src/h3-indexer.ts` — clean dependency inversion, `h3-js` is the only file that imports the library. |
+| All 6 tabs wired in App.tsx | Turf, Home, Explore, Play, Clubs, You all render correctly. Ghost race and route guide state threaded through. |
+
 
 
 ---
