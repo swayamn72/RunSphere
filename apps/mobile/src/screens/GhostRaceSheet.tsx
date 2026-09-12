@@ -69,8 +69,10 @@ export function GhostRaceSheet({
       mounted.current = false;
     };
     // Fetching again on any other change would spend another of three views
-    // an hour, so this deliberately keys on the claim alone.
-  }, [api, claimId]);
+    // an hour, so this keys on the claim and the session alone.
+    // `onSessionExpired` is a `useCallback` in `App.tsx` keyed on the account,
+    // so it turns over with `api` and never on an ordinary parent render.
+  }, [api, claimId, onSessionExpired]);
 
   const run = useMemo(() => (trace ? ghostRunFrom(trace) : undefined), [trace]);
   const confirmation = useMemo(() => (trace ? ghostConfirmation(trace) : undefined), [trace]);

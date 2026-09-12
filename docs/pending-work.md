@@ -1,6 +1,6 @@
 # Pending Work
 
-**Last updated:** 2026-09-07 (v5 — post code review; reflects actual codebase state)
+**Last updated:** 2026-09-12 (v6 — Section 1 re-verified against the code; 1.2/1.3/1.4 were stale, 1.5 fixed)
 This document is the single source of truth for what work is not yet done. An agent starting a new task should read this file first and update it as work is completed.
 
 > [!IMPORTANT]
@@ -25,37 +25,47 @@ This document is the single source of truth for what work is not yet done. An ag
 - Worker's FCM HTTP v1 sender has no service-account credentials.
 - **Note:** The notification pipeline (all 12 types, durable inbox, delivery logic) is fully implemented in code. This is purely a cloud credential configuration task.
 
-### 1.2 Mascot Artwork Missing
-- Rho, Mira, Coda, Bram images do not exist in `apps/mobile/assets/`.
-- `crew-assets.ts` references these paths but they return missing asset errors.
-- **Impact:** Mascot guidance callouts, Turf map pins, empty state screens, and the onboarding mascot-selection screen all render broken or blank.
-- **Action:** An illustrator must produce 5 mascot illustrations (Loop already exists). Spec in `docs/mascot-assets.md`.
+### 1.2 Mascot Artwork — ✅ NOT A BLOCKER (verified 2026-09-12)
+- All five crew characters have hand-authored vector art in
+  `apps/mobile/assets/mascot/crew/` (`crew-{rho,mira,coda,bram}-{light,dark}.svg`),
+  alongside Loop's nine state illustrations.
+- `crew-assets.ts` exports an **empty** `crewImageOverrides`; every `require()`
+  in it is commented out, so nothing resolves a missing path and no asset error
+  is raised. `CrewMascot.tsx` draws a dependency-free vector stand-in whenever
+  an override is absent, which is the current state for all four crew members.
+- Nothing renders broken or blank. The earlier entry describing missing-asset
+  errors did not match the code.
+- **Remaining (optional, not a launch gate):** raster art to replace the vector
+  prototypes. Dropping a PNG under that directory and uncommenting the matching
+  entry is the whole swap. Spec in `docs/mascot-assets.md`.
 
-### 1.3 Onboarding Screen — Remove Walk/Hike UI
-- The onboarding screen currently shows Walk / Run / Hike activity type selection.
-- Walking and hiking are removed from scope per product decision (2026-09-06).
-- The activity selection step must be removed or replaced with a "running only" confirmation screen.
-- **File:** `apps/mobile/src/screens/OnboardingScreen.tsx`
-- The DB (`040_running_only_and_automatic_friend_board.sql`) already enforces `movement_type = 'run'` — the UI is the only thing left.
+### 1.3 Onboarding Screen — Remove Walk/Hike UI — ✅ DONE (verified 2026-09-12)
+- `OnboardingScreen.tsx` and `onboarding.ts` contain no walk/hike references.
+- The DB (`040_running_only_and_automatic_friend_board.sql`) enforces
+  `movement_type = 'run'`, and the UI now agrees.
 
-### 1.4 Friend Leaderboard — Remove Opt-In Toggle from UI
-- The DB correctly revoked all `scope = 'friends'` opt-in rows (migration 040). The DB no longer reads them.
-- BUT the UI in `PlayScreen.tsx` likely still shows a "Join board" button.
-- **Files affected:**
-  - `apps/mobile/src/screens/PlayScreen.tsx` — remove "join board" button
-  - `services/api/src/gamification-routes.ts` — remove or no-op the opt-in route for friend scope
-  - `services/api/src/friend-standings.test.ts` — update test cases
+### 1.4 Friend Leaderboard — Remove Opt-In Toggle from UI — ✅ DONE (verified 2026-09-12)
+- `PlayScreen.tsx` contains no "join board" button and no friend-scope opt-in
+  affordance. Mutual friendship alone puts two runners on each other's board.
 
-### 1.5 App.tsx: Default Tab Must Be Turf, Not Home
-- **File:** `apps/mobile/App.tsx` line 69
-- Current: `const [activeTab, setActiveTab] = useState<Tab>('Home');`
-- **Fix:** `const [activeTab, setActiveTab] = useState<Tab>('Turf');`
-- `screens.md` and all product docs are explicit: Turf is Tab 1 and the default. The app must open on the territory map, not the Home tab.
+### 1.5 App.tsx: Default Tab Must Be Turf, Not Home — ✅ DONE (2026-09-12)
+- Bar order in `src/navigation/types.ts` is now
+  `['Turf', 'Home', 'Explore', 'Play', 'Clubs', 'You']`, matching `screens.md`.
+- The landing tab is stated once as `landingTab` in that file. `App.tsx` reads
+  it for the first render **and** for the post-sign-out reset, which had its own
+  separate hardcoded `'Home'`.
+- `tab-style.test.ts` asserts both the order and that `tabs[0] === landingTab`.
 
-### 1.6 PostGIS Integration Tests (4 skipped)
-- Four integration tests are marked skipped because local PostGIS is not running in CI.
-- These cover privacy trimming, H3 traversal logic, and territory claim integration.
-- **Action required:** Either run them in a Docker-based CI step or document them as manual-only.
+### 1.6 PostGIS Integration Tests (skipped without a database)
+- The PostGIS suites are gated behind `RUN_POSTGIS_INTEGRATION` plus a
+  `DATABASE_URL`/`POSTGRES_PASSWORD` (`postgisIntegrationEnabled` in
+  `packages/db`). With the gate closed, a local run reports 98 skipped in
+  `@runsphere/api` and 35 in `@runsphere/worker` and is still green.
+- CI already runs them: `.github/workflows` starts a PostGIS service and
+  `requirePostgisInCi` turns a closed gate in CI into a hard failure, so a green
+  CI run does mean they executed.
+- **Action required locally:** bring up `infra/compose.yaml --profile local` and
+  set `RUN_POSTGIS_INTEGRATION=1` in `.env` before these exercise real SQL.
 
 ---
 
@@ -230,9 +240,9 @@ H3 resolution 11 cells are approximately **1,963 m²** each (~15 m² is resoluti
 
 The code uses resolution 11 (correctly — per the migration default). Only the documentation is wrong.
 
-**Files to fix:**
-- `docs/territory-guide.md` — find and replace "~15 m² per cell" with "~1,963 m² per cell"
-- Any other doc that cites this figure
+**Status: ✅ DONE (2026-09-12).** `docs/territory-guide.md` now states ~1,963 m²
+with the 5,000 m² minimum spelled out as ~2.5 cells; `docs/README.md` Key Fact 13
+already carried the correction. No doc cites ~15 m² any more.
 
 This matters because a reviewer reading the docs will think the grid is 130× finer than it is, and will misunderstand the minimum carve area (5,000 m² = ~2.5 cells, not ~333 cells).
 
@@ -244,11 +254,20 @@ Product decision (2026-09-06): RunSphere is running-only. Migration 040 enforces
 
 | File | Change needed |
 |------|---------------|
-| `apps/mobile/src/screens/OnboardingScreen.tsx` | Remove activity type selection (walk/hike options) — see Blocker 1.3 |
-| `apps/mobile/src/activity-flow.ts` | Verify `activityType` enum is restricted to `running` only |
-| `apps/mobile/src/activity-recorder-core.ts` | Remove walk/hike type handling if present |
-| `apps/mobile/src/screens/ActivityScreens.tsx` | Remove any walking/hiking UI branches |
-| `packages/contracts` | Update activityType schemas — remove walk and hike values |
+**Status: ✅ DONE (verified 2026-09-12).** Every file below was re-checked; the
+only remaining occurrences of "walk"/"hike" anywhere in `apps/mobile/src` and
+`packages/contracts/src` are comments recording *why* the types were removed.
+
+| File | State |
+|------|-------|
+| `apps/mobile/src/screens/OnboardingScreen.tsx` | No activity-type selection; no walk/hike references |
+| `apps/mobile/src/activity-flow.ts` | No walk/hike references |
+| `apps/mobile/src/activity-recorder-core.ts` | Running-only; the sole mention is the explanatory comment |
+| `apps/mobile/src/screens/ActivityScreens.tsx` | The hike safety cue is gone; a comment records its removal |
+| `packages/contracts` | `ActivityCreateRequestSchema.movementType` is `Type.Literal('run')`; old values now return 400 |
+
+A stale `'first-walk'` sample object in `achievements-model.test.ts` was renamed
+to `'first-run'` — it was test fixture data only, asserted on by key not wording.
 
 ---
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, Switch, Text, TextInput, View } from 'react-native';
 import * as Location from 'expo-location';
 import type {
@@ -74,7 +74,7 @@ const useSanctions = (api: MobileApiClient) => {
 const useWeeklyGoal = (api: MobileApiClient) => {
   const [goal, setGoal] = useState<WeeklyGoalResponse>();
   const [state, setState] = useState<RemoteState>('loading');
-  const load = async () => {
+  const load = useCallback(async () => {
     setState('loading');
     try {
       const next = await api.getWeeklyGoal();
@@ -83,10 +83,10 @@ const useWeeklyGoal = (api: MobileApiClient) => {
     } catch (error) {
       setState(homeErrorState(error) === 'offline' ? 'offline' : 'error');
     }
-  };
+  }, [api]);
   useEffect(() => {
     void load();
-  }, [api]);
+  }, [load]);
   return { goal, state, load, setGoal, setState };
 };
 
@@ -500,7 +500,7 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
   const [contacts, setContacts] = useState<readonly SafetyContactResponse[]>([]);
   const [state, setState] = useState<RemoteState>('loading');
   const [shareStatus, setShareStatus] = useState('Off by default for every activity');
-  const loadContacts = async () => {
+  const loadContacts = useCallback(async () => {
     try {
       const next = await api.listSafetyContacts();
       setContacts(next);
@@ -508,10 +508,10 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
     } catch {
       setState('offline');
     }
-  };
+  }, [api]);
   useEffect(() => {
     void loadContacts();
-  }, [api]);
+  }, [loadContacts]);
   const saveZone = async () => {
     try {
       const permission = await Location.requestForegroundPermissionsAsync();

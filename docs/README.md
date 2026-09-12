@@ -92,7 +92,7 @@ Each ADR is a permanent record of a specific decision. Read the relevant ADR whe
 
 10. **Territory is global. Launch market is Mumbai (MMR).** Any runner anywhere in the world can claim territory — the H3 carving and monthly season system works with any coordinates. Leaderboards are city-scoped, country-scoped, and global. Quests and route suggestion data remain MMR-only for launch because they require curated local datasets. Expanding to new cities for quests/routes requires a separate data review.
 
-11. **Turf is Tab 1.** The Turf map opens by default when the app is launched. Do not put a dashboard, home screen, or splash screen as the default tab. **App.tsx currently defaults to 'Home' — this is a bug. Fix: change `useState<Tab>('Home')` to `useState<Tab>('Turf')` on line 69 of `App.tsx`.**
+11. **Turf is Tab 1.** The Turf map opens by default when the app is launched. Do not put a dashboard, home screen, or splash screen as the default tab. The bar order and the landing tab are stated once, in `src/navigation/types.ts` (`tabs` and `landingTab`); `App.tsx` reads `landingTab` for both the first view and where a sign-out returns to. Change them there, not at a call site.
 
 12. **Monthly territory season reset.** On the 1st of each month at 00:01 IST, ALL active territory claims are archived and the map resets. Every runner starts with zero territory. The reset is a single atomic DB transaction. See `territory-guide.md` for full spec.
 

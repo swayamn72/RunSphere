@@ -13,10 +13,10 @@ import {
 } from './achievements-model';
 
 const achievement = (overrides: Partial<AchievementStatus> = {}): AchievementStatus => ({
-  key: 'first-walk',
+  key: 'first-run',
   ruleVersion: '1',
   title: 'First steps',
-  description: 'Record one validated walk.',
+  description: 'Record one validated run.',
   rewardXp: 20,
   earned: false,
   ...overrides

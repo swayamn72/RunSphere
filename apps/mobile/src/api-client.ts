@@ -200,7 +200,7 @@ export class MobileApiClient {
       throw new AuthFailure('invalid-credentials', response.status);
     if (!response.ok)
       throw new ApiFailure(response.status, `Unable to load quests (${response.status}).`);
-    return ((await response.json()) as { data: QuestSummary[] }).data;
+    return (await jsonBody<{ data: QuestSummary[] }>(response, '/v1/quests')).data;
   }
   async getQuest(id: string): Promise<QuestDetail> {
     return this.request<QuestDetail>(
@@ -919,7 +919,7 @@ export class MobileApiClient {
     if (response.status === 401 || response.status === 403)
       throw new AuthFailure('invalid-credentials', response.status);
     if (!response.ok) throw new ApiFailure(response.status, await responseMessage(response, path));
-    return (request.empty ? undefined : await response.json()) as T;
+    return (request.empty ? (undefined as T) : await jsonBody<T>(response, path)) as T;
   }
 
   private async authRequest(
@@ -945,13 +945,42 @@ export class MobileApiClient {
       reportAuthFailure(operation, failure);
       throw failure;
     }
-    return (await response.json()) as AuthSession;
+    try {
+      return (await response.json()) as AuthSession;
+    } catch {
+      // A 2xx whose body is not a session: something other than the API
+      // answered. Reported as unknown rather than as bad credentials, which
+      // would send the runner off to reset a password that is fine.
+      const failure = new AuthFailure('unknown', response.status);
+      reportAuthFailure(operation, failure);
+      throw failure;
+    }
   }
   private async saveSession(session: AuthSession): Promise<AuthSession> {
     await this.auth?.save(session);
     return session;
   }
 }
+
+/**
+ * Read a JSON body, turning a body that is not JSON into the same typed
+ * failure every other API problem uses.
+ *
+ * `Response.json()` throws a bare `SyntaxError` ("JSON Parse error: Unexpected
+ * character: <"), which reaches the screens as an unhandled crash rather than a
+ * non-state. A successful status with an unparseable body is not a server
+ * error: it is something between the app and the API answering instead of it —
+ * a base URL pointing at the Metro dev server, a captive portal, an expired
+ * preview tunnel. The runner is told the answer was unreadable, not that their
+ * account or their run is broken.
+ */
+const jsonBody = async <T>(response: Response, path: string): Promise<T> => {
+  try {
+    return (await response.json()) as T;
+  } catch {
+    throw new ApiFailure(response.status, `Request to ${path} returned an unreadable answer.`);
+  }
+};
 
 const responseMessage = async (response: Response, path: string): Promise<string> => {
   try {

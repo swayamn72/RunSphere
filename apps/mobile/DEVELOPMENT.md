@@ -1,6 +1,19 @@
 # Android debug APK
 
-The committed `android/` directory is the reproducible native path for Android development. It is generated from `app.config.ts` and should be refreshed deliberately with `pnpm prebuild:android` when Expo native settings change. The activity recorder enables SQLCipher through the Expo SQLite plugin, so regenerate Android before assembling after this setting changes; SQLCipher affects every Expo SQLite database in the app, and each must set its key before any access.
+The committed `android/` directory is the reproducible native path for Android development. It is generated from `app.config.ts` and should be refreshed deliberately with `pnpm prebuild:android` when Expo native settings change.
+
+**`prebuild` clears `android/` before it regenerates it, and it does not preserve hand-edits.** Four deliberate edits live in the committed project and have to be reapplied after every prebuild — `git diff apps/mobile/android` after running it, and put these back:
+
+| File | Edit | Why |
+|------|------|-----|
+| `android/app/build.gradle` | `debuggableVariants = []` | Embeds the JS bundle in debug APKs so emulator and device installs do not need a Metro server. Prebuild comments this out. |
+| `android/gradle.properties` | `edgeToEdgeEnabled=false` | Keeps the app inset-aware until it adopts `react-native-safe-area-context`. Prebuild sets it to `true`. |
+| `android/gradle.properties` | `-Dfile.encoding=UTF-8` in `org.gradle.jvmargs` | Required on Windows under Java 17; see the comment in that file. Prebuild drops it with the rest of the override. |
+| `android/app/src/{debug,debugOptimized}/AndroidManifest.xml` | `SYSTEM_ALERT_WINDOW` marked `tools:node="remove"` | `blockedPermissions` in `app.config.ts` only reaches the main manifest, so the debug variants would otherwise re-grant it. `verify-android-permissions.mjs` reads the main manifest only and does not catch this. |
+
+No Firebase config is committed (see `app.config.ts`). Without `google-services.json` in this directory, `app.config.ts` omits `googleServicesFile` entirely and the build succeeds with push delivery absent — the durable in-app inbox is unaffected. Do not reintroduce an unconditional `googleServicesFile`: a missing file aborts prebuild *after* `android/` has been cleared, leaving a half-generated project whose Gradle configuration then fails on unresolvable project paths.
+
+The activity recorder enables SQLCipher through the Expo SQLite plugin, so regenerate Android before assembling after this setting changes; SQLCipher affects every Expo SQLite database in the app, and each must set its key before any access.
 
 ## Prerequisites
 

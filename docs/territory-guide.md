@@ -31,7 +31,7 @@ The enclosed area becomes a candidate claim. Requirements:
 Your name and avatar are placed on the map. A run that is not claimed is just a run.
 
 **4. H3 cell set is computed at claim time.**
-The claim polygon is converted to a set of Uber H3 hexagonal cell indices at resolution 11 (~15 m² per cell). The H3 library version is pinned and stored with the claim so every future computation is exactly reproducible.
+The claim polygon is converted to a set of Uber H3 hexagonal cell indices at resolution 11 (~1,963 m² per cell — ~15 m² is resolution 14, so the 5,000 m² minimum claim is about 2.5 cells, not 333). The H3 library version is pinned and stored with the claim so every future computation is exactly reproducible.
 
 **5. Claims are scoped to the current season month.**
 Every claim belongs to the current month (e.g., `2026-09`). When the month ends, all claims expire and the map resets. See [Monthly Season Reset](#monthly-season-reset) below.

@@ -1,4 +1,28 @@
+import { existsSync } from 'node:fs';
+import { isAbsolute, resolve } from 'node:path';
 import type { ExpoConfig } from 'expo/config';
+
+/**
+ * Firebase's own config, which carries the sender id FCM addresses this
+ * installation by. Not a secret — it ships inside every APK — but not
+ * committed either, because it names one specific Firebase project and a
+ * checkout building against somebody else's would silently register devices
+ * into it.
+ *
+ * Resolved rather than named unconditionally: `@expo/config-plugins`
+ * copies this file during `expo prebuild`, and a missing one aborts the
+ * prebuild *after* it has already cleared `android/`, leaving a half-generated
+ * native project that Gradle then fails to configure. A checkout without
+ * Firebase credentials builds and runs; only push delivery is absent, and
+ * `push-registration.ts` already treats that as an ordinary non-state.
+ */
+const resolveGoogleServicesFile = (): string | undefined => {
+  const configured = process.env.GOOGLE_SERVICES_JSON ?? './google-services.json';
+  const path = isAbsolute(configured) ? configured : resolve(__dirname, configured);
+  return existsSync(path) ? configured : undefined;
+};
+
+const googleServicesFile = resolveGoogleServicesFile();
 
 const config: ExpoConfig = {
   name: 'RunSphere',
@@ -19,12 +43,9 @@ const config: ExpoConfig = {
       'android.permission.POST_NOTIFICATIONS',
       'android.permission.VIBRATE'
     ],
-    // Firebase's own config, which carries the sender id FCM addresses this
-    // installation by. Not a secret — it ships inside every APK — but not
-    // committed either, because it names one specific Firebase project and a
-    // checkout building against somebody else's would silently register
-    // devices into it. See `docs/HANDOFF.md` for where to put it.
-    googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? './google-services.json',
+    // Absent when no Firebase config has been placed in the checkout; see
+    // `resolveGoogleServicesFile` above and `apps/mobile/DEVELOPMENT.md`.
+    ...(googleServicesFile ? { googleServicesFile } : {}),
     blockedPermissions: [
       'android.permission.ACCESS_BACKGROUND_LOCATION',
       'android.permission.ACCESS_WIFI_STATE',

@@ -1,0 +1,27 @@
+# Every text file is stored and checked out with LF.
+#
+# Without this, Git honours a Windows contributor's `core.autocrlf=true` and
+# checks the tree out with CRLF, while the committed blobs stay LF. Nothing is
+# wrong with the repository when that happens, but `pnpm format:check` then
+# fails on ~180 files a Windows checkout never touched, and every `git diff`
+# prints "LF will be replaced by CRLF". CI runs on Linux and would not see
+# either. Pinning the checkout here keeps the two platforms in agreement.
+#
+# The committed blobs are already LF, so this needs no renormalisation — a
+# fresh clone or checkout picks it up.
+* text=auto eol=lf
+
+# Binary assets must never be converted.
+*.png binary
+*.webp binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.keystore binary
+*.jar binary
+*.zip binary
+*.hbc binary
+
+# The Gradle wrapper's Windows launcher is the one file that needs CRLF.
+gradlew.bat text eol=crlf

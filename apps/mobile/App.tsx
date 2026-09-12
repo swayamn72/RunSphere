@@ -26,7 +26,7 @@ import {
   initialActivityRoute,
   routeOrigin
 } from './src/activity-flow';
-import type { Tab } from './src/navigation/types';
+import { landingTab, type Tab } from './src/navigation/types';
 import { initialOnboardingState, onboardingReducer } from './src/onboarding';
 import {
   ActivityHistory,
@@ -66,7 +66,7 @@ function RunSphereApp() {
   const { colorScheme, tokens } = useAppTheme();
   const styles = useAppStyles();
   const [onboarding, dispatch] = useReducer(onboardingReducer, initialOnboardingState);
-  const [activeTab, setActiveTab] = useState<Tab>('Home');
+  const [activeTab, setActiveTab] = useState<Tab>(landingTab);
   const [activityRoute, dispatchActivityRoute] = useReducer(
     activityFlowReducer,
     initialActivityRoute
@@ -151,7 +151,7 @@ function RunSphereApp() {
   }, [claimPushAddress, storageAttempt]);
 
   const finishSession = useCallback(() => {
-    setActiveTab('Home');
+    setActiveTab(landingTab);
     setSelectedQuest(undefined);
     dispatchActivityRoute({ type: 'logout' });
     setRoutePreview(false);

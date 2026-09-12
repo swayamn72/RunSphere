@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as Location from 'expo-location';
 import { AppState, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { LngLat } from '@maplibre/maplibre-react-native';
@@ -51,7 +51,11 @@ export function ExploreScreen({
   }>();
   const requestGeneration = useRef(0);
 
-  const load = async () => {
+  // Memoised so the mount effect below can depend on it honestly. Both deps
+  // are stable for the life of a signed-in session — `onSessionExpired` is a
+  // `useCallback` in `App.tsx` keyed on the account — so this reloads the
+  // catalog when the account changes and at no other time.
+  const load = useCallback(async () => {
     const plan = nextCatalogRequestPlan(requestGeneration.current);
     requestGeneration.current = plan.generation;
     setCatalogState('loading');
@@ -66,13 +70,13 @@ export function ExploreScreen({
       if (state === 'session-expired') onSessionExpired();
       else setCatalogState(state);
     }
-  };
+  }, [api, onSessionExpired]);
   useEffect(() => {
     void load();
     return () => {
       requestGeneration.current += 1;
     };
-  }, [api]);
+  }, [load]);
 
   const reconcilePermission = async () => {
     const current = await Location.getForegroundPermissionsAsync();

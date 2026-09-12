@@ -314,3 +314,47 @@ describe('mobile API body-less POST handling', () => {
     ]);
   });
 });
+
+describe('mobile API non-JSON answers', () => {
+  // A 2xx carrying HTML is what a Metro dev server, a captive portal, or an
+  // expired preview tunnel returns. `Response.json()` throws a bare
+  // `SyntaxError` there, which reached the screens as a crash instead of a
+  // non-state.
+  const html = (status = 200) =>
+    new Response('<!doctype html><html><body>Not the API</body></html>', {
+      status,
+      headers: { 'content-type': 'text/html' }
+    });
+
+  it('reports an unreadable authenticated answer as a typed API failure', async () => {
+    const { client } = await recordingClient(() => html());
+    await expect(client.getWeeklyGoal()).rejects.toMatchObject({
+      name: 'ApiFailure',
+      status: 200,
+      message: 'Request to /v1/goals/weekly returned an unreadable answer.'
+    });
+  });
+
+  it('reports an unreadable quest list as a typed API failure', async () => {
+    const client = new MobileApiClient('https://api.runsphere.test', async () => html());
+    await expect(client.listQuests()).rejects.toMatchObject({
+      name: 'ApiFailure',
+      status: 200,
+      message: 'Request to /v1/quests returned an unreadable answer.'
+    });
+  });
+
+  // Not `invalid-credentials`: the password is fine, something other than the
+  // API answered, and sending the runner to a password reset would be wrong.
+  it('reports an unreadable sign-in answer as an unknown auth failure', async () => {
+    const client = new MobileApiClient('https://api.runsphere.test', async () => html());
+    await expect(
+      client.login({ email: 'maya@example.com', password: 'long-enough-password' })
+    ).rejects.toMatchObject({ name: 'AuthFailure', kind: 'unknown', status: 200 });
+  });
+
+  it('still accepts a body-less 204 on an empty-response route', async () => {
+    const { client } = await recordingClient(() => new Response(null, { status: 204 }));
+    await expect(client.stopSafetyShare('share-1')).resolves.toBeUndefined();
+  });
+});

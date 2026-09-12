@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { contrastPairs, darkTokens, lightTokens } from '@runsphere/ui';
 import { tabEmphasis, tabIcons } from './tab-style.js';
-import { tabs } from './types.js';
+import { landingTab, tabs } from './types.js';
 
-describe('five-tab foundation', () => {
+describe('six-tab foundation', () => {
   it('preserves the product tab order and quiet visual emphasis without disabling tabs', () => {
-    // Turf sits beside Explore: both are map surfaces, and territory is the
-    // one people open to see what changed while they were away (ADR-0011).
-    expect(tabs).toEqual(['Home', 'Explore', 'Turf', 'Play', 'Clubs', 'You']);
+    // Turf leads: it is the surface people open to see what changed while they
+    // were away, and `screens.md` requires the map itself to be the first view
+    // rather than a dashboard or a splash (ADR-0011).
+    expect(tabs).toEqual(['Turf', 'Home', 'Explore', 'Play', 'Clubs', 'You']);
+    expect(tabs[0]).toBe(landingTab);
     expect(tabEmphasis('Home')).toBe('primary');
     expect(tabEmphasis('Explore')).toBe('primary');
     expect(tabEmphasis('Turf')).toBe('primary');

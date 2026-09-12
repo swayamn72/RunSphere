@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as Location from 'expo-location';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import type { MobileApiClient } from '../api-client';
@@ -82,56 +82,63 @@ export function RoutePreviewScreen({
    * (`RouteSuggestionQuerySchema`). Asking the device for a precise fix would
    * collect something nothing needs.
    */
-  const load = async (options: { targetDistanceKm?: number; targetMinutes?: number } = {}) => {
-    const request = ++generation.current;
-    setState('loading');
-    setUnavailable(undefined);
-    try {
-      const granted = await Location.getForegroundPermissionsAsync();
-      const current = getLocationPermissionState(granted);
-      const resolved =
-        current === 'granted'
-          ? granted
-          : current === 'idle'
-            ? await Location.requestForegroundPermissionsAsync()
-            : granted;
-      const next = getLocationPermissionState(resolved);
-      if (!mounted.current || request !== generation.current) return;
-      setPermission(next);
-      if (next !== 'granted') {
-        setState('idle');
-        return;
+  const load = useCallback(
+    async (options: { targetDistanceKm?: number; targetMinutes?: number } = {}) => {
+      const request = ++generation.current;
+      setState('loading');
+      setUnavailable(undefined);
+      try {
+        const granted = await Location.getForegroundPermissionsAsync();
+        const current = getLocationPermissionState(granted);
+        const resolved =
+          current === 'granted'
+            ? granted
+            : current === 'idle'
+              ? await Location.requestForegroundPermissionsAsync()
+              : granted;
+        const next = getLocationPermissionState(resolved);
+        if (!mounted.current || request !== generation.current) return;
+        setPermission(next);
+        if (next !== 'granted') {
+          setState('idle');
+          return;
+        }
+
+        const position = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Low
+        });
+        const response = await api.suggestRoutes(
+          { latitude: position.coords.latitude, longitude: position.coords.longitude },
+          options
+        );
+        if (!mounted.current || request !== generation.current) return;
+
+        const nextCards = routePreviewCards(response.data);
+        setCards(nextCards);
+        setSelected((previous) => clampSelectedIndex(nextCards.length, previous));
+        setReason(targetReasonMessage(response));
+        setNote(response.note);
+        setTarget(response.targetDistanceMetres);
+        const resolvedState = routePreviewStateFor(response);
+        if (resolvedState === 'empty') setUnavailable(unavailableMessage(response));
+        setState(resolvedState);
+      } catch (error) {
+        if (!mounted.current || request !== generation.current) return;
+        const failure = routePreviewErrorStateFor(error);
+        if (failure === 'session-expired') onSessionExpired();
+        else setState(failure);
       }
-
-      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
-      const response = await api.suggestRoutes(
-        { latitude: position.coords.latitude, longitude: position.coords.longitude },
-        options
-      );
-      if (!mounted.current || request !== generation.current) return;
-
-      const nextCards = routePreviewCards(response.data);
-      setCards(nextCards);
-      setSelected((previous) => clampSelectedIndex(nextCards.length, previous));
-      setReason(targetReasonMessage(response));
-      setNote(response.note);
-      setTarget(response.targetDistanceMetres);
-      const resolvedState = routePreviewStateFor(response);
-      if (resolvedState === 'empty') setUnavailable(unavailableMessage(response));
-      setState(resolvedState);
-    } catch (error) {
-      if (!mounted.current || request !== generation.current) return;
-      const failure = routePreviewErrorStateFor(error);
-      if (failure === 'session-expired') onSessionExpired();
-      else setState(failure);
-    }
-  };
+    },
+    // A fresh client means a fresh session; the previous set is not this
+    // account's to show. `onSessionExpired` is a `useCallback` in `App.tsx`
+    // keyed on the account, so it turns over with `api` rather than on every
+    // parent render.
+    [api, onSessionExpired]
+  );
 
   useEffect(() => {
     void load();
-    // A fresh client means a fresh session; the previous set is not this
-    // account's to show.
-  }, [api]);
+  }, [load]);
 
   const card = cards[selected];
   const layers = useMemo(() => (card ? routePreviewLayers(card.suggestion) : []), [card]);

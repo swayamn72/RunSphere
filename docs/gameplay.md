@@ -149,8 +149,10 @@ defined read/write gates and the forecasted overage has the required approval.
 
 ## Mobile information architecture
 
-The recommended six-tab structure is:
+The six-tab structure, in bar order. Turf is Tab 1 and the tab every launch
+opens on — see [`screens.md`](screens.md) for the full per-tab specification:
 
+- **Turf** — enclosure territory claims map; held ground, avatar pins, time to beat.
 - **Home** — start run, route suggestion card, weekly consistency, progression summary, pending
   results, next safe action.
 - **Explore** — route suggestions and curated quests; no initial location disclosure.
@@ -159,7 +161,6 @@ The recommended six-tab structure is:
 - **Clubs** — club discovery by invite/exact code, active membership,
   club-isolated leaderboards/challenges/competitions, aggregate relays, and
   moderation controls.
-- **Turf** — enclosure territory claims map; held ground, avatar pins, time to beat.
 - **You** — private history, achievements, progression, account/email,
   notifications, privacy, safety, legal, export, and deletion.
 
