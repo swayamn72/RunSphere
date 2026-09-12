@@ -2,7 +2,7 @@ import type { LocationSample } from './activity-recorder-core';
 export const parseSyntheticNdjson = (source: string): LocationSample[] =>
   source
     .trim()
-    .split('\n')
+    .split(/\\n|\n/)
     .filter(Boolean)
     .map((line) => {
       const value = JSON.parse(line) as Partial<LocationSample>;

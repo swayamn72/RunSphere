@@ -35,6 +35,13 @@ const FORCE_PLAIN_TS = new Set([
 const originalResolveRequest = config.resolver?.resolveRequest;
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName === 'h3-js') {
+    return {
+      type: 'sourceFile',
+      filePath: path.resolve(__dirname, 'src/shims/h3-js.js'),
+    };
+  }
+
   // Only intercept relative imports on native platforms
   if (platform && (platform === 'android' || platform === 'ios') && moduleName.startsWith('.')) {
     const baseName = path.basename(moduleName);
