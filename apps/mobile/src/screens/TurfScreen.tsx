@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
   Camera,
   GeoJSONSource,
@@ -52,7 +52,12 @@ import {
   takeoverLine,
   territoryFacts,
   worthRefetching,
-  type CaptureCelebration
+  SELF_COLOUR,
+  ZONE_FILTERS,
+  filterClaims,
+  zoneFilterSummary,
+  type CaptureCelebration,
+  type ZoneFilter
 } from './territory-claim-model';
 
 /**
@@ -82,7 +87,7 @@ export interface TurfScreenProps {
 const INITIAL_CENTRE: [number, number] = [72.8777, 19.076];
 const INITIAL_ZOOM = 13;
 /** The ring around a cluster that contains any of the reader's own ground. */
-const SELF_RING = '#C9F15A';
+const SELF_RING = SELF_COLOUR;
 
 export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: TurfScreenProps) {
   const { tokens, reduceMotion } = useAppTheme();
@@ -98,6 +103,9 @@ export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: Tu
   const [zoom, setZoom] = useState(INITIAL_ZOOM);
   const [notice, setNotice] = useState('');
   const [selected, setSelected] = useState<string>();
+  /** The zone bar: which ground is drawn, and the name being looked for. */
+  const [zoneFilter, setZoneFilter] = useState<ZoneFilter>('all');
+  const [search, setSearch] = useState('');
   const [claimableRunId, setClaimableRunId] = useState<string>();
   const [claiming, setClaiming] = useState(false);
   const [clusters, setClusters] = useState<readonly TerritoryCluster[]>([]);
@@ -220,8 +228,23 @@ export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: Tu
 
   const tier = detailTierFor(zoom);
   const clustered = showsClusters(tier);
-  const features = useMemo(() => claimFeatures(clustered ? [] : claims), [claims, clustered]);
-  const markers = useMemo(() => (clustered ? [] : claimMarkers(claims)), [claims, clustered]);
+  /**
+   * The bar narrows what is drawn, not what was loaded: the summary line below
+   * still counts everything in the viewport, so a filter that hides every zone
+   * reads as a filter rather than as empty ground.
+   */
+  const visibleClaims = useMemo(
+    () => filterClaims(claims, zoneFilter, search),
+    [claims, zoneFilter, search]
+  );
+  const features = useMemo(
+    () => claimFeatures(clustered ? [] : visibleClaims),
+    [visibleClaims, clustered]
+  );
+  const markers = useMemo(
+    () => (clustered ? [] : claimMarkers(visibleClaims)),
+    [visibleClaims, clustered]
+  );
   const bubbles = useMemo(() => (clustered ? clusterMarkers(clusters) : []), [clusters, clustered]);
   const chosen = useMemo(() => claims.find((claim) => claim.id === selected), [claims, selected]);
   const live = useMemo(() => activeEvents(events, new Date()), [events]);
@@ -288,6 +311,7 @@ export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: Tu
         {...(onGhostRace && !chosen.owner.isSelf
           ? { onGhostRace: () => setGhostClaimId(chosen.id) }
           : {})}
+        {...(onOpenRun ? { onRunHere: onOpenRun } : {})}
       />
     );
 
@@ -406,6 +430,62 @@ export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: Tu
           </View>
         )}
 
+        {/*
+          The zone bar sits over the map rather than above it: the map is the
+          screen, and a bar in the layout would push the ground off it.
+        */}
+        <View style={styles.zoneBar} pointerEvents="box-none">
+          <View style={styles.searchField}>
+            <Text style={styles.searchGlyph} allowFontScaling={false}>
+              ⌕
+            </Text>
+            <TextInput
+              accessibilityLabel="Search zones by holder or city"
+              autoCapitalize="none"
+              autoCorrect={false}
+              onChangeText={setSearch}
+              placeholder="Search locations, zones…"
+              placeholderTextColor={tokens.text.secondary}
+              returnKeyType="search"
+              style={styles.searchInput}
+              value={search}
+            />
+            {search !== '' && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Clear the zone search"
+                onPress={() => setSearch('')}
+              >
+                <Text style={styles.searchGlyph}>×</Text>
+              </Pressable>
+            )}
+          </View>
+          <ScrollView
+            horizontal
+            keyboardShouldPersistTaps="handled"
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterRow}
+          >
+            {ZONE_FILTERS.map((entry) => {
+              const active = zoneFilter === entry.key;
+              return (
+                <Pressable
+                  key={entry.key}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={entry.label}
+                  onPress={() => setZoneFilter(entry.key)}
+                  style={[styles.filterChip, active && styles.filterChipActive]}
+                >
+                  <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                    {entry.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+
         {renderPlan.kind === 'provider' && (
           <View style={styles.controls} pointerEvents="box-none">
             <Pressable
@@ -445,9 +525,14 @@ export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: Tu
 
       <ScrollView style={styles.sheet} contentContainerStyle={styles.sheetContent}>
         <Text accessibilityRole="header" style={styles.title}>
-          Turf
+          Explore
         </Text>
-        <Text style={styles.body}>{summaryLine(summary)}</Text>
+        {/* What the bar is showing, above what this account holds overall, so a
+            narrowed map is never mistaken for unclaimed ground. */}
+        <Text style={styles.body}>
+          {zoneFilterSummary(zoneFilter, visibleClaims.length, claims.length, search)}
+        </Text>
+        <Text style={styles.helper}>{summaryLine(summary)}</Text>
         {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
         {celebration ? (
@@ -713,7 +798,38 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
     rank: { color: tokens.text.primary, fontSize: 14, fontWeight: '800', minWidth: 34 },
     celebrationHeadline: { color: tokens.text.primary, fontSize: 18, fontWeight: '900' },
     celebrationDetail: { color: tokens.text.primary, fontSize: 14, lineHeight: 20 },
-    controls: { gap: 8, position: 'absolute', right: 12, top: 12 },
+    controls: { gap: 8, position: 'absolute', right: 12, top: 118 },
+    /** Search field and zone chips, floated over the top of the map. */
+    zoneBar: { gap: 10, left: 12, position: 'absolute', right: 12, top: 12 },
+    searchField: {
+      alignItems: 'center',
+      backgroundColor: tokens.background.surface,
+      borderColor: tokens.border.subtle,
+      borderRadius: 999,
+      borderWidth: 1,
+      flexDirection: 'row',
+      gap: 10,
+      minHeight: 46,
+      paddingHorizontal: 16
+    },
+    searchGlyph: { color: tokens.text.secondary, fontSize: 17, fontWeight: '700' },
+    searchInput: { color: tokens.text.primary, flex: 1, fontSize: 14, padding: 0 },
+    filterRow: { flexDirection: 'row', gap: 8, paddingRight: 8 },
+    filterChip: {
+      backgroundColor: tokens.background.surface,
+      borderColor: tokens.border.subtle,
+      borderRadius: 999,
+      borderWidth: 1,
+      justifyContent: 'center',
+      minHeight: 34,
+      paddingHorizontal: 14
+    },
+    filterChipActive: {
+      backgroundColor: tokens.action.primary,
+      borderColor: tokens.action.primary
+    },
+    filterChipText: { color: tokens.text.secondary, fontSize: 12, fontWeight: '800' },
+    filterChipTextActive: { color: tokens.text.onAccent },
     control: {
       alignItems: 'center',
       backgroundColor: tokens.map.control,

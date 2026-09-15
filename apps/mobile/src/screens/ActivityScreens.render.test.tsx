@@ -129,13 +129,11 @@ describe('activity render lifecycle regressions', () => {
         />
       );
     });
+    // Found by the name a screen reader announces, which stays stable when
+    // the visible label changes.
     const finish = renderer.root
       .findAllByType('Pressable' as React.ElementType)
-      .find((node) =>
-        node
-          .findAllByType('Text' as React.ElementType)
-          .some((child) => child.children.includes('Finish activity'))
-      );
+      .find((node) => node.props['accessibilityLabel'] === 'Finish activity');
     expect(finish).toBeDefined();
     await act(async () => {
       finish!.props.onPress();

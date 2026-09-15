@@ -9,10 +9,22 @@ import type {
 import type { MobileApiClient } from '../api-client';
 import { LoopCallout } from '../components/LoopCallout';
 import { LoopMascot } from '../components/Mascot';
-import { PrimaryButton } from '../components/primitives';
+import { useAppStyles } from '../components/styles';
 import { useLoopGuidance } from '../components/useLoopGuidance';
 import type { LoopGuidanceCue } from '../loop-guidance';
 import { useAppTheme } from '../theme/theme';
+import {
+  ActiveDaysCard,
+  DashboardGrid,
+  HomeHeader,
+  QuickActions,
+  TodaysChallengeCard
+} from './HomeDashboard';
+import {
+  activeDaysPresentation,
+  dashboardTiles,
+  greetingPresentation
+} from './home-dashboard-model';
 import {
   homeErrorState,
   homeStatusMessage,
@@ -22,18 +34,17 @@ import {
   weeklyGoalMetrics,
   weeklyGoalState
 } from './home-state';
+import { unreadBadgeLabel, unreadIds } from './notifications-model';
 import {
-  consistencyPresentation,
   progressionCardState,
   progressionErrorState,
-  progressionPresentation,
   progressionStatusMessage,
-  type ConsistencyPresentation,
-  type ProgressionCardState,
-  type ProgressionPresentation
+  type ProgressionCardState
 } from './home-progression-model';
 
 interface HomeRemoteData {
+  /** Unread inbox entries, for the header's marker. */
+  readonly unreadCount: number;
   readonly goal: WeeklyGoalResponse | undefined;
   readonly goalState: HomeRemoteState;
   readonly quests: readonly QuestSummary[];
@@ -54,6 +65,13 @@ const useHomeRemoteData = (api: MobileApiClient, onSessionExpired: () => void): 
   const [progression, setProgression] = useState<ProgressionSummary>();
   const [progressionState, setProgressionState] = useState<ProgressionCardState>('loading');
   const [profile, setProfile] = useState<Profile>();
+  /**
+   * Unread notices, for the bell's marker only.
+   *
+   * A failure leaves the count at zero rather than showing a badge nobody can
+   * explain: the inbox itself is the record, and Home's dot is a hint about it.
+   */
+  const [unreadCount, setUnreadCount] = useState(0);
   const mounted = useRef(true);
   const goalGeneration = useRef(0);
   const questGeneration = useRef(0);
@@ -130,9 +148,9 @@ const useHomeRemoteData = (api: MobileApiClient, onSessionExpired: () => void): 
           onSessionExpired();
         }
       });
-    // The cosmetic tier is decoration on a card the progression summary already
-    // fills. A missing profile answers `404`, so a failure here must leave the
-    // chip off rather than block progression or invent an identity.
+    // The greeting's name and monogram come from here. A missing profile
+    // answers `404`, so a failure must leave the greeting neutral rather than
+    // block the dashboard or invent an identity.
     void api
       .getProfile()
       .then((next) => {
@@ -140,6 +158,15 @@ const useHomeRemoteData = (api: MobileApiClient, onSessionExpired: () => void): 
         setProfile(next);
       })
       .catch(() => undefined);
+    void api
+      .getNotificationInbox()
+      .then((entries) => {
+        if (!mounted.current || generation !== progressionGeneration.current) return;
+        setUnreadCount(unreadIds(entries).length);
+      })
+      .catch(() => {
+        if (mounted.current && generation === progressionGeneration.current) setUnreadCount(0);
+      });
   }, [api, onSessionExpired]);
 
   useEffect(() => {
@@ -157,6 +184,7 @@ const useHomeRemoteData = (api: MobileApiClient, onSessionExpired: () => void): 
   }, [loadGoals, loadProgression, loadQuests]);
 
   return {
+    unreadCount,
     goal,
     goalState,
     quests,
@@ -174,7 +202,11 @@ export function HomeScreen({
   api,
   onStart,
   onChooseRoute,
+  onOpenChallenges,
   onOpenQuests,
+  onOpenMap,
+  onOpenSocial,
+  onOpenNotifications,
   onOpenProfile,
   onSessionExpired
 }: {
@@ -182,13 +214,19 @@ export function HomeScreen({
   onStart: () => void;
   /** "Choose a route instead" (`screens.md` 2.1) - secondary to starting. */
   onChooseRoute: () => void;
+  onOpenChallenges: () => void;
   onOpenQuests: () => void;
+  onOpenMap: () => void;
+  onOpenSocial: () => void;
+  onOpenNotifications: () => void;
   onOpenProfile: () => void;
   onSessionExpired: () => void;
 }) {
+  const styles = useAppStyles();
   const { tokens } = useAppTheme();
-  const styles = useMemo(() => createStyles(tokens), [tokens]);
+  const local = useMemo(() => createStyles(tokens), [tokens]);
   const {
+    unreadCount,
     goal,
     goalState,
     quests,
@@ -200,9 +238,13 @@ export function HomeScreen({
     reloadQuests,
     reloadProgression
   } = useHomeRemoteData(api, onSessionExpired);
+
   const metrics = goal ? weeklyGoalMetrics(goal) : [];
-  const progressionCard = progression ? progressionPresentation(progression, profile) : undefined;
-  const consistencyCard = progression ? consistencyPresentation(progression) : undefined;
+  const featured = metrics[0];
+  const greeting = greetingPresentation(profile, new Date().getHours());
+  const activeDays = activeDaysPresentation(progression);
+  const unreadLabel = unreadBadgeLabel(unreadCount);
+  const tiles = dashboardTiles(goal, progression);
   const statusMessage = homeStatusMessage(
     goalState,
     questState,
@@ -216,117 +258,115 @@ export function HomeScreen({
 
   return (
     <>
-      <Text accessibilityLiveRegion="polite" style={styles.liveStatus}>
+      <Text accessibilityLiveRegion="polite" style={styles.visuallyHidden}>
         {statusMessage}
       </Text>
-      <View style={styles.header}>
-        <Text style={styles.eyebrow}>HOME</Text>
-        <Text accessibilityRole="header" style={styles.title}>
-          Ready to find{`\n`}your next path?
-        </Text>
-      </View>
 
-      <View style={styles.card}>
-        <Text style={styles.eyebrow}>THIS WEEK</Text>
-        {goalState === 'loading' && <WeeklySkeleton styles={styles} />}
-        {goalState === 'ready' && (
-          <>
-            <Text style={styles.weekLabel}>Week of {goal?.weekStartsOn}</Text>
-            {guidance.cue && <LoopCallout cue={guidance.cue} onDismiss={guidance.dismiss} />}
-            {metrics.map((metric) => (
-              <View key={metric.label} style={styles.metric}>
-                <View style={styles.metricHeader}>
-                  <View style={styles.metricCopy}>
-                    <Text style={styles.metricTitle}>{metric.label}</Text>
-                    <Text style={styles.metricValue}>
-                      {metric.actual} <Text style={styles.metricGoal}>of {metric.goal}</Text>
-                    </Text>
-                  </View>
-                  <Text style={styles.percent}>{metric.progress}%</Text>
-                </View>
-                <View
-                  accessibilityLabel={`${metric.label}: ${metric.actual} of ${metric.goal}`}
-                  accessibilityRole="progressbar"
-                  accessibilityValue={{
-                    min: 0,
-                    max: 100,
-                    now: metric.progress,
-                    text: `${metric.progress}% complete`
-                  }}
-                  style={styles.progressTrack}
-                >
-                  <View style={[styles.progressFill, { width: `${metric.progress}%` }]} />
-                </View>
-              </View>
-            ))}
-            <Text style={styles.helper}>
-              Validated activities only. Local queued activity is not included.
-            </Text>
-          </>
-        )}
-        {goalState === 'empty' && (
-          <Guide
-            styles={styles}
-            variant="empty"
-            label="Choose a distance or active-minute goal when you are ready."
-            actionLabel="Set weekly goal"
-            onAction={onOpenProfile}
-          />
-        )}
-        {goalState === 'offline' && (
-          <Guide
-            styles={styles}
-            variant="offline"
-            label="Weekly progress is unavailable offline."
-            actionLabel="Try again"
-            onAction={reloadGoals}
-          />
-        )}
-        {goalState === 'configuration' && (
-          <Unavailable
-            styles={styles}
-            label="Weekly progress is unavailable until RunSphere is configured."
-          />
-        )}
-        {goalState === 'error' && (
-          <Unavailable
-            styles={styles}
-            label="Weekly progress is unavailable."
-            actionLabel="Try again"
-            onAction={reloadGoals}
-          />
-        )}
-      </View>
-
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <View style={styles.flexCopy}>
-            <Text style={styles.eyebrow}>FREE ACTIVITY</Text>
-            <Text accessibilityRole="header" style={styles.cardTitle}>
-              Free run
-            </Text>
-          </View>
-          <Text style={styles.privateBadge}>PRIVATE</Text>
-        </View>
-        <Text style={styles.body}>
-          Records locally first. Exact route, start, and finish stay private.
-        </Text>
-        <PrimaryButton label="Start run" onPress={onStart} />
-        {/* Deliberately a link and not a button: most runs do not want one. */}
-        <Pressable accessibilityRole="button" onPress={onChooseRoute}>
-          <Text style={styles.chooseRoute}>Choose a route instead →</Text>
-        </Pressable>
-      </View>
-
-      <ProgressionCard
-        styles={styles}
-        state={progressionState}
-        card={progressionCard}
-        onRetry={reloadProgression}
+      <HomeHeader
+        greeting={greeting}
+        {...(unreadLabel ? { unreadLabel } : {})}
+        onOpenNotifications={onOpenNotifications}
+        onOpenProfile={onOpenProfile}
       />
-      {consistencyCard && <ConsistencyCard styles={styles} card={consistencyCard} />}
 
-      <View style={styles.questHeader}>
+      {guidance.cue && <LoopCallout cue={guidance.cue} onDismiss={guidance.dismiss} />}
+
+      {/* The active-days meter stands in for the streak the design shows: the
+          server reports a weekly count, and there is no consecutive-day figure
+          anywhere in the API to count a streak from. */}
+      {activeDays ? (
+        <ActiveDaysCard card={activeDays} />
+      ) : (
+        progressionState === 'loading' && <View style={[local.skeleton, local.skeletonCard]} />
+      )}
+
+      <DashboardGrid tiles={tiles} />
+      {goalState === 'loading' && !tiles.length && (
+        <View style={styles.statGrid}>
+          <View style={[local.skeleton, local.skeletonTile]} />
+          <View style={[local.skeleton, local.skeletonTile]} />
+        </View>
+      )}
+
+      {/* The design's "Today's Challenge". Titled for what the number actually
+          is - a weekly goal the server is tracking - because Home has no
+          per-day challenge to read, and a challenge mid-window has no score
+          until the worker closes it (`play-model`). */}
+      {featured && (
+        <TodaysChallengeCard
+          title="This week's goal"
+          detail={`${featured.label}: ${featured.actual} of ${featured.goal}`}
+          progress={featured.progress}
+          progressLabel={`${featured.actual} / ${featured.goal}`}
+          onPress={onOpenChallenges}
+        />
+      )}
+      {goalState === 'empty' && (
+        <Guide
+          local={local}
+          styles={styles}
+          variant="empty"
+          label="Choose a distance or active-minute goal when you are ready."
+          actionLabel="Set weekly goal"
+          onAction={onOpenProfile}
+        />
+      )}
+      {goalState === 'offline' && (
+        <Guide
+          local={local}
+          styles={styles}
+          variant="offline"
+          label="Weekly progress is unavailable offline."
+          actionLabel="Try again"
+          onAction={reloadGoals}
+        />
+      )}
+      {goalState === 'configuration' && (
+        <Unavailable
+          local={local}
+          styles={styles}
+          label="Weekly progress is unavailable until RunSphere is configured."
+        />
+      )}
+      {goalState === 'error' && (
+        <Unavailable
+          local={local}
+          styles={styles}
+          label="Weekly progress is unavailable."
+          actionLabel="Try again"
+          onAction={reloadGoals}
+        />
+      )}
+      {(progressionState === 'offline' || progressionState === 'error') && (
+        <Unavailable
+          local={local}
+          styles={styles}
+          label={
+            progressionState === 'offline'
+              ? 'Progression is unavailable offline.'
+              : 'Progression is unavailable.'
+          }
+          actionLabel="Try again"
+          onAction={reloadProgression}
+        />
+      )}
+
+      <QuickActions
+        onAction={(action) => {
+          if (action === 'run') onStart();
+          else if (action === 'map') onOpenMap();
+          else onOpenSocial();
+        }}
+      />
+
+      <Text style={local.privacyNote}>
+        A free run records locally first. Exact route, start, and finish stay private.
+      </Text>
+      <Pressable accessibilityRole="button" onPress={onChooseRoute}>
+        <Text style={local.chooseRoute}>Choose a route instead →</Text>
+      </Pressable>
+
+      <View style={styles.sectionHeader}>
         <Text accessibilityRole="header" style={styles.sectionTitle}>
           Verified quests
         </Text>
@@ -334,33 +374,38 @@ export function HomeScreen({
           accessibilityRole="button"
           accessibilityLabel="Explore verified quests"
           onPress={onOpenQuests}
-          style={styles.secondaryButton}
         >
-          <Text style={styles.secondaryText}>Explore</Text>
+          <Text style={styles.link}>View all</Text>
         </Pressable>
       </View>
-      {questState === 'loading' && <QuestLoading styles={styles} />}
+      {questState === 'loading' && (
+        <View style={local.questLoading}>
+          <LoopMascot variant="loading" accessibility={{ mode: 'decorative' }} size={48} />
+          <Text style={styles.muted}>Looking for verified quests.</Text>
+        </View>
+      )}
       {questState === 'ready' &&
-        quests.map((quest) => (
+        quests.slice(0, 3).map((quest) => (
           <Pressable
             key={quest.id}
             accessibilityRole="button"
             accessibilityLabel={`Explore ${quest.title}, ${questDistanceLabel(quest.distanceMeters)}`}
             onPress={onOpenQuests}
-            style={styles.questCard}
+            style={({ pressed }) => [styles.historyRow, pressed && styles.buttonPressed]}
           >
             <View style={styles.flexCopy}>
-              <Text style={styles.questTitle}>{quest.title}</Text>
-              <Text style={styles.questDetail}>
+              <Text style={styles.rowTitle}>{quest.title}</Text>
+              <Text style={styles.rowDetail}>
                 {questDistanceLabel(quest.distanceMeters)} · about {quest.estimatedActiveMinutes}{' '}
                 min · {quest.accessibility}
               </Text>
             </View>
-            <Text style={styles.questArrow}>›</Text>
+            <Text style={styles.chevron}>›</Text>
           </Pressable>
         ))}
       {questState === 'empty' && (
         <Guide
+          local={local}
           styles={styles}
           variant="empty"
           label="No verified quests are available right now. You can explore or start a free activity."
@@ -370,6 +415,7 @@ export function HomeScreen({
       )}
       {questState === 'offline' && (
         <Guide
+          local={local}
           styles={styles}
           variant="offline"
           label="Verified quests are unavailable offline."
@@ -379,12 +425,14 @@ export function HomeScreen({
       )}
       {questState === 'configuration' && (
         <Unavailable
+          local={local}
           styles={styles}
           label="Verified quests are unavailable until RunSphere is configured."
         />
       )}
       {questState === 'error' && (
         <Unavailable
+          local={local}
           styles={styles}
           label="Verified quests are unavailable."
           actionLabel="Try again"
@@ -395,206 +443,33 @@ export function HomeScreen({
   );
 }
 
-/**
- * Cosmetic progression only (ADR-0005). Every value shown is copied from the
- * server summary; an unpublished rule shows the XP total with no level rather
- * than an invented level 1.
- */
-function ProgressionCard({
-  styles,
-  state,
-  card,
-  onRetry
-}: {
-  styles: ReturnType<typeof createStyles>;
-  state: ProgressionCardState;
-  card: ProgressionPresentation | undefined;
-  onRetry: () => void;
-}) {
-  return (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={styles.flexCopy}>
-          <Text style={styles.eyebrow}>PROGRESSION</Text>
-          <Text accessibilityRole="header" style={styles.cardTitle}>
-            Cosmetic only
-          </Text>
-        </View>
-        {card?.tierLabel && <Text style={styles.tierBadge}>{card.tierLabel.toUpperCase()}</Text>}
-      </View>
-      {state === 'loading' && (
-        <View>
-          <View style={[styles.skeleton, styles.skeletonTitle]} />
-          <View style={[styles.skeleton, styles.skeletonProgress]} />
-          <Text style={styles.helper}>Loading progression.</Text>
-        </View>
-      )}
-      {(state === 'ready' || state === 'unpublished') && card && (
-        <>
-          <Text style={styles.xpTotal}>{card.totalXpLabel}</Text>
-          {card.level ? (
-            <View style={styles.metric}>
-              <View style={styles.metricHeader}>
-                <View style={styles.metricCopy}>
-                  <Text style={styles.metricTitle}>{card.level.levelLabel.toUpperCase()}</Text>
-                  <Text style={styles.levelDetail}>{card.level.xpInLevelLabel}</Text>
-                </View>
-                {card.level.progress !== undefined && (
-                  <Text style={styles.percent}>{card.level.progress}%</Text>
-                )}
-              </View>
-              {card.level.progress !== undefined && (
-                <View
-                  accessibilityLabel={card.level.progressAccessibilityLabel}
-                  accessibilityRole="progressbar"
-                  accessibilityValue={{
-                    min: 0,
-                    max: 100,
-                    now: card.level.progress,
-                    text: `${card.level.progress}% of this level`
-                  }}
-                  style={styles.progressTrack}
-                >
-                  <View style={[styles.progressFill, { width: `${card.level.progress}%` }]} />
-                </View>
-              )}
-            </View>
-          ) : (
-            <Text style={styles.helper}>
-              Cosmetic levels are not published yet, so only your XP total is available.
-            </Text>
-          )}
-          <Text style={styles.helper}>
-            XP is cosmetic. It never changes quest eligibility, validation, or who you are matched
-            with.
-          </Text>
-        </>
-      )}
-      {state === 'offline' && (
-        <Guide
-          styles={styles}
-          variant="offline"
-          label="Progression is unavailable offline."
-          actionLabel="Try again"
-          onAction={onRetry}
-        />
-      )}
-      {state === 'unavailable' && (
-        <Unavailable
-          styles={styles}
-          label="Progression is not available on this server yet."
-          actionLabel="Try again"
-          onAction={onRetry}
-        />
-      )}
-      {state === 'configuration' && (
-        <Unavailable
-          styles={styles}
-          label="Progression is unavailable until RunSphere is configured."
-        />
-      )}
-      {state === 'error' && (
-        <Unavailable
-          styles={styles}
-          label="Progression is unavailable."
-          actionLabel="Try again"
-          onAction={onRetry}
-        />
-      )}
-    </View>
-  );
-}
-
-/**
- * Non-punitive weekly consistency (ADR-0005). The server reports how many days
- * were active, never which ones, so the pips are an unlabelled count meter read
- * to TalkBack as a single count. Inactive pips are neutral, never an error or
- * warning color, and a quiet week is never framed as a loss.
- */
-function ConsistencyCard({
-  styles,
-  card
-}: {
-  styles: ReturnType<typeof createStyles>;
-  card: ConsistencyPresentation;
-}) {
-  return (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={styles.flexCopy}>
-          <Text style={styles.eyebrow}>CONSISTENCY</Text>
-          <Text accessibilityRole="header" style={styles.cardTitle}>
-            {card.weekLabel}
-          </Text>
-        </View>
-        {card.goalLabel && <Text style={styles.goalBadge}>{card.goalLabel.toUpperCase()}</Text>}
-      </View>
-      <View
-        accessible
-        accessibilityLabel={card.accessibilityLabel}
-        importantForAccessibility="yes"
-        style={styles.pipRow}
-      >
-        {card.pips.map((pip) => (
-          <View
-            key={pip.index}
-            importantForAccessibility="no-hide-descendants"
-            style={[styles.pip, pip.active ? styles.pipActive : styles.pipInactive]}
-          />
-        ))}
-      </View>
-      <Text style={styles.metricValue}>{card.activeDaysLabel}</Text>
-      <Text style={styles.levelDetail}>{card.cappedMinutesLabel}</Text>
-      <Text style={styles.helper}>{card.reassurance}</Text>
-    </View>
-  );
-}
-
-function WeeklySkeleton({ styles }: { styles: ReturnType<typeof createStyles> }) {
-  return (
-    <View>
-      <View style={[styles.skeleton, styles.skeletonTitle]} />
-      <View style={[styles.skeleton, styles.skeletonLine]} />
-      <View style={[styles.skeleton, styles.skeletonProgress]} />
-      <Text style={styles.helper}>Loading weekly progress.</Text>
-    </View>
-  );
-}
-
-function QuestLoading({ styles }: { styles: ReturnType<typeof createStyles> }) {
-  return (
-    <View style={styles.questLoading}>
-      <LoopMascot variant="loading" accessibility={{ mode: 'decorative' }} size={48} />
-      <Text style={styles.body}>Looking for verified quests.</Text>
-    </View>
-  );
-}
-
 function Guide({
+  local,
   styles,
   variant,
   label,
   actionLabel,
   onAction
 }: {
-  styles: ReturnType<typeof createStyles>;
+  local: ReturnType<typeof createStyles>;
+  styles: ReturnType<typeof useAppStyles>;
   variant: 'empty' | 'offline';
   label: string;
   actionLabel: string;
   onAction: () => void;
 }) {
   return (
-    <View style={styles.guide}>
+    <View style={local.guide}>
       <LoopMascot variant={variant} accessibility={{ mode: 'decorative' }} size={48} />
       <View style={styles.flexCopy}>
-        <Text style={styles.body}>{label}</Text>
+        <Text style={styles.muted}>{label}</Text>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={actionLabel}
           onPress={onAction}
-          style={styles.guideAction}
+          style={local.guideAction}
         >
-          <Text style={styles.guideActionText}>{actionLabel}</Text>
+          <Text style={local.guideActionText}>{actionLabel}</Text>
         </Pressable>
       </View>
     </View>
@@ -602,27 +477,29 @@ function Guide({
 }
 
 function Unavailable({
+  local,
   styles,
   label,
   actionLabel,
   onAction
 }: {
-  styles: ReturnType<typeof createStyles>;
+  local: ReturnType<typeof createStyles>;
+  styles: ReturnType<typeof useAppStyles>;
   label: string;
   actionLabel?: string;
   onAction?: () => void;
 }) {
   return (
-    <View style={styles.unavailable}>
-      <Text style={styles.body}>{label}</Text>
+    <View style={local.unavailable}>
+      <Text style={styles.muted}>{label}</Text>
       {actionLabel && onAction && (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={actionLabel}
           onPress={onAction}
-          style={styles.guideAction}
+          style={local.guideAction}
         >
-          <Text style={styles.guideActionText}>{actionLabel}</Text>
+          <Text style={local.guideActionText}>{actionLabel}</Text>
         </Pressable>
       )}
     </View>
@@ -631,116 +508,17 @@ function Unavailable({
 
 const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
   StyleSheet.create({
-    liveStatus: { color: t.text.secondary, fontSize: 1, height: 1, opacity: 0, width: 1 },
-    header: { justifyContent: 'center', marginBottom: 8, minHeight: 88 },
-    flexCopy: { flex: 1 },
-    eyebrow: { color: t.status.success, fontSize: 12, fontWeight: '900', letterSpacing: 1.2 },
-    title: {
-      color: t.text.primary,
-      fontSize: 30,
-      fontWeight: '900',
-      letterSpacing: -1,
-      lineHeight: 35,
-      marginTop: 5
-    },
-    card: {
-      backgroundColor: t.background.surface,
-      borderColor: t.border.subtle,
-      borderRadius: 22,
-      borderWidth: 1,
-      marginTop: 12,
-      padding: 16
-    },
-    cardHeader: { alignItems: 'flex-start', flexDirection: 'row', gap: 12 },
-    cardTitle: {
-      color: t.text.primary,
-      fontSize: 20,
-      fontWeight: '900',
-      lineHeight: 26,
-      marginTop: 4
-    },
-    privateBadge: {
-      backgroundColor: t.background.surfaceInset,
-      borderRadius: 14,
-      color: t.status.success,
-      fontSize: 12,
-      fontWeight: '900',
-      overflow: 'hidden',
-      paddingHorizontal: 9,
-      paddingVertical: 6
-    },
-    body: { color: t.text.secondary, fontSize: 14, lineHeight: 21, marginTop: 8 },
-    weekLabel: { color: t.text.secondary, fontSize: 12, lineHeight: 18, marginTop: 8 },
-    metric: { marginTop: 13 },
-    metricHeader: { alignItems: 'flex-start', flexDirection: 'row', gap: 12 },
-    metricCopy: { flex: 1 },
-    metricTitle: { color: t.text.secondary, fontSize: 12, fontWeight: '800' },
-    metricValue: {
-      color: t.text.primary,
-      fontSize: 20,
-      fontWeight: '900',
-      lineHeight: 28,
-      marginTop: 3
-    },
-    metricGoal: { color: t.text.secondary, fontSize: 14, fontWeight: '700' },
-    percent: { color: t.status.success, fontSize: 13, fontWeight: '900', marginTop: 2 },
-    progressTrack: {
-      backgroundColor: t.background.surfaceInset,
-      borderRadius: 8,
-      height: 9,
-      marginTop: 8,
-      overflow: 'hidden'
-    },
-    progressFill: { backgroundColor: t.action.primary, borderRadius: 8, height: '100%' },
-    helper: { color: t.text.secondary, fontSize: 12, lineHeight: 18, marginTop: 12 },
+    skeleton: { backgroundColor: t.background.surfaceInset, borderRadius: 18 },
+    skeletonCard: { height: 116, marginBottom: 12 },
+    skeletonTile: { flexBasis: '46%', flexGrow: 1, height: 86 },
+    privacyNote: { color: t.text.secondary, fontSize: 12, lineHeight: 18, marginTop: 16 },
     chooseRoute: {
       color: t.action.primary,
       fontSize: 14,
       fontWeight: '800',
-      marginTop: 14,
-      textAlign: 'center'
+      marginTop: 10,
+      paddingVertical: 8
     },
-    tierBadge: {
-      backgroundColor: t.background.surfaceInset,
-      borderRadius: 14,
-      color: t.text.primary,
-      fontSize: 12,
-      fontWeight: '900',
-      overflow: 'hidden',
-      paddingHorizontal: 9,
-      paddingVertical: 6
-    },
-    goalBadge: {
-      backgroundColor: t.background.surfaceInset,
-      borderRadius: 14,
-      color: t.text.secondary,
-      fontSize: 12,
-      fontWeight: '900',
-      overflow: 'hidden',
-      paddingHorizontal: 9,
-      paddingVertical: 6
-    },
-    xpTotal: {
-      color: t.text.primary,
-      fontSize: 28,
-      fontWeight: '900',
-      letterSpacing: -0.6,
-      lineHeight: 34,
-      marginTop: 10
-    },
-    levelDetail: { color: t.text.secondary, fontSize: 13, lineHeight: 19, marginTop: 4 },
-    pipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
-    pip: { borderRadius: 7, height: 14, width: 14 },
-    pipActive: { backgroundColor: t.status.success },
-    pipInactive: {
-      backgroundColor: t.background.surfaceInset,
-      borderColor: t.border.subtle,
-      borderWidth: 1
-    },
-    skeleton: { backgroundColor: t.background.surfaceInset, borderRadius: 6, marginTop: 12 },
-    skeletonTitle: { height: 24, width: '62%' },
-    skeletonLine: { height: 16, width: '82%' },
-    skeletonProgress: { height: 9, width: '100%' },
     guide: { alignItems: 'center', flexDirection: 'row', gap: 12, marginTop: 12, minHeight: 64 },
     guideAction: {
       alignSelf: 'flex-start',
@@ -751,44 +529,11 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
     },
     guideActionText: { color: t.action.primary, fontSize: 14, fontWeight: '900' },
     unavailable: { marginTop: 12, minHeight: 64 },
-    questHeader: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      marginTop: 24
-    },
-    sectionTitle: { color: t.text.primary, fontSize: 20, fontWeight: '900', lineHeight: 26 },
-    secondaryButton: {
-      alignItems: 'center',
-      backgroundColor: t.background.surfaceInset,
-      borderColor: t.border.subtle,
-      borderRadius: 17,
-      borderWidth: 1,
-      justifyContent: 'center',
-      minHeight: 48,
-      paddingHorizontal: 16
-    },
-    secondaryText: { color: t.text.primary, fontSize: 14, fontWeight: '900' },
     questLoading: {
       alignItems: 'center',
       flexDirection: 'row',
       gap: 12,
       marginTop: 12,
       minHeight: 64
-    },
-    questCard: {
-      alignItems: 'center',
-      backgroundColor: t.background.surface,
-      borderColor: t.border.subtle,
-      borderRadius: 18,
-      borderWidth: 1,
-      flexDirection: 'row',
-      marginTop: 12,
-      minHeight: 80,
-      paddingHorizontal: 16,
-      paddingVertical: 12
-    },
-    questTitle: { color: t.text.primary, fontSize: 17, fontWeight: '900', lineHeight: 22 },
-    questDetail: { color: t.text.secondary, fontSize: 12, lineHeight: 18, marginTop: 4 },
-    questArrow: { color: t.action.primary, fontSize: 28, fontWeight: '700', marginLeft: 12 }
+    }
   });

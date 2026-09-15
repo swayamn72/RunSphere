@@ -32,7 +32,7 @@ import {
   derivedRouteCenter
 } from './activity-results-model';
 import { LoopCallout } from '../components/LoopCallout';
-import { PrimaryButton, Stat } from '../components/primitives';
+import { PrimaryButton } from '../components/primitives';
 import { useLoopGuidance } from '../components/useLoopGuidance';
 import type { LoopGuidanceCue } from '../loop-guidance';
 import { useAppStyles } from '../components/styles';
@@ -514,6 +514,28 @@ export function ActivityRecording({
         }}
         {...(recenterRequest ? { recenterRequest } : {})}
       />
+      {/* The run's own title bar, so the screen says what it is without the
+          tab bar that is deliberately hidden while recording. */}
+      <View style={styles.liveTitleBar} pointerEvents="none">
+        <Text accessibilityRole="header" style={styles.liveTitle}>
+          Live run
+        </Text>
+        <View
+          accessible
+          accessibilityLabel={`GPS ${status.state === 'strong' ? 'clear' : status.state}. ${status.message}`}
+          style={styles.liveGpsRow}
+        >
+          <View
+            style={[
+              styles.liveGpsDot,
+              { backgroundColor: tokens.status[status.state === 'strong' ? 'success' : 'warning'] }
+            ]}
+          />
+          <Text style={styles.liveGpsText}>
+            {status.state === 'strong' ? 'GPS tracking' : `GPS ${status.state}`}
+          </Text>
+        </View>
+      </View>
       <View style={styles.liveOverlay}>
         <Text style={styles.eyebrow}>
           {current.movementType.toUpperCase()} · PRIVATE ON THIS DEVICE
@@ -537,8 +559,27 @@ export function ActivityRecording({
             <Text style={styles.ghostDetail}>{ghostStatus.detail}</Text>
           </View>
         ) : null}
-        <Text style={styles.liveDistance}>{formatProvisionalDistance(current.distanceMeters)}</Text>
-        <Text style={styles.provisional}>PROVISIONAL DISTANCE · ACCURACY-FILTERED</Text>
+        {/* Distance, time, and pace together: mid-run these are read as one
+            glance, and all three are provisional until the server validates. */}
+        <View style={styles.metricRow}>
+          <View style={styles.metricCell}>
+            <Text style={styles.metricCellValue}>
+              {formatProvisionalDistance(current.distanceMeters)}
+            </Text>
+            <Text style={styles.metricCellLabel}>Distance</Text>
+          </View>
+          <View style={styles.metricCell}>
+            <Text style={styles.metricCellValue}>
+              {formatProvisionalDuration(current.durationSeconds)}
+            </Text>
+            <Text style={styles.metricCellLabel}>Time</Text>
+          </View>
+          <View style={styles.metricCell}>
+            <Text style={styles.metricCellValue}>{provisionalPace(current)}</Text>
+            <Text style={styles.metricCellLabel}>Pace /km</Text>
+          </View>
+        </View>
+        <Text style={styles.provisional}>PROVISIONAL · ACCURACY-FILTERED</Text>
         <Text style={styles.privateNote}>
           {cameraMode === 'follow'
             ? 'Following your private local route'
@@ -562,14 +603,6 @@ export function ActivityRecording({
             <Text style={styles.noticeCopy}>{subscriptionError}</Text>
           </View>
         )}
-        <View style={styles.liveStats}>
-          <Stat
-            label="ACTIVE TIME"
-            value={formatProvisionalDuration(current.durationSeconds)}
-            detail="Provisional"
-          />
-          <Stat label="PACE /KM" value={provisionalPace(current)} detail="Provisional" />
-        </View>
         {current.state === 'paused' ? (
           <>
             <Text style={styles.noticeCopy}>
@@ -580,10 +613,24 @@ export function ActivityRecording({
             <PrimaryButton label="Resume activity" onPress={() => void transition('resumed')} />
           </>
         ) : (
-          <PrimaryButton label="Pause activity" onPress={() => void transition('paused')} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Pause activity"
+            onPress={() => void transition('paused')}
+            style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonPressed]}
+          >
+            <Text style={styles.secondaryText}>Pause activity</Text>
+          </Pressable>
         )}
-        <Pressable accessibilityRole="button" onPress={() => void finish()}>
-          <Text style={styles.textButton}>Finish activity</Text>
+        {/* Ending a run is the one destructive-feeling action on this screen,
+            and the design gives it the weight to match. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Finish activity"
+          onPress={() => void finish()}
+          style={({ pressed }) => [styles.dangerButton, pressed && styles.buttonPressed]}
+        >
+          <Text style={styles.dangerText}>End run</Text>
         </Pressable>
       </View>
     </View>
@@ -740,36 +787,22 @@ export function ActivityDetail({
       {presentation.state === 'validated' ? (
         <>
           <DerivedResultMap presentation={presentation} />
-          <View style={styles.resultStats}>
-            <Stat
-              label="KM"
-              value={(presentation.detail.summary!.distanceMeters / 1_000).toFixed(2)}
-              detail="Validated"
-            />
-            <Stat
-              label="TIME"
-              value={formatDuration(presentation.detail.summary!.durationSeconds)}
-              detail="Validated"
-            />
-            <Stat
-              label="PACE /KM"
-              value={calculatedPace(presentation.detail.summary!)}
-              detail="Calculated from validated totals"
-            />
-          </View>
+          <SummaryMetrics
+            distance={(presentation.detail.summary!.distanceMeters / 1_000).toFixed(2)}
+            time={formatDuration(presentation.detail.summary!.durationSeconds)}
+            pace={calculatedPace(presentation.detail.summary!)}
+            provenance="Validated by RunSphere. Pace is calculated from validated totals."
+          />
         </>
       ) : (
         <>
           <MapUnavailable />
-          <View style={styles.resultStats}>
-            <Stat
-              label="KM"
-              value={(current.distanceMeters / 1_000).toFixed(2)}
-              detail="Provisional"
-            />
-            <Stat label="TIME" value={formatDuration(current.durationSeconds)} detail="Recorded" />
-            <Stat label="PACE /KM" value={localPace} detail="Provisional" />
-          </View>
+          <SummaryMetrics
+            distance={(current.distanceMeters / 1_000).toFixed(2)}
+            time={formatDuration(current.durationSeconds)}
+            pace={localPace}
+            provenance="Provisional: recorded on this device and not yet validated."
+          />
         </>
       )}
       {(terminalRejected || terminalDeleted) && (
@@ -977,6 +1010,46 @@ function DerivedResultMap({
   );
 }
 
+/**
+ * The three figures a finished run is read by.
+ *
+ * `provenance` sits under the row rather than per cell: all three come from
+ * the same source at the same moment, and repeating "Provisional" three times
+ * made the row harder to read without making it more truthful.
+ */
+function SummaryMetrics({
+  distance,
+  time,
+  pace,
+  provenance
+}: {
+  distance: string;
+  time: string;
+  pace: string;
+  provenance: string;
+}) {
+  const styles = useAppStyles();
+  return (
+    <>
+      <View style={styles.metricRow}>
+        <View style={styles.metricCell}>
+          <Text style={styles.metricCellValue}>{distance}</Text>
+          <Text style={styles.metricCellLabel}>Distance km</Text>
+        </View>
+        <View style={styles.metricCell}>
+          <Text style={styles.metricCellValue}>{time}</Text>
+          <Text style={styles.metricCellLabel}>Time</Text>
+        </View>
+        <View style={styles.metricCell}>
+          <Text style={styles.metricCellValue}>{pace}</Text>
+          <Text style={styles.metricCellLabel}>Pace /km</Text>
+        </View>
+      </View>
+      <Text style={styles.provisional}>{provenance}</Text>
+    </>
+  );
+}
+
 function MapUnavailable() {
   const styles = useAppStyles();
   return (
@@ -1014,10 +1087,21 @@ function ActivityResults({
       <Text style={styles.lead}>
         Saved on this device. Distance, time, and pace are provisional until processing.
       </Text>
-      <View style={styles.resultStats}>
-        <Stat label="KM" value={(session.distanceMeters / 1000).toFixed(2)} detail="Provisional" />
-        <Stat label="TIME" value={formatDuration(session.durationSeconds)} detail="Recorded" />
-        <Stat label="PACE /KM" value={pace} detail="Provisional" />
+      {/* Distance, time, and pace as one row of equals, which is how a
+          finished run is actually read. */}
+      <View style={styles.metricRow}>
+        <View style={styles.metricCell}>
+          <Text style={styles.metricCellValue}>{(session.distanceMeters / 1000).toFixed(2)}</Text>
+          <Text style={styles.metricCellLabel}>Distance km</Text>
+        </View>
+        <View style={styles.metricCell}>
+          <Text style={styles.metricCellValue}>{formatDuration(session.durationSeconds)}</Text>
+          <Text style={styles.metricCellLabel}>Time</Text>
+        </View>
+        <View style={styles.metricCell}>
+          <Text style={styles.metricCellValue}>{pace}</Text>
+          <Text style={styles.metricCellLabel}>Pace /km</Text>
+        </View>
       </View>
       <PrimaryButton label="Save activity" onPress={onQueue} />
       <Pressable onPress={onDiscard}>

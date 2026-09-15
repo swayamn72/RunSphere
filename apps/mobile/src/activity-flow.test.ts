@@ -20,12 +20,12 @@ describe('activity flow', () => {
   it('keeps the free-activity origin explicit through preparation and live states', () => {
     const prepare = activityFlowReducer(initialActivityRoute, {
       type: 'start-free',
-      origin: { kind: 'explore' }
+      origin: { kind: 'quests' }
     });
-    expect(prepare).toEqual({ screen: 'prepare', origin: { kind: 'explore' } });
+    expect(prepare).toEqual({ screen: 'prepare', origin: { kind: 'quests' } });
     expect(activityFlowReducer(prepare, { type: 'recording-active' })).toEqual({
       screen: 'live',
-      origin: { kind: 'explore' }
+      origin: { kind: 'quests' }
     });
   });
 
@@ -40,7 +40,16 @@ describe('activity flow', () => {
 
   it('restores the selected quest detail instead of silently returning Home', () => {
     const origin: ActivityOrigin = { kind: 'quest-detail', quest };
-    expect(activityOriginReturn(origin)).toEqual({ activeTab: 'Explore', selectedQuest: quest });
+    expect(activityOriginReturn(origin)).toEqual({
+      activeTab: 'Home',
+      focus: 'quests',
+      selectedQuest: quest
+    });
+  });
+
+  it('returns a zone-map run to the map, where the claim it was chasing is', () => {
+    expect(activityOriginReturn({ kind: 'map' })).toEqual({ activeTab: 'Map', focus: 'none' });
+    expect(activityOriginReturn({ kind: 'home' })).toEqual({ activeTab: 'Home', focus: 'none' });
   });
 
   it('clears transient activity state on tab changes, logout, and exit', () => {

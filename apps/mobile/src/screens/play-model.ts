@@ -14,7 +14,8 @@ import { AuthFailure } from '../auth-failure';
 import { ApiFailure } from '../api-client';
 
 /**
- * Play tab presentation. Every score shown here is copied from the server; this
+ * Challenges and Community presentation. Every score shown here is copied
+ * from the server; this
  * module never accumulates or projects one. In particular an in-progress
  * challenge shows no score at all: the worker computes scores when the window
  * closes, and `GET /v1/challenges/:id/result` answers `409` until it has, so

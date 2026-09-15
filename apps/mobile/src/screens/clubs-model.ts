@@ -21,7 +21,7 @@ import { AuthFailure } from '../auth-failure';
 import { ApiFailure } from '../api-client';
 
 /**
- * The Clubs tab (milestone 3.1).
+ * Clubs (milestone 3.1), reached from the account settings.
  *
  * Authority is not re-derived here: every gate calls the same predicate in
  * `@runsphere/domain` that the route enforces, so the UI can never offer an

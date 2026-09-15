@@ -1,4 +1,4 @@
-import type { ActivityRoute } from '../activity-flow';
+import type { ActivityRoute, FocusedSurface } from '../activity-flow';
 
 export type AppShell = 'tab-scroll' | 'tab-map' | 'focused-scroll' | 'focused-flex';
 
@@ -7,22 +7,27 @@ export const selectAppShell = ({
   activityRoute,
   hasRecording,
   hasSelectedQuest,
-  hasRoutePreview = false,
+  focus = 'none',
   liveInteractive,
-  exploreInteractive
+  mapInteractive
 }: {
   activityRoute: ActivityRoute['screen'];
   hasRecording: boolean;
   hasSelectedQuest: boolean;
-  /** Choosing a route is a decision taken before a run, with its own back. */
-  hasRoutePreview?: boolean;
+  /**
+   * A surface open over a tab. Each owns a back header and, in the case of the
+   * route preview, a decision — so the tab bar underneath would offer a second
+   * way out of the same choice.
+   */
+  focus?: FocusedSurface;
   liveInteractive: boolean;
-  exploreInteractive: boolean;
+  /** The zone map owns its own gestures, so it gets flex while keeping the bar. */
+  mapInteractive: boolean;
 }): AppShell => {
   if (hasRecording && liveInteractive) return 'focused-flex';
-  if (activityRoute !== 'idle' || hasSelectedQuest || hasRoutePreview || hasRecording)
+  if (activityRoute !== 'idle' || hasSelectedQuest || focus !== 'none' || hasRecording)
     return 'focused-scroll';
-  if (exploreInteractive) return 'tab-map';
+  if (mapInteractive) return 'tab-map';
   return 'tab-scroll';
 };
 

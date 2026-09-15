@@ -6,6 +6,7 @@ import type {
   NotificationPreferencesUpdateRequest
 } from '@runsphere/contracts';
 import { AuthFailure } from '../auth-failure';
+import type { FocusedSurface } from '../activity-flow';
 import type { Tab } from '../navigation/types';
 
 /**
@@ -59,13 +60,13 @@ export const NOTIFICATION_KIND_LABEL: Readonly<Record<NotificationKind, string>>
  * but no screen takes one yet, and a button that opens the wrong claim would
  * be worse than a button that opens the map.
  */
-export type NotificationTarget = 'play' | 'friends' | 'turf' | 'explore' | 'home';
+export type NotificationTarget = 'challenges' | 'friends' | 'map' | 'quests' | 'home';
 
 export const notificationTarget = (entry: InboxEntry): NotificationTarget | undefined => {
   const link = entry.deepLink ?? '';
-  if (link.startsWith('runsphere://challenges/')) return 'play';
-  if (link.startsWith('runsphere://turf')) return 'turf';
-  if (link.startsWith('runsphere://explore')) return 'explore';
+  if (link.startsWith('runsphere://challenges/')) return 'challenges';
+  if (link.startsWith('runsphere://turf')) return 'map';
+  if (link.startsWith('runsphere://explore')) return 'quests';
   if (link.startsWith('runsphere://home')) return 'home';
   if (entry.kind === 'friend_request') return 'friends';
   return undefined;
@@ -73,23 +74,38 @@ export const notificationTarget = (entry: InboxEntry): NotificationTarget | unde
 
 /**
  * The tab each destination is on. Data rather than a chain of comparisons in
- * `App.tsx`, so adding a destination cannot silently keep sending it to Play —
- * which is what the previous `target === 'friends' ? 'friends' : 'play'` did to
- * everything that was not a friend request.
+ * `App.tsx`, so adding a destination cannot silently keep sending it to one
+ * surface — which is what the previous `target === 'friends' ? ... : ...` did
+ * to everything that was not a friend request.
  */
 export const NOTIFICATION_TARGET_TAB: Readonly<Record<NotificationTarget, Tab>> = {
-  play: 'Play',
-  friends: 'Play',
-  turf: 'Turf',
-  explore: 'Explore',
+  challenges: 'Home',
+  friends: 'Social',
+  map: 'Map',
+  quests: 'Home',
   home: 'Home'
 };
 
+/**
+ * Destinations that are not tabs of their own open over one.
+ *
+ * Challenges and the quest catalogue both live above Home in the five-tab
+ * bar, so the tab alone would land somebody on the dashboard and leave them to
+ * find the notice's subject themselves.
+ */
+export const NOTIFICATION_TARGET_FOCUS: Readonly<Record<NotificationTarget, FocusedSurface>> = {
+  challenges: 'challenges',
+  friends: 'none',
+  map: 'none',
+  quests: 'quests',
+  home: 'none'
+};
+
 export const NOTIFICATION_TARGET_LABEL: Readonly<Record<NotificationTarget, string>> = {
-  play: 'Open Play',
+  challenges: 'Open challenges',
   friends: 'Open friends',
-  turf: 'Open Turf',
-  explore: 'Open Explore',
+  map: 'Open the zone map',
+  quests: 'Open quests',
   home: 'Open Home'
 };
 
@@ -157,6 +173,21 @@ export const inboxRows = (
 
 export const unreadIds = (entries: readonly InboxEntry[]): readonly string[] =>
   entries.filter((entry) => entry.readAt === undefined).map((entry) => entry.id);
+
+/**
+ * The accessible name for a notifications button carrying an unread marker.
+ *
+ * `undefined` when nothing is unread, which is also what keeps the dashboard's
+ * badge off: the dot is decoration over this name, so an absent name and an
+ * absent dot cannot disagree. A count is spoken even though the badge shows
+ * none, because "3 unread" is the fact a screen reader needs and a bare dot
+ * conveys nothing.
+ */
+export const unreadBadgeLabel = (unreadCount: number): string | undefined => {
+  const unread = Math.max(0, Math.trunc(unreadCount));
+  if (!unread) return undefined;
+  return `Notifications, ${unread} unread`;
+};
 
 /** Categories in the order the settings list presents them. */
 export const NOTIFICATION_CATEGORY_ORDER: readonly NotificationCategory[] = [

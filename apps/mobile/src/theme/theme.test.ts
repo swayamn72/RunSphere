@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { contrastPairs, darkTokens, lightTokens } from '@runsphere/ui';
+import { contrastPairs, darkTokens } from '@runsphere/ui';
 import { resolveColorScheme } from './theme-state.js';
 
 const luminance = (hex: string): number => {
@@ -19,34 +19,36 @@ const contrast = (foreground: string, background: string) => {
   return (light + 0.05) / (dark + 0.05);
 };
 
-describe('system theme', () => {
-  it('keeps Expo and the committed Android project configured to follow the system', () => {
+describe('single-appearance theme', () => {
+  it('pins Expo and the committed Android project to the one appearance the product ships', () => {
     const expoConfig = readFileSync('app.config.ts', 'utf8');
     const nativeStrings = readFileSync('android/app/src/main/res/values/strings.xml', 'utf8');
 
-    expect(expoConfig).toContain("userInterfaceStyle: 'automatic'");
+    expect(expoConfig).toContain("userInterfaceStyle: 'dark'");
     expect(nativeStrings).toContain(
-      '<string name="expo_system_ui_user_interface_style" translatable="false">automatic</string>'
+      '<string name="expo_system_ui_user_interface_style" translatable="false">dark</string>'
     );
   });
 
-  it('provides complete explicit dark and light semantic systems', () => {
-    for (const tokens of [darkTokens, lightTokens]) {
-      expect(tokens.background.canvas).toMatch(/^#/);
-      expect(tokens.map.control).toMatch(/^#/);
-      expect(tokens.route.line).toMatch(/^#/);
-      expect(tokens.checkpoint.fill).toMatch(/^#/);
-      expect(tokens.mascot.beacon).toMatch(/^#/);
-    }
-    expect(darkTokens.background.canvas).not.toBe(lightTokens.background.canvas);
-    expect(contrastPairs.darkPrimaryText.foreground).toBe(darkTokens.text.primary);
-    expect(contrastPairs.lightPrimaryText.background).toBe(lightTokens.background.surface);
+  it('provides one complete semantic system covering every role a screen reads', () => {
+    expect(darkTokens.background.canvas).toMatch(/^#/);
+    expect(darkTokens.map.control).toMatch(/^#/);
+    expect(darkTokens.route.line).toMatch(/^#/);
+    expect(darkTokens.checkpoint.fill).toMatch(/^#/);
+    expect(darkTokens.mascot.beacon).toMatch(/^#/);
+    // The named hues the redesign leans on: zone ownership and reward tiers.
+    expect(darkTokens.zone.owned).toMatch(/^#/);
+    expect(darkTokens.zone.rival).toMatch(/^#/);
+    expect(darkTokens.zone.neutral).toMatch(/^#/);
+    expect(darkTokens.accent.gold).toMatch(/^#/);
+    expect(darkTokens.action.danger).toMatch(/^#/);
   });
 
-  it('selects system light and keeps unknown system appearance dark-first', () => {
-    expect(resolveColorScheme('light')).toBe('light');
+  it('ignores the platform appearance rather than inverting the product at runtime', () => {
+    expect(resolveColorScheme('light')).toBe('dark');
     expect(resolveColorScheme('dark')).toBe('dark');
     expect(resolveColorScheme(null)).toBe('dark');
+    expect(resolveColorScheme()).toBe('dark');
   });
 
   it('meets named critical contrast-pair minimums', () => {

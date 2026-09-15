@@ -3,6 +3,7 @@ import { Alert, Linking, Pressable, Switch, Text, TextInput, View } from 'react-
 import * as Location from 'expo-location';
 import type {
   Profile,
+  ProgressionSummary,
   Sanction,
   SafetyContactResponse,
   WeeklyGoalResponse
@@ -18,10 +19,14 @@ import { useAppStyles } from '../components/styles';
 import { coordinateLogout } from '../logout-coordinator';
 import { homeErrorState, type HomeRemoteState, weeklyGoalState } from './home-state';
 import { AchievementsScreen } from './AchievementsScreen';
+import { ClubsScreen } from './ClubsScreen';
 import { NotificationsScreen } from './NotificationsScreen';
 import { ProfileIdentityScreen } from './ProfileIdentityScreen';
 import type { NotificationTarget } from './notifications-model';
 import { profileInitials, profileNameLabel } from './profile-model';
+import { AchievementStrip, LevelCard, ProfileIdentityHead, ProfileStats } from './ProfileOverview';
+import { achievementMedallions, profileStatCells } from './profile-overview-model';
+import { progressionPresentation } from './home-progression-model';
 import {
   APPEAL_CONSEQUENCE,
   NO_SANCTIONS_MESSAGE,
@@ -94,19 +99,32 @@ export function ProfileScreen({
   api,
   accountId,
   onLogoutComplete,
-  onNavigate
+  onNavigate,
+  initialScreen = 'profile'
 }: {
   api: MobileApiClient;
   accountId: string | undefined;
   onLogoutComplete: () => void;
-  /** Leaves the You tab for a destination an inbox entry points at. */
+  /** Leaves the Profile tab for a destination an inbox entry points at. */
   onNavigate?: (target: NotificationTarget) => void;
+  /**
+   * Opens straight onto one of the sub-screens. The dashboard's bell arrives
+   * here on `notifications`, so the inbox is one tap away rather than three.
+   */
+  initialScreen?: 'profile' | 'notifications';
 }) {
   const styles = useAppStyles();
   const { tokens } = useAppTheme();
   const [screen, setScreen] = useState<
-    'profile' | 'safety' | 'goals' | 'identity' | 'notifications' | 'achievements'
-  >('profile');
+    | 'profile'
+    | 'settings'
+    | 'safety'
+    | 'goals'
+    | 'identity'
+    | 'notifications'
+    | 'achievements'
+    | 'clubs'
+  >(initialScreen);
   // The profile is the only identity a social surface may show, and an account
   // without one is invisible to friends: a 404 here is a normal "unset" state.
   const [profile, setProfile] = useState<Profile>();
@@ -119,6 +137,37 @@ export function ProfileScreen({
       })
       .catch(() => {
         if (active) setProfile(undefined);
+      });
+    return () => {
+      active = false;
+    };
+  }, [api, screen]);
+  /**
+   * The cosmetic level band and the week's figures shown above the settings.
+   *
+   * Both are optional decoration on a screen whose job is the account: a
+   * failure leaves the card out rather than blocking identity or settings, and
+   * neither is ever projected locally (ADR-0005).
+   */
+  const [progression, setProgression] = useState<ProgressionSummary>();
+  const [overviewGoal, setOverviewGoal] = useState<WeeklyGoalResponse>();
+  useEffect(() => {
+    let active = true;
+    void api
+      .getProgressionSummary()
+      .then((next) => {
+        if (active) setProgression(next);
+      })
+      .catch(() => {
+        if (active) setProgression(undefined);
+      });
+    void api
+      .getWeeklyGoal()
+      .then((next) => {
+        if (active) setOverviewGoal(next);
+      })
+      .catch(() => {
+        if (active) setOverviewGoal(undefined);
       });
     return () => {
       active = false;
@@ -269,19 +318,19 @@ export function ProfileScreen({
         onSessionExpired={onLogoutComplete}
       />
     );
-  return (
+  // Clubs have no tab in the five-tab bar, but ground can be held for one
+  // (`TerritoryClaim.club`), so the screen that manages them has to be
+  // reachable from somewhere. Settings is that somewhere.
+  if (screen === 'clubs')
+    return (
+      <>
+        <BackHeader label="CLUBS" onBack={() => setScreen('settings')} />
+        <ClubsScreen api={api} accountId={accountId} onSessionExpired={onLogoutComplete} />
+      </>
+    );
+  const overview = progression ? progressionPresentation(progression, profile) : undefined;
+  const settingsView = (
     <>
-      <View style={styles.profileHead}>
-        <View style={styles.bigAvatar}>
-          <Text style={styles.bigAvatarText}>{profileInitials(profile?.displayName)}</Text>
-        </View>
-        <View style={styles.flexCopy}>
-          <Text accessibilityRole="header" style={styles.profileName}>
-            {profileNameLabel(profile?.displayName)}
-          </Text>
-          <Text style={styles.mvpLabel}>PRIVATE PROFILE</Text>
-        </View>
-      </View>
       <SettingsGroup title="Goals & activity">
         <Setting
           label="Weekly progress"
@@ -306,9 +355,10 @@ export function ProfileScreen({
           value="Inbox and delivery"
           onPress={() => setScreen('notifications')}
         />
+        <Setting label="Clubs" value="Create or join one" onPress={() => setScreen('clubs')} />
         <Text style={styles.settingsHint}>
-          Friends see your display name and nothing else. Manage friends and requests from the Play
-          tab.
+          Friends see your display name and nothing else. Manage friends and requests from the
+          Social tab.
         </Text>
       </SettingsGroup>
       <SettingsGroup title="Account visibility">
@@ -391,6 +441,52 @@ export function ProfileScreen({
           onPress={confirmDelete}
         />
       </SettingsGroup>
+    </>
+  );
+
+  // Settings live behind the gear rather than under the overview: the profile
+  // is something a person looks at, and a wall of account rows underneath it
+  // buried the identity the screen exists to show.
+  if (screen === 'settings')
+    return (
+      <>
+        <BackHeader label="SETTINGS" onBack={() => setScreen('profile')} />
+        {settingsView}
+      </>
+    );
+
+  return (
+    <>
+      <ProfileIdentityHead
+        name={profileNameLabel(profile?.displayName)}
+        initials={profileInitials(profile?.displayName)}
+        onEdit={() => setScreen('identity')}
+        onOpenSettings={() => setScreen('settings')}
+      />
+      <Text style={styles.mvpLabel}>PRIVATE PROFILE</Text>
+      {overview && (
+        <LevelCard
+          totalXpLabel={overview.totalXpLabel}
+          level={overview.level}
+          tierLabel={overview.tierLabel}
+        />
+      )}
+      <ProfileStats cells={profileStatCells(overviewGoal, progression)} />
+      <AchievementStrip
+        medallions={achievementMedallions(progression?.achievements ?? [])}
+        earnedCount={progression?.achievements.length ?? 0}
+        onViewAll={() => setScreen('achievements')}
+      />
+      <View style={styles.sectionHeader}>
+        <Text accessibilityRole="header" style={styles.sectionTitle}>
+          Account
+        </Text>
+      </View>
+      <Setting
+        label="Settings"
+        value="Goals, clubs, privacy, data"
+        onPress={() => setScreen('settings')}
+      />
     </>
   );
 }

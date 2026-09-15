@@ -9,6 +9,8 @@ import {
   NOTIFICATION_CATEGORY_ORDER,
   NOTIFICATION_KIND_LABEL,
   NOTIFICATION_TARGET_LABEL,
+  unreadBadgeLabel,
+  NOTIFICATION_TARGET_FOCUS,
   NOTIFICATION_TARGET_TAB,
   hasPreferenceEdits,
   inboxRows,
@@ -112,13 +114,15 @@ describe('age label', () => {
 });
 
 describe('deep-link target', () => {
-  it('sends a challenge notice to Play, the surface that lists challenges', () => {
-    expect(notificationTarget(entry({ deepLink: 'runsphere://challenges/abc' }))).toBe('play');
+  it('sends a challenge notice to the surface that lists challenges', () => {
+    expect(notificationTarget(entry({ deepLink: 'runsphere://challenges/abc' }))).toBe(
+      'challenges'
+    );
     expect(
       notificationTarget(
         entry({ kind: 'challenge_finished', deepLink: 'runsphere://challenges/x' })
       )
-    ).toBe('play');
+    ).toBe('challenges');
   });
 
   it('sends a friend request to the friends screen even with no link stored', () => {
@@ -129,13 +133,13 @@ describe('deep-link target', () => {
     // The twelve types in `notification-catalogue.ts` write exactly these
     // prefixes. A link with nowhere to go is a button that does nothing.
     const links: readonly [string, NotificationTarget][] = [
-      ['runsphere://turf/claim/abc', 'turf'],
-      ['runsphere://turf/season/2026-09', 'turf'],
-      ['runsphere://turf/leaderboard/week/2026-09-07', 'turf'],
-      ['runsphere://explore/quest/abc', 'explore'],
+      ['runsphere://turf/claim/abc', 'map'],
+      ['runsphere://turf/season/2026-09', 'map'],
+      ['runsphere://turf/leaderboard/week/2026-09-07', 'map'],
+      ['runsphere://explore/quest/abc', 'quests'],
       ['runsphere://home/xp', 'home'],
       ['runsphere://home', 'home'],
-      ['runsphere://challenges/abc', 'play']
+      ['runsphere://challenges/abc', 'challenges']
     ];
 
     for (const [deepLink, target] of links) {
@@ -145,14 +149,21 @@ describe('deep-link target', () => {
     }
   });
 
-  it('puts each destination on its own tab rather than everything on Play', () => {
+  it('routes each destination to its own surface rather than everything to one tab', () => {
     // What `App.tsx` used to do: anything that was not a friend request went
     // to Play, which would have opened Play for a carve notice.
-    expect(NOTIFICATION_TARGET_TAB.turf).toBe('Turf');
-    expect(NOTIFICATION_TARGET_TAB.explore).toBe('Explore');
+    expect(NOTIFICATION_TARGET_TAB.map).toBe('Map');
+    expect(NOTIFICATION_TARGET_TAB.friends).toBe('Social');
     expect(NOTIFICATION_TARGET_TAB.home).toBe('Home');
-    // Friends are a screen inside Play, so that one really is Play.
-    expect(NOTIFICATION_TARGET_TAB.friends).toBe('Play');
+    // Challenges and quests open over Home, so the tab alone is not enough.
+    expect(NOTIFICATION_TARGET_TAB.challenges).toBe('Home');
+    expect(NOTIFICATION_TARGET_FOCUS.challenges).toBe('challenges');
+    expect(NOTIFICATION_TARGET_TAB.quests).toBe('Home');
+    expect(NOTIFICATION_TARGET_FOCUS.quests).toBe('quests');
+    // A destination that is a tab must not also open a surface over it.
+    expect(NOTIFICATION_TARGET_FOCUS.map).toBe('none');
+    expect(NOTIFICATION_TARGET_FOCUS.friends).toBe('none');
+    expect(NOTIFICATION_TARGET_FOCUS.home).toBe('none');
   });
 
   it('offers no navigation rather than a dead end for anything else', () => {
@@ -333,5 +344,18 @@ describe('campaign email consent', () => {
     );
 
     expect(setQuietHoursEnabled(consented, false).marketingConsent).toBe(true);
+  });
+});
+
+describe('the unread badge', () => {
+  it('names the count for a screen reader and stays silent when nothing is unread', () => {
+    expect(unreadBadgeLabel(3)).toBe('Notifications, 3 unread');
+    expect(unreadBadgeLabel(1)).toBe('Notifications, 1 unread');
+    expect(unreadBadgeLabel(0)).toBeUndefined();
+  });
+
+  it('treats a nonsensical count as nothing unread rather than showing a marker', () => {
+    expect(unreadBadgeLabel(-2)).toBeUndefined();
+    expect(unreadBadgeLabel(Number.NaN)).toBeUndefined();
   });
 });

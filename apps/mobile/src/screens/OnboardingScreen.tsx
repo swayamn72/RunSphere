@@ -116,21 +116,25 @@ export function Onboarding({
       >
         {state.step === 'welcome' && (
           <>
-            <View accessible={false} style={styles.hero}>
+            {/*
+              The wordmark sits inside the hero rather than under it, so the
+              first screen is one image with a name on it. Geometry rather than
+              a photograph: the app ships no bitmap hero, and a stock runner
+              would be the one thing on this screen that is not RunSphere's.
+            */}
+            <View accessible={false} style={styles.splashHero}>
               <View style={styles.orbitOne} />
               <View style={styles.orbitTwo} />
               <Text style={styles.heroPin}>◆</Text>
+              <View style={styles.splashMark}>
+                <Text accessibilityRole="header" style={styles.wordmark}>
+                  Run<Text style={styles.teal}>Sphere</Text>
+                </Text>
+                <Text style={styles.splashTagline}>More than a run.{'\n'}A bigger world.</Text>
+              </View>
             </View>
-            <Text style={styles.eyebrow}>YOUR WORLD, IN MOTION</Text>
-            <Text style={styles.onboardingTitle}>
-              Move outside.{'\n'}
-              <Text style={styles.teal}>Make it yours.</Text>
-            </Text>
-            <Text style={styles.lead}>
-              Turn everyday runs into exploration quests—with seasonal competition that stays fair.
-            </Text>
             <PrimaryButton
-              label="Create account"
+              label="Get started"
               onPress={() => dispatch({ type: 'startAccount', mode: 'register' })}
             />
             <Pressable
@@ -140,6 +144,9 @@ export function Onboarding({
             >
               <Text style={styles.textButton}>I already have an account</Text>
             </Pressable>
+            {/* The three verbs the product is built on, as the design closes
+                the screen with. */}
+            <Text style={styles.splashFooter}>Run · Capture · Connect</Text>
           </>
         )}
         {state.step === 'account' && (

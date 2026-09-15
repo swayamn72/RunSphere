@@ -4,6 +4,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import type { MobileApiClient } from '../api-client';
 import { BackHeader, PrimaryButton } from '../components/primitives';
 import { useAppStyles } from '../components/styles';
+import { useAppTheme } from '../theme/theme';
 import { getLocationPermissionState, type LocationPermissionState } from '../location-permission';
 import { MapSurface } from '../maps/MapSurface';
 import {
@@ -53,6 +54,7 @@ export function RoutePreviewScreen({
   onSessionExpired: () => void;
 }) {
   const styles = useAppStyles();
+  const { tokens } = useAppTheme();
   const [state, setState] = useState<RoutePreviewState>('idle');
   const [cards, setCards] = useState<readonly RoutePreviewCard[]>([]);
   const [selected, setSelected] = useState(0);
@@ -191,7 +193,7 @@ export function RoutePreviewScreen({
   // The carousel below scrolls horizontally, which does not nest.
   return (
     <View style={styles.flexCopy}>
-      <BackHeader label="Route ideas" onBack={onBack} />
+      <BackHeader label="ROUTE IDEAS" onBack={onBack} />
 
       {permission !== 'granted' && state !== 'loading' ? (
         <View style={styles.centeredState}>
@@ -246,11 +248,85 @@ export function RoutePreviewScreen({
             </View>
           ) : null}
 
+          {/* The chosen route, named and measured, directly under its map -
+              the carousel below is for changing it, not for reading it. */}
+          {card ? (
+            <>
+              <Text accessibilityRole="header" style={styles.routeName}>
+                {card.suggestion.name}
+              </Text>
+              <Text style={styles.routeMeta}>
+                {[card.distanceLabel, card.estimateLabel].filter(Boolean).join(' · ')}
+              </Text>
+              <Text style={styles.rowDetail}>{card.startLabel}</Text>
+              <PrimaryButton label="Start this route" onPress={() => void use()} />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Not this one"
+                onPress={() => void decline()}
+              >
+                <Text style={styles.textButton}>Not this one</Text>
+              </Pressable>
+            </>
+          ) : null}
+
+          {/* Which of the offered loops is on screen. Dots rather than a
+              count, because the cards below are the way to move between them. */}
+          {cards.length > 1 ? (
+            <View
+              accessible
+              accessibilityLabel={`Route ${selected + 1} of ${cards.length}.`}
+              style={styles.carouselDots}
+            >
+              {cards.map((entry, index) => (
+                <View
+                  key={entry.suggestion.id}
+                  importantForAccessibility="no-hide-descendants"
+                  style={[styles.carouselDot, index === selected && styles.carouselDotActive]}
+                />
+              ))}
+            </View>
+          ) : null}
+
           {/* A sentence, so it is set as one. `high_recent_load` in particular
               explains a deliberately shorter set, and shouting it in caps is a
               worse way to say something a runner might disagree with. */}
           {reason ? <Text style={styles.lead}>{reason}</Text> : null}
           {unavailable ? <Text style={styles.lead}>{unavailable}</Text> : null}
+
+          {/*
+            "Why this route?" - the properties the server published about this
+            loop, which are also the only reasons it can honestly give. Nothing
+            here is inferred from the reader's history: the suggestion endpoint
+            returns route attributes, not a personalisation rationale.
+          */}
+          {card ? (
+            <>
+              <View style={styles.sectionHeader}>
+                <Text accessibilityRole="header" style={styles.sectionTitle}>
+                  Why this route?
+                </Text>
+              </View>
+              {card.facts.map((fact) => (
+                <View key={fact} accessible accessibilityLabel={fact} style={styles.reasonRow}>
+                  <View
+                    style={[
+                      styles.iconChipSmall,
+                      { backgroundColor: tokens.action.primary + '26' }
+                    ]}
+                  >
+                    <Text
+                      style={[styles.iconChipSmallGlyph, { color: tokens.action.primary }]}
+                      allowFontScaling={false}
+                    >
+                      ✓
+                    </Text>
+                  </View>
+                  <Text style={styles.reasonText}>{fact}</Text>
+                </View>
+              ))}
+            </>
+          ) : null}
 
           {cards.length ? (
             <ScrollView
@@ -281,14 +357,6 @@ export function RoutePreviewScreen({
                   <Text style={styles.rowTitle}>{entry.suggestion.name}</Text>
                   {/* An estimate, never a target (`RouteSuggestionSchema`). */}
                   <Text style={styles.rowDetail}>{entry.estimateLabel}</Text>
-                  <Text style={styles.rowDetail}>{entry.startLabel}</Text>
-                  <View style={styles.routeFactRow}>
-                    {entry.facts.map((fact) => (
-                      <Text key={fact} style={styles.filterChip}>
-                        {fact}
-                      </Text>
-                    ))}
-                  </View>
                 </Pressable>
               ))}
             </ScrollView>
@@ -341,18 +409,6 @@ export function RoutePreviewScreen({
 
           {note ? <Text style={styles.privateNote}>{note}</Text> : null}
 
-          {card ? (
-            <>
-              <PrimaryButton label="Use this route" onPress={() => void use()} />
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Not this one"
-                onPress={() => void decline()}
-              >
-                <Text style={styles.textButton}>Not this one</Text>
-              </Pressable>
-            </>
-          ) : null}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Start without a route"

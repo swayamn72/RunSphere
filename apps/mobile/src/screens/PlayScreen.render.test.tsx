@@ -258,14 +258,52 @@ const stubApi = (overrides: {
     listFriends: () => Promise.resolve(overrides.friends ?? [])
   }) as unknown as MobileApiClient;
 
-const renderPlay = async (api: MobileApiClient): Promise<ReactTestRenderer> => {
+/**
+ * Mounts one of the screen's two surfaces and, where a surface has segments,
+ * selects one the way a person would - by pressing the tab a screen reader
+ * announces. Challenges open over Home; the boards are the Community tab.
+ */
+const renderSurface = async (
+  api: MobileApiClient,
+  options: { surface?: 'play' | 'social'; select?: string } = {}
+): Promise<ReactTestRenderer> => {
   let renderer!: ReactTestRenderer;
   await act(async () => {
-    renderer = create(<PlayScreen api={api} accountId={ME} onSessionExpired={() => undefined} />);
+    renderer = create(
+      <PlayScreen
+        api={api}
+        accountId={ME}
+        initialScreen={options.surface ?? 'play'}
+        onSessionExpired={() => undefined}
+      />
+    );
   });
+  await act(async () => undefined);
+  if (options.select) {
+    const [tab] = renderer.root.findAll(
+      (node) =>
+        typeof node.type === 'string' &&
+        (node.props as Record<string, unknown>)['accessibilityRole'] === 'tab' &&
+        (node.props as Record<string, unknown>)['accessibilityLabel'] === options.select
+    );
+    if (!tab) throw new Error(`No tab labelled ${options.select}`);
+    await act(async () => (tab.props as { onPress: () => void }).onPress());
+  }
   await act(async () => undefined);
   return renderer;
 };
+
+const renderPlay = (api: MobileApiClient) => renderSurface(api);
+/** The challenges whose windows have closed and been scored. */
+const renderCompleted = (api: MobileApiClient) =>
+  renderSurface(api, { select: 'Completed challenges' });
+const renderFriendBoard = (api: MobileApiClient) =>
+  renderSurface(api, { surface: 'social', select: 'Friends' });
+const renderGlobalBoard = (api: MobileApiClient) =>
+  renderSurface(api, { surface: 'social', select: 'Global' });
+/** Season, ladder, and competitions: what is being contested nearby. */
+const renderNearby = (api: MobileApiClient) =>
+  renderSurface(api, { surface: 'social', select: 'Nearby' });
 
 /** Controls addressed the way a screen reader would find them. */
 const byLabelText = (renderer: ReactTestRenderer, label: string) =>
@@ -289,7 +327,7 @@ const hostsMatching = (
     (node) => typeof node.type === 'string' && predicate(node.props as Record<string, unknown>)
   );
 
-describe('Play tab render', () => {
+describe('challenge list render', () => {
   // Guidance caps are per installation, so each case starts from a clean slate
   // rather than inheriting the cue budget the previous case spent.
   beforeEach(() => setGuidanceStore(createMemoryGuidanceStore()));
@@ -359,7 +397,9 @@ describe('Play tab render', () => {
   });
 
   it('reports a finished-but-unscored challenge as counting, not as a zero', async () => {
-    const renderer = await renderPlay(stubApi({ challenges: [challenge({ status: 'finished' })] }));
+    const renderer = await renderCompleted(
+      stubApi({ challenges: [challenge({ status: 'finished' })] })
+    );
 
     const text = renderedText(renderer);
     expect(text).toContain('Counting');
@@ -368,7 +408,7 @@ describe('Play tab render', () => {
   });
 
   it('renders a stored result once the worker has scored the window', async () => {
-    const renderer = await renderPlay(
+    const renderer = await renderCompleted(
       stubApi({
         challenges: [challenge({ status: 'finished' })],
         result: () =>
@@ -396,7 +436,7 @@ describe('Play tab render', () => {
     // Product decision 2026-09-06: friendship is the sole gate, so there is no
     // join card, no leave button, and no state in which somebody is a mutual
     // friend but absent from the board (`gameplay.md`).
-    const renderer = await renderPlay(stubApi({}));
+    const renderer = await renderFriendBoard(stubApi({}));
 
     const text = renderedText(renderer);
     expect(text).toContain('Friend standings');
@@ -406,7 +446,7 @@ describe('Play tab render', () => {
   });
 
   it('explains an empty friend board as having no friends yet', async () => {
-    const renderer = await renderPlay(stubApi({}));
+    const renderer = await renderFriendBoard(stubApi({}));
 
     const text = renderedText(renderer);
     expect(text).toContain('Add a friend and you will both appear here');
@@ -416,7 +456,7 @@ describe('Play tab render', () => {
   });
 
   it('renders served standings rows with one score each and a self marker', async () => {
-    const renderer = await renderPlay(
+    const renderer = await renderFriendBoard(
       stubApi({
         standings: {
           periodStart: '2026-08-31',
@@ -479,7 +519,7 @@ describe('Play tab render', () => {
 
 describe('the global board', () => {
   it('gates it behind an explicit join and says what joining publishes', async () => {
-    const renderer = await renderPlay(stubApi({}));
+    const renderer = await renderGlobalBoard(stubApi({}));
     const rendered = renderedText(renderer);
 
     expect(rendered).toContain('You are not on the global board');
@@ -488,7 +528,7 @@ describe('the global board', () => {
   });
 
   it('renders the served page with the division it was ranked in', async () => {
-    const renderer = await renderPlay(
+    const renderer = await renderGlobalBoard(
       stubApi({
         globalBoard: {
           periodStart: '2026-08-31',
@@ -527,7 +567,7 @@ describe('the global board', () => {
   });
 
   it('explains an empty board to somebody who has joined but not moved', async () => {
-    const renderer = await renderPlay(
+    const renderer = await renderGlobalBoard(
       stubApi({
         globalBoard: {
           periodStart: '2026-08-31',
@@ -552,7 +592,7 @@ describe('the global board', () => {
         entries: [globalEntry(ME, 'Maya', 1, 30)]
       }
     });
-    const renderer = await renderPlay(api);
+    const renderer = await renderGlobalBoard(api);
     const leave = renderer.root.findAll(
       (node) =>
         typeof node.type === 'string' &&
@@ -569,13 +609,13 @@ describe('the global board', () => {
 
 describe('scheduled competitions', () => {
   it('says nothing is scheduled rather than showing an empty list', async () => {
-    const renderer = await renderPlay(stubApi({}));
+    const renderer = await renderNearby(stubApi({}));
 
     expect(renderedText(renderer)).toContain('No competition is scheduled');
   });
 
   it('announces the window, entrants, and rewards before anybody enters', async () => {
-    const renderer = await renderPlay(stubApi({ competitions: [competition()] }));
+    const renderer = await renderNearby(stubApi({ competitions: [competition()] }));
     const rendered = renderedText(renderer);
 
     expect(rendered).toContain('September steady week');
@@ -587,7 +627,7 @@ describe('scheduled competitions', () => {
   });
 
   it('states an eligibility band whether or not the reader clears it', async () => {
-    const renderer = await renderPlay(
+    const renderer = await renderNearby(
       stubApi({ competitions: [competition({ minPriorActiveWeeks: 8, eligible: false })] })
     );
     const rendered = renderedText(renderer);
@@ -608,7 +648,7 @@ describe('scheduled competitions', () => {
         );
       }
     });
-    const renderer = await renderPlay(api);
+    const renderer = await renderNearby(api);
     const enter = byLabelText(renderer, 'Enter the competition')[0]!;
     await act(async () => (enter.props as { onPress: () => void }).onPress());
     await act(async () => undefined);
@@ -622,7 +662,7 @@ describe('scheduled competitions', () => {
       status: 'closed',
       disputeEndsAt: '2026-09-16T00:00:00.000Z'
     });
-    const renderer = await renderPlay(
+    const renderer = await renderNearby(
       stubApi({
         competitions: [closed],
         competitionStandings: competitionStandings({
@@ -641,7 +681,7 @@ describe('scheduled competitions', () => {
   });
 
   it('offers no entry control once the window has closed', async () => {
-    const renderer = await renderPlay(
+    const renderer = await renderNearby(
       stubApi({ competitions: [competition({ status: 'finalized', enrolled: true })] })
     );
 
@@ -652,7 +692,7 @@ describe('scheduled competitions', () => {
 
 describe('the territory season', () => {
   it('says no season is running, and points at what to do instead', async () => {
-    const renderer = await renderPlay(stubApi({}));
+    const renderer = await renderNearby(stubApi({}));
     const rendered = renderedText(renderer);
 
     expect(rendered).toContain('No season is running');
@@ -662,8 +702,8 @@ describe('the territory season', () => {
   });
 
   it('says capture is off wherever a season is shown', async () => {
-    const withSeason = await renderPlay(stubApi({ territory: season() }));
-    const without = await renderPlay(stubApi({}));
+    const withSeason = await renderNearby(stubApi({ territory: season() }));
+    const without = await renderNearby(stubApi({}));
 
     // The word "season" promises a map, and there is no map yet — so the note
     // appears in both states rather than only where a season exists.
@@ -672,7 +712,7 @@ describe('the territory season', () => {
   });
 
   it('never displays a rank, because none is calculated', async () => {
-    const renderer = await renderPlay(
+    const renderer = await renderNearby(
       stubApi({ territory: season(), territoryLadder: emptyLadder, territoryMap: emptyMap })
     );
     const rendered = renderedText(renderer);
@@ -685,7 +725,7 @@ describe('the territory season', () => {
   });
 
   it('says why the map is not drawn instead of showing an empty city', async () => {
-    const renderer = await renderPlay(
+    const renderer = await renderNearby(
       stubApi({ territory: season(), territoryLadder: emptyLadder, territoryMap: emptyMap })
     );
     const rendered = renderedText(renderer);
@@ -697,7 +737,7 @@ describe('the territory season', () => {
   });
 
   it('tells a participant nothing is held yet, which is a different thing', async () => {
-    const renderer = await renderPlay(
+    const renderer = await renderNearby(
       stubApi({
         territory: season(),
         territoryLadder: emptyLadder,
@@ -709,7 +749,7 @@ describe('the territory season', () => {
   });
 
   it('offers an explicit join and says what taking part records', async () => {
-    const renderer = await renderPlay(stubApi({ territory: season() }));
+    const renderer = await renderNearby(stubApi({ territory: season() }));
     const rendered = renderedText(renderer);
 
     expect(rendered).toContain('Spring season');
@@ -719,7 +759,7 @@ describe('the territory season', () => {
   });
 
   it('shows the division and explains how it was decided', async () => {
-    const renderer = await renderPlay(
+    const renderer = await renderNearby(
       stubApi({
         territory: season({
           enrollment: {
@@ -741,7 +781,7 @@ describe('the territory season', () => {
   });
 
   it('never shows a rank, because none is calculated', async () => {
-    const renderer = await renderPlay(
+    const renderer = await renderNearby(
       stubApi({
         territory: season({
           status: 'live',
@@ -753,7 +793,7 @@ describe('the territory season', () => {
         })
       })
     );
-    // Scoped to the season card: the Play tab shows ranks elsewhere, and this
+    // Scoped to the season card: other surfaces show ranks, and this
     // is about the season not inventing one.
     const card = byLabelText(
       renderer,
@@ -774,7 +814,7 @@ describe('the territory season', () => {
   });
 
   it('offers no join control on a season that cannot be joined', async () => {
-    const renderer = await renderPlay(
+    const renderer = await renderNearby(
       stubApi({ territory: season({ status: 'announced', joinable: false }) })
     );
 
@@ -789,7 +829,7 @@ describe('the territory season', () => {
         throw new ApiFailure(409, 'That season is not open for enrollment');
       }
     });
-    const renderer = await renderPlay(api);
+    const renderer = await renderNearby(api);
     await act(async () =>
       (byLabelText(renderer, 'Take part')[0]!.props as { onPress: () => void }).onPress()
     );

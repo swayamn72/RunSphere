@@ -128,7 +128,7 @@ describe('Notifications screen', () => {
     expect(api.markNotificationsRead).toHaveBeenCalledTimes(1);
   });
 
-  it('offers Play for a challenge notice and friends for a friend request', async () => {
+  it('offers challenges for a challenge notice and friends for a friend request', async () => {
     const opened: string[] = [];
     const api = stubApi({
       entries: [
@@ -144,19 +144,19 @@ describe('Notifications screen', () => {
     const renderer = await render(api, (target) => opened.push(target));
 
     await act(async () =>
-      (byLabel(renderer, 'Open Play')[0]!.props as { onPress: () => void }).onPress()
+      (byLabel(renderer, 'Open challenges')[0]!.props as { onPress: () => void }).onPress()
     );
     await act(async () =>
       (byLabel(renderer, 'Open friends')[0]!.props as { onPress: () => void }).onPress()
     );
-    expect(opened).toEqual(['play', 'friends']);
+    expect(opened).toEqual(['challenges', 'friends']);
   });
 
   it('offers no destination for a notice with nowhere to go', async () => {
     const renderer = await render(
       stubApi({ entries: [entry({ kind: 'system', title: 'Scheduled maintenance' })] })
     );
-    expect(byLabel(renderer, 'Open Play')).toHaveLength(0);
+    expect(byLabel(renderer, 'Open challenges')).toHaveLength(0);
     expect(byLabel(renderer, 'Open friends')).toHaveLength(0);
   });
 

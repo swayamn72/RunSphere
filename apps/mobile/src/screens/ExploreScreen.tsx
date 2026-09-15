@@ -30,11 +30,17 @@ export function ExploreScreen({
   api,
   onSelectQuest,
   onStart,
+  onBack,
   onSessionExpired
 }: {
   api: MobileApiClient;
   onSelectQuest: (quest: QuestSummary) => void;
   onStart: () => void;
+  /**
+   * The quest catalogue opens over Home rather than owning a tab, so it needs
+   * a way out that is not the tab bar - which is hidden while it is up.
+   */
+  onBack: () => void;
   onSessionExpired: () => void;
 }) {
   const { tokens } = useAppTheme();
@@ -140,7 +146,20 @@ export function ExploreScreen({
       <View style={[styles.sheetOverlay, isList && styles.listOverlay]}>
         <MapListSheet state={sheetState} onStateChange={setSheetState} title="Verified quests">
           <View style={styles.content}>
-            <Text style={[styles.eyebrow, { color: tokens.status.success }]}>EXPLORE</Text>
+            <View style={styles.sheetHeader}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
+                onPress={onBack}
+                style={[
+                  styles.backButton,
+                  { backgroundColor: tokens.background.surface, borderColor: tokens.border.subtle }
+                ]}
+              >
+                <Text style={[styles.backGlyph, { color: tokens.text.primary }]}>‹</Text>
+              </Pressable>
+              <Text style={[styles.eyebrow, { color: tokens.status.success }]}>QUESTS</Text>
+            </View>
             <Text accessibilityRole="header" style={[styles.title, { color: tokens.text.primary }]}>
               Choose from the list
             </Text>
@@ -428,6 +447,16 @@ const styles = StyleSheet.create({
   sheetOverlay: { bottom: 0, left: 0, position: 'absolute', right: 0, top: 250 },
   listOverlay: { top: 0 },
   content: { gap: 10, paddingTop: 8 },
+  sheetHeader: { alignItems: 'center', flexDirection: 'row', gap: 12 },
+  backButton: {
+    alignItems: 'center',
+    borderRadius: 20,
+    borderWidth: 1,
+    height: 40,
+    justifyContent: 'center',
+    width: 40
+  },
+  backGlyph: { fontSize: 26, lineHeight: 28 },
   eyebrow: { fontSize: 11, fontWeight: '900', letterSpacing: 1.3 },
   title: { fontSize: 25, fontWeight: '900', letterSpacing: -0.8 },
   copy: { fontSize: 13, lineHeight: 19 },

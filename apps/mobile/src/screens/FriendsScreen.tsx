@@ -33,7 +33,7 @@ import {
 
 /**
  * Friends, requests, and blocks (milestone 2.9). Every route here shipped with
- * the Foundation gate and had no surface until now, which is why the Play tab
+ * the Foundation gate and had no surface until now, which is why Challenges
  * could show a friend board and challenges that no account could ever populate.
  *
  * Three properties this screen exists to preserve:

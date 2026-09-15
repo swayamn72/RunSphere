@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { darkTokens } from '@runsphere/ui';
 import type {
   TerritoryClaim,
   TerritoryClaimActivityItem,
@@ -8,6 +9,9 @@ import type {
 } from '@runsphere/contracts';
 import {
   OWNER_PALETTE,
+  ZONE_FILTERS,
+  filterClaims,
+  zoneFilterSummary,
   TIER_HINT,
   captureCelebration,
   clusterMarkers,
@@ -80,6 +84,11 @@ describe('who is which colour', () => {
   it('always paints the reader own ground the same, whatever their id', () => {
     expect(ownerColour(ME, true)).toBe(SELF_COLOUR);
     expect(ownerColour(RIVAL, true)).toBe(SELF_COLOUR);
+    // Your own ground is marked in the app's accent. Pinned to the token so a
+    // palette change cannot leave this literal behind, which it once did.
+    expect(SELF_COLOUR).toBe(darkTokens.action.primary);
+    // And it must stay distinguishable from every rival hue on the same map.
+    expect(OWNER_PALETTE).not.toContain(SELF_COLOUR);
   });
 });
 
@@ -515,5 +524,74 @@ describe('how good a loop shape is', () => {
     expect(efficiencyLabel(0.85)).toContain('a lot of ground');
     expect(efficiencyLabel(0.5)).toContain('reasonable');
     expect(efficiencyLabel(0.1)).toContain('long way round');
+  });
+});
+
+describe('zone filters', () => {
+  const zone = (
+    id: string,
+    isSelf: boolean,
+    displayName: string,
+    overrides: Partial<TerritoryClaim> = {}
+  ): TerritoryClaim =>
+    ({
+      id,
+      owner: { accountId: `acct-${id}`, displayName, isSelf, avatarKey: 'loop-1' },
+      boundary: [
+        [0, 0],
+        [0, 1],
+        [1, 1]
+      ],
+      centroid: [0.5, 0.5],
+      areaSqm: 1_000,
+      distanceMetres: 800,
+      durationSeconds: 300,
+      speedMps: 2.6,
+      seasonMonth: '2026-09',
+      captureCount: 1,
+      status: 'owned',
+      ...overrides
+    }) as unknown as TerritoryClaim;
+
+  const claims = [
+    zone('a', true, 'You', { cityTag: 'Mumbai' }),
+    zone('b', false, 'Tanmay Goraksha', { cityTag: 'Mumbai', status: 'contested' }),
+    zone('c', false, 'Swayam Vernekar', { cityTag: 'Pune' })
+  ];
+
+  it('reads ownership and contest state off the served claim', () => {
+    expect(filterClaims(claims, 'all').map((claim) => claim.id)).toEqual(['a', 'b', 'c']);
+    expect(filterClaims(claims, 'mine').map((claim) => claim.id)).toEqual(['a']);
+    expect(filterClaims(claims, 'rivals').map((claim) => claim.id)).toEqual(['b', 'c']);
+    expect(filterClaims(claims, 'contested').map((claim) => claim.id)).toEqual(['b']);
+  });
+
+  it('searches the two names a claim actually carries', () => {
+    expect(filterClaims(claims, 'all', 'tanmay').map((claim) => claim.id)).toEqual(['b']);
+    expect(filterClaims(claims, 'all', 'PUNE').map((claim) => claim.id)).toEqual(['c']);
+    expect(filterClaims(claims, 'all', '  mumbai ').map((claim) => claim.id)).toEqual(['a', 'b']);
+    expect(filterClaims(claims, 'rivals', 'mumbai').map((claim) => claim.id)).toEqual(['b']);
+    expect(filterClaims(claims, 'all', 'nowhere')).toEqual([]);
+  });
+
+  it('keeps an untagged claim searchable by its holder', () => {
+    const untagged = [zone('d', false, 'Tanush Biju')];
+    expect(filterClaims(untagged, 'all', 'tanush').map((claim) => claim.id)).toEqual(['d']);
+    expect(filterClaims(untagged, 'all', 'mumbai')).toEqual([]);
+  });
+
+  it('explains a filtered-empty view rather than letting it read as empty ground', () => {
+    expect(zoneFilterSummary('all', 3, 3)).toBe('3 zones in this view.');
+    expect(zoneFilterSummary('mine', 1, 3)).toBe('1 of 3 zones in this view.');
+    expect(zoneFilterSummary('all', 0, 0)).toBe('No ground is held in this view yet.');
+    expect(zoneFilterSummary('mine', 0, 3)).toContain('No zone here is yours');
+    expect(zoneFilterSummary('mine', 0, 3)).toContain('3 held in this view');
+    expect(zoneFilterSummary('all', 0, 3, 'kj somaiya')).toContain('kj somaiya');
+  });
+
+  it('offers the four filters the map bar shows, each with a distinct key', () => {
+    expect(ZONE_FILTERS.map((entry) => entry.key)).toEqual(['all', 'mine', 'rivals', 'contested']);
+    // No filter promises a popularity the API does not measure.
+    for (const entry of ZONE_FILTERS) expect(entry.label).not.toMatch(/popular/i);
   });
 });

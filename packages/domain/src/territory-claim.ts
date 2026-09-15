@@ -725,10 +725,10 @@ export const canonicaliseRing = (ring: ClaimRing): ClaimRing => {
  * once, at the moment the consequence becomes real.
  */
 export const CLAIM_PUBLISHES_NOTICE =
-  'Claiming puts this loop on a public map with your name on it. If your run starts at home, set a private area in the You tab first — a loop that passes through one is never published.';
+  'Claiming puts this loop on a public map with your name on it. If your run starts at home, set a private area in Profile settings first — a loop that passes through one is never published.';
 
 export const FIRST_CLAIM_PRIVACY_PROMPT =
-  'That loop is now on a public map with your name on it. If it starts near home, set a private area in the You tab — loops through it are refused rather than published, and this one can be removed.';
+  'That loop is now on a public map with your name on it. If it starts near home, set a private area in Profile settings — loops through it are refused rather than published, and this one can be removed.';
 
 /** What a person is told when a run did not become a claim. */
 export const CLAIM_REFUSAL_MESSAGE: Readonly<Record<ClaimRefusal, string>> = {

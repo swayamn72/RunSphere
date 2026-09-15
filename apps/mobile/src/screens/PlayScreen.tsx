@@ -19,7 +19,7 @@ import { ApiFailure } from '../api-client';
 import { FriendsScreen } from './FriendsScreen';
 import { LoopCallout } from '../components/LoopCallout';
 import { LoopMascot } from '../components/Mascot';
-import { PrimaryButton } from '../components/primitives';
+import { BackHeader, PrimaryButton } from '../components/primitives';
 import { TerritoryPanel } from './TerritoryPanel';
 import { useLoopGuidance } from '../components/useLoopGuidance';
 import type { LoopGuidanceCue } from '../loop-guidance';
@@ -56,7 +56,7 @@ import {
 } from './play-model';
 
 /**
- * The Play tab (ADR-0005, ADR-0007). Challenges and standings are read from the
+ * Challenges and Community (ADR-0005, ADR-0007). Both are read from the
  * server; this screen never derives a score. An in-progress challenge shows no
  * score because none exists until the worker closes the window, and the friend
  * board is empty until the account opts in.
@@ -396,17 +396,38 @@ const usePlayData = (api: MobileApiClient, onSessionExpired: () => void): PlayDa
   };
 };
 
+/**
+ * The two surfaces this screen serves.
+ *
+ * `play` is the challenge list, which opens over Home and owns a back
+ * affordance. `social` is the Community tab: the same account's boards, which
+ * is a destination and has none. They share a data hook because a challenge
+ * and the friend board both need the same friends and the same week.
+ */
+export type PlaySurface = 'play' | 'social' | 'friends';
+
+/** Community segments, in the order the design fixes them. */
+const SOCIAL_SEGMENTS = [
+  { key: 'friends', label: 'Friends' },
+  { key: 'global', label: 'Global' },
+  { key: 'nearby', label: 'Nearby' }
+] as const;
+type SocialSegment = (typeof SOCIAL_SEGMENTS)[number]['key'];
+
 export function PlayScreen({
   api,
   accountId,
   onSessionExpired,
+  onBack,
   initialScreen = 'play'
 }: {
   api: MobileApiClient;
   accountId: string | undefined;
   onSessionExpired: () => void;
+  /** Present only for a surface opened over a tab, which is `play`. */
+  onBack?: () => void;
   /** Opens straight onto friends when arriving from a friend-request notice. */
-  initialScreen?: 'play' | 'friends';
+  initialScreen?: PlaySurface;
 }) {
   const { tokens } = useAppTheme();
   const styles = useMemo(() => createStyles(tokens), [tokens]);
@@ -436,9 +457,12 @@ export function PlayScreen({
   const [notice, setNotice] = useState('');
   const [busyId, setBusyId] = useState<string>();
   const [composing, setComposing] = useState(false);
-  // Friends are managed from Play because Play is where they are needed: a
+  // Friends are managed from here because this is where they are needed: a
   // challenge and the friend board both require a mutual friend.
-  const [screen, setScreen] = useState<'play' | 'friends'>(initialScreen);
+  const [screen, setScreen] = useState<PlaySurface>(initialScreen);
+  /** Challenges: the window that is open now, or the ones already scored. */
+  const [challengeTab, setChallengeTab] = useState<'active' | 'completed'>('active');
+  const [socialSegment, setSocialSegment] = useState<SocialSegment>('friends');
 
   const groups = useMemo(() => groupChallenges(challenges), [challenges]);
   const today = todayIso();
@@ -474,42 +498,15 @@ export function PlayScreen({
       <FriendsScreen
         api={api}
         onBack={() => {
-          setScreen('play');
+          setScreen(initialScreen === 'friends' ? 'social' : initialScreen);
           reload();
         }}
         onSessionExpired={onSessionExpired}
       />
     );
 
-  return (
+  const challengesView = (
     <>
-      <Text accessibilityLiveRegion="polite" style={styles.liveStatus}>
-        {notice}
-      </Text>
-      <View style={styles.header}>
-        <Text style={styles.eyebrow}>PLAY</Text>
-        <Text accessibilityRole="header" style={styles.title}>
-          Friendly challenges
-        </Text>
-        <Text style={styles.lead}>
-          Challenges count active minutes and active days. Never pace, speed, or where you went.
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Manage friends"
-          onPress={() => setScreen('friends')}
-          style={styles.guideAction}
-        >
-          <Text style={styles.guideActionText}>Friends and requests ›</Text>
-        </Pressable>
-      </View>
-
-      {notice !== '' && (
-        <View style={styles.noticeCard}>
-          <Text style={styles.noticeText}>{notice}</Text>
-        </View>
-      )}
-
       {challengeState === 'loading' && (
         <View style={styles.card}>
           <View style={[styles.skeleton, styles.skeletonTitle]} />
@@ -520,7 +517,11 @@ export function PlayScreen({
 
       {(challengeState === 'ready' || challengeState === 'empty') && (
         <>
-          <Section title="INVITES FOR YOU" styles={styles} hidden={!groups.incoming.length}>
+          <Section
+            title="INVITES FOR YOU"
+            styles={styles}
+            hidden={challengeTab !== 'active' || !groups.incoming.length}
+          >
             {guidance.cue === 'challenge-invite' && (
               <LoopCallout cue={guidance.cue} onDismiss={guidance.dismiss} />
             )}
@@ -555,7 +556,11 @@ export function PlayScreen({
             ))}
           </Section>
 
-          <Section title="IN PROGRESS" styles={styles} hidden={!groups.active.length}>
+          <Section
+            title="IN PROGRESS"
+            styles={styles}
+            hidden={challengeTab !== 'active' || !groups.active.length}
+          >
             {groups.active.map((challenge) => (
               <View key={challenge.id} style={styles.card}>
                 <ChallengeHeading styles={styles} challenge={challenge} today={today} />
@@ -567,7 +572,11 @@ export function PlayScreen({
             ))}
           </Section>
 
-          <Section title="WAITING ON A REPLY" styles={styles} hidden={!groups.outgoing.length}>
+          <Section
+            title="WAITING ON A REPLY"
+            styles={styles}
+            hidden={challengeTab !== 'active' || !groups.outgoing.length}
+          >
             {groups.outgoing.map((challenge) => (
               <View key={challenge.id} style={styles.card}>
                 <ChallengeHeading styles={styles} challenge={challenge} today={today} />
@@ -579,7 +588,11 @@ export function PlayScreen({
             ))}
           </Section>
 
-          <Section title="FINISHED" styles={styles} hidden={!groups.finished.length}>
+          <Section
+            title="FINISHED"
+            styles={styles}
+            hidden={challengeTab !== 'completed' || !groups.finished.length}
+          >
             {groups.finished.map((challenge) => {
               const outcome = challengeOutcomeLine(challenge, results.get(challenge.id), accountId);
               return (
@@ -649,7 +662,11 @@ export function PlayScreen({
           if (!failure) setComposing(false);
         }}
       />
+    </>
+  );
 
+  const friendBoardView = (
+    <>
       <View style={styles.sectionHeader}>
         <Text accessibilityRole="header" style={styles.sectionTitle}>
           Friend standings
@@ -702,7 +719,11 @@ export function PlayScreen({
           onAction={reload}
         />
       )}
+    </>
+  );
 
+  const globalBoardView = (
+    <>
       <View style={styles.sectionHeader}>
         <Text accessibilityRole="header" style={styles.sectionTitle}>
           Global board
@@ -780,7 +801,16 @@ export function PlayScreen({
           onAction={reload}
         />
       )}
+    </>
+  );
 
+  /**
+   * "Nearby": the season being played on the map around the reader, its ladder,
+   * and any competition open in it. Grouped because all three answer the same
+   * question - what is being contested near me right now.
+   */
+  const nearbyView = (
+    <>
       <View style={styles.sectionHeader}>
         <Text accessibilityRole="header" style={styles.sectionTitle}>
           Season
@@ -942,6 +972,114 @@ export function PlayScreen({
           actionLabel="Try again"
           onAction={reload}
         />
+      )}
+    </>
+  );
+
+  return (
+    <>
+      <Text accessibilityLiveRegion="polite" style={styles.liveStatus}>
+        {notice}
+      </Text>
+
+      {screen === 'play' ? (
+        <>
+          {onBack ? (
+            <BackHeader label="CHALLENGES" onBack={onBack} />
+          ) : (
+            <View style={styles.header}>
+              <Text accessibilityRole="header" style={styles.title}>
+                Challenges
+              </Text>
+            </View>
+          )}
+          <Text style={styles.lead}>
+            Challenges count active minutes and active days. Never pace, speed, or where you went.
+          </Text>
+
+          {/* Two windows, not two lists of the same thing: one is open and
+              unscored, the other is finished and settled. */}
+          <View accessibilityRole="tablist" style={styles.segmented}>
+            {(['active', 'completed'] as const).map((tab) => (
+              <Pressable
+                key={tab}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: challengeTab === tab }}
+                accessibilityLabel={tab === 'active' ? 'Active challenges' : 'Completed challenges'}
+                onPress={() => setChallengeTab(tab)}
+                style={[styles.segment, challengeTab === tab && styles.segmentActive]}
+              >
+                <Text
+                  style={[styles.segmentText, challengeTab === tab && styles.segmentTextActive]}
+                >
+                  {tab === 'active' ? 'Active' : 'Completed'}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          {notice !== '' && (
+            <View style={styles.noticeCard}>
+              <Text style={styles.noticeText}>{notice}</Text>
+            </View>
+          )}
+
+          {challengesView}
+        </>
+      ) : (
+        <>
+          <View style={styles.header}>
+            <Text accessibilityRole="header" style={styles.title}>
+              Community
+            </Text>
+          </View>
+          <Text style={styles.lead}>
+            One number per person per week - counted active minutes. Never a route, a pace, or where
+            anybody went.
+          </Text>
+
+          <View accessibilityRole="tablist" style={styles.segmented}>
+            {SOCIAL_SEGMENTS.map((segment) => (
+              <Pressable
+                key={segment.key}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: socialSegment === segment.key }}
+                accessibilityLabel={segment.label}
+                onPress={() => setSocialSegment(segment.key)}
+                style={[styles.segment, socialSegment === segment.key && styles.segmentActive]}
+              >
+                <Text
+                  style={[
+                    styles.segmentText,
+                    socialSegment === segment.key && styles.segmentTextActive
+                  ]}
+                >
+                  {segment.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          {notice !== '' && (
+            <View style={styles.noticeCard}>
+              <Text style={styles.noticeText}>{notice}</Text>
+            </View>
+          )}
+
+          {socialSegment === 'friends' && (
+            <>
+              {friendBoardView}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Manage friends"
+                onPress={() => setScreen('friends')}
+                style={styles.guideAction}
+              >
+                <Text style={styles.guideActionText}>Friends and requests ›</Text>
+              </Pressable>
+            </>
+          )}
+          {socialSegment === 'global' && globalBoardView}
+          {socialSegment === 'nearby' && nearbyView}
+        </>
       )}
 
       <View style={styles.notice}>
@@ -1182,7 +1320,27 @@ function Unavailable({
 const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
   StyleSheet.create({
     liveStatus: { color: t.text.secondary, fontSize: 1, height: 1, opacity: 0, width: 1 },
-    header: { justifyContent: 'center', marginBottom: 4, minHeight: 88 },
+    header: { justifyContent: 'center', marginBottom: 4, minHeight: 64 },
+    /** Two-or-three-way switch inside a recessed track, as on the shared sheet. */
+    segmented: {
+      backgroundColor: t.background.surfaceInset,
+      borderRadius: 999,
+      flexDirection: 'row',
+      gap: 4,
+      marginBottom: 14,
+      marginTop: 4,
+      padding: 4
+    },
+    segment: {
+      alignItems: 'center',
+      borderRadius: 999,
+      flex: 1,
+      justifyContent: 'center',
+      minHeight: 40
+    },
+    segmentActive: { backgroundColor: t.action.primary },
+    segmentText: { color: t.text.secondary, fontSize: 13, fontWeight: '800' },
+    segmentTextActive: { color: t.text.onAccent },
     flexCopy: { flex: 1 },
     eyebrow: { color: t.status.success, fontSize: 12, fontWeight: '900', letterSpacing: 1.2 },
     title: {

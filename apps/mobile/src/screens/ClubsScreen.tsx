@@ -53,7 +53,9 @@ import {
 } from './clubs-model';
 
 /**
- * The Clubs tab (Phase 3, milestone 3.1). It replaces the truthful
+ * Clubs (Phase 3, milestone 3.1), reached from the account settings: the
+ * five-tab bar has no room for them, but ground can still be held for one.
+ * It replaces the truthful
  * "coming later" placeholder now that clubs actually exist server-side.
  *
  * A club is private and invite-code-only, so there is nothing to browse: the

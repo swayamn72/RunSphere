@@ -1,6 +1,11 @@
-export type AppColorScheme = 'dark' | 'light';
+/**
+ * RunSphere ships one appearance. The type keeps a single member so a screen
+ * cannot branch on a scheme that will never arrive, and so removing the branch
+ * is a type error rather than dead code.
+ */
+export type AppColorScheme = 'dark';
 
-/** Dark remains the safe default when a platform has not reported its appearance. */
+/** The product is dark-only; the platform's reported appearance is ignored. */
 export const resolveColorScheme = (
-  scheme: 'dark' | 'light' | 'unspecified' | null | undefined
-): AppColorScheme => (scheme === 'light' ? 'light' : 'dark');
+  _scheme?: 'dark' | 'light' | 'unspecified' | null
+): AppColorScheme => 'dark';

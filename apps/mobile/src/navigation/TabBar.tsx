@@ -21,9 +21,13 @@ export function TabBar({ activeTab, onChange }: { activeTab: Tab; onChange: (tab
             accessibilityState={{ selected }}
             style={({ pressed }) => [styles.navItem, pressed && styles.pressed]}
           >
-            <Text style={[styles.navIcon, quiet && styles.quiet, selected && styles.active]}>
-              {tabIcons[tab]}
-            </Text>
+            {/* The lit pill is what reads as "you are here" at a glance; the
+                tint alone is too small a cue at 20dp on a dark bar. */}
+            <View style={[styles.iconWell, selected && styles.iconWellActive]}>
+              <Text style={[styles.navIcon, quiet && styles.quiet, selected && styles.active]}>
+                {tabIcons[tab]}
+              </Text>
+            </View>
             <Text style={[styles.navText, quiet && styles.quiet, selected && styles.active]}>
               {tab}
             </Text>
@@ -44,7 +48,8 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       flexDirection: 'row',
       left: 0,
       minHeight: 76,
-      paddingBottom: 8,
+      paddingBottom: 10,
+      paddingTop: 8,
       position: 'absolute',
       right: 0
     },
@@ -52,11 +57,24 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       alignItems: 'center',
       flex: 1,
       justifyContent: 'center',
-      minHeight: 58,
-      paddingTop: 6
+      minHeight: 58
     },
-    navIcon: { color: tokens.text.secondary, fontSize: 20 },
-    navText: { color: tokens.text.secondary, fontSize: 10, fontWeight: '800', marginTop: 3 },
+    iconWell: {
+      alignItems: 'center',
+      borderRadius: 999,
+      height: 30,
+      justifyContent: 'center',
+      width: 46
+    },
+    iconWellActive: { backgroundColor: tokens.action.primary + '1F' },
+    navIcon: { color: tokens.text.secondary, fontSize: 19, lineHeight: 23 },
+    navText: {
+      color: tokens.text.secondary,
+      fontSize: 10,
+      fontWeight: '800',
+      letterSpacing: 0.2,
+      marginTop: 2
+    },
     quiet: { color: tokens.text.tertiary },
     active: { color: tokens.action.selected },
     pressed: { opacity: 0.74 }

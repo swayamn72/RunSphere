@@ -41,6 +41,7 @@ vi.mock('react-native', async () => {
     ScrollView: native('ScrollView'),
     StyleSheet: { create: <T,>(styles: T) => styles, absoluteFill: {} },
     Text: native('Text'),
+    TextInput: native('TextInput'),
     View: native('View')
   };
 });
@@ -391,7 +392,7 @@ describe('the turf map', () => {
 
     // The people most exposed by this map are the ones who never thought to
     // set a private area, so everybody is told once, when it matters.
-    expect(textOf(renderer)).toContain('set a private area in the You tab first');
+    expect(textOf(renderer)).toContain('set a private area in Profile settings first');
   });
 
   it('does not repeat that warning to somebody who already holds ground', async () => {
@@ -402,7 +403,7 @@ describe('the turf map', () => {
       })
     );
 
-    expect(textOf(renderer)).not.toContain('set a private area in the You tab first');
+    expect(textOf(renderer)).not.toContain('set a private area in Profile settings first');
   });
 
   it('points a first-time claimer at privacy zones once the ground is theirs', async () => {
@@ -487,5 +488,96 @@ describe('the turf map', () => {
     expect(rendered).toContain('27.0 ha');
     // A board has to say what it counts, or a rank is just a number.
     expect(rendered).toContain('Ground you lose stops counting');
+  });
+});
+
+describe('the zone bar', () => {
+  const MINE = '00000000-0000-4000-8000-0000000000aa';
+
+  const mixedMap = {
+    claims: [
+      claim({
+        id: '00000000-0000-4000-8000-0000000000d1',
+        owner: { id: MINE, displayName: 'You', avatarKey: 'orbit-01', isSelf: true },
+        cityTag: 'Mumbai'
+      }),
+      claim({
+        id: '00000000-0000-4000-8000-0000000000d2',
+        owner: { id: RIVAL, displayName: 'Ravi', avatarKey: 'orbit-04', isSelf: false },
+        cityTag: 'Pune',
+        status: 'contested' as const
+      })
+    ],
+    truncated: false,
+    mapNote: MAP_NOTE
+  };
+
+  /** Selects a zone chip the way a person would, by the name it announces. */
+  const chooseFilter = async (renderer: ReactTestRenderer, label: string) => {
+    const [chip] = byLabel(renderer, label);
+    if (!chip) throw new Error(`No zone filter labelled ${label}`);
+    await act(async () => (chip.props as { onPress: () => void }).onPress());
+  };
+
+  const drawnIds = (renderer: ReactTestRenderer): string[] => {
+    const source = claimSource(renderer);
+    const data = (
+      source?.props as { data?: { features?: { properties?: { claimId?: string } }[] } }
+    )?.data;
+    return (data?.features ?? []).map((feature) => String(feature.properties?.claimId));
+  };
+
+  it('offers the four filters and draws everything by default', async () => {
+    const renderer = await renderTurf(stubApi({ map: mixedMap }));
+    await moveMap(renderer, [72.87, 19.07, 72.89, 19.09], 14);
+
+    for (const label of ['All', 'My zones', 'Rival zones', 'Contested'])
+      expect(byLabel(renderer, label).length).toBeGreaterThan(0);
+    expect(drawnIds(renderer)).toHaveLength(2);
+    expect(textOf(renderer)).toContain('2 zones in this view.');
+  });
+
+  it('narrows the ground drawn to the chosen filter', async () => {
+    const renderer = await renderTurf(stubApi({ map: mixedMap }));
+    await moveMap(renderer, [72.87, 19.07, 72.89, 19.09], 14);
+
+    await chooseFilter(renderer, 'My zones');
+    expect(drawnIds(renderer)).toEqual(['00000000-0000-4000-8000-0000000000d1']);
+    expect(textOf(renderer)).toContain('1 of 2 zones in this view.');
+
+    await chooseFilter(renderer, 'Contested');
+    expect(drawnIds(renderer)).toEqual(['00000000-0000-4000-8000-0000000000d2']);
+  });
+
+  it('says a filtered view is filtered, so it never reads as unclaimed ground', async () => {
+    const onlyRivals = {
+      ...mixedMap,
+      claims: [mixedMap.claims[1]!]
+    };
+    const renderer = await renderTurf(stubApi({ map: onlyRivals }));
+    await moveMap(renderer, [72.87, 19.07, 72.89, 19.09], 14);
+
+    await chooseFilter(renderer, 'My zones');
+    expect(drawnIds(renderer)).toHaveLength(0);
+    const shown = textOf(renderer);
+    expect(shown).toContain('No zone here is yours');
+    expect(shown).toContain('1 held in this view');
+    expect(shown).not.toContain('No ground is held in this view yet.');
+  });
+
+  it('searches the holder and the city the server tagged', async () => {
+    const renderer = await renderTurf(stubApi({ map: mixedMap }));
+    await moveMap(renderer, [72.87, 19.07, 72.89, 19.09], 14);
+
+    const [field] = byLabel(renderer, 'Search zones by holder or city');
+    await act(async () =>
+      (field!.props as { onChangeText: (text: string) => void }).onChangeText('ravi')
+    );
+    expect(drawnIds(renderer)).toEqual(['00000000-0000-4000-8000-0000000000d2']);
+
+    await act(async () =>
+      (field!.props as { onChangeText: (text: string) => void }).onChangeText('mumbai')
+    );
+    expect(drawnIds(renderer)).toEqual(['00000000-0000-4000-8000-0000000000d1']);
   });
 });

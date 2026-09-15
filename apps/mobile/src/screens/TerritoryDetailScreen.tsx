@@ -34,13 +34,20 @@ export interface TerritoryDetailScreenProps {
    * passed and disabled: there is no ghost of your own run to offer.
    */
   readonly onGhostRace?: () => void;
+  /**
+   * Starts a run here. Offered on any ground, including your own: keeping a
+   * claim means running it again, so "run here" is the one action that is
+   * always available on this page.
+   */
+  readonly onRunHere?: () => void;
 }
 
 export function TerritoryDetailScreen({
   claim,
   history,
   onBack,
-  onGhostRace
+  onGhostRace,
+  onRunHere
 }: TerritoryDetailScreenProps) {
   const { tokens } = useAppTheme();
   const styles = useMemo(() => createStyles(tokens), [tokens]);
@@ -53,26 +60,37 @@ export function TerritoryDetailScreen({
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Back to the map" onPress={onBack}>
-        <Text style={styles.back}>← Map</Text>
-      </Pressable>
+      <View style={styles.header}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back to the map"
+          onPress={onBack}
+          style={styles.backButton}
+        >
+          <Text style={styles.backGlyph}>‹</Text>
+        </Pressable>
+        <View style={styles.backButton} />
+      </View>
 
+      {/* The holder leads, centred and crowned: this page is about one piece
+          of ground and who currently holds it. */}
       <View style={styles.owner}>
         <View style={[styles.avatar, { borderColor: colour }]}>
           <CrewMascot
             character={crewForAvatar(claim.owner.avatarKey)}
-            size={44}
+            size={56}
             accessibility={{ mode: 'decorative' }}
           />
         </View>
-        <View style={styles.ownerText}>
-          <Text accessibilityRole="header" style={styles.title}>
-            {claim.owner.isSelf ? 'Your ground' : `${claim.owner.displayName}’s ground`}
-          </Text>
-          <Text style={styles.helper}>
-            {claim.club ? `${statusLabel(claim)} · ${claim.club.name}` : statusLabel(claim)}
-          </Text>
-        </View>
+        <Text style={[styles.crown, { color: tokens.accent.gold }]} allowFontScaling={false}>
+          ♛
+        </Text>
+        <Text accessibilityRole="header" style={styles.title}>
+          {claim.owner.isSelf ? 'Your ground' : `${claim.owner.displayName}’s ground`}
+        </Text>
+        <Text style={[styles.status, { color: colour }]}>
+          {claim.club ? `${statusLabel(claim)} · ${claim.club.name}` : statusLabel(claim)}
+        </Text>
       </View>
 
       <View style={styles.stats}>
@@ -115,6 +133,17 @@ export function TerritoryDetailScreen({
           style={styles.ghostButton}
         >
           <Text style={styles.ghostButtonText}>Ghost Race →</Text>
+        </Pressable>
+      ) : null}
+
+      {onRunHere ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Run here"
+          onPress={onRunHere}
+          style={styles.runHereButton}
+        >
+          <Text style={styles.runHereText}>Run here</Text>
         </Pressable>
       ) : null}
 
@@ -188,19 +217,37 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
   StyleSheet.create({
     root: { backgroundColor: tokens.background.canvas, flex: 1 },
     content: { gap: 12, padding: 16, paddingBottom: 96 },
-    back: { color: tokens.text.secondary, fontSize: 15, fontWeight: '800' },
-    owner: { alignItems: 'center', flexDirection: 'row', gap: 12 },
+    header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+    backButton: {
+      alignItems: 'center',
+      backgroundColor: tokens.background.surface,
+      borderColor: tokens.border.subtle,
+      borderRadius: 20,
+      borderWidth: 1,
+      height: 40,
+      justifyContent: 'center',
+      width: 40
+    },
+    backGlyph: { color: tokens.text.primary, fontSize: 26, lineHeight: 28 },
+    owner: { alignItems: 'center', gap: 4 },
     avatar: {
       alignItems: 'center',
       backgroundColor: tokens.background.surface,
-      borderRadius: 30,
+      borderRadius: 38,
       borderWidth: 3,
-      height: 60,
+      height: 76,
       justifyContent: 'center',
-      width: 60
+      width: 76
     },
-    ownerText: { flex: 1, gap: 2 },
-    title: { color: tokens.text.primary, fontSize: 22, fontWeight: '900' },
+    crown: { fontSize: 20, marginTop: 2 },
+    title: {
+      color: tokens.text.primary,
+      fontSize: 23,
+      fontWeight: '900',
+      letterSpacing: -0.6,
+      textAlign: 'center'
+    },
+    status: { fontSize: 13, fontWeight: '800', textAlign: 'center' },
     helper: { color: tokens.text.secondary, fontSize: 13, lineHeight: 18 },
     stats: { flexDirection: 'row', gap: 10 },
     stat: {
@@ -230,6 +277,15 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       minHeight: 52
     },
     ghostButtonText: { color: tokens.text.onAccent, fontSize: 15, fontWeight: '900' },
+    /** "Run here": a pill, because it is the page's one always-available action. */
+    runHereButton: {
+      alignItems: 'center',
+      backgroundColor: tokens.action.primary,
+      borderRadius: 999,
+      justifyContent: 'center',
+      minHeight: 54
+    },
+    runHereText: { color: tokens.text.onAccent, fontSize: 16, fontWeight: '900' },
     section: { color: tokens.text.primary, fontSize: 16, fontWeight: '800', marginTop: 4 },
     timelineRow: { flexDirection: 'row', gap: 10 },
     rail: { alignItems: 'center', width: 14 },

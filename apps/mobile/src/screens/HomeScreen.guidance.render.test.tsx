@@ -23,30 +23,7 @@ vi.mock('react-native', async () => {
   };
 });
 vi.mock('../components/Mascot', () => ({ LoopMascot: () => null }));
-vi.mock('../components/primitives', () => ({
-  PrimaryButton: () => null
-}));
-vi.mock('../theme/theme', () => ({
-  useAppTheme: () => ({
-    colorScheme: 'light',
-    reduceMotion: true,
-    tokens: {
-      action: { primary: '#0A6', selected: '#0A6' },
-      background: { canvas: '#fff', surface: '#f7f7f7', surfaceInset: '#eee' },
-      border: { subtle: '#ddd' },
-      status: { success: '#0A6', error: '#C22', warning: '#C80' },
-      text: { primary: '#111', secondary: '#555', onAccent: '#fff' },
-      mascot: {
-        body: '#D9EAE0',
-        outline: '#386755',
-        orbit: '#5D8500',
-        pointer: '#087B69',
-        eye: '#10251F',
-        beacon: '#8FBD18'
-      }
-    }
-  })
-}));
+vi.mock('../theme/theme', async () => (await import('../theme/theme-mock.js')).themeMock());
 
 const { HomeScreen } = await import('./HomeScreen.js');
 const { createMemoryGuidanceStore, emptyGuidanceMemory, recordWeekSeen, setGuidanceStore } =
@@ -84,7 +61,8 @@ const stubApi = (): MobileApiClient =>
     getWeeklyGoal: () => Promise.resolve(goal),
     listQuests: () => Promise.resolve([]),
     getProgressionSummary: () => Promise.resolve(summary),
-    getProfile: () => Promise.resolve(profile)
+    getProfile: () => Promise.resolve(profile),
+    getNotificationInbox: () => Promise.resolve([])
   }) as unknown as MobileApiClient;
 
 const renderHome = async (): Promise<ReactTestRenderer> => {
@@ -95,7 +73,11 @@ const renderHome = async (): Promise<ReactTestRenderer> => {
         api={stubApi()}
         onStart={() => undefined}
         onChooseRoute={() => undefined}
+        onOpenChallenges={() => undefined}
         onOpenQuests={() => undefined}
+        onOpenMap={() => undefined}
+        onOpenSocial={() => undefined}
+        onOpenNotifications={() => undefined}
         onOpenProfile={() => undefined}
         onSessionExpired={() => undefined}
       />

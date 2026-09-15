@@ -1,6 +1,10 @@
 /**
  * RunSphere's semantic visual system. Screens consume these roles rather than
- * deriving colors from a palette or inverting dark mode at runtime.
+ * deriving colors from a palette or inverting a scheme at runtime.
+ *
+ * The product ships one appearance: a near-black green canvas with a single
+ * mint accent, plus a small set of named hues that carry meaning on the map
+ * (owned turf, rival turf, neutral turf) and in the reward surfaces.
  */
 export interface SemanticTokens {
   readonly background: {
@@ -24,6 +28,13 @@ export interface SemanticTokens {
     readonly secondary: string;
     readonly selected: string;
     readonly disabled: string;
+    /**
+     * A filled destructive surface. Deliberately deeper than `status.error`:
+     * this one carries white text, that one is text on a dark surface, and a
+     * single red cannot clear 4.5:1 in both directions.
+     */
+    readonly danger: string;
+    readonly dangerPressed: string;
   };
   readonly status: {
     readonly info: string;
@@ -31,6 +42,23 @@ export interface SemanticTokens {
     readonly warning: string;
     readonly error: string;
     readonly pending: string;
+  };
+  /** Named hues for badges, tiers, and zone ownership. */
+  readonly accent: {
+    readonly violet: string;
+    readonly amber: string;
+    readonly coral: string;
+    readonly azure: string;
+    readonly gold: string;
+  };
+  /** Ownership colors for map polygons and the chips that stand in for them. */
+  readonly zone: {
+    readonly owned: string;
+    readonly ownedFill: string;
+    readonly rival: string;
+    readonly rivalFill: string;
+    readonly neutral: string;
+    readonly neutralFill: string;
   };
   readonly route: { readonly line: string; readonly fill: string; readonly water: string };
   readonly checkpoint: { readonly fill: string; readonly text: string; readonly outline: string };
@@ -48,161 +76,129 @@ export interface SemanticTokens {
 
 export const darkTokens: SemanticTokens = {
   background: {
-    canvas: '#071714',
-    surface: '#0D231F',
-    surfaceRaised: '#173A32',
-    surfaceInset: '#122E28'
+    canvas: '#0B1A14',
+    surface: '#14261E',
+    surfaceRaised: '#1C3328',
+    surfaceInset: '#102019'
   },
   text: {
-    primary: '#F5F7EF',
-    secondary: '#B5C5BD',
-    inverse: '#061411',
-    disabled: '#80968D',
-    tertiary: '#B5C5BD',
-    onAccent: '#061411'
+    primary: '#F2F7F4',
+    secondary: '#9DB3A8',
+    inverse: '#04180E',
+    disabled: '#657A70',
+    tertiary: '#9DB3A8',
+    onAccent: '#04180E'
   },
-  border: { subtle: '#315249', strong: '#557068', focus: '#C9F15A' },
+  border: { subtle: '#21362C', strong: '#3A564A', focus: '#3DDC7E' },
   action: {
-    primary: '#C9F15A',
-    primaryPressed: '#B4DB49',
-    secondary: '#173A32',
-    selected: '#C9F15A',
-    disabled: '#315249'
+    primary: '#3DDC7E',
+    primaryPressed: '#32BC6B',
+    secondary: '#1C3328',
+    selected: '#3DDC7E',
+    disabled: '#264034',
+    danger: '#D93B2B',
+    dangerPressed: '#B93123'
   },
   status: {
-    info: '#6FC8DF',
-    success: '#47D5BD',
-    warning: '#FFC968',
-    error: '#FF8E78',
-    pending: '#FFC968'
+    info: '#5AA9FF',
+    success: '#3DDC7E',
+    warning: '#F2A33C',
+    error: '#FF6B5A',
+    pending: '#F2A33C'
   },
-  route: { line: '#C9F15A', fill: '#C9F15A33', water: '#144655' },
-  checkpoint: { fill: '#C9F15A', text: '#061411', outline: '#F5F7EF' },
-  map: { control: '#0A1C19', controlText: '#F5F7EF', scrim: '#071714E8' },
-  scrim: { subtle: '#06141166', strong: '#061411D9' },
+  accent: {
+    violet: '#A78BFA',
+    amber: '#F2A33C',
+    coral: '#FF6B5A',
+    azure: '#5AA9FF',
+    gold: '#FFC861'
+  },
+  zone: {
+    owned: '#3DDC7E',
+    ownedFill: '#3DDC7E2E',
+    rival: '#FF6B5A',
+    rivalFill: '#FF6B5A2E',
+    neutral: '#A78BFA',
+    neutralFill: '#A78BFA2E'
+  },
+  route: { line: '#3DDC7E', fill: '#3DDC7E33', water: '#12303A' },
+  checkpoint: { fill: '#3DDC7E', text: '#04180E', outline: '#F2F7F4' },
+  map: { control: '#14261E', controlText: '#F2F7F4', scrim: '#0B1A14E8' },
+  scrim: { subtle: '#04180E66', strong: '#04180ED9' },
   mascot: {
-    body: '#21483E',
-    outline: '#5B8075',
-    orbit: '#C9F15A',
-    pointer: '#47D5BD',
-    eye: '#F7FFF7',
-    beacon: '#C9F15A'
+    body: '#1C3328',
+    outline: '#4E7263',
+    orbit: '#3DDC7E',
+    pointer: '#5AA9FF',
+    eye: '#F2F7F4',
+    beacon: '#3DDC7E'
   }
 };
 
-/** Explicit system-light values; this is not a derived or inverted palette. */
-export const lightTokens: SemanticTokens = {
-  background: {
-    canvas: '#F6F3E8',
-    surface: '#FFFDF5',
-    surfaceRaised: '#FFFFFF',
-    surfaceInset: '#EAF0E8'
-  },
-  text: {
-    primary: '#10251F',
-    secondary: '#52645C',
-    inverse: '#FFFFFF',
-    disabled: '#718078',
-    tertiary: '#52645C',
-    onAccent: '#10251F'
-  },
-  border: { subtle: '#BDC9BF', strong: '#82948A', focus: '#087B69' },
-  action: {
-    primary: '#184F3D',
-    primaryPressed: '#123D30',
-    secondary: '#E1F0E5',
-    selected: '#184F3D',
-    disabled: '#C8D2CB'
-  },
-  status: {
-    info: '#246D84',
-    success: '#075F52',
-    warning: '#8A5A00',
-    error: '#A83E2B',
-    pending: '#8A5A00'
-  },
-  route: { line: '#5D8500', fill: '#8FBD1844', water: '#4E91A5' },
-  checkpoint: { fill: '#8FBD18', text: '#10251F', outline: '#FFFFFF' },
-  map: { control: '#FFFFFF', controlText: '#10251F', scrim: '#F6F3E8EB' },
-  scrim: { subtle: '#10251F33', strong: '#10251FCC' },
-  mascot: {
-    body: '#D9EAE0',
-    outline: '#386755',
-    orbit: '#5D8500',
-    pointer: '#087B69',
-    eye: '#10251F',
-    beacon: '#8FBD18'
-  }
-};
-
-export const semanticTokens = { dark: darkTokens, light: lightTokens } as const;
+export const semanticTokens = { dark: darkTokens } as const;
 
 /** Named AA-critical foreground/background pairs for automated contrast checks. */
 export const contrastPairs = {
-  darkPrimaryText: {
+  primaryText: {
     foreground: darkTokens.text.primary,
     background: darkTokens.background.canvas,
     minimum: 4.5
   },
-  darkSecondaryText: {
+  secondaryText: {
     foreground: darkTokens.text.secondary,
     background: darkTokens.background.surface,
     minimum: 4.5
   },
-  darkAction: {
+  raisedSecondaryText: {
+    foreground: darkTokens.text.secondary,
+    background: darkTokens.background.surfaceRaised,
+    minimum: 4.5
+  },
+  action: {
     foreground: darkTokens.text.onAccent,
     background: darkTokens.action.primary,
     minimum: 4.5
   },
-  darkTertiaryTab: {
+  danger: { foreground: '#FFFFFF', background: darkTokens.action.danger, minimum: 4.5 },
+  tertiaryTab: {
     foreground: darkTokens.text.tertiary,
     background: darkTokens.background.surface,
     minimum: 4.5
   },
-  lightPrimaryText: {
-    foreground: lightTokens.text.primary,
-    background: lightTokens.background.surface,
+  accentOnSurface: {
+    foreground: darkTokens.action.primary,
+    background: darkTokens.background.surface,
     minimum: 4.5
   },
-  lightSecondaryText: {
-    foreground: lightTokens.text.secondary,
-    background: lightTokens.background.surface,
+  warningOnSurface: {
+    foreground: darkTokens.status.warning,
+    background: darkTokens.background.surface,
     minimum: 4.5
   },
-  lightAction: {
-    foreground: lightTokens.text.inverse,
-    background: lightTokens.action.primary,
+  errorOnSurface: {
+    foreground: darkTokens.status.error,
+    background: darkTokens.background.surface,
     minimum: 4.5
   },
-  lightStatus: {
-    foreground: lightTokens.status.success,
-    background: lightTokens.action.secondary,
+  violetOnSurface: {
+    foreground: darkTokens.accent.violet,
+    background: darkTokens.background.surface,
     minimum: 4.5
   },
-  lightProgress: {
-    foreground: lightTokens.checkpoint.text,
-    background: lightTokens.checkpoint.fill,
+  goldOnSurface: {
+    foreground: darkTokens.accent.gold,
+    background: darkTokens.background.surface,
+    minimum: 4.5
+  },
+  progress: {
+    foreground: darkTokens.checkpoint.text,
+    background: darkTokens.checkpoint.fill,
     minimum: 3
-  },
-  lightTertiaryTab: {
-    foreground: lightTokens.text.tertiary,
-    background: lightTokens.background.surface,
-    minimum: 4.5
   }
 } as const;
 
-/** Legacy aliases for existing surfaces while they migrate to semantic roles. */
-export const colors = {
-  ink: lightTokens.text.primary,
-  muted: lightTokens.text.secondary,
-  cream: lightTokens.background.canvas,
-  card: lightTokens.background.surface,
-  lime: '#8FBD18',
-  moss: lightTokens.action.primary,
-  teal: lightTokens.status.success,
-  orange: lightTokens.status.warning,
-  line: lightTokens.border.subtle,
-  blue: lightTokens.route.water
-} as const;
+/** Corner scale. Cards are generously rounded; controls are pills. */
+export const radius = { card: 24, control: 18, chip: 14, pill: 999 } as const;
 
-export const radius = { card: 20, control: 18, pill: 999 } as const;
+/** Spacing scale used by screen padding and card gutters. */
+export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 28 } as const;

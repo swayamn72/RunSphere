@@ -11,6 +11,7 @@ import type {
   TerritoryLeaderboardResponse,
   TerritoryRecommendation
 } from '@runsphere/contracts';
+import { darkTokens } from '@runsphere/ui';
 import { crewCharacters, type CrewCharacter } from '../crew';
 
 /**
@@ -38,8 +39,14 @@ export const OWNER_PALETTE = [
   '#10B981'
 ] as const;
 
-/** The reader's own ground, always this colour whatever their id hashes to. */
-export const SELF_COLOUR = '#C9F15A';
+/**
+ * The reader's own ground, always this colour whatever their id hashes to.
+ *
+ * Taken from the accent token rather than written out, so held ground and
+ * every other "this is yours" marker in the app cannot drift apart — which is
+ * exactly what happened when the palette changed and this literal did not.
+ */
+export const SELF_COLOUR = darkTokens.action.primary;
 
 /** FNV-1a, so the same account always lands on the same colour. */
 export const ownerColour = (accountId: string, isSelf = false): string => {
@@ -425,3 +432,66 @@ export const efficiencyLabel = (efficiency: number): string =>
     : efficiency >= 0.4
       ? 'a reasonable shape'
       : 'a long way round for the ground it holds';
+
+/**
+ * The map's zone filters.
+ *
+ * Each one is a property the served claim already carries, which is what
+ * keeps the bar honest: `mine` and `rivals` read `owner.isSelf`, and
+ * `contested` reads the server's own `status` — ground that has recently
+ * changed hands more than once. There is no popularity or view-count anywhere
+ * in the API, so the design's "Popular" is named for what the data means.
+ */
+export type ZoneFilter = 'all' | 'mine' | 'rivals' | 'contested';
+
+export const ZONE_FILTERS: readonly { readonly key: ZoneFilter; readonly label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'mine', label: 'My zones' },
+  { key: 'rivals', label: 'Rival zones' },
+  { key: 'contested', label: 'Contested' }
+];
+
+/** Case- and accent-insensitive enough for a name typed in a hurry. */
+const normalize = (value: string): string => value.trim().toLowerCase();
+
+/**
+ * Claims matching the chosen filter and search text.
+ *
+ * Search covers the holder's display name and the coarse city tag — the only
+ * two names a claim carries. An untagged claim is still searchable by holder,
+ * because it is real held ground that simply has no geocode.
+ */
+export const filterClaims = (
+  claims: readonly TerritoryClaim[],
+  filter: ZoneFilter,
+  query = ''
+): readonly TerritoryClaim[] => {
+  const needle = normalize(query);
+  return claims.filter((claim) => {
+    if (filter === 'mine' && !claim.owner.isSelf) return false;
+    if (filter === 'rivals' && claim.owner.isSelf) return false;
+    if (filter === 'contested' && claim.status !== 'contested') return false;
+    if (!needle) return true;
+    return (
+      normalize(claim.owner.displayName).includes(needle) ||
+      normalize(claim.cityTag ?? '').includes(needle)
+    );
+  });
+};
+
+/** What the bar says it is showing, so a filtered-out map is never a blank one. */
+export const zoneFilterSummary = (
+  filter: ZoneFilter,
+  shown: number,
+  total: number,
+  query = ''
+): string => {
+  if (!total) return 'No ground is held in this view yet.';
+  if (!shown)
+    return query.trim()
+      ? `No zone here matches “${query.trim()}”. ${total} held in this view.`
+      : `No zone here is ${filter === 'mine' ? 'yours' : filter === 'rivals' ? 'a rival’s' : 'contested'}. ${total} held in this view.`;
+  return shown === total
+    ? `${total} ${total === 1 ? 'zone' : 'zones'} in this view.`
+    : `${shown} of ${total} zones in this view.`;
+};

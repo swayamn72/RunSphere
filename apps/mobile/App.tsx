@@ -24,7 +24,8 @@ import {
   activityFlowReducer,
   activityOriginReturn,
   initialActivityRoute,
-  routeOrigin
+  routeOrigin,
+  type FocusedSurface
 } from './src/activity-flow';
 import { landingTab, type Tab } from './src/navigation/types';
 import { initialOnboardingState, onboardingReducer } from './src/onboarding';
@@ -36,13 +37,15 @@ import {
 import { Onboarding } from './src/screens/OnboardingScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { ProfileScreen } from './src/screens/ProductScreens';
-import { ClubsScreen } from './src/screens/ClubsScreen';
 import { PlayScreen } from './src/screens/PlayScreen';
 import { ExploreScreen } from './src/screens/ExploreScreen';
 import { RoutePreviewScreen } from './src/screens/RoutePreviewScreen';
 import type { RouteGuide } from './src/screens/route-preview-model';
 import type { GhostRun } from './src/screens/ghost-race-model';
-import { NOTIFICATION_TARGET_TAB } from './src/screens/notifications-model';
+import {
+  NOTIFICATION_TARGET_FOCUS,
+  NOTIFICATION_TARGET_TAB
+} from './src/screens/notifications-model';
 import { TurfScreen } from './src/screens/TurfScreen';
 import { QuestDetailScreen } from './src/screens/QuestDetailScreen';
 import { ThemeProvider, useAppTheme } from './src/theme/theme';
@@ -77,7 +80,13 @@ function RunSphereApp() {
     'loading' | 'ready' | 'storage-failure'
   >('loading');
   const [selectedQuest, setSelectedQuest] = useState<QuestSummary>();
-  const [routePreview, setRoutePreview] = useState(false);
+  /**
+   * The surface open over the current tab, if any. One value rather than a
+   * boolean per screen: the challenge list, the quest catalogue, and the route
+   * preview are mutually exclusive, and a pair of booleans could put two of
+   * them on screen at once.
+   */
+  const [focus, setFocus] = useState<FocusedSurface>('none');
   /**
    * An accepted route suggestion, held here rather than on the session: a guide
    * is a reference for one run, and nothing about a saved activity depends on
@@ -90,9 +99,14 @@ function RunSphereApp() {
    * a ghost was on screen while it was recorded.
    */
   const [ghostRun, setGhostRun] = useState<GhostRun>();
-  // Which Play sub-screen to land on. A friend-request notice in the You tab
-  // has to be able to reach friends, which live under Play.
-  const [playEntry, setPlayEntry] = useState<'play' | 'friends'>('play');
+  // Which Social sub-screen to land on. A friend-request notice on Profile has
+  // to be able to reach the friends list, which lives under Social.
+  const [socialEntry, setSocialEntry] = useState<'feed' | 'friends'>('feed');
+  /**
+   * Which Profile sub-screen to land on. The dashboard's bell opens the inbox
+   * directly; every other route into Profile starts at the profile itself.
+   */
+  const [profileEntry, setProfileEntry] = useState<'profile' | 'notifications'>('profile');
   const [storageAttempt, retryStorage] = useReducer((attempt: number) => attempt + 1, 0);
 
   /**
@@ -152,9 +166,10 @@ function RunSphereApp() {
 
   const finishSession = useCallback(() => {
     setActiveTab(landingTab);
+    setProfileEntry('profile');
     setSelectedQuest(undefined);
     dispatchActivityRoute({ type: 'logout' });
-    setRoutePreview(false);
+    setFocus('none');
     setRouteGuide(undefined);
     setGhostRun(undefined);
     setRecording(undefined);
@@ -200,11 +215,11 @@ function RunSphereApp() {
       />
     );
 
-  const openActivity = (origin: 'home' | 'explore' | 'turf' | 'quest-detail') => {
+  const openActivity = (origin: 'home' | 'quests' | 'map' | 'quest-detail') => {
     const capturedOrigin =
       origin === 'quest-detail' && selectedQuest
         ? { kind: 'quest-detail' as const, quest: selectedQuest }
-        : { kind: origin as 'home' | 'explore' | 'turf' };
+        : { kind: origin as 'home' | 'quests' | 'map' };
     dispatchActivityRoute({ type: 'start-free', origin: capturedOrigin });
     setSelectedQuest(undefined);
   };
@@ -217,6 +232,7 @@ function RunSphereApp() {
     if (origin) {
       const destination = activityOriginReturn(origin);
       setActiveTab(destination.activeTab);
+      setFocus(destination.focus);
       setSelectedQuest(destination.selectedQuest);
     }
   };
@@ -224,10 +240,10 @@ function RunSphereApp() {
   const originLabel =
     origin?.kind === 'quest-detail'
       ? origin.quest.title
-      : origin?.kind === 'explore'
-        ? 'Explore'
-        : origin?.kind === 'turf'
-          ? 'Turf'
+      : origin?.kind === 'quests'
+        ? 'Quests'
+        : origin?.kind === 'map'
+          ? 'Map'
           : origin?.kind === 'home'
             ? 'Home'
             : undefined;
@@ -238,11 +254,11 @@ function RunSphereApp() {
     liveInteractive: Boolean(
       recording && ['active', 'resumed', 'paused'].includes(recording.state)
     ),
-    hasRoutePreview: routePreview,
-    exploreInteractive:
-      activeTab === 'Explore' &&
+    focus,
+    mapInteractive:
+      activeTab === 'Map' &&
       !selectedQuest &&
-      !routePreview &&
+      focus === 'none' &&
       activityRoute.screen === 'idle' &&
       !recording
   });
@@ -280,33 +296,21 @@ function RunSphereApp() {
         }}
         onExit={exitActivity}
       />
-    ) : routePreview ? (
+    ) : focus === 'route-preview' ? (
       <RoutePreviewScreen
         api={apiClient}
         onUseRoute={(guide) => {
           setRouteGuide(guide);
-          setRoutePreview(false);
+          setFocus('none');
           openActivity('home');
         }}
         onStartWithout={() => {
           // Not a decline: passing on a route today is not rejecting one.
           setRouteGuide(undefined);
-          setRoutePreview(false);
+          setFocus('none');
           openActivity('home');
         }}
-        onBack={() => setRoutePreview(false)}
-        onSessionExpired={expireSession}
-      />
-    ) : activeTab === 'Home' ? (
-      <HomeScreen
-        api={apiClient}
-        onStart={() => openActivity('home')}
-        onChooseRoute={() => {
-          setRouteGuide(undefined);
-          setRoutePreview(true);
-        }}
-        onOpenQuests={() => setActiveTab('Explore')}
-        onOpenProfile={() => setActiveTab('You')}
+        onBack={() => setFocus('none')}
         onSessionExpired={expireSession}
       />
     ) : selectedQuest ? (
@@ -316,51 +320,86 @@ function RunSphereApp() {
         onBack={() => setSelectedQuest(undefined)}
         onStart={() => openActivity('quest-detail')}
       />
-    ) : activeTab === 'Explore' ? (
+    ) : focus === 'quests' ? (
       <ExploreScreen
         api={apiClient}
         onSelectQuest={setSelectedQuest}
-        onStart={() => openActivity('explore')}
+        onStart={() => openActivity('quests')}
+        onBack={() => setFocus('none')}
         onSessionExpired={expireSession}
       />
-    ) : activeTab === 'Turf' ? (
+    ) : focus === 'challenges' ? (
+      <PlayScreen
+        api={apiClient}
+        accountId={accountId}
+        initialScreen="play"
+        onBack={() => setFocus('none')}
+        onSessionExpired={expireSession}
+      />
+    ) : activeTab === 'Home' ? (
+      <HomeScreen
+        api={apiClient}
+        onStart={() => openActivity('home')}
+        onChooseRoute={() => {
+          setRouteGuide(undefined);
+          setFocus('route-preview');
+        }}
+        onOpenChallenges={() => setFocus('challenges')}
+        onOpenQuests={() => setFocus('quests')}
+        onOpenMap={() => setActiveTab('Map')}
+        onOpenSocial={() => {
+          setSocialEntry('friends');
+          setActiveTab('Social');
+        }}
+        onOpenNotifications={() => {
+          setProfileEntry('notifications');
+          setActiveTab('Profile');
+        }}
+        onOpenProfile={() => {
+          setProfileEntry('profile');
+          setActiveTab('Profile');
+        }}
+        onSessionExpired={expireSession}
+      />
+    ) : activeTab === 'Map' ? (
       <TurfScreen
         api={apiClient}
-        onOpenRun={() => openActivity('turf')}
+        onOpenRun={() => openActivity('map')}
         onGhostRace={(run) => {
           setGhostRun(run);
           // A ghost is a reference on the map, not a route to follow, so it
           // does not also set a route guide.
           setRouteGuide(undefined);
-          openActivity('turf');
+          openActivity('map');
         }}
       />
-    ) : activeTab === 'Clubs' ? (
-      <ClubsScreen api={apiClient} accountId={accountId} onSessionExpired={expireSession} />
-    ) : activeTab === 'Play' ? (
+    ) : activeTab === 'Social' ? (
       <PlayScreen
-        key={playEntry}
+        key={socialEntry}
         api={apiClient}
         accountId={accountId}
-        initialScreen={playEntry}
+        initialScreen={socialEntry === 'friends' ? 'friends' : 'social'}
         onSessionExpired={expireSession}
       />
     ) : (
       <>
-        {accountId && (
-          <ActivityHistory accountId={accountId} sync={activitySync} onOpen={setRecording} />
-        )}
         <ProfileScreen
+          key={profileEntry}
           api={apiClient}
           accountId={accountId}
+          initialScreen={profileEntry}
           onLogoutComplete={finishSession}
           onNavigate={(target) => {
-            // Friend requests open the friends list inside Play; every other
-            // destination is a tab of its own (`NOTIFICATION_TARGET_TAB`).
-            setPlayEntry(target === 'friends' ? 'friends' : 'play');
+            // Friend requests open the friends list inside Social; challenges
+            // and quests open over Home (`NOTIFICATION_TARGET_FOCUS`).
+            setSocialEntry(target === 'friends' ? 'friends' : 'feed');
+            setFocus(NOTIFICATION_TARGET_FOCUS[target]);
             setActiveTab(NOTIFICATION_TARGET_TAB[target]);
           }}
         />
+        {accountId && (
+          <ActivityHistory accountId={accountId} sync={activitySync} onOpen={setRecording} />
+        )}
       </>
     );
 
@@ -380,12 +419,22 @@ function RunSphereApp() {
         <TabBar
           activeTab={activeTab}
           onChange={(tab) => {
-            dispatchActivityRoute({ type: 'select-tab' });
             setSelectedQuest(undefined);
-            setRoutePreview(false);
+            setFocus('none');
             setRouteGuide(undefined);
             setGhostRun(undefined);
-            if (tab !== 'Play') setPlayEntry('play');
+            if (tab !== 'Social') setSocialEntry('feed');
+            if (tab !== 'Profile') setProfileEntry('profile');
+            // Run is an action, not a place: it opens preparation over the tab
+            // the reader was already on, so finishing the run returns them
+            // there rather than stranding them on an empty Run tab. The map is
+            // the one other tab with a return of its own — somebody who just
+            // ran a loop for a claim wants to see the claim.
+            if (tab === 'Run') {
+              openActivity(activeTab === 'Map' ? 'map' : 'home');
+              return;
+            }
+            dispatchActivityRoute({ type: 'select-tab' });
             setActiveTab(tab);
           }}
         />

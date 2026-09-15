@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, createContext, useContext } from 'react';
 import type React from 'react';
-import { AccessibilityInfo, useColorScheme } from 'react-native';
-import { darkTokens, lightTokens, type SemanticTokens } from '@runsphere/ui';
+import { AccessibilityInfo } from 'react-native';
+import { darkTokens, type SemanticTokens } from '@runsphere/ui';
 import { resolveColorScheme, type AppColorScheme } from './theme-state';
 
 export type { AppColorScheme } from './theme-state';
@@ -15,7 +15,6 @@ export interface ThemeValue {
 const ThemeContext = createContext<ThemeValue | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const systemScheme = useColorScheme();
   const [reduceMotion, setReduceMotion] = useState(false);
 
   useEffect(() => {
@@ -33,13 +32,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const colorScheme = resolveColorScheme(systemScheme);
+  const colorScheme = resolveColorScheme();
   const value = useMemo<ThemeValue>(
-    () => ({
-      colorScheme,
-      tokens: colorScheme === 'dark' ? darkTokens : lightTokens,
-      reduceMotion
-    }),
+    () => ({ colorScheme, tokens: darkTokens, reduceMotion }),
     [colorScheme, reduceMotion]
   );
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

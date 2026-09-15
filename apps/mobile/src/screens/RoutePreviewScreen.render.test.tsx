@@ -45,6 +45,8 @@ vi.mock('expo-location', () => ({
 }));
 
 vi.mock('../maps/MapSurface', () => ({ MapSurface: () => null }));
+// The screen reads one token directly, for the reason-row glyph tint.
+vi.mock('../theme/theme', async () => (await import('../theme/theme-mock.js')).themeMock());
 vi.mock('../components/primitives', async () => {
   const React = await import('react');
   return {
@@ -197,7 +199,7 @@ describe('the route preview screen', () => {
 
   it('records an acceptance and hands the run a guide, not the whole suggestion', async () => {
     const renderer = await render();
-    await press(renderer, 'Use this route');
+    await press(renderer, 'Start this route');
 
     expect(sendFeedback).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111', 'accepted');
     expect(used).toHaveLength(1);
@@ -209,7 +211,7 @@ describe('the route preview screen', () => {
     sendFeedback.mockRejectedValueOnce(new Error('offline'));
     const renderer = await render();
 
-    await press(renderer, 'Use this route');
+    await press(renderer, 'Start this route');
 
     expect(used).toHaveLength(1);
   });

@@ -209,7 +209,7 @@ const openClub = async (renderer: ReactTestRenderer) => {
   await act(async () => undefined);
 };
 
-describe('Clubs tab', () => {
+describe('clubs', () => {
   it('says clubs are private and offers no directory to browse', async () => {
     const renderer = await render(stubApi());
     const rendered = text(renderer);
@@ -516,7 +516,7 @@ describe('Club relay', () => {
   });
 });
 
-describe('Clubs tab weekly board', () => {
+describe('the club weekly board', () => {
   it('ranks members by counted minutes and marks the reader', async () => {
     const api = stubApi({ clubs: [club()] });
     const renderer = await render(api);
@@ -611,7 +611,7 @@ describe('Clubs tab weekly board', () => {
   });
 });
 
-describe('Clubs tab club challenge', () => {
+describe('the club challenge', () => {
   it('says an owner can open one when no contest is running', async () => {
     const api = stubApi({ clubs: [club({ role: 'owner' })] });
     const renderer = await render(api);
