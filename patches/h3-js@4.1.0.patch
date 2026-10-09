@@ -1,0 +1,22 @@
+diff --git a/dist/h3-js.js b/dist/h3-js.js
+index c99a1a11a0e3fee6c0eb0fefad03fee5a68ffe97..e56e8eb594e33542dc2704aa2e6ab98e1392ab08 100644
+--- a/dist/h3-js.js
++++ b/dist/h3-js.js
+@@ -366,7 +366,7 @@ var libh3 = function (libh3) {
+       return ccall(ident, returnType, argTypes, arguments, opts);
+     };
+   }
+-  var UTF8Decoder = typeof TextDecoder !== "undefined" ? new TextDecoder("utf8") : undefined;
++  var UTF8Decoder = typeof TextDecoder !== "undefined" ? (function() { try { return new TextDecoder("utf8"); } catch(e) { return undefined; } })() : undefined;
+ 
+   function UTF8ArrayToString(u8Array, idx, maxBytesToRead) {
+     var endIdx = idx + maxBytesToRead;
+@@ -460,7 +460,7 @@ var libh3 = function (libh3) {
+     return stringToUTF8Array(str, HEAPU8, outPtr, maxBytesToWrite);
+   }
+ 
+-  var UTF16Decoder = typeof TextDecoder !== "undefined" ? new TextDecoder("utf-16le") : undefined;
++  var UTF16Decoder = typeof TextDecoder !== "undefined" ? (function() { try { return new TextDecoder("utf-16le"); } catch(e) { return undefined; } })() : undefined;
+ 
+   function writeArrayToMemory(array, buffer) {
+     HEAP8.set(array, buffer);

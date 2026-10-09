@@ -1,5 +1,7 @@
 PODS:
-  - EXConstants (57.0.15):
+  - EXApplication (57.0.2):
+    - ExpoModulesCore
+  - EXConstants (57.0.17):
     - ExpoModulesCore
   - Expo (57.0.17):
     - ExpoModulesCore
@@ -73,6 +75,8 @@ PODS:
   - ExpoModulesWorklets (57.0.14):
     - ExpoModulesCore
     - ExpoModulesJSI
+  - ExpoNotifications (57.0.17):
+    - ExpoModulesCore
   - ExpoSecureStore (57.0.2):
     - ExpoModulesCore
   - ExpoSensors (57.0.2):
@@ -1930,7 +1934,8 @@ PODS:
   - Yoga (0.0.0)
 
 DEPENDENCIES:
-  - "EXConstants (from `../../../node_modules/.pnpm/expo-constants@57.0.15_expo@57.0.17_react-native@0.86.3_@babel+core@7.29.7_@types+react@19.2.14_react@19.2.3_/node_modules/expo-constants/ios`)"
+  - "EXApplication (from `../../../node_modules/.pnpm/expo-application@57.0.2_expo@57.0.17/node_modules/expo-application/ios`)"
+  - "EXConstants (from `../../../node_modules/.pnpm/expo-constants@57.0.17_expo@57.0.17_react-native@0.86.3_@babel+core@7.29.7_@types+react@19.2.14_react@19.2.3_/node_modules/expo-constants/ios`)"
   - "Expo (from `../../../node_modules/.pnpm/expo@57.0.17_@babel+core@7.29.7_@expo+dom-webview@57.0.1_react-dom@19.2.3_react@19.2.3__c46c5ac61b0eefd936bc728214df3854/node_modules/expo`)"
   - "ExpoAsset (from `../../../node_modules/.pnpm/expo-asset@57.0.15_expo@57.0.17_react-native@0.86.3_@babel+core@7.29.7_@types+react@19._5d10981f4cd333ae75458b68903474bd/node_modules/expo-asset/ios`)"
   - "ExpoCrypto (from `../../../node_modules/.pnpm/expo-crypto@57.0.2_expo@57.0.17/node_modules/expo-crypto/ios`)"
@@ -1943,6 +1948,7 @@ DEPENDENCIES:
   - "ExpoModulesCore (from `../../../node_modules/.pnpm/expo-modules-core@57.0.14_react-native@0.86.3_@babel+core@7.29.7_@types+react@19.2.14_react@19.2.3__react@19.2.3/node_modules/expo-modules-core/ExpoModulesCore.podspec`)"
   - "ExpoModulesJSI (from `../../../node_modules/.pnpm/expo-modules-jsi@57.0.6_react-native@0.86.3_@babel+core@7.29.7_@types+react@19.2.14_react@19.2.3_/node_modules/expo-modules-jsi/apple`)"
   - "ExpoModulesWorklets (from `../../../node_modules/.pnpm/expo-modules-core@57.0.14_react-native@0.86.3_@babel+core@7.29.7_@types+react@19.2.14_react@19.2.3__react@19.2.3/node_modules/expo-modules-core/ExpoModulesWorklets.podspec`)"
+  - "ExpoNotifications (from `../../../node_modules/.pnpm/expo-notifications@57.0.17_expo@57.0.17_react-native@0.86.3_@babel+core@7.29.7_@types+r_e7389d7a6613fb00865497415f5a168c/node_modules/expo-notifications/ios`)"
   - "ExpoSecureStore (from `../../../node_modules/.pnpm/expo-secure-store@57.0.2_expo@57.0.17/node_modules/expo-secure-store/ios`)"
   - "ExpoSensors (from `../../../node_modules/.pnpm/expo-sensors@57.0.2_expo@57.0.17_react-native@0.86.3_@babel+core@7.29.7_@types+react@19.2.14_react@19.2.3_/node_modules/expo-sensors/ios`)"
   - "ExpoSQLite (from `../../../node_modules/.pnpm/expo-sqlite@57.0.2_expo@57.0.17_react-native@0.86.3_@babel+core@7.29.7_@types+react@19.2.14_react@19.2.3__react@19.2.3/node_modules/expo-sqlite/ios`)"
@@ -2026,8 +2032,10 @@ DEPENDENCIES:
   - "Yoga (from `../../../node_modules/.pnpm/react-native@0.86.3_@babel+core@7.29.7_@types+react@19.2.14_react@19.2.3/node_modules/react-native/ReactCommon/yoga`)"
 
 EXTERNAL SOURCES:
+  EXApplication:
+    :path: "../../../node_modules/.pnpm/expo-application@57.0.2_expo@57.0.17/node_modules/expo-application/ios"
   EXConstants:
-    :path: "../../../node_modules/.pnpm/expo-constants@57.0.15_expo@57.0.17_react-native@0.86.3_@babel+core@7.29.7_@types+react@19.2.14_react@19.2.3_/node_modules/expo-constants/ios"
+    :path: "../../../node_modules/.pnpm/expo-constants@57.0.17_expo@57.0.17_react-native@0.86.3_@babel+core@7.29.7_@types+react@19.2.14_react@19.2.3_/node_modules/expo-constants/ios"
   Expo:
     :path: "../../../node_modules/.pnpm/expo@57.0.17_@babel+core@7.29.7_@expo+dom-webview@57.0.1_react-dom@19.2.3_react@19.2.3__c46c5ac61b0eefd936bc728214df3854/node_modules/expo"
   ExpoAsset:
@@ -2052,6 +2060,8 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/.pnpm/expo-modules-jsi@57.0.6_react-native@0.86.3_@babel+core@7.29.7_@types+react@19.2.14_react@19.2.3_/node_modules/expo-modules-jsi/apple"
   ExpoModulesWorklets:
     :podspec: "../../../node_modules/.pnpm/expo-modules-core@57.0.14_react-native@0.86.3_@babel+core@7.29.7_@types+react@19.2.14_react@19.2.3__react@19.2.3/node_modules/expo-modules-core/ExpoModulesWorklets.podspec"
+  ExpoNotifications:
+    :path: "../../../node_modules/.pnpm/expo-notifications@57.0.17_expo@57.0.17_react-native@0.86.3_@babel+core@7.29.7_@types+r_e7389d7a6613fb00865497415f5a168c/node_modules/expo-notifications/ios"
   ExpoSecureStore:
     :path: "../../../node_modules/.pnpm/expo-secure-store@57.0.2_expo@57.0.17/node_modules/expo-secure-store/ios"
   ExpoSensors:
@@ -2215,7 +2225,8 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/.pnpm/react-native@0.86.3_@babel+core@7.29.7_@types+react@19.2.14_react@19.2.3/node_modules/react-native/ReactCommon/yoga"
 
 SPEC CHECKSUMS:
-  EXConstants: e05664c2e0470c274210b8d0857ac2c4cc5e963c
+  EXApplication: bbd517d50878ca1d121fb3843392beb210181e28
+  EXConstants: 799577d2516460afb4b57874d6823a62327ce5c7
   Expo: cc603b7ad800059976aacd1550f531b68ae65dd0
   ExpoAsset: ff225ee16cea2409800b20fe4945a7c720a24cee
   ExpoCrypto: f392e5f076a4c11dbfa1a6046449747acec82711
@@ -2228,6 +2239,7 @@ SPEC CHECKSUMS:
   ExpoModulesCore: d728d3b5fce76f134318ddba44935b1ac04733d4
   ExpoModulesJSI: 1529d4289b9a3647d8901a27b41f1af173598b45
   ExpoModulesWorklets: 57a11e6ae984c2680e7967b785ded96199caed8c
+  ExpoNotifications: 42cba361a6b378e6e54b795f55932e4eba058829
   ExpoSecureStore: cc7c4f560528e7a644b1342b0cc2790576e677e1
   ExpoSensors: e71c7b6cb0c09d3427ef6ae29c69532a10c86b05
   ExpoSQLite: fd20da917c2a9c6abd5c974878a229557963191d

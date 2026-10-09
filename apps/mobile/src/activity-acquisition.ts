@@ -1,6 +1,6 @@
 import { MAX_SAMPLE_ACCURACY_METERS, type LocationSample } from './activity-recorder-core';
 
-export const ACQUISITION_REQUIRED_FIXES = 3;
+export const ACQUISITION_REQUIRED_FIXES = __DEV__ ? 1 : 3;
 export const ACQUISITION_TIMEOUT_MS = 30_000;
 
 export interface AcquisitionState {
@@ -16,7 +16,7 @@ export const startAcquisition = (startedAtMs: number): AcquisitionState => ({
 });
 
 export const acquisitionAcceptsFix = (sample: LocationSample): boolean =>
-  sample.accuracy !== null && sample.accuracy >= 0 && sample.accuracy <= MAX_SAMPLE_ACCURACY_METERS;
+  sample.accuracy !== null && sample.accuracy >= 0 && sample.accuracy <= (__DEV__ ? 1000 : MAX_SAMPLE_ACCURACY_METERS);
 
 export const advanceAcquisition = (
   state: AcquisitionState,

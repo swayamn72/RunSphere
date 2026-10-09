@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { seasonMonthFor } from '@runsphere/domain';
 import type { Database } from '@runsphere/db';
 import { buildApp } from './app.js';
 import { createAccessToken } from './auth.js';
@@ -212,25 +213,29 @@ describe('GET /v1/territory/leaderboard/seasons', () => {
     });
 
   it('lists the seasons and marks the one being played', async () => {
+    const now = new Date();
+    const currentMonth = seasonMonthFor(now);
+    const previousMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const previousMonth = seasonMonthFor(previousMonthDate);
     stubs = {
       seasons: [
         {
-          season_month: '2026-09',
-          started_at: new Date('2026-09-01T00:00:00.000Z'),
+          season_month: currentMonth,
+          started_at: new Date(`${currentMonth}-01T00:00:00.000Z`),
           ended_at: null,
           claims_archived: 0
         },
         {
-          season_month: '2026-08',
-          started_at: new Date('2026-08-01T00:00:00.000Z'),
-          ended_at: new Date('2026-09-01T00:00:00.000Z'),
+          season_month: previousMonth,
+          started_at: new Date(`${previousMonth}-01T00:00:00.000Z`),
+          ended_at: new Date(`${currentMonth}-01T00:00:00.000Z`),
           claims_archived: 12
         }
       ]
     };
     const body = (await read()).json();
 
-    expect(body.data[1]).toMatchObject({ seasonMonth: '2026-08', claimsArchived: 12 });
+    expect(body.data[1]).toMatchObject({ seasonMonth: previousMonth, claimsArchived: 12 });
     expect(body.data.filter((season: { isCurrent: boolean }) => season.isCurrent)).toHaveLength(1);
   });
 

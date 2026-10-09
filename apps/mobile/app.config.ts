@@ -89,7 +89,10 @@ const config: ExpoConfig = {
     apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL ?? '',
     mapStyleUrl: process.env.EXPO_PUBLIC_MAP_STYLE_URL ?? '',
     mapStyleOrigins: process.env.EXPO_PUBLIC_MAP_STYLE_ORIGINS ?? '',
-    mapAttribution: process.env.EXPO_PUBLIC_MAP_ATTRIBUTION ?? ''
+    mapAttribution: process.env.EXPO_PUBLIC_MAP_ATTRIBUTION ?? '',
+    eas: {
+      projectId: '164582a7-92e6-4b2b-ab0d-41ab012b45ef'
+    }
   }
 };
 
