@@ -1,4 +1,4 @@
-import { kolkataDate, kolkataDateStart, weeklyPeriodStart } from './gamification.js';
+import { kolkataDate, kolkataDateStart, kolkataCalendarDate, pad2, KOLKATA_OFFSET_MS } from './gamification.js';
 
 /**
  * Territory weeks, the season ladder, and the concentration guardrails
@@ -18,36 +18,39 @@ const MILLIS_PER_DAY = 86_400_000;
 
 /**
  * Whether the Kolkata week beginning `weekStartsOn` has completely ended.
- *
- * A week is snapshotted only after it is over. Snapshotting a week in progress
- * would publish a standing that is about to change, and ADR-0006 makes weekly
- * periods immutable once written — a partial week would make the first version
- * of every week wrong by construction.
+ * (Now modified to act as a Monthly boundary based on product requirements)
  */
-export const territoryWeekClosed = (weekStartsOn: string, now: Date): boolean =>
-  now.getTime() >= kolkataDateStart(weekStartsOn).getTime() + 7 * MILLIS_PER_DAY;
+export const territoryWeekClosed = (weekStartsOn: string, now: Date): boolean => {
+  const start = kolkataDateStart(weekStartsOn);
+  const startCal = kolkataCalendarDate(start);
+  const nextMonthMs = Date.UTC(startCal.year, startCal.month, 1) - KOLKATA_OFFSET_MS;
+  return now.getTime() >= nextMonthMs;
+};
 
-/** The Kolkata Monday a date falls in, as `YYYY-MM-DD`. */
-export const territoryWeekOf = (instant: Date): string => kolkataDate(weeklyPeriodStart(instant));
+/** The Kolkata Monday a date falls in, as `YYYY-MM-DD`. (Now modified to Monthly 1st) */
+export const territoryWeekOf = (instant: Date): string => {
+  const { year, month } = kolkataCalendarDate(instant);
+  return `${year}-${pad2(month)}-01`;
+};
 
 /**
  * Every week of a season that has closed by `now`, earliest first.
- *
- * A season's weeks are derived from its own dates rather than from whatever
- * contributions happen to exist, so a week nobody moved in is still a week that
- * gets a snapshot — an empty snapshot is a fact about the season, and its
- * absence would be indistinguishable from a scoring job that never ran.
+ * (Now steps by Month instead of Week)
  */
 export const closedTerritoryWeeks = (startsAt: Date, endsAt: Date, now: Date): string[] => {
   const weeks: string[] = [];
   const last = Math.min(endsAt.getTime(), now.getTime());
-  let cursor = weeklyPeriodStart(startsAt).getTime();
+  
+  const startCal = kolkataCalendarDate(startsAt);
+  let cursor = Date.UTC(startCal.year, startCal.month - 1, 1) - KOLKATA_OFFSET_MS;
+  
   // A season longer than two years is a data error, not a season; the bound
   // stops a bad `ends_at` turning this into an unbounded loop.
   for (let guard = 0; guard < 120 && cursor <= last; guard += 1) {
     const week = kolkataDate(new Date(cursor));
     if (territoryWeekClosed(week, now)) weeks.push(week);
-    cursor = kolkataDateStart(week).getTime() + 7 * MILLIS_PER_DAY;
+    const cal = kolkataCalendarDate(new Date(cursor));
+    cursor = Date.UTC(cal.year, cal.month, 1) - KOLKATA_OFFSET_MS;
   }
   return weeks;
 };

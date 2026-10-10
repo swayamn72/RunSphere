@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { coarseTile } from './app.js';
+import { coarseTile } from './safety-routes.js';
 
 describe('privacy and safety boundaries', () => {
   it('uses latitude-aware, non-H3 coarse tiles for delayed safety-share input', () => {

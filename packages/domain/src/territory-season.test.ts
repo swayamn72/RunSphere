@@ -13,8 +13,8 @@ import {
   territoryWeekOf
 } from './territory-season.js';
 
-/** 2026-09-07 is a Monday in Asia/Kolkata. */
-const MONDAY = '2026-09-07';
+/** 2026-09-01 is the start of the September season. */
+const MONDAY = '2026-09-01';
 const kolkata = (iso: string) => new Date(iso);
 
 describe('when a territory week may be snapshotted', () => {
@@ -23,10 +23,10 @@ describe('when a territory week may be snapshotted', () => {
     expect(territoryWeekClosed(MONDAY, kolkata('2026-09-13T17:00:00.000Z'))).toBe(false);
   });
 
-  it('closes at the start of the next Kolkata Monday', () => {
-    // 2026-09-14 00:00 Kolkata is 2026-09-13 18:30 UTC.
-    expect(territoryWeekClosed(MONDAY, kolkata('2026-09-13T18:29:00.000Z'))).toBe(false);
-    expect(territoryWeekClosed(MONDAY, kolkata('2026-09-13T18:30:00.000Z'))).toBe(true);
+  it('closes at the start of the next Kolkata Month', () => {
+    // 2026-10-01 00:00 Kolkata is 2026-09-30 18:30 UTC.
+    expect(territoryWeekClosed(MONDAY, kolkata('2026-09-30T18:29:00.000Z'))).toBe(false);
+    expect(territoryWeekClosed(MONDAY, kolkata('2026-09-30T18:30:00.000Z'))).toBe(true);
   });
 
   it('reads a week from any instant inside it', () => {
@@ -37,13 +37,13 @@ describe('when a territory week may be snapshotted', () => {
 describe('the weeks of a season', () => {
   it('lists only the weeks that have ended', () => {
     const weeks = closedTerritoryWeeks(
-      kolkata('2026-09-07T00:00:00.000Z'),
+      kolkata('2026-07-07T00:00:00.000Z'),
       kolkata('2026-10-19T00:00:00.000Z'),
       kolkata('2026-09-25T00:00:00.000Z')
     );
 
-    // Two full weeks have ended by 25 September; the third is still running.
-    expect(weeks).toEqual(['2026-09-07', '2026-09-14']);
+    // Two full months (July, August) have ended by 25 September; the third (Sept) is still running.
+    expect(weeks).toEqual(['2026-07-01', '2026-08-01']);
   });
 
   it('is empty before the first week is over', () => {
@@ -58,12 +58,12 @@ describe('the weeks of a season', () => {
 
   it('stops at the season end rather than running on to today', () => {
     const weeks = closedTerritoryWeeks(
-      kolkata('2026-09-07T00:00:00.000Z'),
-      kolkata('2026-09-21T00:00:00.000Z'),
+      kolkata('2026-07-01T00:00:00.000Z'),
+      kolkata('2026-09-15T00:00:00.000Z'),
       kolkata('2027-01-01T00:00:00.000Z')
     );
 
-    expect(weeks).toEqual(['2026-09-07', '2026-09-14', '2026-09-21']);
+    expect(weeks).toEqual(['2026-07-01', '2026-08-01', '2026-09-01']);
   });
 
   it('refuses to loop forever on a season with an absurd end date', () => {

@@ -56,13 +56,13 @@ const KOLKATA_CALENDAR_FORMATTER = new Intl.DateTimeFormat('en-US', {
   day: '2-digit'
 });
 
-interface CalendarDate {
+export interface CalendarDate {
   year: number;
   month: number;
   day: number;
 }
 
-function kolkataCalendarDate(instant: Date): CalendarDate {
+export function kolkataCalendarDate(instant: Date): CalendarDate {
   const parts = KOLKATA_CALENDAR_FORMATTER.formatToParts(instant);
   const read = (type: 'year' | 'month' | 'day'): number => {
     const part = parts.find((candidate) => candidate.type === type);
@@ -74,7 +74,7 @@ function kolkataCalendarDate(instant: Date): CalendarDate {
   return { year: read('year'), month: read('month'), day: read('day') };
 }
 
-function pad2(value: number): string {
+export function pad2(value: number): string {
   return String(value).padStart(2, '0');
 }
 

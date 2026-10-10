@@ -121,6 +121,7 @@ const configuredApiConfig = (config: BuildAppOptions['config']): RuntimeApiConfi
 });
 const genericAuthError = { message: 'Invalid email or password' };
 import { pinoRedactionPaths } from '@runsphere/config';
+export { pinoRedactionPaths };
 
 export interface BuildAppOptions {
   config?: Partial<
