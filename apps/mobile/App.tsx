@@ -10,6 +10,8 @@ import type { AuthSession } from './src/auth-storage-core';
 import { createActivitySyncCoordinator } from './src/activity-sync';
 import { MobileApiClient } from './src/api-client';
 import { authStorage } from './src/auth-storage.native';
+import * as BackgroundFetch from 'expo-background-fetch';
+import * as TaskManager from 'expo-task-manager';
 import { FocusedFlexShell, FocusedScrollShell, TabScrollShell } from './src/components/ScreenShell';
 import { PrimaryButton } from './src/components/primitives';
 import { useAppStyles } from './src/components/styles';
@@ -56,6 +58,24 @@ setGuidanceStore(persistentGuidanceStore);
 const apiClient = new MobileApiClient(undefined, fetch, authStorage);
 const activitySync = createActivitySyncCoordinator(apiClient, activityRecorder);
 const accountIdFromSession = (session: AuthSession): string => accountScopeFor(session);
+
+const BACKGROUND_SYNC_TASK = 'background-activity-sync';
+
+TaskManager.defineTask(BACKGROUND_SYNC_TASK, async () => {
+  try {
+    const session = await authStorage.read();
+    if (!session) return BackgroundFetch.BackgroundFetchResult.NoData;
+    const accountId = accountIdFromSession(session);
+    const pending = await activitySync.syncPending(accountId);
+    if (pending.length > 0) {
+      return BackgroundFetch.BackgroundFetchResult.NewData;
+    }
+    return BackgroundFetch.BackgroundFetchResult.NoData;
+  } catch (error) {
+    console.error('Background sync failed:', error);
+    return BackgroundFetch.BackgroundFetchResult.Failed;
+  }
+});
 
 export default function App() {
   return (
@@ -134,6 +154,23 @@ function RunSphereApp() {
     void (async () => {
       try {
         await Promise.all([activityQueue.initialize(), activityRecorder.initialize()]);
+        
+        try {
+          const status = await BackgroundFetch.getStatusAsync();
+          if (
+            status === BackgroundFetch.BackgroundFetchStatus.Available ||
+            status === BackgroundFetch.BackgroundFetchStatus.Restricted
+          ) {
+            await BackgroundFetch.registerTaskAsync(BACKGROUND_SYNC_TASK, {
+              minimumInterval: 15 * 60, // 15 minutes
+              stopOnTerminate: false,
+              startOnBoot: true
+            });
+          }
+        } catch (error) {
+          console.warn('Failed to register background sync task:', error);
+        }
+
         const session = await authStorage.read();
         if (!session) return;
         const scope = accountIdFromSession(session);
