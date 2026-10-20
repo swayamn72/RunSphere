@@ -526,6 +526,147 @@ describePostgis('M1 PostGIS activity flow', () => {
   });
 });
 
+describePostgis('run verification', () => {
+  const account = async () => {
+    const register = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/register',
+      payload: {
+        email: `verify-${randomUUID()}-${Date.now()}@example.test`,
+        password: 'a-safe-pilot-password',
+        ageAssertion: true,
+        policyVersion: 'm1'
+      }
+    });
+    expect(register.statusCode).toBe(201);
+    return (register.json() as { accessToken: string }).accessToken;
+  };
+  const create = async (token: string, payload: Record<string, unknown>, key = randomUUID()) =>
+    app.inject({
+      method: 'POST',
+      url: '/v1/activities',
+      headers: { authorization: `Bearer ${token}`, 'idempotency-key': key },
+      payload
+    });
+  const startedAt = '2026-10-21T06:30:00.000Z';
+  const before = (seconds: number) =>
+    new Date(Date.parse(startedAt) - seconds * 1_000).toISOString();
+
+  it('stores a fresh pass and reports it as verified, without echoing the device id', async () => {
+    const token = await account();
+    const deviceId = randomUUID();
+    const created = await create(token, {
+      movementType: 'run',
+      startedAt,
+      verification: { method: 'biometric', verifiedAt: before(10), deviceId }
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json()).toMatchObject({
+      verification: { method: 'biometric', trust: 'verified', verifiedAt: before(10) }
+    });
+    // The device id answers one internal question and is never handed back.
+    expect(JSON.stringify(created.json())).not.toContain(deviceId);
+
+    const id = (created.json() as { id: string }).id;
+    const detail = await app.inject({
+      method: 'GET',
+      url: `/v1/activities/${id}`,
+      headers: { authorization: `Bearer ${token}` }
+    });
+    expect(detail.json()).toMatchObject({ verification: { trust: 'verified' } });
+    expect(JSON.stringify(detail.json())).not.toContain(deviceId);
+
+    const stored = await db.query<{ verification_device_id: string }>(
+      'SELECT verification_device_id FROM activity_submissions WHERE id = $1',
+      [id]
+    );
+    expect(stored.rows[0]?.verification_device_id).toBe(deviceId);
+  });
+
+  it('keeps a phone with no screen lock honest rather than refusing its run', async () => {
+    const token = await account();
+    const created = await create(token, {
+      movementType: 'run',
+      startedAt,
+      verification: { method: 'unenrolled', verifiedAt: before(5), deviceId: randomUUID() }
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json()).toMatchObject({
+      verification: { method: 'unenrolled', trust: 'unverified' }
+    });
+  });
+
+  it('refuses to call a pass taken an hour earlier a verification of this run', async () => {
+    const token = await account();
+    const created = await create(token, {
+      movementType: 'run',
+      startedAt,
+      verification: { method: 'biometric', verifiedAt: before(3_600), deviceId: randomUUID() }
+    });
+    expect(created.statusCode).toBe(201);
+    // The method is reported as sent; the trust is the server's own reading.
+    expect(created.json()).toMatchObject({
+      verification: { method: 'biometric', trust: 'unverified' }
+    });
+  });
+
+  it('accepts a run from a client too old to verify, and reports no verification', async () => {
+    const token = await account();
+    const created = await create(token, { movementType: 'run' });
+    expect(created.statusCode).toBe(201);
+    expect(created.json()).not.toHaveProperty('verification');
+  });
+
+  it('rejects a method the gate cannot produce', async () => {
+    const token = await account();
+    const created = await create(token, {
+      movementType: 'run',
+      startedAt,
+      // A failed prompt never produces a run, so `failed` is not a method.
+      verification: { method: 'failed', verifiedAt: before(5), deviceId: randomUUID() }
+    });
+    expect(created.statusCode).toBe(400);
+  });
+
+  it('refuses a replay that upgrades an unverified run to a verified one', async () => {
+    const token = await account();
+    const key = randomUUID();
+    const deviceId = randomUUID();
+    const first = await create(
+      token,
+      {
+        movementType: 'run',
+        startedAt,
+        verification: { method: 'unenrolled', verifiedAt: before(5), deviceId }
+      },
+      key
+    );
+    expect(first.statusCode).toBe(201);
+    const replay = await create(
+      token,
+      {
+        movementType: 'run',
+        startedAt,
+        verification: { method: 'biometric', verifiedAt: before(5), deviceId }
+      },
+      key
+    );
+    expect(replay.statusCode).toBe(409);
+    // An honest replay of the same body still resolves to the same activity.
+    const identical = await create(
+      token,
+      {
+        movementType: 'run',
+        startedAt,
+        verification: { method: 'unenrolled', verifiedAt: before(5), deviceId }
+      },
+      key
+    );
+    expect(identical.statusCode).toBe(200);
+    expect((identical.json() as { id: string }).id).toBe((first.json() as { id: string }).id);
+  });
+});
+
 /**
  * A gated suite that quietly does not run is a green tick that means nothing.
  * This is the one test in the file that always runs, and in CI it fails if the

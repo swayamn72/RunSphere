@@ -1,4 +1,5 @@
 import type { ActivityLifecycleStatus } from '@runsphere/contracts';
+import type { RunVerification, RunVerificationMethod } from '@runsphere/domain';
 
 /**
  * RunSphere is running-only (`product.md`, 2026-09-06). Walking and hiking were
@@ -57,6 +58,18 @@ export interface ActivitySession {
   /** Last server lifecycle status; null/undefined is deliberately unknown until refreshed. */
   remoteStatus?: RemoteActivityStatus | undefined;
   syncError?: string | undefined;
+  /**
+   * Who the device confirmed at the start of this run.
+   *
+   * Written once, at creation, and never updated: it is evidence about a moment
+   * that has already passed. Absent on every row recorded before the
+   * verification gate shipped, which is a real state and not a failure — see
+   * `run-verification.ts`.
+   *
+   * Carries no biometric data. The OS returns a boolean; what is stored is
+   * which kind of check ran, when, and an opaque per-installation id.
+   */
+  verification?: RunVerification | undefined;
 }
 
 export type RemoteActivityStatus = ActivityLifecycleStatus;
@@ -68,7 +81,7 @@ export interface RecorderDatabase {
   getAllAsync<T>(sql: string, ...params: unknown[]): Promise<T[]>;
 }
 
-export const ACTIVITY_RECORDER_SCHEMA_VERSION = 8;
+export const ACTIVITY_RECORDER_SCHEMA_VERSION = 9;
 export const MAX_SAMPLE_ACCURACY_METERS = 50;
 export const MAX_SEGMENT_SPEED_METERS_PER_SECOND = 25_000 / 3_600;
 export const EXCLUDED_GAP_SECONDS = 60;
@@ -95,7 +108,13 @@ export const activityRecorderSchema = `
     last_heartbeat_at TEXT NOT NULL,
     remote_id TEXT,
     remote_status TEXT CHECK (remote_status IN ('received', 'validating', 'accepted', 'rejected', 'derived', 'deleted')),
-    sync_error TEXT
+    sync_error TEXT,
+    -- Run verification. Null together on every row older than schema 9, and on
+    -- any row whose device could not be asked; run-verification.ts explains
+    -- why "nothing to ask" still produces a run.
+    verification_method TEXT CHECK (verification_method IN ('biometric', 'device-credential', 'unenrolled', 'unsupported')),
+    verified_at TEXT,
+    verification_device_id TEXT
   );
   CREATE TABLE IF NOT EXISTS activity_location_samples (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -130,7 +149,17 @@ const rowToSession = (row: Record<string, unknown>): ActivitySession => ({
   lastHeartbeatAt: row.lastHeartbeatAt as string,
   remoteId: (row.remoteId as string | null) ?? undefined,
   remoteStatus: (row.remoteStatus as RemoteActivityStatus | null) ?? undefined,
-  syncError: (row.syncError as string | null) ?? undefined
+  syncError: (row.syncError as string | null) ?? undefined,
+  // All three or none: the schema writes them together and a half-row could
+  // not be checked for freshness anyway.
+  verification:
+    row.verificationMethod && row.verifiedAt && row.verificationDeviceId
+      ? {
+          method: row.verificationMethod as RunVerificationMethod,
+          verifiedAt: row.verifiedAt as string,
+          deviceId: row.verificationDeviceId as string
+        }
+      : undefined
 });
 
 export const distanceBetween = (a: LocationSample, b: LocationSample): number => {
@@ -188,7 +217,8 @@ const canTransition = (from: RecordingState, to: RecordingState): boolean => {
 
 const sessionSelect = `SELECT id, account_id AS accountId, movement_type AS movementType, state, started_at AS startedAt, updated_at AS updatedAt,
   paused_at AS pausedAt, pause_reason AS pauseReason, completed_at AS completedAt, duration_seconds AS durationSeconds, distance_meters AS distanceMeters,
-  accepted_samples AS acceptedSamples, last_heartbeat_at AS lastHeartbeatAt, remote_id AS remoteId, remote_status AS remoteStatus, sync_error AS syncError FROM recorded_activities`;
+  accepted_samples AS acceptedSamples, last_heartbeat_at AS lastHeartbeatAt, remote_id AS remoteId, remote_status AS remoteStatus, sync_error AS syncError,
+  verification_method AS verificationMethod, verified_at AS verifiedAt, verification_device_id AS verificationDeviceId FROM recorded_activities`;
 
 const migrationChecksum = (
   rows: readonly Pick<ActivitySession, 'id' | 'remoteId' | 'updatedAt'>[]
@@ -243,6 +273,24 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
           "ALTER TABLE recorded_activities ADD COLUMN remote_status TEXT CHECK (remote_status IN ('received', 'validating', 'accepted', 'rejected', 'derived', 'deleted'));"
         );
     }
+    if (current > 0 && current < 9) {
+      const activityColumns = await database.getAllAsync<{ name: string }>(
+        'PRAGMA table_info(recorded_activities)'
+      );
+      // Additive and metadata-checked, so an interrupted upgrade re-runs safely.
+      // Rows already here stay unverified, which is the truth about them: they
+      // were recorded by a build that never asked.
+      if (!activityColumns.some((column) => column.name === 'verification_method'))
+        await database.execAsync(
+          "ALTER TABLE recorded_activities ADD COLUMN verification_method TEXT CHECK (verification_method IN ('biometric', 'device-credential', 'unenrolled', 'unsupported'));"
+        );
+      if (!activityColumns.some((column) => column.name === 'verified_at'))
+        await database.execAsync('ALTER TABLE recorded_activities ADD COLUMN verified_at TEXT;');
+      if (!activityColumns.some((column) => column.name === 'verification_device_id'))
+        await database.execAsync(
+          'ALTER TABLE recorded_activities ADD COLUMN verification_device_id TEXT;'
+        );
+    }
     await database.execAsync(activityRecorderSchema);
     // Preparation is now in-memory. Safely discard pre-route rows left by older builds so they
     // cannot become orphaned recovery/history entries; recording never reached route retention.
@@ -261,8 +309,9 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
     session: Omit<ActivitySession, 'durationSeconds' | 'distanceMeters' | 'acceptedSamples'>
   ): Promise<void> {
     await database.runAsync(
-      `INSERT INTO recorded_activities (id, account_id, movement_type, state, started_at, updated_at, paused_at, pause_reason, completed_at, duration_seconds, distance_meters, accepted_samples, last_heartbeat_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?)`,
+      `INSERT INTO recorded_activities (id, account_id, movement_type, state, started_at, updated_at, paused_at, pause_reason, completed_at, duration_seconds, distance_meters, accepted_samples, last_heartbeat_at,
+         verification_method, verified_at, verification_device_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?)`,
       session.id,
       session.accountId,
       session.movementType,
@@ -272,7 +321,10 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
       session.pausedAt ?? null,
       session.pauseReason ?? null,
       session.completedAt ?? null,
-      session.lastHeartbeatAt
+      session.lastHeartbeatAt,
+      session.verification?.method ?? null,
+      session.verification?.verifiedAt ?? null,
+      session.verification?.deviceId ?? null
     );
   },
   async get(id: string, accountId: string): Promise<ActivitySession | undefined> {

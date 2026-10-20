@@ -41,6 +41,18 @@ const config: ExpoConfig = {
       'android.permission.INTERNET',
       'android.permission.ACCESS_NETWORK_STATE',
       'android.permission.POST_NOTIFICATIONS',
+      // Run verification (`safety-and-privacy.md`). Both were blocked until the
+      // gate shipped. `USE_BIOMETRIC` is the current permission;
+      // `USE_FINGERPRINT` is its pre-API-28 predecessor, and the
+      // `expo-local-authentication` config plugin declares both, so blocking
+      // one would leave prebuild and `verify-android-permissions.mjs`
+      // permanently disagreeing.
+      //
+      // Neither grants RunSphere access to biometric data. They permit asking
+      // the OS to raise its own prompt; the match happens in secure hardware
+      // and the app receives a boolean.
+      'android.permission.USE_BIOMETRIC',
+      'android.permission.USE_FINGERPRINT',
       'android.permission.VIBRATE'
     ],
     // Absent when no Firebase config has been placed in the checkout; see
@@ -51,8 +63,6 @@ const config: ExpoConfig = {
       'android.permission.ACCESS_WIFI_STATE',
       'android.permission.SYSTEM_ALERT_WINDOW',
       'android.permission.READ_EXTERNAL_STORAGE',
-      'android.permission.USE_BIOMETRIC',
-      'android.permission.USE_FINGERPRINT',
       'android.permission.WRITE_EXTERNAL_STORAGE'
     ]
   },
@@ -61,6 +71,13 @@ const config: ExpoConfig = {
   },
   plugins: [
     'expo-secure-store',
+    [
+      'expo-local-authentication',
+      {
+        faceIDPermission:
+          'Allow RunSphere to confirm it is you before a run starts, so your runs cannot be recorded by somebody else.'
+      }
+    ],
     ['expo-sqlite', { useSQLCipher: true }],
     [
       'expo-location',

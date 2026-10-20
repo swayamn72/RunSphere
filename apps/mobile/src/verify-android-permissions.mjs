@@ -44,8 +44,6 @@ const blocked = new Set([
   'android.permission.ACCESS_WIFI_STATE',
   'android.permission.SYSTEM_ALERT_WINDOW',
   'android.permission.READ_EXTERNAL_STORAGE',
-  'android.permission.USE_BIOMETRIC',
-  'android.permission.USE_FINGERPRINT',
   'android.permission.WRITE_EXTERNAL_STORAGE'
 ]);
 const required = new Set([
@@ -57,6 +55,18 @@ const required = new Set([
   // Android 13+ runtime grant, added by the expo-notifications plugin and
   // requested in context after sign-in.
   'android.permission.POST_NOTIFICATIONS',
+  // Run verification (`safety-and-privacy.md`). These were on the blocked list
+  // until the gate shipped, and moving them here was a deliberate reversal of
+  // a stated position, not an oversight — which is why this comment exists.
+  //
+  // What they permit is asking the OS to raise its own authentication prompt.
+  // The match happens in secure hardware and the app receives a boolean, so
+  // no face or fingerprint data enters the process, the database, or the API.
+  // `USE_FINGERPRINT` is the pre-API-28 predecessor of `USE_BIOMETRIC`; the
+  // `expo-local-authentication` config plugin declares both, so both must be
+  // listed or prebuild output and this allowlist can never agree.
+  'android.permission.USE_BIOMETRIC',
+  'android.permission.USE_FINGERPRINT',
   'android.permission.VIBRATE'
 ]);
 

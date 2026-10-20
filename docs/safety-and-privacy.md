@@ -15,12 +15,15 @@ The intended UI is represented by the approved [permissions and privacy](design/
 | Motion & fitness/activity recognition | Separate just-in-time OS permission                          | Optional. Improves run classification and distance quality; declining uses location-only estimates and must not block a run.                              |
 | Contacts                              | In-app entry of a safety contact or explicit platform picker | Optional; never upload a device address book.                                                                                                              |
 | Live sharing                          | Explicit per-activity start and recipient selection          | Optional and off by default.                                                                                                                               |
+| Run verification (device screen lock) | OS prompt at the start of every run, explained on the card before it appears | Required to record a run as verified. A phone with no screen lock still records — the run is marked unverified rather than blocked.                |
 
 Permission explanations name the capability, purpose, retention path, and decline outcome before the OS dialog. Consent changes take effect on the next applicable action; revocation stops new collection and surfaces what remains saved.
 
 ## Map connectivity and provider privacy
 
-Android includes `ACCESS_NETWORK_STATE`, a normal non-prompting permission, solely so the map renderer can distinguish unavailable connectivity from a map-style failure and present recoverable offline behavior. It does not expose network identifiers, request location, or broaden data collection. `ACCESS_WIFI_STATE` remains blocked. Background location, storage/media, overlay, biometric, and fingerprint permissions remain blocked; the Android manifest explicitly removes biometric permissions because the current native dependency graph declares them.
+Android includes `ACCESS_NETWORK_STATE`, a normal non-prompting permission, solely so the map renderer can distinguish unavailable connectivity from a map-style failure and present recoverable offline behavior. It does not expose network identifiers, request location, or broaden data collection. `ACCESS_WIFI_STATE` remains blocked. Background location, storage/media, and overlay permissions remain blocked.
+
+`USE_BIOMETRIC` and `USE_FINGERPRINT` were blocked until run verification shipped, and are now allowed. This was a deliberate reversal of a stated position; see **Run verification** below for what it buys and what it costs. Neither permission grants RunSphere access to biometric data: they permit asking the operating system to raise its own authentication prompt, and the match happens in secure hardware. `USE_FINGERPRINT` is the pre-API-28 predecessor of `USE_BIOMETRIC`, and both are listed because the `expo-local-authentication` config plugin declares both — the allowlist in `apps/mobile/src/verify-android-permissions.mjs` must match what prebuild produces or the check can never pass.
 
 Map providers are opt-in through an approved HTTPS style origin and exact provider attribution wording. When configuration is absent, invalid, rejected, offline, or fails to load, the app uses its own fallback surface and plain product copy. It does not select an unapproved public style or tile endpoint.
 
@@ -41,6 +44,22 @@ SQLCipher is enabled through the Expo SQLite config plugin and therefore applies
 Before any saved activity is displayed to another person, used in a club feed, or exported for sharing, the server applies privacy zones and removes the start and finish portions that fall within a **200 m radius** of a saved private place. This is a geodesic 200 m radius, not a screen-pixel approximation. The server also removes route fragments inside the zone; it never merely obscures them in the UI. If trimming leaves too little route to safely share, the activity has no map preview.
 
 Territory rendering uses validated H3-cell aggregates only. It does not disclose an exact route, current position, origin, or destination.
+
+## Run verification
+
+Territory, leaderboards, and challenges pay out on running time, so a phone handed to a faster friend is worth something. At the start of every run — before any route exists — the device raises its own authentication prompt: face, fingerprint, or the device passcode. `run-integrity.ts` asks whether a trace is physically possible; this asks whether the account holder was the one who started it.
+
+**No biometric data is collected, stored, transmitted, or derivable.** The operating system raises the dialog, matches against its own enrolment inside secure hardware, and returns a single boolean. The app receives pass or fail and nothing else. What is recorded is: which kind of check ran, when it ran, and an opaque per-installation device id. The id is not a hardware identifier, does not survive a reinstall, and joins to nothing outside RunSphere; it exists for the single question review cannot otherwise ask — whether many accounts verify from one phone. It is stored but never projected back to any client.
+
+**What a pass is worth, stated plainly so nothing downstream over-reads it:**
+
+- It means somebody who can unlock that phone was present when the run started. It does not prove they ran it — they could unlock the phone and hand it over. It raises the cost of casual impersonation from zero to "ask the owner to unlock it", which is most of the benefit and all of the guarantee.
+- It does not prove the client is honest. A modified app can send `biometric` without prompting anybody. Defeating that requires platform attestation (Play Integrity, DeviceCheck), which RunSphere does not use. These records are an audit trail and a deterrent, not proof.
+- On Android the OS does not report which authenticator was actually used, and the prompt deliberately keeps its passcode fallback enabled so a wet finger or a biometric lockout can be resolved in the same dialog. A `biometric` record therefore means "passed the strongest check this phone offered", not "a fingerprint was read".
+
+**A phone with no screen lock still records runs.** The run is marked unverified and the difference travels to the server; it is not blocked. Blocking would lock people out of recording their own running over a device setting. The cost is that disabling the screen lock is a way around the gate, which is exactly why the state is recorded rather than smoothed over. A failed or dismissed prompt is different: no run starts, and no route or distance is created.
+
+Consistent with rule 14 in `docs/README.md`, **nothing automated may sanction an account on these records.** Trust is re-derived on every read rather than stored, so a pass stamped long before the run it is attached to reads as unverified regardless of what the client claimed. Verification informs staff review; it does not decide anything by itself.
 
 ## Server-side trimming, provenance, and disputes
 

@@ -34,6 +34,18 @@ vi.mock('react-native', async () => {
   };
 });
 vi.mock('../activity-recorder.native', () => ({ activityRecorder: mocks.recorder }));
+// `expo-local-authentication` reaches `expo-modules-core`, which touches
+// `__DEV__` at import time and cannot load here. The gate's own decisions are
+// covered in `run-verification.test.ts`; this file needs the seam to exist and
+// to answer, not to be real. The default answer is a phone with no screen lock,
+// which is the path that lets preparation proceed without a prompt.
+vi.mock('../run-verification.native', () => ({
+  deviceAuthenticator: {
+    capability: vi.fn().mockResolvedValue({ hasHardware: true, securityLevel: 'none' }),
+    authenticate: vi.fn().mockResolvedValue({ outcome: 'success' })
+  },
+  verificationDeviceStore: { deviceId: vi.fn().mockResolvedValue('test-device') }
+}));
 vi.mock('../location-adapter', () => ({
   recordingLocationAdapter: { subscribe: vi.fn().mockResolvedValue({ remove: vi.fn() }) }
 }));

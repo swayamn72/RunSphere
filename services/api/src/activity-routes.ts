@@ -21,6 +21,11 @@ import {
   type ActivityCreateRequest,
   type ActivityFinalizeRequest
 } from '@runsphere/contracts';
+import {
+  assessRunVerification,
+  type RunVerification,
+  type RunVerificationMethod
+} from '@runsphere/domain';
 import { sha256, withTransaction, type Database } from '@runsphere/db';
 import { requireAccount } from './auth-routes.js';
 import { chunkHash } from './activity.js';
@@ -37,10 +42,45 @@ export type ActivityRow = {
   expected_chunk_count: number | null;
   movement_type?: 'run';
   created_at?: Date | string;
+  verification_method?: RunVerificationMethod | null;
+  verified_at?: Date | string | null;
+  verification_device_id?: string | null;
+  client_started_at?: Date | string | null;
 };
+
+/** The verification columns every projection of an activity row needs, in one place. */
+export const activityVerificationColumns =
+  'verification_method, verified_at, verification_device_id, client_started_at';
 
 export const validationErrors = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
+
+const iso = (value: Date | string | null | undefined): string | undefined =>
+  value === null || value === undefined ? undefined : new Date(value).toISOString();
+
+/**
+ * What a client is told about its own run's verification.
+ *
+ * `trust` is re-derived here on every read rather than stored, so it always
+ * reflects the current policy rather than whatever the policy said on the day
+ * the run was uploaded. `deviceId` is never projected — see
+ * `ActivityDetailResponseSchema`.
+ *
+ * A run with no `client_started_at` cannot have its freshness checked at all,
+ * which is itself a reason not to trust the pass: it means the claim arrived
+ * without the one thing that makes it checkable.
+ */
+export const verificationResponse = (row: ActivityRow) => {
+  const verifiedAt = iso(row.verified_at);
+  if (!row.verification_method || !verifiedAt) return {};
+  const verification: RunVerification = {
+    method: row.verification_method,
+    verifiedAt,
+    deviceId: row.verification_device_id ?? ''
+  };
+  const { trust } = assessRunVerification(verification, iso(row.client_started_at) ?? 'unknown');
+  return { verification: { method: verification.method, trust, verifiedAt } };
+};
 
 export const missingSequences = async (
   database: Database,
@@ -65,6 +105,7 @@ export const statusResponse = async (database: Database, row: ActivityRow) => {
   return {
     id: row.id,
     status: row.status,
+    ...verificationResponse(row),
     ...(row.movement_type ? { movementType: row.movement_type } : {}),
     ...(row.created_at ? { createdAt: new Date(row.created_at).toISOString() } : {}),
     ...(row.summary ? { summary: row.summary } : {}),
@@ -106,28 +147,63 @@ export const registerActivityRoutes = ({ routes, database, authSecret }: Activit
       // The fingerprint is what makes an idempotency key safe: replaying a key
       // with a *different* body is a client bug, and answering 200 with the
       // first activity's id would hide it.
-      const fingerprint = sha256(JSON.stringify({ movementType: request.body.movementType }));
-      const insert = await database.query<{ id: string; status: 'received' }>(
-        `INSERT INTO activity_submissions (account_id, idempotency_key, movement_type, request_fingerprint)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (account_id, idempotency_key) DO NOTHING RETURNING id, status`,
-        [accountId, key, request.body.movementType, fingerprint]
+      //
+      // The verification joins it because a replay that quietly swapped
+      // `unenrolled` for `biometric` under a key already spent is exactly the
+      // shape a forged upgrade would take, and the 409 names it.
+      const { verification, startedAt } = request.body;
+      const fingerprint = sha256(
+        JSON.stringify({
+          movementType: request.body.movementType,
+          ...(verification ? { verification } : {}),
+          ...(startedAt ? { startedAt } : {})
+        })
       );
-      if (insert.rows[0]) return reply.code(201).send(insert.rows[0]);
-      const current = await database.query<{
-        id: string;
-        status: 'received';
-        request_fingerprint: string;
-      }>(
-        'SELECT id, status, request_fingerprint FROM activity_submissions WHERE account_id = $1 AND idempotency_key = $2',
+      const insert = await database.query<{ id: string; status: 'received' }>(
+        `INSERT INTO activity_submissions (account_id, idempotency_key, movement_type, request_fingerprint,
+           verification_method, verified_at, verification_device_id, client_started_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (account_id, idempotency_key) DO NOTHING RETURNING id, status`,
+        [
+          accountId,
+          key,
+          request.body.movementType,
+          fingerprint,
+          verification?.method ?? null,
+          verification?.verifiedAt ?? null,
+          verification?.deviceId ?? null,
+          startedAt ?? null
+        ]
+      );
+      // Both paths echo the verification back through the same projection the
+      // reads use, so a client learns immediately that a pass it sent was read
+      // as `unverified` — rather than discovering it on a leaderboard later.
+      const echo = {
+        verification_method: verification?.method ?? null,
+        verified_at: verification?.verifiedAt ?? null,
+        verification_device_id: verification?.deviceId ?? null,
+        client_started_at: startedAt ?? null
+      };
+      if (insert.rows[0])
+        return reply
+          .code(201)
+          .send({ ...insert.rows[0], ...verificationResponse({ ...echo } as ActivityRow) });
+      const current = await database.query<
+        ActivityRow & { request_fingerprint: string }
+      >(
+        `SELECT id, status, request_fingerprint, ${activityVerificationColumns}
+         FROM activity_submissions WHERE account_id = $1 AND idempotency_key = $2`,
         [accountId, key]
       );
-      if (!current.rows[0] || current.rows[0].request_fingerprint !== fingerprint) {
+      const replayed = current.rows[0];
+      if (!replayed || replayed.request_fingerprint !== fingerprint) {
         return reply
           .code(409)
           .send({ message: 'Idempotency key was used with a different request' });
       }
-      return reply.code(200).send(current.rows[0]);
+      return reply
+        .code(200)
+        .send({ id: replayed.id, status: replayed.status, ...verificationResponse(replayed) });
     }
   );
 
@@ -215,7 +291,8 @@ export const registerActivityRoutes = ({ routes, database, authSecret }: Activit
         const owned = await client.query<
           ActivityRow & { source_checksum: string | null; finalized_checksum: string | null }
         >(
-          `SELECT id, status, summary, rejection_reason, validation_errors, expected_chunk_count, source_checksum, finalized_checksum
+          `SELECT id, status, summary, rejection_reason, validation_errors, expected_chunk_count, source_checksum, finalized_checksum,
+             ${activityVerificationColumns}
            FROM activity_submissions WHERE id = $1 AND account_id = $2 AND deleted_at IS NULL FOR UPDATE`,
           [request.params.activityId, accountId]
         );
@@ -319,7 +396,7 @@ export const registerActivityRoutes = ({ routes, database, authSecret }: Activit
       const accountId = requireAccount(request, reply, authSecret);
       if (!accountId) return;
       const result = await database.query<ActivityRow>(
-        `SELECT id, status, summary, rejection_reason, validation_errors, expected_chunk_count
+        `SELECT id, status, summary, rejection_reason, validation_errors, expected_chunk_count, ${activityVerificationColumns}
          FROM activity_submissions WHERE id = $1 AND account_id = $2 AND deleted_at IS NULL`,
         [request.params.activityId, accountId]
       );
@@ -350,7 +427,8 @@ export const registerActivityRoutes = ({ routes, database, authSecret }: Activit
       const accountId = requireAccount(request, reply, authSecret);
       if (!accountId) return;
       const activities = await database.query<ActivityRow>(
-        `SELECT id, status, summary, rejection_reason, validation_errors, expected_chunk_count, movement_type, created_at
+        `SELECT id, status, summary, rejection_reason, validation_errors, expected_chunk_count, movement_type, created_at,
+           ${activityVerificationColumns}
          FROM activity_submissions WHERE account_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 100`,
         [accountId]
       );

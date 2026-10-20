@@ -21,6 +21,19 @@ import {
   getRecordingLocationPermissionState,
   type RecordingLocationPermissionState
 } from '../location-permission';
+import {
+  applyAuthenticationResult,
+  applyDeviceCapability,
+  beginVerification,
+  idleVerificationGate,
+  isVerificationBusy,
+  isVerificationWarning,
+  mayStartRecording,
+  verificationError,
+  verificationStatusCopy,
+  type RunVerificationGate
+} from '../run-verification';
+import { deviceAuthenticator, verificationDeviceStore } from '../run-verification.native';
 import { type createActivitySyncCoordinator } from '../activity-sync';
 import type { ActivityDetail } from '../api-client';
 import {
@@ -69,6 +82,13 @@ export function ActivityPreparation({
   const [permission, setPermission] = useState<RecordingLocationPermissionState>('unrequested');
   const [acquisition, setAcquisition] = useState<AcquisitionState>();
   const [message, setMessage] = useState<string>();
+  const [gate, setGate] = useState<RunVerificationGate>(idleVerificationGate);
+  /**
+   * The verification the run will carry, held in a ref because
+   * `activateAfterGate` runs from a location callback and must not depend on a
+   * state update having been applied by then.
+   */
+  const verification = useRef<RunVerificationGate['verification']>(undefined);
   const mounted = useRef(false);
   const starting = useRef(false);
   const activationStarted = useRef(false);
@@ -134,7 +154,11 @@ export function ActivityPreparation({
         state: 'active',
         startedAt: now,
         updatedAt: now,
-        lastHeartbeatAt: now
+        lastHeartbeatAt: now,
+        // Written once, with the row. The gate has already refused to reach
+        // here on a failed or dismissed prompt, so an absent verification at
+        // this point means the device had nothing to ask.
+        ...(verification.current ? { verification: verification.current } : {})
       });
       const session = await activityRecorder.get(id, accountId);
       if (!mounted.current || !session) {
@@ -193,11 +217,54 @@ export function ActivityPreparation({
       }
     }
   };
+  /**
+   * Ask the device who is here, before anything else happens.
+   *
+   * Runs ahead of the location permission and the GPS gate on purpose: the
+   * acquisition gate may take thirty seconds, and telling somebody their
+   * verification failed only after they have stood still for all of it would
+   * be a poor arrangement of the same two checks. It also puts the OS prompt
+   * where the tap was.
+   */
+  const runVerification = async (): Promise<RunVerificationGate> => {
+    setGate(beginVerification());
+    try {
+      const deviceId = await verificationDeviceStore.deviceId();
+      const capability = await deviceAuthenticator.capability();
+      const checked = applyDeviceCapability(capability, new Date().toISOString(), deviceId);
+      if (mounted.current) setGate(checked);
+      if (checked.status !== 'prompting') return checked;
+      const result = await deviceAuthenticator.authenticate();
+      // Stamped when the prompt was answered, not when it was raised: the
+      // server checks this against the run's start time.
+      const settled = applyAuthenticationResult(
+        result,
+        capability,
+        new Date().toISOString(),
+        deviceId
+      );
+      if (mounted.current) setGate(settled);
+      return settled;
+    } catch {
+      const failed = verificationError();
+      if (mounted.current) setGate(failed);
+      return failed;
+    }
+  };
   const begin = async () => {
     if (starting.current) return;
     starting.current = true;
-    setPermission('requesting');
     setMessage(undefined);
+    const verified = await runVerification();
+    if (!mounted.current) return;
+    if (!mayStartRecording(verified)) {
+      // The gate's own copy already says what happened and that no route was
+      // created; repeating it in `message` would show the same sentence twice.
+      starting.current = false;
+      return;
+    }
+    verification.current = verified.verification;
+    setPermission('requesting');
     try {
       const current = await Location.getForegroundPermissionsAsync();
       const currentState = getRecordingLocationPermissionState(current);
@@ -231,11 +298,17 @@ export function ActivityPreparation({
     acquisitionState.current = undefined;
     activationStarted.current = false;
     starting.current = false;
+    // A retry re-verifies. The person is being asked to start a run again, and
+    // a verification is evidence about one start, not a pass for the session.
+    setGate(idleVerificationGate);
+    verification.current = undefined;
     void begin();
   };
   const isAcquiring = acquisition?.status === 'acquiring';
   const isActivating = acquisition?.status === 'ready';
   const needsSettings = permission === 'blocked';
+  const verifying = isVerificationBusy(gate);
+  const verificationCopy = verificationStatusCopy(gate);
   // No cue here any more. The one that lived on this card was the hike safety
   // prompt, and hiking left the product on 2026-09-06 (`product.md`). Kept as
   // an explicit empty list rather than dropping the hook, because this card is
@@ -252,6 +325,15 @@ export function ActivityPreparation({
         It is retained on this device only after recording starts. No background location is
         requested.
       </Text>
+      {/*
+        Named before the OS dialog appears, per the consent rule in
+        `safety-and-privacy.md`: capability, purpose, and what declining costs.
+      */}
+      <Text style={styles.lead}>
+        Your phone will ask you to confirm it is you before the run starts, so nobody else can
+        record a run on your account. RunSphere never sees your face, fingerprint, or passcode —
+        your phone checks and answers yes or no.
+      </Text>
       {originLabel && <Text style={styles.privateNote}>Started from {originLabel}</Text>}
       {guide && (
         <Text style={styles.privateNote}>
@@ -259,6 +341,19 @@ export function ActivityPreparation({
         </Text>
       )}
       {guidance.cue && <LoopCallout cue={guidance.cue} onDismiss={guidance.dismiss} />}
+      {verificationCopy && (
+        <View
+          style={[styles.notice, isVerificationWarning(gate) && styles.warningNotice]}
+          accessibilityLiveRegion="polite"
+        >
+          <View style={styles.flexCopy}>
+            <Text style={styles.noticeTitle}>
+              {isVerificationWarning(gate) ? 'Not verified' : 'Confirming it is you'}
+            </Text>
+            <Text style={styles.noticeCopy}>{verificationCopy}</Text>
+          </View>
+        </View>
+      )}
       {isAcquiring && (
         <View style={styles.notice} accessibilityLiveRegion="polite">
           <View style={styles.flexCopy}>
@@ -281,23 +376,34 @@ export function ActivityPreparation({
         <PrimaryButton label="Open location settings" onPress={() => void Linking.openSettings()} />
       ) : (
         <PrimaryButton
+          // Stable, because the visible label changes three times while this
+          // one control works and a screen reader must not hear a rename.
+          accessibilityLabel="Start recording"
           label={
-            permission === 'requesting'
-              ? 'Checking location…'
-              : isAcquiring
-                ? 'Finding GPS…'
-                : 'Start recording'
+            verifying
+              ? 'Confirming it is you…'
+              : permission === 'requesting'
+                ? 'Checking location…'
+                : isAcquiring
+                  ? 'Finding GPS…'
+                  : 'Start recording'
           }
-          disabled={permission === 'requesting' || isAcquiring || isActivating}
+          disabled={verifying || permission === 'requesting' || isAcquiring || isActivating}
           onPress={() => void begin()}
         />
       )}
-      {(permission === 'denied' ||
+      {(gate.status === 'failed' ||
+        gate.status === 'cancelled' ||
+        permission === 'denied' ||
         permission === 'approximate' ||
         permission === 'failure' ||
         acquisition?.status === 'timed-out') && (
         <Pressable accessibilityRole="button" onPress={retry}>
-          <Text style={styles.textButton}>Retry location</Text>
+          <Text style={styles.textButton}>
+            {gate.status === 'failed' || gate.status === 'cancelled'
+              ? 'Try verifying again'
+              : 'Retry location'}
+          </Text>
         </Pressable>
       )}
       {isAcquiring && (

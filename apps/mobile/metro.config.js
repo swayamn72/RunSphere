@@ -30,6 +30,11 @@ const config = getDefaultConfig(__dirname);
 const FORCE_PLAIN_TS = new Set([
   'loop-guidance',
   'push-registration',
+  // run-verification.native.ts imports './run-verification' for the pure gate
+  // model, and ActivityScreens.tsx imports from both. Same two patterns as
+  // above: without this the native file shadows the model and the transitions
+  // come back undefined.
+  'run-verification',
 ]);
 
 const originalResolveRequest = config.resolver?.resolveRequest;

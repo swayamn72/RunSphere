@@ -314,8 +314,55 @@ export const ActivityParamsSchema = Type.Object(
  * values now gets a 400, which is the correct answer: the product does not
  * record those.
  */
+/**
+ * How the person at the start of a run was confirmed by the device.
+ *
+ * The four members, and why there is no `failed`, are explained in
+ * `@runsphere/domain`'s `run-verification.ts`. Kept as a literal union here
+ * rather than imported so the wire schema stays a self-contained description of
+ * the payload; `isRunVerificationMethod` in the domain package is the runtime
+ * check that must agree with it.
+ */
+export const RunVerificationMethodSchema = Type.Union(
+  [
+    Type.Literal('biometric'),
+    Type.Literal('device-credential'),
+    Type.Literal('unenrolled'),
+    Type.Literal('unsupported')
+  ],
+  { $id: 'RunVerificationMethod' }
+);
+/**
+ * Evidence that a device confirmed somebody before this run started.
+ *
+ * Carries no biometric data and cannot: the operating system returns a boolean
+ * and keeps the face, fingerprint, and passcode inside secure hardware.
+ * `deviceId` is an opaque per-installation value the client generates — not a
+ * hardware identifier, and not joinable to anything outside RunSphere.
+ */
+export const RunVerificationSchema = Type.Object(
+  {
+    method: RunVerificationMethodSchema,
+    verifiedAt: Type.String({ format: 'date-time' }),
+    deviceId: UuidSchema
+  },
+  { ...Strict, $id: 'RunVerification' }
+);
 export const ActivityCreateRequestSchema = Type.Object(
-  { movementType: Type.Literal('run') },
+  {
+    movementType: Type.Literal('run'),
+    /**
+     * Optional, and permanently so. App builds that predate run verification
+     * omit it, and their runs are honestly recorded as unverified rather than
+     * rejected — a client too old to prompt is not a client that cheated.
+     *
+     * `startedAt` travels with it because the server's one checkable claim is
+     * that the verification happened near the start of *this* run; see
+     * `assessRunVerification`.
+     */
+    verification: Type.Optional(RunVerificationSchema),
+    startedAt: Type.Optional(Type.String({ format: 'date-time' }))
+  },
   { ...Strict, $id: 'ActivityCreateRequest' }
 );
 const PointSchema = Type.Object(
@@ -415,10 +462,30 @@ const ActivityProvenanceSchema = Type.Object(
   },
   Strict
 );
+/**
+ * What the server says back about a run's verification.
+ *
+ * `deviceId` is deliberately not projected. It answers one internal question —
+ * whether many accounts verify from a single phone — and echoing it to the
+ * client serves nothing while handing out a stable identifier to anything that
+ * reads the response.
+ *
+ * `trust` is the server's own reading, not the client's claim: a pass stamped
+ * an hour before the run comes back `unverified` whatever `method` says.
+ */
+const ActivityVerificationResponseSchema = Type.Object(
+  {
+    method: RunVerificationMethodSchema,
+    trust: Type.Union([Type.Literal('verified'), Type.Literal('unverified')]),
+    verifiedAt: Type.String({ format: 'date-time' })
+  },
+  Strict
+);
 export const ActivityStatusResponseSchema = Type.Object(
   {
     id: UuidSchema,
     status: ActivityStatusSchema,
+    verification: Type.Optional(ActivityVerificationResponseSchema),
     /** Always `run`; see `ActivityCreateRequestSchema`. */
     movementType: Type.Optional(Type.Literal('run')),
     createdAt: Type.Optional(Type.String({ format: 'date-time' })),
@@ -433,6 +500,7 @@ export const ActivityDetailResponseSchema = Type.Object(
   {
     id: UuidSchema,
     status: ActivityStatusSchema,
+    verification: Type.Optional(ActivityVerificationResponseSchema),
     /** Always `run`; see `ActivityCreateRequestSchema`. */
     movementType: Type.Optional(Type.Literal('run')),
     createdAt: Type.Optional(Type.String({ format: 'date-time' })),
@@ -482,6 +550,8 @@ export type SafetyShareUpdateRequest = Static<typeof SafetyShareUpdateRequestSch
 export type SafetyShareReadResponse = Static<typeof SafetyShareReadResponseSchema>;
 export type AccountExportResponse = Static<typeof AccountExportResponseSchema>;
 export type AccountDeletionResponse = Static<typeof AccountDeletionResponseSchema>;
+export type RunVerificationMethod = Static<typeof RunVerificationMethodSchema>;
+export type RunVerificationPayload = Static<typeof RunVerificationSchema>;
 export type ActivityCreateRequest = Static<typeof ActivityCreateRequestSchema>;
 export type ActivityCreateHeaders = Static<typeof ActivityCreateHeadersSchema>;
 export type ActivityAuthorizationHeaders = Static<typeof ActivityAuthorizationHeadersSchema>;

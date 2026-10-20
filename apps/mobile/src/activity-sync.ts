@@ -82,7 +82,16 @@ export const createActivitySyncCoordinator = (
       if (!chunks.length) throw new Error('No recorded samples are available to upload.');
       let remoteId = session.remoteId;
       if (!remoteId) {
-        const created = await api.createActivity(session.movementType, session.id);
+        // The verification was taken at the start of the run, which on an
+        // offline-first client may have been days before this upload. It
+        // travels with `startedAt` so the server can check it against the run
+        // it belongs to rather than against the moment it happened to arrive.
+        const created = await api.createActivity(
+          session.movementType,
+          session.id,
+          session.verification,
+          session.startedAt
+        );
         remoteId = created.id;
         await recorder.setRemote(session.id, session.accountId, remoteId, created.status);
       }

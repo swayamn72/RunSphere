@@ -90,6 +90,52 @@ describe('activity sync coordinator', () => {
     expect(result.session).toMatchObject({ state: 'queued', remoteStatus: 'validating' });
   });
 
+  it('sends the verification taken at the start of the run, with the start it belongs to', async () => {
+    const verification = {
+      method: 'biometric' as const,
+      verifiedAt: '2026-08-28T05:59:50Z',
+      deviceId: '7f1d0a9e-0000-4000-8000-000000000001'
+    };
+    const verified = { ...session, verification };
+    const api = {
+      createActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'received' }),
+      recoverActivitySync: vi
+        .fn()
+        .mockResolvedValue({ id: 'remote-1', status: 'received', missingSequences: [] }),
+      uploadActivityChunk: vi.fn(),
+      finalizeActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'validating' })
+    };
+    await createActivitySyncCoordinator(api as never, recorder({ ...verified }) as never).sync(
+      verified
+    );
+
+    // `startedAt` travels alongside: an offline-first upload may arrive days
+    // later, so the server has to check the verification against the run
+    // rather than against its own clock.
+    expect(api.createActivity).toHaveBeenCalledWith(
+      'run',
+      'local-1',
+      verification,
+      session.startedAt
+    );
+  });
+
+  it('uploads a run recorded before the gate shipped rather than holding it back', async () => {
+    const api = {
+      createActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'received' }),
+      recoverActivitySync: vi
+        .fn()
+        .mockResolvedValue({ id: 'remote-1', status: 'received', missingSequences: [] }),
+      uploadActivityChunk: vi.fn(),
+      finalizeActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'validating' })
+    };
+    await createActivitySyncCoordinator(api as never, recorder({ ...session }) as never).sync(
+      session
+    );
+
+    expect(api.createActivity).toHaveBeenCalledWith('run', 'local-1', undefined, session.startedAt);
+  });
+
   it.each(['rejected', 'derived'] as const)(
     'settles terminal %s server status locally',
     async (status) => {

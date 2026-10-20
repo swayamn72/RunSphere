@@ -93,6 +93,7 @@ import type {
   RouteSuggestionFeedbackRequest,
   RouteSuggestionFeedbackResponse,
   RouteSuggestionResponse,
+  RunVerificationPayload,
   TerritoryLeaderboardScope,
   TerritoryMapResponse,
   TerritoryRecommendationResponse,
@@ -292,14 +293,29 @@ export class MobileApiClient {
     return this.request('/v1/account', { method: 'DELETE' });
   }
 
+  /**
+   * Start the server-side record of a run.
+   *
+   * `verification` and `startedAt` are optional on the wire and stay that way:
+   * a run recorded before the gate shipped has neither, and the server records
+   * it honestly as unverified rather than refusing it. They travel together
+   * because the server's one checkable claim is that the verification happened
+   * near the start of *this* run.
+   */
   async createActivity(
     movementType: ActivityMovement,
-    idempotencyKey: string
+    idempotencyKey: string,
+    verification?: RunVerificationPayload,
+    startedAt?: string
   ): Promise<ActivityStatus> {
     return this.request('/v1/activities', {
       method: 'POST',
       headers: { 'idempotency-key': idempotencyKey },
-      body: { movementType }
+      body: {
+        movementType,
+        ...(verification ? { verification } : {}),
+        ...(startedAt ? { startedAt } : {})
+      }
     });
   }
   async uploadActivityChunk(id: string, chunk: ActivityChunk): Promise<void> {

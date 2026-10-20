@@ -43,6 +43,7 @@ export * from './ml-features.js';
 export * from './ml-anticheat.js';
 export * from './quest-recommendation.js';
 export * from './run-integrity.js';
+export * from './run-verification.js';
 export * from './territory-recommendation.js';
 export * from './route-suggestion.js';
 export * from './claim-trading.js';
