@@ -45,11 +45,14 @@ const configuredSyntheticSamples = (): LocationSample[] => {
       ];
 };
 
+const syntheticIntervalMs = Number(process.env.EXPO_PUBLIC_SYNTHETIC_INTERVAL_MS || 480);
+
 export const createSyntheticLocationAdapter = (
-  samples: readonly LocationSample[]
+  samples: readonly LocationSample[],
+  intervalMs = syntheticIntervalMs
 ): LocationAdapter => ({
   subscribe: async (onSample) =>
-    ({ remove: replaySamples(samples, onSample) }) as Location.LocationSubscription
+    ({ remove: replaySamples(samples, onSample, intervalMs) }) as Location.LocationSubscription
 });
 
 export const syntheticLocationAdapter: LocationAdapter | undefined = isSyntheticLocationEnabled

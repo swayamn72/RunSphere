@@ -27,10 +27,16 @@ export const replaySamples = (
   intervalMs = 500
 ) => {
   let index = 0;
+  const startEpoch = Date.now();
   const timer = setInterval(() => {
-    const sample = samples[index++];
+    const sample = samples[index];
     if (!sample) return clearInterval(timer);
-    emit(sample);
+    const dynamicSample: LocationSample = {
+      ...sample,
+      recordedAt: new Date(startEpoch + index * 5000).toISOString()
+    };
+    index++;
+    emit(dynamicSample);
   }, intervalMs);
   return () => clearInterval(timer);
 };

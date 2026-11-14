@@ -1,4 +1,9 @@
-import * as LocalAuthentication from 'expo-local-authentication';
+let LocalAuthentication: typeof import('expo-local-authentication') | null = null;
+try {
+  LocalAuthentication = require('expo-local-authentication');
+} catch {
+  LocalAuthentication = null;
+}
 import * as SecureStore from 'expo-secure-store';
 import { randomUUID } from 'expo-crypto';
 import {
@@ -64,26 +69,40 @@ export interface DeviceAuthenticator {
 
 export const deviceAuthenticator: DeviceAuthenticator = {
   async capability() {
-    const [hasHardware, level] = await Promise.all([
-      LocalAuthentication.hasHardwareAsync(),
-      LocalAuthentication.getEnrolledLevelAsync()
-    ]);
-    return { hasHardware, securityLevel: securityLevel(Number(level)) };
+    if (!LocalAuthentication) {
+      return { hasHardware: false, securityLevel: 'none' };
+    }
+    try {
+      const [hasHardware, level] = await Promise.all([
+        LocalAuthentication.hasHardwareAsync(),
+        LocalAuthentication.getEnrolledLevelAsync()
+      ]);
+      return { hasHardware, securityLevel: securityLevel(Number(level)) };
+    } catch {
+      return { hasHardware: false, securityLevel: 'none' };
+    }
   },
   async authenticate() {
-    const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: 'Confirm it is you before this run starts',
-      cancelLabel: 'Not now',
-      // The fallback stays on deliberately. It is what lets a wet finger, a
-      // mask, or a biometric lockout resolve inside the same dialog instead of
-      // stranding somebody who is standing outside ready to run.
-      disableDeviceFallback: false,
-      requireConfirmation: false
-    });
-    if (result.success) return { outcome: 'success' };
-    // An unrecognised error is a refusal, never a pass. A new error string in
-    // a future version of the module must not quietly open the gate.
-    return { outcome: 'failure', reason: failureReasons[result.error] ?? 'rejected' };
+    if (!LocalAuthentication) {
+      return { outcome: 'failure', reason: 'not-available' };
+    }
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Confirm it is you before this run starts',
+        cancelLabel: 'Not now',
+        // The fallback stays on deliberately. It is what lets a wet finger, a
+        // mask, or a biometric lockout resolve inside the same dialog instead of
+        // stranding somebody who is standing outside ready to run.
+        disableDeviceFallback: false,
+        requireConfirmation: false
+      });
+      if (result.success) return { outcome: 'success' };
+      // An unrecognised error is a refusal, never a pass. A new error string in
+      // a future version of the module must not quietly open the gate.
+      return { outcome: 'failure', reason: failureReasons[result.error] ?? 'rejected' };
+    } catch {
+      return { outcome: 'failure', reason: 'not-available' };
+    }
   }
 };
 

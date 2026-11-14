@@ -7,7 +7,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://function-raises-les-drivers.trycloudflare.com"
+        "EXPO_PUBLIC_API_BASE_URL": "http://192.168.4.103:3001"
       }
     },
     "preview": {

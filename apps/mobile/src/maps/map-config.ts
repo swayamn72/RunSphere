@@ -13,14 +13,23 @@ const splitOrigins = (value: string | undefined): string[] =>
     .map((origin) => origin.trim().toLowerCase())
     .filter(Boolean) ?? [];
 
+const isLocalHost = (hostname: string): boolean =>
+  hostname === 'localhost' ||
+  hostname === '127.0.0.1' ||
+  hostname === '10.0.2.2' ||
+  hostname.endsWith('.local') ||
+  /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+  /^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+  /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(hostname);
+
 const matchesApprovedOrigin = (styleUrl: URL, approvedOrigins: readonly string[]): boolean =>
   approvedOrigins.some((origin) => {
     try {
       const approved = new URL(origin);
-      const isLocalhost = approved.hostname === 'localhost' && styleUrl.hostname === 'localhost';
+      const isLocal = isLocalHost(approved.hostname) && isLocalHost(styleUrl.hostname);
       return (
-        (approved.protocol === 'https:' || isLocalhost) &&
-        (styleUrl.protocol === 'https:' || isLocalhost) &&
+        (approved.protocol === 'https:' || isLocal) &&
+        (styleUrl.protocol === 'https:' || isLocal) &&
         approved.hostname === styleUrl.hostname &&
         approved.port === styleUrl.port
       );
@@ -53,7 +62,7 @@ export const resolveMapProviderConfig = (
     return { kind: 'fallback', reason: 'invalid' };
   }
 
-  if (parsed.protocol !== 'https:' && parsed.hostname !== 'localhost') {
+  if (parsed.protocol !== 'https:' && !isLocalHost(parsed.hostname)) {
     return { kind: 'fallback', reason: 'invalid' };
   }
   if (!matchesApprovedOrigin(parsed, approvedOrigins)) {
