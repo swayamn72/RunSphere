@@ -783,6 +783,7 @@ export function ActivityDetail({
   const styles = useAppStyles();
   const [current, setCurrent] = useState(session);
   const [detail, setDetail] = useState<ActivityDetail>();
+  const [localSamples, setLocalSamples] = useState<RecordedLocationSample[]>([]);
   const mounted = useRef(true);
   const refreshGeneration = useRef(0);
   const sessionKey = `${session.accountId}:${session.id}:${session.remoteId ?? ''}:${session.remoteStatus ?? ''}`;
@@ -794,6 +795,16 @@ export function ActivityDetail({
     () => activityResultPresentation(detail, current.remoteStatus),
     [current.remoteStatus, detail]
   );
+
+  useEffect(() => {
+    let isMounted = true;
+    void activityRecorder.liveSamples(current.id, current.accountId).then((samples) => {
+      if (isMounted) setLocalSamples(samples);
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [current.id, current.accountId]);
 
   useEffect(() => {
     setCurrent((previous) => reseedActivityDetailSession(previous, session));
@@ -890,26 +901,21 @@ export function ActivityDetail({
               : (current.syncError ??
                 'Results remain pending until RunSphere validates this activity. Local recording does not count toward validated totals.')}
       </Text>
+      <ActivityDetailMap presentation={presentation} localSamples={localSamples} />
       {presentation.state === 'validated' ? (
-        <>
-          <DerivedResultMap presentation={presentation} />
-          <SummaryMetrics
-            distance={(presentation.detail.summary!.distanceMeters / 1_000).toFixed(2)}
-            time={formatDuration(presentation.detail.summary!.durationSeconds)}
-            pace={calculatedPace(presentation.detail.summary!)}
-            provenance="Validated by RunSphere. Pace is calculated from validated totals."
-          />
-        </>
+        <SummaryMetrics
+          distance={(presentation.detail.summary!.distanceMeters / 1_000).toFixed(2)}
+          time={formatDuration(presentation.detail.summary!.durationSeconds)}
+          pace={calculatedPace(presentation.detail.summary!)}
+          provenance="Validated by RunSphere. Pace is calculated from validated totals."
+        />
       ) : (
-        <>
-          <MapUnavailable />
-          <SummaryMetrics
-            distance={(current.distanceMeters / 1_000).toFixed(2)}
-            time={formatDuration(current.durationSeconds)}
-            pace={localPace}
-            provenance="Provisional: recorded on this device and not yet validated."
-          />
-        </>
+        <SummaryMetrics
+          distance={(current.distanceMeters / 1_000).toFixed(2)}
+          time={formatDuration(current.durationSeconds)}
+          pace={localPace}
+          provenance="Provisional: recorded on this device and not yet validated."
+        />
       )}
       {(terminalRejected || terminalDeleted) && (
         <View style={styles.notice} accessibilityLiveRegion="polite">
@@ -1092,23 +1098,48 @@ export function ActivityHistory({
   );
 }
 
-function DerivedResultMap({
-  presentation
+function ActivityDetailMap({
+  presentation,
+  localSamples
 }: {
   presentation: ReturnType<typeof activityResultPresentation>;
+  localSamples: readonly RecordedLocationSample[];
 }) {
-  const route = useMemo(() => derivedResultRouteLayers(presentation), [presentation]);
-  const center = useMemo(() => {
-    const geometry = route[0]?.data.features[0]?.geometry;
+  const derivedRoute = useMemo(() => derivedResultRouteLayers(presentation), [presentation]);
+  const derivedCenter = useMemo(() => {
+    const geometry = derivedRoute[0]?.data.features[0]?.geometry;
     return geometry ? derivedRouteCenter(geometry as Geometry) : undefined;
-  }, [route]);
-  if (!route.length || !center) return <MapUnavailable />;
+  }, [derivedRoute]);
+
+  const localRoute = useMemo(() => liveRouteLayers(localSamples), [localSamples]);
+  const localCenter = useMemo(() => {
+    const geometry = localRoute[0]?.data.features[0]?.geometry;
+    return geometry ? derivedRouteCenter(geometry as Geometry) : undefined;
+  }, [localRoute]);
+
+  const isDerived =
+    presentation.state === 'validated' && derivedRoute.length > 0 && Boolean(derivedCenter);
+  const activeRoute = isDerived
+    ? derivedRoute
+    : localRoute.length > 0 && localCenter
+      ? localRoute
+      : [];
+  const activeCenter = isDerived ? derivedCenter : localCenter;
+
+  if (!activeRoute.length || !activeCenter) {
+    return null;
+  }
+
   return (
     <View style={stylesForResultMap.container}>
       <MapSurface
-        localLayers={route}
-        accessibilityLabel="Server-derived private activity route."
-        initialCenter={center as LngLat}
+        localLayers={activeRoute}
+        accessibilityLabel={
+          isDerived
+            ? 'Server-derived private activity route.'
+            : 'Locally recorded activity route.'
+        }
+        initialCenter={activeCenter as LngLat}
         recenterEnabled={false}
         showAttribution
       />
@@ -1156,21 +1187,8 @@ function SummaryMetrics({
   );
 }
 
-function MapUnavailable() {
-  const styles = useAppStyles();
-  return (
-    <View style={stylesForResultMap.unavailable} accessibilityLiveRegion="polite">
-      <Text style={styles.noticeTitle}>Map unavailable</Text>
-      <Text style={styles.noticeCopy}>
-        A map is shown only when RunSphere returns safe derived route geometry.
-      </Text>
-    </View>
-  );
-}
-
 const stylesForResultMap = {
-  container: { height: 240, marginBottom: 12, overflow: 'hidden' as const },
-  unavailable: { height: 240, justifyContent: 'center' as const, padding: 16 }
+  container: { height: 240, marginBottom: 12, overflow: 'hidden' as const }
 };
 
 function ActivityResults({

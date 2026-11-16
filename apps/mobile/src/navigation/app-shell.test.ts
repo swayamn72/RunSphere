@@ -12,6 +12,9 @@ describe('app shell selection', () => {
   it('keeps standard tab screens scroll-owned and preparation/detail/results scrollable', () => {
     expect(selectAppShell({ ...standard, mapInteractive: false })).toBe('tab-scroll');
     expect(selectAppShell({ ...standard, activityRoute: 'prepare', mapInteractive: false })).toBe(
+      'tab-scroll'
+    );
+    expect(selectAppShell({ ...standard, activityRoute: 'result', mapInteractive: false })).toBe(
       'focused-scroll'
     );
     expect(selectAppShell({ ...standard, hasRecording: true, mapInteractive: false })).toBe(

@@ -17,6 +17,7 @@ vi.mock('react-native', async () => {
     ({ children, ...props }: Record<string, unknown>) =>
       React.createElement(name as React.ElementType, props, children as React.ReactNode);
   return {
+    Image: native('Image'),
     Pressable: native('Pressable'),
     StyleSheet: { create: <T,>(styles: T) => styles },
     Text: native('Text'),

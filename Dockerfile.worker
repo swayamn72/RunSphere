@@ -1,0 +1,22 @@
+FROM node:22-bookworm-slim AS base
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+
+WORKDIR /app
+
+# Copy root configuration, lockfiles, and patches
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json tsconfig*.json ./
+COPY patches/ patches/
+COPY packages/ packages/
+COPY services/api/ services/api/
+COPY services/worker/ services/worker/
+COPY infra/postgres/migrations/ infra/postgres/migrations/
+
+# Install dependencies and build
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @runsphere/worker build
+
+ENV NODE_ENV=production
+
+CMD ["node", "services/worker/dist/index.js"]

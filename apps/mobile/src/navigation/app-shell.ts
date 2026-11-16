@@ -25,7 +25,13 @@ export const selectAppShell = ({
   mapInteractive: boolean;
 }): AppShell => {
   if (hasRecording && liveInteractive) return 'focused-flex';
-  if (activityRoute !== 'idle' || hasSelectedQuest || focus !== 'none' || hasRecording)
+  if (
+    hasRecording ||
+    hasSelectedQuest ||
+    focus !== 'none' ||
+    activityRoute === 'live' ||
+    activityRoute === 'result'
+  )
     return 'focused-scroll';
   if (mapInteractive) return 'tab-map';
   return 'tab-scroll';

@@ -276,6 +276,7 @@ function RunSphereApp() {
         : { kind: origin as 'home' | 'quests' | 'map' };
     dispatchActivityRoute({ type: 'start-free', origin: capturedOrigin });
     setSelectedQuest(undefined);
+    setActiveTab('Run');
   };
   const exitActivity = () => {
     const origin = routeOrigin(activityRoute);
@@ -288,6 +289,8 @@ function RunSphereApp() {
       setActiveTab(destination.activeTab);
       setFocus(destination.focus);
       setSelectedQuest(destination.selectedQuest);
+    } else {
+      setActiveTab('Home');
     }
   };
   const origin = routeOrigin(activityRoute);
@@ -339,7 +342,7 @@ function RunSphereApp() {
         onExit={exitActivity}
         sync={activitySync}
       />
-    ) : activityRoute.screen === 'prepare' && accountId ? (
+    ) : (activeTab === 'Run' || activityRoute.screen === 'prepare') && accountId ? (
       <ActivityPreparation
         accountId={accountId}
         {...(originLabel ? { originLabel } : {})}
@@ -479,13 +482,10 @@ function RunSphereApp() {
             setGhostRun(undefined);
             if (tab !== 'Social') setSocialEntry('feed');
             if (tab !== 'Profile') setProfileEntry('profile');
-            // Run is an action, not a place: it opens preparation over the tab
-            // the reader was already on, so finishing the run returns them
-            // there rather than stranding them on an empty Run tab. The map is
-            // the one other tab with a return of its own — somebody who just
-            // ran a loop for a claim wants to see the claim.
             if (tab === 'Run') {
-              openActivity(activeTab === 'Map' ? 'map' : 'home');
+              if (activeTab !== 'Run') {
+                openActivity(activeTab === 'Map' ? 'map' : 'home');
+              }
               return;
             }
             dispatchActivityRoute({ type: 'select-tab' });

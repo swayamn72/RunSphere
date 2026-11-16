@@ -392,6 +392,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       paddingVertical: 14
     },
     quickActionText: { fontSize: 12, fontWeight: '900', textAlign: 'center' },
+    quickActionIcon: { width: 28, height: 28 },
     quickActionGlyph: { fontSize: 22 },
 
     /* ---------------------------------------------------------------- *
@@ -543,6 +544,19 @@ export const createAppStyles = (t: SemanticTokens) =>
       justifyContent: 'flex-end',
       marginBottom: 28,
       overflow: 'hidden'
+    },
+    splashLogo: {
+      alignSelf: 'center',
+      height: 200,
+      marginBottom: 'auto',
+      marginTop: 28,
+      width: 230
+    },
+    accountLogo: {
+      alignSelf: 'flex-start',
+      height: 48,
+      marginBottom: 12,
+      width: 56
     },
     splashMark: { gap: 10, padding: 24 },
     wordmark: {

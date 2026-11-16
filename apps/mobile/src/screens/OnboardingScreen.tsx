@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type React from 'react';
 import {
   AppState,
+  Image,
   Linking,
   Pressable,
   SafeAreaView,
@@ -22,6 +23,8 @@ import { canSubmitAccount } from '../onboarding';
 import type { initialOnboardingState, onboardingReducer } from '../onboarding';
 import { PermissionCard, PrimaryButton, StepHeader } from '../components/primitives';
 import { useAppStyles } from '../components/styles';
+
+const appLogo = require('../../assets/logo.png');
 
 type AuthStatus = 'idle' | 'loading' | 'error';
 
@@ -125,7 +128,13 @@ export function Onboarding({
             <View accessible={false} style={styles.splashHero}>
               <View style={styles.orbitOne} />
               <View style={styles.orbitTwo} />
-              <Text style={styles.heroPin}>◆</Text>
+              <Image
+                source={appLogo}
+                style={styles.splashLogo}
+                resizeMode="contain"
+                accessibilityRole="image"
+                accessibilityLabel="RunSphere logo"
+              />
               <View style={styles.splashMark}>
                 <Text accessibilityRole="header" style={styles.wordmark}>
                   Run<Text style={styles.teal}>Sphere</Text>
@@ -154,6 +163,13 @@ export function Onboarding({
             <StepHeader
               step={state.accountMode === 'login' ? 'SIGN IN' : 'STEP 1 OF 3'}
               onBack={() => dispatch({ type: 'back' })}
+            />
+            <Image
+              source={appLogo}
+              style={styles.accountLogo}
+              resizeMode="contain"
+              accessibilityRole="image"
+              accessibilityLabel="RunSphere logo"
             />
             <Text style={styles.eyebrow}>
               {state.accountMode === 'login' ? 'WELCOME BACK' : 'MAKE IT YOURS'}

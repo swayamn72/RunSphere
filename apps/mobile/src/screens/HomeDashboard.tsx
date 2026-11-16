@@ -1,4 +1,4 @@
-import { Pressable, Text, View } from 'react-native';
+import { Image, Pressable, Text, View } from 'react-native';
 import type { SemanticTokens } from '@runsphere/ui';
 import { useAppStyles } from '../components/styles';
 import { useAppTheme } from '../theme/theme';
@@ -9,6 +9,12 @@ import type {
   QuickAction
 } from './home-dashboard-model';
 import { QUICK_ACTIONS } from './home-dashboard-model';
+
+const quickActionIcons: Record<QuickAction['key'], any> = {
+  run: require('../../assets/tabs/run.png'),
+  map: require('../../assets/tabs/map.png'),
+  social: require('../../assets/tabs/social.png')
+};
 
 /**
  * The dashboard furniture at the top of Home: greeting, the active-days
@@ -219,9 +225,11 @@ export function QuickActions({ onAction }: { onAction: (action: QuickAction['key
               pressed && styles.buttonPressed
             ]}
           >
-            <Text style={[styles.quickActionGlyph, { color: tokens.text.onAccent }]}>
-              {action.glyph}
-            </Text>
+            <Image
+              source={quickActionIcons[action.key]}
+              style={[styles.quickActionIcon, { tintColor: tokens.text.onAccent }]}
+              resizeMode="contain"
+            />
             <Text style={[styles.quickActionText, { color: tokens.text.onAccent }]}>
               {action.label}
             </Text>

@@ -1,8 +1,16 @@
 import { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useAppTheme } from '../theme/theme';
-import { tabEmphasis, tabIcons } from './tab-style';
+import { tabEmphasis } from './tab-style';
 import { tabs, type Tab } from './types';
+
+const tabIconAssets: Record<Tab, any> = {
+  Home: require('../../assets/tabs/home.png'),
+  Map: require('../../assets/tabs/map.png'),
+  Run: require('../../assets/tabs/run.png'),
+  Social: require('../../assets/tabs/social.png'),
+  Profile: require('../../assets/tabs/profile.png')
+};
 
 export function TabBar({ activeTab, onChange }: { activeTab: Tab; onChange: (tab: Tab) => void }) {
   const { tokens } = useAppTheme();
@@ -21,16 +29,23 @@ export function TabBar({ activeTab, onChange }: { activeTab: Tab; onChange: (tab
             accessibilityState={{ selected }}
             style={({ pressed }) => [styles.navItem, pressed && styles.pressed]}
           >
-            {/* The lit pill is what reads as "you are here" at a glance; the
-                tint alone is too small a cue at 20dp on a dark bar. */}
+            {/* The lit pill is what reads as "you are here" at a glance. */}
             <View style={[styles.iconWell, selected && styles.iconWellActive]}>
-              <Text style={[styles.navIcon, quiet && styles.quiet, selected && styles.active]}>
-                {tabIcons[tab]}
-              </Text>
+              <Image
+                source={tabIconAssets[tab]}
+                style={[
+                  styles.tabIconImage,
+                  {
+                    tintColor: selected
+                      ? tokens.action.selected
+                      : quiet
+                        ? tokens.text.tertiary
+                        : tokens.text.secondary
+                  }
+                ]}
+                resizeMode="contain"
+              />
             </View>
-            <Text style={[styles.navText, quiet && styles.quiet, selected && styles.active]}>
-              {tab}
-            </Text>
           </Pressable>
         );
       })}
@@ -47,8 +62,8 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       bottom: 0,
       flexDirection: 'row',
       left: 0,
-      minHeight: 76,
-      paddingBottom: 10,
+      minHeight: Platform.OS === 'ios' ? 84 : 68,
+      paddingBottom: Platform.OS === 'ios' ? 22 : 10,
       paddingTop: 8,
       position: 'absolute',
       right: 0
@@ -57,25 +72,24 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       alignItems: 'center',
       flex: 1,
       justifyContent: 'center',
-      minHeight: 58
+      minHeight: 50
     },
     iconWell: {
       alignItems: 'center',
       borderRadius: 999,
-      height: 30,
+      height: 44,
       justifyContent: 'center',
-      width: 46
+      width: 62
     },
-    iconWellActive: { backgroundColor: tokens.action.primary + '1F' },
-    navIcon: { color: tokens.text.secondary, fontSize: 19, lineHeight: 23 },
-    navText: {
-      color: tokens.text.secondary,
-      fontSize: 10,
-      fontWeight: '800',
-      letterSpacing: 0.2,
-      marginTop: 2
+    iconWellActive: {
+      backgroundColor: tokens.action.primary + '26'
     },
-    quiet: { color: tokens.text.tertiary },
-    active: { color: tokens.action.selected },
-    pressed: { opacity: 0.74 }
+    tabIconImage: {
+      height: 30,
+      width: 30
+    },
+    pressed: {
+      opacity: 0.74,
+      transform: [{ scale: 0.94 }]
+    }
   });
