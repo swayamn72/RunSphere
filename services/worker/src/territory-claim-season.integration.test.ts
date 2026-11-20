@@ -257,8 +257,15 @@ describePostgis('the Turf season loop on real PostGIS', () => {
     });
 
     it('carries a peak forward when ground is later lost', async () => {
+      // Two Kolkata weeks inside the season the claims are written to. These
+      // used to be fixed September dates, which only matched SEASON while the
+      // test was being written: from 1 October the job snapshotted an empty
+      // September and the peak read 0. The 8th and 15th of any month are in
+      // different Monday-based weeks and always in the same month.
+      const firstWeek = new Date(`${SEASON}-08T06:00:00.000Z`);
+      const laterWeek = new Date(`${SEASON}-15T06:00:00.000Z`);
       const big = await insertClaim(alice, { eastDegrees: 0.1, metres: 500, areaSqm: 90_000 });
-      await takeWeeklyRanks(db, new Date('2026-09-07T00:00:00.000Z'));
+      await takeWeeklyRanks(db, firstWeek);
 
       // They lose most of it, then a later week is recorded.
       await db.query(
@@ -267,7 +274,7 @@ describePostgis('the Turf season loop on real PostGIS', () => {
         [big]
       );
       await insertClaim(alice, { eastDegrees: 0.15, metres: 200, areaSqm: 10_000 });
-      await takeWeeklyRanks(db, new Date('2026-09-14T00:00:00.000Z'));
+      await takeWeeklyRanks(db, laterWeek);
 
       const peak = await db.query<{ peak: string }>(
         `SELECT max(peak_area_sqm)::text AS peak FROM territory_claim_season_snapshots
