@@ -152,7 +152,7 @@ UX.10 is better after M2.4 (atomic ghost limit), so "races left this hour" is ex
 | M7.1 | Reconcile docs with code: rewrite `docs/pending-work.md` as one current list; fix the README and `architecture.md` scope; record the landing-tab decision | Docs match `IMPLEMENTATION_STATUS.md`     |
 | M7.2 | Extract the shared `requireStaffRole` helper; unify staff authz (drop the env allow-list or map it to a role)                                             | One implementation; route tests unchanged |
 | M7.3 | Split `territory-claim-routes.ts` into pipeline and service modules plus thin routes                                                                      | No behaviour change; tests pass           |
-| M7.4 | Remove tracked `test-claim.ts`; keep `scratch/` ignored                                                                                                   | File gone                                 |
+| M7.4 | ✅ DONE 2026-11-20: Removed tracked `test-claim.ts`; `scratch/` stays ignored                                                                             | File gone                                 |
 | M7.5 | Replace `react-test-renderer` with `@testing-library/react-native` incrementally                                                                          | Deprecation warnings gone                 |
 | M7.6 | Migrate `expo-background-fetch` to `expo-background-task`                                                                                                 | Background sync verified on device        |
 

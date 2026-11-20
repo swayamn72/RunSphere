@@ -73,7 +73,7 @@ Legend: ✅ Implemented · 🟡 Partial (works, with gaps) · 🔴 Missing or br
 | `apps/mobile/src/fixtures/synthetic-mumbai-loop.ndjson` (untracked) | Synthetic GPS loop                                                                              | Contains coordinates. Keep out of release bundles. |
 | `apps/mobile/src/crew-assets.ts`                                    | Empty `crewImageOverrides`, so vector stand-ins are drawn                                       | Intended                                           |
 | `scripts/seed-admin.mjs`                                            | ✅ Rewritten 2026-11-20: all credentials from `SEED_ADMIN_*` env, refuses production by default | —                                                  |
-| `test-claim.ts` (root, tracked), `scratch/`                         | Debug scripts with synthetic coordinates                                                        | Clutter                                            |
+| `scratch/` (gitignored); `test-claim.ts` removed 2026-11-20         | Debug scripts with synthetic coordinates                                                        | Clutter                                            |
 | `infra/compose.yaml` `martin`, `valhalla`, replica                  | Documented placeholders                                                                         | Not production services                            |
 
 ## 3. Test coverage snapshot (2026-11-20, after Milestone 0, PostGIS gate open)
