@@ -19,12 +19,63 @@ export interface StaffReviewItem {
 
 interface LoginResponse {
   accessToken: string;
+  refreshToken: string;
 }
+
+/**
+ * The staff session, kept here rather than only in React state (R11).
+ *
+ * Access tokens live 15 minutes. The console used to keep just the access
+ * token and never refresh it, so staff were signed out mid-task. Screens still
+ * pass the token they were given; `authed` sends the newest one instead and,
+ * on a 401, rotates once and retries. Rotation is shared by concurrent calls,
+ * because the server revokes the whole session when a refresh token is reused.
+ */
+let session: LoginResponse | undefined;
+let refreshInFlight: Promise<boolean> | undefined;
+
+const rotate = async (): Promise<boolean> => {
+  if (!session) return false;
+  const response = await fetch(`${apiBaseUrl}/v1/auth/refresh`, {
+    method: 'POST',
+    headers: { accept: 'application/json', 'content-type': 'application/json' },
+    body: JSON.stringify({ refreshToken: session.refreshToken })
+  });
+  if (!response.ok) {
+    session = undefined;
+    return false;
+  }
+  session = (await response.json()) as LoginResponse;
+  return true;
+};
+
+const refreshSession = (): Promise<boolean> => {
+  refreshInFlight ??= rotate().finally(() => {
+    refreshInFlight = undefined;
+  });
+  return refreshInFlight;
+};
+
+/** Forget the session, e.g. on sign-out. */
+export const clearStaffSession = (): void => {
+  session = undefined;
+};
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001').replace(
   /\/$/,
   ''
 );
+
+/** An API failure that keeps its status, so a 401 can be told apart. */
+export class HttpError extends Error {
+  constructor(
+    readonly status: number,
+    message: string
+  ) {
+    super(message);
+    this.name = 'HttpError';
+  }
+}
 
 const request = async <T>(path: string, init: RequestInit = {}): Promise<T> => {
   const response = await fetch(`${apiBaseUrl}${path}`, {
@@ -33,17 +84,26 @@ const request = async <T>(path: string, init: RequestInit = {}): Promise<T> => {
   });
   if (!response.ok) {
     const body = (await response.json().catch(() => undefined)) as { message?: string } | undefined;
-    throw new Error(body?.message ?? `Request failed with ${response.status}`);
+    throw new HttpError(response.status, body?.message ?? `Request failed with ${response.status}`);
   }
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 };
 
-const authed = <T>(accessToken: string, path: string, init: RequestInit = {}): Promise<T> =>
-  request<T>(path, {
-    ...init,
-    headers: { authorization: `Bearer ${accessToken}`, ...init.headers }
-  });
+const authed = async <T>(accessToken: string, path: string, init: RequestInit = {}): Promise<T> => {
+  const send = (token: string) =>
+    request<T>(path, { ...init, headers: { authorization: `Bearer ${token}`, ...init.headers } });
+  const sent = session?.accessToken ?? accessToken;
+  try {
+    return await send(sent);
+  } catch (error) {
+    if (!(error instanceof HttpError) || error.status !== 401 || !session) throw error;
+    // Another call may already have rotated while this one was in flight.
+    if (session.accessToken === sent && !(await refreshSession())) throw error;
+    if (!session) throw error;
+    return send(session.accessToken);
+  }
+};
 
 const json = <T>(accessToken: string, path: string, method: string, body?: unknown): Promise<T> =>
   authed<T>(accessToken, path, {
@@ -52,12 +112,14 @@ const json = <T>(accessToken: string, path: string, method: string, body?: unkno
     ...(body === undefined ? {} : { body: JSON.stringify(body) })
   });
 
-export const signIn = (email: string, password: string) =>
-  request<LoginResponse>('/v1/auth/login', {
+export const signIn = async (email: string, password: string) => {
+  session = await request<LoginResponse>('/v1/auth/login', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ email, password })
   });
+  return session;
+};
 
 /**
  * The signed-in account's staff roles. The console gates every area on these
