@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { canonicalJson, type ActivityChunkRequest } from '@runsphere/contracts';
-import type { Database } from '@runsphere/db';
+import { withTransaction, type Database } from '@runsphere/db';
+
+type Queryable = Pick<Database, 'query'>;
 
 export interface TracePoint {
   latitude: number;
@@ -86,7 +88,7 @@ export const summarize = (points: TracePoint[], validation = validateTrace(point
     privacyTrimmed: false
   };
 };
-export const loadPoints = async (db: Database, activityId: string): Promise<TracePoint[]> => {
+export const loadPoints = async (db: Queryable, activityId: string): Promise<TracePoint[]> => {
   const chunks = await db.query<{ payload: ActivityChunkRequest }>(
     'SELECT payload FROM activity_chunks WHERE activity_id = $1 ORDER BY sequence',
     [activityId]
@@ -94,15 +96,42 @@ export const loadPoints = async (db: Database, activityId: string): Promise<Trac
   return chunks.rows.flatMap((chunk) => chunk.payload.points);
 };
 
-export const processActivity = async (db: Database, activityId: string): Promise<void> => {
+/**
+ * Validate, privacy-trim and derive one finalized activity.
+ *
+ * All of it happens in one transaction with the submission row locked (B9):
+ * previously four separate writes meant a crash between them left
+ * derivations behind with the status still `validating`, and a retry then
+ * duplicated `activity_validation_runs`. Now a failure rolls everything back,
+ * the outbox retry starts clean, and once committed the status is no longer
+ * `validating`, so a replay is a no-op.
+ */
+export const processActivity = async (db: Database, activityId: string): Promise<void> =>
+  withTransaction(db, (client) => deriveActivity(client, activityId));
+
+const deriveActivity = async (db: Queryable, activityId: string): Promise<void> => {
   const activity = await db.query<{ account_id: string; source_checksum: string }>(
     `SELECT account_id, source_checksum FROM activity_submissions
-     WHERE id = $1 AND status = $2 AND deleted_at IS NULL`,
+     WHERE id = $1 AND status = $2 AND deleted_at IS NULL
+     FOR UPDATE`,
     [activityId, 'validating']
   );
   if (!activity.rows[0]) return;
   const points = await loadPoints(db, activityId);
-  if (points.length === 0) return;
+  if (points.length === 0) {
+    // Chunks always carry at least one point, so an empty trace means they
+    // were removed before validation ran (retention purge, or a race with
+    // deletion). It used to return here and leave the run in `validating`
+    // forever (B8); it is now a terminal, explained rejection the app shows.
+    await db.query(
+      `UPDATE activity_submissions SET status = 'rejected', processed_at = now(),
+         rejection_reason = 'no_points',
+         validation_errors = '["No location points were available to validate."]'::jsonb
+       WHERE id = $1 AND status = 'validating'`,
+      [activityId]
+    );
+    return;
+  }
   const candidate = JSON.stringify({
     type: 'MultiPoint',
     coordinates: points.map((point) => [point.longitude, point.latitude])
