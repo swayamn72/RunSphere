@@ -1,6 +1,7 @@
 import { access, readFile, readdir } from 'node:fs/promises';
 import { execFile as execFileCallback } from 'node:child_process';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 const execFile = promisify(execFileCallback);
@@ -14,11 +15,23 @@ const compareVersions = (left, right) => {
   }
   return 0;
 };
+/**
+ * Where `aapt` lives, or `undefined` when it cannot be found.
+ *
+ * Windows ships it as `aapt.exe`, and a developer machine may have a debug APK
+ * without the Android build-tools on PATH. Not finding the tool is reported
+ * and skipped rather than crashing the whole `pnpm test` run; set
+ * `REQUIRE_APK_PERMISSION_CHECK=1` to make it a failure instead.
+ */
+const aaptBinary = globalThis.process.platform === 'win32' ? 'aapt.exe' : 'aapt';
 const resolveAapt = async () => {
   if (globalThis.process.env.AAPT) return globalThis.process.env.AAPT;
   const sdkRoots = [
     globalThis.process.env.ANDROID_HOME,
     globalThis.process.env.ANDROID_SDK_ROOT,
+    globalThis.process.platform === 'win32' && globalThis.process.env.LOCALAPPDATA
+      ? join(globalThis.process.env.LOCALAPPDATA, 'Android', 'Sdk')
+      : undefined,
     '/usr/lib/android-sdk',
     '/opt/android-sdk'
   ].filter((root) => typeof root === 'string' && root.length > 0);
@@ -26,15 +39,24 @@ const resolveAapt = async () => {
   for (const sdkRoot of sdkRoots) {
     try {
       const versions = (await readdir(join(sdkRoot, 'build-tools')))
-        .filter((version) => /^\d+(\.\d+)+$/.test(version))
+        .filter((version) => /^d+(.d+)+$/.test(version))
         .sort(compareVersions);
       const newest = versions.at(-1);
-      if (newest) return join(sdkRoot, 'build-tools', newest, 'aapt');
+      if (newest) {
+        const candidate = join(sdkRoot, 'build-tools', newest, aaptBinary);
+        await access(candidate);
+        return candidate;
+      }
     } catch {
       // Try the next known SDK root, then PATH as a final fallback.
     }
   }
-  return 'aapt';
+  try {
+    await execFile(aaptBinary, ['version']);
+    return aaptBinary;
+  } catch {
+    return undefined;
+  }
 };
 const mobileRoot = new globalThis.URL('../', import.meta.url);
 const manifestUrl = new globalThis.URL('android/app/src/main/AndroidManifest.xml', mobileRoot);
@@ -104,7 +126,21 @@ try {
   globalThis.process.exit(0);
 }
 
-const { stdout } = await execFile(await resolveAapt(), ['dump', 'permissions', apkUrl.pathname]);
+const aapt = await resolveAapt();
+if (!aapt) {
+  const message =
+    'Debug APK found but aapt is not available (set AAPT or ANDROID_HOME); APK permission check skipped.';
+  if (globalThis.process.env.REQUIRE_APK_PERMISSION_CHECK === '1') throw new Error(message);
+  globalThis.console.warn(message);
+  globalThis.console.log(
+    `Verified Android source permission allowlist: ${manifestPermissions.join(', ')}`
+  );
+  globalThis.process.exit(0);
+}
+
+// fileURLToPath, not URL.pathname: on Windows the latter is "/C:/..." and no
+// tool can open it.
+const { stdout } = await execFile(aapt, ['dump', 'permissions', fileURLToPath(apkUrl)]);
 const apkPermissions = [...stdout.matchAll(/uses-permission: name='([^']+)'/g)]
   .map((match) => match[1])
   .filter((permission) => permission.startsWith('android.permission.'));
