@@ -44,7 +44,6 @@ import {
   clusterMarkers,
   crewForAvatar,
   detailTierFor,
-  formatLoopTime,
   historyLine,
   recommendationLine,
   showsClusters,
@@ -572,7 +571,7 @@ export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: Tu
             <Text style={styles.helper}>
               {chosen.owner.isSelf
                 ? 'Somebody who runs this loop faster than you takes it.'
-                : `Run this loop in under ${formatLoopTime(chosen.durationSeconds)} to take it.`}
+                : 'Beat the holder’s pace to challenge their turf.'}
             </Text>
             {!chosen.owner.isSelf && (
               <>

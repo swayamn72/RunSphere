@@ -221,7 +221,7 @@ describe('the turf map', () => {
     expect(pins.length).toBeGreaterThan(0);
   });
 
-  it('tells somebody the time they have to beat when they tap a rival claim', async () => {
+  it('shows the target pace when a runner taps a rival claim', async () => {
     const renderer = await renderTurf(stubApi({}));
     await moveMap(renderer, [72.8, 19, 72.95, 19.15], 13);
 
@@ -231,7 +231,7 @@ describe('the turf map', () => {
       await Promise.resolve();
     });
 
-    expect(textOf(renderer)).toContain('Run this loop in under 10:00 to take it.');
+    expect(textOf(renderer)).toContain('Target pace: 8:20/km');
   });
 
   it('warns the holder that a faster runner takes their ground', async () => {
@@ -531,7 +531,7 @@ describe('the zone bar', () => {
     const renderer = await renderTurf(stubApi({ map: mixedMap }));
     await moveMap(renderer, [72.87, 19.07, 72.89, 19.09], 14);
 
-    for (const label of ['All', 'My zones', 'Rival zones', 'Contested'])
+    for (const label of ['All Turf', 'My Turf', 'Rivals', 'Contested'])
       expect(byLabel(renderer, label).length).toBeGreaterThan(0);
     expect(drawnIds(renderer)).toHaveLength(2);
     expect(textOf(renderer)).toContain('2 zones in this view.');
@@ -541,7 +541,7 @@ describe('the zone bar', () => {
     const renderer = await renderTurf(stubApi({ map: mixedMap }));
     await moveMap(renderer, [72.87, 19.07, 72.89, 19.09], 14);
 
-    await chooseFilter(renderer, 'My zones');
+    await chooseFilter(renderer, 'My Turf');
     expect(drawnIds(renderer)).toEqual(['00000000-0000-4000-8000-0000000000d1']);
     expect(textOf(renderer)).toContain('1 of 2 zones in this view.');
 
@@ -557,7 +557,7 @@ describe('the zone bar', () => {
     const renderer = await renderTurf(stubApi({ map: onlyRivals }));
     await moveMap(renderer, [72.87, 19.07, 72.89, 19.09], 14);
 
-    await chooseFilter(renderer, 'My zones');
+    await chooseFilter(renderer, 'My Turf');
     expect(drawnIds(renderer)).toHaveLength(0);
     const shown = textOf(renderer);
     expect(shown).toContain('No zone here is yours');

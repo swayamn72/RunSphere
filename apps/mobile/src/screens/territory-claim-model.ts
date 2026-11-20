@@ -453,9 +453,9 @@ export const efficiencyLabel = (efficiency: number): string =>
 export type ZoneFilter = 'all' | 'mine' | 'rivals' | 'contested';
 
 export const ZONE_FILTERS: readonly { readonly key: ZoneFilter; readonly label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'mine', label: 'My zones' },
-  { key: 'rivals', label: 'Rival zones' },
+  { key: 'all', label: 'All Turf' },
+  { key: 'mine', label: 'My Turf' },
+  { key: 'rivals', label: 'Rivals' },
   { key: 'contested', label: 'Contested' }
 ];
 
