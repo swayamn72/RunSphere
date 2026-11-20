@@ -172,7 +172,25 @@ export class MobileApiClient {
   async login(credentials: LoginRequest): Promise<AuthSession> {
     return this.saveSession(await this.authRequest('/v1/auth/login', credentials, 'login'));
   }
-  async refresh(): Promise<AuthSession> {
+  /**
+   * The rotation currently in flight, shared by every caller.
+   *
+   * Refresh tokens are single-use and the server treats a second use as theft,
+   * revoking the whole session family (`rotateSession`). A screen that fires
+   * several requests at once after the 15-minute access token expires would
+   * otherwise send the same refresh token several times, and the runner would
+   * be signed out by their own app. One rotation, awaited by all, avoids that.
+   */
+  private refreshInFlight: Promise<AuthSession> | undefined;
+
+  refresh(): Promise<AuthSession> {
+    this.refreshInFlight ??= this.rotate().finally(() => {
+      this.refreshInFlight = undefined;
+    });
+    return this.refreshInFlight;
+  }
+
+  private async rotate(): Promise<AuthSession> {
     const session = await this.auth?.read();
     if (!session) throw new Error('No signed-in session is available.');
     return this.saveSession(
@@ -933,7 +951,11 @@ export class MobileApiClient {
       throw classifyTransportFailure(error);
     }
     if (response.status === 401 && authenticated && !retried) {
-      await this.refresh();
+      // Another request may already have rotated the session while this one
+      // was on the wire. Its new access token is then in storage, and rotating
+      // again would spend a refresh token for nothing; just retry with it.
+      const latest = await this.auth?.read();
+      if (!latest || latest.accessToken === session?.accessToken) await this.refresh();
       return this.request(path, request, authenticated, true);
     }
     if (response.status === 401 || response.status === 403)

@@ -98,6 +98,80 @@ describe('mobile API auth client', () => {
     await expect(client.refresh()).resolves.toEqual(rotated);
     await expect(storage.read()).resolves.toEqual(rotated);
   });
+
+  /**
+   * B1. The fake server behaves like `rotateSession`: each refresh token works
+   * once, and presenting a spent one revokes the whole family. Before the
+   * single-flight refresh, five parallel 401s sent the same refresh token five
+   * times and the runner was signed out by their own app.
+   */
+  it('rotates once when several requests hit an expired token together', async () => {
+    const storage = createAuthStorage(new MemorySecureStore());
+    await storage.save(session);
+    let refreshCalls = 0;
+    let revoked = false;
+    let currentAccess = 'fresh-access-0';
+    const spent = new Set<string>();
+    const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/v1/auth/refresh')) {
+        refreshCalls += 1;
+        const { refreshToken } = JSON.parse(String(init?.body)) as { refreshToken: string };
+        if (spent.has(refreshToken) || revoked) {
+          revoked = true;
+          return new Response(JSON.stringify({ message: 'Invalid refresh token' }), {
+            status: 401
+          });
+        }
+        spent.add(refreshToken);
+        // Let the other requests reach the client's 401 handling first.
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        currentAccess = `fresh-access-${refreshCalls}`;
+        return new Response(
+          JSON.stringify({
+            accessToken: currentAccess,
+            refreshToken: `fresh-refresh-${refreshCalls}`,
+            expiresInSeconds: 900
+          })
+        );
+      }
+      const authorization = new Headers(init?.headers).get('authorization');
+      return authorization === `Bearer ${currentAccess}` && !revoked
+        ? new Response(JSON.stringify({ data: [] }))
+        : new Response(JSON.stringify({ message: 'Unauthorized' }), { status: 401 });
+    };
+    const client = new MobileApiClient('https://api.runsphere.test', fetcher, storage);
+
+    const results = await Promise.all(Array.from({ length: 5 }, () => client.listFriendRequests()));
+
+    expect(results).toHaveLength(5);
+    expect(refreshCalls).toBe(1);
+    expect(revoked).toBe(false);
+    await expect(storage.read()).resolves.toMatchObject({ accessToken: 'fresh-access-1' });
+  });
+
+  it('retries with a token another request already rotated, without refreshing again', async () => {
+    const storage = createAuthStorage(new MemorySecureStore());
+    await storage.save(session);
+    let refreshCalls = 0;
+    const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/v1/auth/refresh')) {
+        refreshCalls += 1;
+        return new Response(JSON.stringify({ message: 'unexpected' }), { status: 401 });
+      }
+      const authorization = new Headers(init?.headers).get('authorization');
+      if (authorization === 'Bearer access-token') {
+        // The request is "on the wire" while some other request rotates.
+        await storage.save({ ...session, accessToken: 'already-rotated' });
+        return new Response(null, { status: 401 });
+      }
+      return new Response(JSON.stringify({ data: [] }));
+    };
+    const client = new MobileApiClient('https://api.runsphere.test', fetcher, storage);
+
+    await expect(client.listFriendRequests()).resolves.toBeDefined();
+    expect(refreshCalls).toBe(0);
+  });
 });
 
 interface RecordedCall {
