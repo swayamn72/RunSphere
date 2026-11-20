@@ -5,20 +5,22 @@
 > Each task is sized for one small PR, has a clear **done when** check, and can ship on its own.
 > IDs like B1 or R4 refer to `BUGS_AND_RISKS.md`.
 
-## Milestone 0 — Green, trustworthy build (recommended first milestone)
+## Milestone 0 — Green, trustworthy build ✅ DONE 2026-11-20
 
 Goal: CI is green on `main`, and the PostGIS integration suites run and pass. Every later task
-depends on this signal.
+depends on this signal. Done on branch `fix/m0-green-ci-and-db-tests`: with `CI=true` and the
+PostGIS gate open, format (LF), lint, typecheck, build, migrate and all **2,082 tests pass with 0
+skipped**.
 
-| ID   | Task                                                                                                                                                           | Done when                                              |
-| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| M0.1 | Remove unused imports and dead code from `services/api/src/app.ts` and other API files (B14)                                                                   | `pnpm --filter @runsphere/api lint` exits 0            |
-| M0.2 | Fix mobile lint: replace `require()` background-fetch loading in `App.tsx` with typed lazy imports or a small `background-sync.native.ts` module; remove `any` | `pnpm --filter @runsphere/mobile lint` exits 0         |
-| M0.3 | Fix the domain unused const (`MILLIS_PER_DAY`)                                                                                                                 | `pnpm lint` exits 0                                    |
-| M0.4 | Fix `verify-android-permissions.mjs` to use `fileURLToPath` and skip the APK check with a clear message when `aapt` is missing (B13)                           | `pnpm test` exits 0 on Windows without the Android SDK |
-| M0.5 | Run the PostGIS suites locally (`make infra-up`, `RUN_POSTGIS_INTEGRATION=1`) and fix any failures                                                             | All 139 previously skipped tests pass locally          |
-| M0.6 | Confirm CI is green on a branch, including the `Apply migrations` and `Test` steps                                                                             | The GitHub Actions run is green end to end             |
-| M0.7 | Renormalise the local checkout to LF (`git rm --cached -r . && git reset --hard`, after committing or stashing work) so `format:check` reflects reality        | `pnpm format:check` passes locally                     |
+| ID   | Task                                                                                                                                       | Status                                                                                                 |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| M0.1 | Remove dead imports from `services/api/src/app.ts` (B14)                                                                                   | ✅ API lint clean                                                                                      |
+| M0.2 | Mobile lint: image `require()` → typed ES imports (`src/assets.d.ts`); optional native modules keep a guarded, typed, documented `require` | ✅ Mobile lint clean                                                                                   |
+| M0.3 | Remove unused domain `MILLIS_PER_DAY`                                                                                                      | ✅ `pnpm lint` exits 0                                                                                 |
+| M0.4 | `verify-android-permissions.mjs`: `fileURLToPath`, `aapt.exe` lookup, clear skip when `aapt` is missing (B13)                              | ✅ `pnpm test` exits 0 on Windows                                                                      |
+| M0.5 | Run all PostGIS suites against an isolated `runsphere_test` DB and fix failures (B17, B18, two harness issues)                             | ✅ API 568/568, worker 195/195                                                                         |
+| M0.6 | Confirm CI is green on GitHub                                                                                                              | ⏳ Needs the PR's Actions run. Also fixed 32 genuinely unformatted files that kept `format:check` red. |
+| M0.7 | Renormalise the local Windows checkout to LF so raw `pnpm format:check` passes locally                                                     | Open. Developer-machine only; CI is unaffected.                                                        |
 
 ## Milestone 1 — Core loop correctness
 
@@ -46,6 +48,54 @@ depends on this signal.
 | M2.5 | Mobile: season recap / reset card using the existing `getTerritorySeasonRecap`                                                                                    | Render test plus a manual check on an emulator                                                            |
 | M2.6 | Mobile: hall of fame and seasons list (existing client methods)                                                                                                   | Render tests                                                                                              |
 | M2.7 | Admin: trade-flag review, concentration and events screens for the existing staff routes                                                                          | Admin tests cover each staff action                                                                       |
+
+## Milestone 2.5 — UI, UX & Copy Overhaul ("Tactical Night / Neon Turf")
+
+Goal: before anyone outside the team runs with the app (M5 field validation), replace the flat
+dark-green look and the legal/technical copy with a high-contrast, game-like identity that is
+legible outdoors at a glance, and put the two things that make RunSphere different, **Turf** and
+**Ghost Races**, on the surfaces people open first. It sits here because field-study feedback on a
+UI that is about to be replaced is wasted, and because it depends only on data M0–M2 already
+provide.
+
+**Palette** (single source of truth: `packages/ui/src/index.ts` `SemanticTokens`):
+
+| Role                 | Hex       | Use                                                              |
+| -------------------- | --------- | ---------------------------------------------------------------- |
+| Canvas               | `#090D16` | App background, map surround                                     |
+| Primary accent: Cyan | `#00E5FF` | Primary actions, _your_ territory, live run trace, focus rings   |
+| Success: Green       | `#22C55E` | Claims won, goals met, verified, positive deltas                 |
+| Rival / danger: Rose | `#F43F5E` | Rival territory, carves against you, destructive actions, errors |
+
+Surfaces are lighter steps of the canvas, not new hues. Every text/background pair must meet WCAG
+2.2 AA (4.5:1 body, 3:1 large text and UI glyphs), checked in tests rather than by eye.
+
+Rules for every task:
+
+- Keep logic in `*-model.ts` with unit tests.
+- No copy may claim something the server hasn't confirmed (server authority still applies).
+- Keep privacy copy where it is _required_ (permissions, deletion, safety), but rewrite it in plain
+  language.
+- Visual sign-off is one emulator or device screenshot pass at the end of the milestone (UX.12),
+  not per task.
+
+| ID    | Task                                                                                                                                                                                                                                                                                                                   | Done when                                                                                                                                      |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| UX.1  | **Tokens**: replace the dark-green palette in `packages/ui` with the Tactical Night roles above; map existing semantic roles (canvas, surface, action.primary, accent.*, territory owned/rival/neutral, danger) onto it; replace its 45 hard-coded hexes with named steps                                              | `packages/ui` unit test asserts every text/background pair meets AA; `theme.test.ts` updated                                                   |
+| UX.2  | **Contrast audit of screens**: replace remaining inline colours in `apps/mobile/src/components/styles.ts` (1.1k lines) and screens with tokens                                                                                                                                                                         | A test scans `apps/mobile/src` for hex colour literals outside theme files and finds none                                                      |
+| UX.3  | **Status-bar overlap (Android)**: React Native's `SafeAreaView` only insets on iOS. Adopt `react-native-safe-area-context` (`SafeAreaProvider` in `App.tsx`, insets in `ScreenShell`), use light status-bar content on `#090D16`, and revisit the `edgeToEdgeEnabled=false` workaround in `apps/mobile/DEVELOPMENT.md` | Render test: shells apply the top inset from a mocked provider. Manual: no content under the status bar on an Android 14/15 emulator.          |
+| UX.4  | **Floating gear overlap**: the absolutely positioned `⚙` in `ProfileOverview.tsx` collides with the header and status bar. Move Settings into the header row with a 44×44 dp hit target and an accessibility label.                                                                                                    | Render test finds a labelled "Settings" button in the header row, not absolutely positioned                                                    |
+| UX.5  | **Voice guide**: write `docs/voice.md` (short, active, second person, runner vocabulary, no legalese outside legal screens, numbers before adjectives) with before/after examples                                                                                                                                      | Doc merged and referenced from `CLAUDE.md`                                                                                                     |
+| UX.6  | **Copy: core screens**: rewrite Home, Run (prep/live/results), Map/Turf, Social and Profile strings per the voice guide, moving them into each screen's `*-model.ts` so they're testable                                                                                                                               | Model tests cover key strings; a banned-phrase test ("provenance", "derivation", "canonical", "policy version", …) passes for user-facing copy |
+| UX.7  | **Copy: errors and empty states**: plain, actionable messages for offline, weak GPS, session ended, server unavailable, no curated routes and no quests                                                                                                                                                                | Each non-state in `docs/product.md` has one tested message; no raw status codes or exception text reach the UI                                 |
+| UX.8  | **Rho as field coach**: give Rho (`crew.ts`, `loop-guidance.ts`) a field-coach persona (calm, direct, tactical cues such as "Hold this line 400 m to close the loop") for pre-run, mid-run and post-run moments. Stays pace-neutral (ADR-0005) and never shames.                                                       | `loop-guidance` tests cover each moment; a tone test rejects shaming or pace-pressure phrases; `isSafeMascotLabel()` still passes              |
+| UX.9  | **Home: Turf strip**: a compact card with your held area, city rank and days left in the season, from the existing claim summary and leaderboard reads, linking to Map                                                                                                                                                 | `home-dashboard-model` tests for loaded, no-claims and offline states; render test                                                             |
+| UX.10 | **Home + Map: Ghost Race entry points**: a "Race a ghost" card on Home (nearest rival claim with a ghost available) and a visible Ghost Race chip on rival claims on Map, both opening the existing `GhostRaceSheet`, showing races left this hour                                                                     | Model tests for available, rate-limited and none-nearby; render tests for both entry points                                                    |
+| UX.11 | **Map: territory stats overlay**: your area, claims held and contested this week, in the new palette (cyan = yours, rose = rival), with a legend                                                                                                                                                                       | `territory-model` tests; render test of the legend and overlay states                                                                          |
+| UX.12 | **Visual QA pass**: emulator screenshots of every tab and the run flow at high brightness and at 200% font scale; fix any truncation and overlap found                                                                                                                                                                 | Screenshot checklist committed under `docs/design/qa/`; no clipped text at 200% font scale                                                     |
+
+Order: UX.1 → UX.2 → (UX.3, UX.4); UX.5 → (UX.6, UX.7, UX.8); UX.9–UX.11 after UX.1; UX.12 last.
+UX.10 is better after M2.4 (atomic ghost limit), so "races left this hour" is exact.
 
 ## Milestone 3 — Accounts, email and safety actually work
 
@@ -108,5 +158,4 @@ depends on this signal.
 
 ## Suggested order
 
-M0 → M1 (M1.1, M1.8 and M1.6 are the biggest user-visible wins) → M2.1/M2.2 → M4 (staging) → M3 →
-M5 → M6. M7 can be interleaved.
+M0 ✅ → M1 (M1.1, M1.8 and M1.6 are the biggest user-visible wins) → M2.1/M2.2 → **M2.5 (UI, UX and copy)** → M4 (staging) → M3 → M5 (field validation) → M6. M7 can be interleaved.
