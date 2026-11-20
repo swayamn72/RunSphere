@@ -1135,9 +1135,7 @@ function ActivityDetailMap({
       <MapSurface
         localLayers={activeRoute}
         accessibilityLabel={
-          isDerived
-            ? 'Server-derived private activity route.'
-            : 'Locally recorded activity route.'
+          isDerived ? 'Server-derived private activity route.' : 'Locally recorded activity route.'
         }
         initialCenter={activeCenter as LngLat}
         recenterEnabled={false}

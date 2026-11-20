@@ -1,5 +1,9 @@
 import type { FastifyInstance } from 'fastify';
-import { ErrorResponseSchema, StaffReviewAuthorizationHeadersSchema, StaffReviewQueueResponseSchema } from '@runsphere/contracts';
+import {
+  ErrorResponseSchema,
+  StaffReviewAuthorizationHeadersSchema,
+  StaffReviewQueueResponseSchema
+} from '@runsphere/contracts';
 import type { Database } from '@runsphere/db';
 import { requireAccount } from './auth-routes.js';
 import { validationErrors, type ActivityState } from './activity-routes.js';

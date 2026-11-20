@@ -6,6 +6,7 @@ RunSphere has **two separate territory mechanics**. They share no tables, rules,
 ---
 
 ## Mechanic 1 — Turf (Enclosure Claims)
+
 **Status: PRIMARY FEATURE. Live and active. Implementation underway (see pending-work.md).**
 
 ### What it is
@@ -23,6 +24,7 @@ GPS records your path. The system detects the longest closed stretch in your tra
 
 **2. A loop is detected.**
 The enclosed area becomes a candidate claim. Requirements:
+
 - **Area:** 5,000 m² to 5 km² (bigger than a roundabout, smaller than what a car covers)
 - **Duration:** only the closed-loop portion counts — warm-up before and cool-down after are excluded
 - **Perimeter:** the total distance run around the loop is stored alongside the area. This is the key metric for all future contests.
@@ -46,9 +48,11 @@ When a new loop overlaps an existing held claim:
 The intersection = set intersection of the two H3 cell sets. Fast O(n) lookup, no expensive polygon math. This is the "contested zone."
 
 **Step 2 — Check minimum carve size.**
+
 ```
 min_carve = max(5,000 m², 10% × smaller_claim_area)
 ```
+
 If the intersection is smaller than this threshold → no contest (too insignificant to process).
 
 **Step 3 — Compare speeds with effort-based grace.**
@@ -71,12 +75,14 @@ effective_speed = challenger_base_speed × (1 + grace)
 **Why grace?** A runner who ran a 4 km loop naturally runs at a slower per-metre pace than someone who ran a tight 1 km inner loop. Pure pace comparison would permanently disadvantage endurance runners. The grace factor acknowledges physical effort. The 15% hard cap ensures no one can jog a 50 km loop to take a sprinter's territory.
 
 **Step 4 — Carving decision.**
+
 ```
 If effective_speed > holder_speed → CARVE
 If effective_speed ≤ holder_speed → NO CONTEST (holder keeps everything, tie goes to holder)
 ```
 
 **Step 5 — Update both polygons.**
+
 - Intersection H3 cells → challenger's new claim
 - Remaining H3 cells from holder → holder's surviving claim
 - `largestConnectedComponent()` is applied to the surviving cells to find the biggest connected group
@@ -153,6 +159,7 @@ Claims are **never deleted** — the full history is always preserved. Expired c
 When you tap a territory on the Turf map, you see the holder's name, area, and time to beat — plus a **Ghost Race** button.
 
 Ghost Race lets you race against a ghost version of the holder's recorded run:
+
 - The ghost advances along the holder's route at their original pace
 - Your live GPS path trace grows on the same map alongside it
 - A live comparison overlay shows: `You: 3:42 in | Ghost: 3:51 in`
@@ -173,6 +180,7 @@ After the run, the server applies the **same carving algorithm** as any other ru
 ---
 
 ## Mechanic 2 — H3 Cell Season Engine
+
 **Status: BUILT but SWITCHED OFF.**
 Requires: H3 library dependency + public-space eligibility dataset + Territory gate in release plan.
 
@@ -216,22 +224,22 @@ End of week (Sunday midnight IST)
 
 ## Side-by-side Comparison
 
-| | Turf (Enclosure) | H3 Season |
-|---|---|---|
-| Status | **Primary feature** | **Off (gated)** |
-| Winning condition | Fastest effective speed (with effort grace) | Most days in a cell |
-| Pace-neutral | Partially — grace helps endurance runners | Fully pace-neutral |
-| Holder identity on map | Yes — name + avatar | No — anonymous cells |
-| Reset cycle | Monthly (season reset) | Weekly cell reset |
-| Feature flag | Always enabled | `TERRITORY_CAPTURE_ENABLED = false` |
-| Overlap handling | H3-based carving with effort grace | N/A (cells are discrete, no overlap) |
+|                        | Turf (Enclosure)                            | H3 Season                            |
+| ---------------------- | ------------------------------------------- | ------------------------------------ |
+| Status                 | **Primary feature**                         | **Off (gated)**                      |
+| Winning condition      | Fastest effective speed (with effort grace) | Most days in a cell                  |
+| Pace-neutral           | Partially — grace helps endurance runners   | Fully pace-neutral                   |
+| Holder identity on map | Yes — name + avatar                         | No — anonymous cells                 |
+| Reset cycle            | Monthly (season reset)                      | Weekly cell reset                    |
+| Feature flag           | Always enabled                              | `TERRITORY_CAPTURE_ENABLED = false`  |
+| Overlap handling       | H3-based carving with effort grace          | N/A (cells are discrete, no overlap) |
 
 ADR-0011 documents the deliberate reversals the Turf mechanic makes relative to the original pace-neutral, anonymous-cell design.
-
 
 ---
 
 ## Mechanic 1 — Turf (Enclosure Claims)
+
 **Status: LIVE and active.**
 
 ### What it is
@@ -247,6 +255,7 @@ GPS records your path. The system looks for the longest closed stretch in your t
 
 **2. A loop is detected.**  
 The enclosed area becomes a candidate claim polygon. The system measures:
+
 - **Area:** must be between 5,000 m² (bigger than a roundabout) and 5 km² (smaller than what a car could cover)
 - **Duration:** the time taken to run just the closed loop portion. A warm-up jog before and a cool-down after do not count.
 
@@ -255,6 +264,7 @@ After the run, you tap "Claim this loop." Your name and avatar are placed on the
 
 **4. Someone else tries to take your territory.**  
 They run a loop. The system checks overlap using a 32×32 grid sampling:
+
 - Their loop must cover **≥60% of its own area** inside your existing claim for it to be a contest.
 - If it does → they need to be **strictly faster** than your recorded time to take it.
 - Equal time = you keep it (a tie is not a win for the challenger).
@@ -274,6 +284,7 @@ The full takeover history (who held it, for how long, what time they set) is alw
 - **Display identity only.** The map shows your display name and avatar — never your email, contact details, or activity history.
 
 ### Current known gaps (not yet resolved — see pending-work.md)
+
 - No protection for runners who have not set a privacy zone.
 - No concentration guardrail (unlike the H3 season, there is no top-10% cap for Turf).
 - No detection of coordinated claim-trading between accounts.
@@ -282,6 +293,7 @@ The full takeover history (who held it, for how long, what time they set) is alw
 ---
 
 ## Mechanic 2 — H3 Cell Season Engine
+
 **Status: BUILT but SWITCHED OFF.**  
 **Requires:** H3 library dependency + public-space eligibility dataset + Territory gate in release plan.
 
@@ -343,13 +355,13 @@ Assigned at enrollment from activity-history bands (not pace, not location). You
 
 ## Side-by-side Comparison
 
-| | Turf (Enclosure) | H3 Season |
-|---|---|---|
-| Status | **Live** | **Off (gated)** |
-| Winning condition | Fastest time | Most days in a cell |
-| Pace-neutral | No — speed wins | Yes — pace doesn't affect cell value |
-| Holder identity on map | Yes — name + avatar | No — anonymous cells |
-| Reset cycle | No reset (taken by faster runner) | Weekly reset |
-| Feature flag | Always enabled | `TERRITORY_CAPTURE_ENABLED = false` |
+|                        | Turf (Enclosure)                  | H3 Season                            |
+| ---------------------- | --------------------------------- | ------------------------------------ |
+| Status                 | **Live**                          | **Off (gated)**                      |
+| Winning condition      | Fastest time                      | Most days in a cell                  |
+| Pace-neutral           | No — speed wins                   | Yes — pace doesn't affect cell value |
+| Holder identity on map | Yes — name + avatar               | No — anonymous cells                 |
+| Reset cycle            | No reset (taken by faster runner) | Weekly reset                         |
+| Feature flag           | Always enabled                    | `TERRITORY_CAPTURE_ENABLED = false`  |
 
 ADR-0011 documents the deliberate reversals the Turf mechanic makes relative to the original pace-neutral, anonymous-cell design.

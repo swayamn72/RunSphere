@@ -100,11 +100,7 @@ export interface DeviceAuthenticationCapability {
  * inside the OS dialog and comes back as an ordinary success.
  */
 export type DeviceAuthenticationFailure =
-  | 'cancelled'
-  | 'not-enrolled'
-  | 'not-available'
-  | 'lockout'
-  | 'rejected';
+  'cancelled' | 'not-enrolled' | 'not-available' | 'lockout' | 'rejected';
 
 export type DeviceAuthenticationResult =
   | { readonly outcome: 'success' }

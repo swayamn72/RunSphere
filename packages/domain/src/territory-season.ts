@@ -1,4 +1,10 @@
-import { kolkataDate, kolkataDateStart, kolkataCalendarDate, pad2, KOLKATA_OFFSET_MS } from './gamification.js';
+import {
+  kolkataDate,
+  kolkataDateStart,
+  kolkataCalendarDate,
+  pad2,
+  KOLKATA_OFFSET_MS
+} from './gamification.js';
 
 /**
  * Territory weeks, the season ladder, and the concentration guardrails
@@ -38,10 +44,10 @@ export const territoryWeekOf = (instant: Date): string => {
 export const closedTerritoryWeeks = (startsAt: Date, endsAt: Date, now: Date): string[] => {
   const weeks: string[] = [];
   const last = Math.min(endsAt.getTime(), now.getTime());
-  
+
   const startCal = kolkataCalendarDate(startsAt);
   let cursor = Date.UTC(startCal.year, startCal.month - 1, 1) - KOLKATA_OFFSET_MS;
-  
+
   // A season longer than two years is a data error, not a season; the bound
   // stops a bad `ends_at` turning this into an unbounded loop.
   for (let guard = 0; guard < 120 && cursor <= last; guard += 1) {

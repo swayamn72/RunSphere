@@ -34,7 +34,7 @@ const FORCE_PLAIN_TS = new Set([
   // model, and ActivityScreens.tsx imports from both. Same two patterns as
   // above: without this the native file shadows the model and the transitions
   // come back undefined.
-  'run-verification',
+  'run-verification'
 ]);
 
 const originalResolveRequest = config.resolver?.resolveRequest;
@@ -43,7 +43,7 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (moduleName === 'h3-js') {
     return {
       type: 'sourceFile',
-      filePath: path.resolve(__dirname, 'src/shims/h3-js.js'),
+      filePath: path.resolve(__dirname, 'src/shims/h3-js.js')
     };
   }
 
@@ -57,7 +57,7 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
       );
       return {
         type: 'sourceFile',
-        filePath: path.join(resolvedDir, `${baseName}.ts`),
+        filePath: path.join(resolvedDir, `${baseName}.ts`)
       };
     }
   }

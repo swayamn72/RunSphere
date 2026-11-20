@@ -25,7 +25,6 @@ import { PermissionCard, PrimaryButton, StepHeader } from '../components/primiti
 import { useAppStyles } from '../components/styles';
 import appLogo from '../../assets/logo.png';
 
-
 type AuthStatus = 'idle' | 'loading' | 'error';
 
 export function Onboarding({

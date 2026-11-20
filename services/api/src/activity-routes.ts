@@ -32,7 +32,8 @@ import { chunkHash } from './activity.js';
 
 const rawTraceRetentionInterval = '30 days';
 
-export type ActivityState = 'received' | 'validating' | 'accepted' | 'rejected' | 'derived' | 'deleted';
+export type ActivityState =
+  'received' | 'validating' | 'accepted' | 'rejected' | 'derived' | 'deleted';
 export type ActivityRow = {
   id: string;
   status: ActivityState;
@@ -188,9 +189,7 @@ export const registerActivityRoutes = ({ routes, database, authSecret }: Activit
         return reply
           .code(201)
           .send({ ...insert.rows[0], ...verificationResponse({ ...echo } as ActivityRow) });
-      const current = await database.query<
-        ActivityRow & { request_fingerprint: string }
-      >(
+      const current = await database.query<ActivityRow & { request_fingerprint: string }>(
         `SELECT id, status, request_fingerprint, ${activityVerificationColumns}
          FROM activity_submissions WHERE account_id = $1 AND idempotency_key = $2`,
         [accountId, key]
@@ -365,9 +364,7 @@ export const registerActivityRoutes = ({ routes, database, authSecret }: Activit
       });
       if (activity === undefined) return reply.code(404).send({ message: 'Activity not found' });
       if (activity === 'conflict')
-        return reply
-          .code(409)
-          .send({ message: 'Finalize request conflicts with activity state' });
+        return reply.code(409).send({ message: 'Finalize request conflicts with activity state' });
       if (activity === null)
         return reply
           .code(400)

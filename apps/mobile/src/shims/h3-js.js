@@ -13,11 +13,11 @@ const stub = new Proxy(
       return () => {
         throw new Error(
           `h3-js is not available in React Native. ` +
-          `'${String(prop)}' must only be called server-side. ` +
-          `Check your import tree — a domain utility using H3 was imported in the mobile bundle.`
+            `'${String(prop)}' must only be called server-side. ` +
+            `Check your import tree — a domain utility using H3 was imported in the mobile bundle.`
         );
       };
-    },
+    }
   }
 );
 

@@ -98,13 +98,15 @@ Before the runner starts, they are shown a suggested running loop on the map. Th
 
 Two controls are shown beneath the map:
 
-**Distance slider / input:**  
+**Distance slider / input:**
+
 - Shows current suggested distance (e.g. "3.2 km").
 - Runner can drag or tap +/− to reduce or increase the distance.
 - Minimum: 1 km. Maximum: 10 km.
 - When adjusted, the map redraws the loop shape to match the new distance target. The new loop is fetched from the server (or generated locally from cached path data).
 
-**Time input:**  
+**Time input:**
+
 - Runner can optionally type or select a target time (e.g. "I have 30 minutes").
 - The system recalculates the distance based on a default pace estimate (e.g. 6 min/km for a moderate run).
 - Distance control updates to reflect the recalculated distance.

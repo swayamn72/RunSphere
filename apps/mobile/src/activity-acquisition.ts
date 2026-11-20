@@ -18,7 +18,9 @@ export const startAcquisition = (startedAtMs: number): AcquisitionState => ({
 });
 
 export const acquisitionAcceptsFix = (sample: LocationSample): boolean =>
-  sample.accuracy !== null && sample.accuracy >= 0 && sample.accuracy <= (IS_DEV ? 1000 : MAX_SAMPLE_ACCURACY_METERS);
+  sample.accuracy !== null &&
+  sample.accuracy >= 0 &&
+  sample.accuracy <= (IS_DEV ? 1000 : MAX_SAMPLE_ACCURACY_METERS);
 
 export const advanceAcquisition = (
   state: AcquisitionState,

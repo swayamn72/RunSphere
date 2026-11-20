@@ -6,67 +6,67 @@
 
 ## Product context (Read first — before touching any code)
 
-| File | What it tells you | Time to read |
-|------|-------------------|--------------|
-| [`product.md`](product.md) | What the app is, who it is for, the full core loop, route suggestions, quests, territory summary, and all non-states the UI must handle | 10 min |
-| [`gameplay.md`](gameplay.md) | All gamification rules: progression, challenges, clubs, leaderboards, territory, mascot guidance, mobile tab structure | 15 min |
-| [`safety-and-privacy.md`](safety-and-privacy.md) | Every privacy invariant, consent model, location handling rule, social surface privacy guard, and safety contact design | 10 min |
-| [`territory-guide.md`](territory-guide.md) | Plain-English step-by-step explanation of both territory mechanics — Turf enclosure claims (H3 carving, effort grace, monthly season, Ghost Race) and H3 cell seasons | 8 min |
-| [`map-ux.md`](map-ux.md) | Full spec for the live-run map (path trace, auto-follow, relocation button, zoom, Ghost Race ghost layer) and the route suggestion preview screen | 6 min |
-| [`screens.md`](screens.md) | **Screen-by-screen UX spec for every tab and flow** — onboarding (6 screens), Turf tab, Home tab, Explore tab, live running screen, Play tab, Clubs tab, You tab, post-run flow, push notifications | 12 min |
+| File                                             | What it tells you                                                                                                                                                                                   | Time to read |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| [`product.md`](product.md)                       | What the app is, who it is for, the full core loop, route suggestions, quests, territory summary, and all non-states the UI must handle                                                             | 10 min       |
+| [`gameplay.md`](gameplay.md)                     | All gamification rules: progression, challenges, clubs, leaderboards, territory, mascot guidance, mobile tab structure                                                                              | 15 min       |
+| [`safety-and-privacy.md`](safety-and-privacy.md) | Every privacy invariant, consent model, location handling rule, social surface privacy guard, and safety contact design                                                                             | 10 min       |
+| [`territory-guide.md`](territory-guide.md)       | Plain-English step-by-step explanation of both territory mechanics — Turf enclosure claims (H3 carving, effort grace, monthly season, Ghost Race) and H3 cell seasons                               | 8 min        |
+| [`map-ux.md`](map-ux.md)                         | Full spec for the live-run map (path trace, auto-follow, relocation button, zoom, Ghost Race ghost layer) and the route suggestion preview screen                                                   | 6 min        |
+| [`screens.md`](screens.md)                       | **Screen-by-screen UX spec for every tab and flow** — onboarding (6 screens), Turf tab, Home tab, Explore tab, live running screen, Play tab, Clubs tab, You tab, post-run flow, push notifications | 12 min       |
 
 ## What is not done yet
 
-| File | What it tells you |
-|------|-------------------|
+| File                                 | What it tells you                                                                                                                                                                 |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`pending-work.md`](pending-work.md) | Master list of all outstanding work — blockers, important items, planned features, known gaps, and specific files that need changing. **Read this before starting any new task.** |
 
 ## Architecture and infrastructure
 
-| File | What it tells you |
-|------|-------------------|
-| [`architecture.md`](architecture.md) | Monorepo topology, service boundaries, data model summary, GPS quality rules, mapping policy, security posture |
-| [`cost-model.md`](cost-model.md) | ₹3,000/month budget, approval bands, per-category caps, cost gates and fallback actions |
+| File                                 | What it tells you                                                                                                 |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| [`architecture.md`](architecture.md) | Monorepo topology, service boundaries, data model summary, GPS quality rules, mapping policy, security posture    |
+| [`cost-model.md`](cost-model.md)     | ₹3,000/month budget, approval bands, per-category caps, cost gates and fallback actions                           |
 | [`release-plan.md`](release-plan.md) | Milestones (M0–M5), gamification rollout gates, Android v1 release gate table, iOS v1.1 gate, green push protocol |
 
 ## Design
 
-| File | What it tells you |
-|------|-------------------|
+| File                                         | What it tells you                                                                                           |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | [`design-reference.md`](design-reference.md) | What each approved design mockup obligates in implementation (the mockups themselves are in `docs/design/`) |
 
 ## Mascot / character system
 
-| File | What it tells you |
-|------|-------------------|
-| [`mascot-storyline.md`](mascot-storyline.md) | Who the 5 mascot characters are and what product surface each covers |
-| [`mascot-assets.md`](mascot-assets.md) | Technical asset spec — file paths, tone guardrails, `isSafeMascotLabel()` rules |
+| File                                         | What it tells you                                                               |
+| -------------------------------------------- | ------------------------------------------------------------------------------- |
+| [`mascot-storyline.md`](mascot-storyline.md) | Who the 5 mascot characters are and what product surface each covers            |
+| [`mascot-assets.md`](mascot-assets.md)       | Technical asset spec — file paths, tone guardrails, `isSafeMascotLabel()` rules |
 
 ## Detailed implementation status
 
-| File | What it tells you |
-|------|-------------------|
-| [`gamification-detailed-plan.md`](gamification-detailed-plan.md) | Full phase-by-phase status of every gamification milestone (Phase 1–5) — what is done, what is in progress, what is blocked |
-| [`territory-field-study.md`](territory-field-study.md) | Field study protocol for GPS quality, battery, and distance baseline measurements |
-| [`ml.md`](ml.md) | **ML implementation plan** — Anti-cheat Isolation Forest anomaly detector and Quest Recommendation collaborative filtering engine. Includes feature engineering spec, training pipeline, FastAPI microservice design, DB migration (044), and edge case handling (e.g. 10-second runs). Not yet implemented. |
+| File                                                             | What it tells you                                                                                                                                                                                                                                                                                            |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`gamification-detailed-plan.md`](gamification-detailed-plan.md) | Full phase-by-phase status of every gamification milestone (Phase 1–5) — what is done, what is in progress, what is blocked                                                                                                                                                                                  |
+| [`territory-field-study.md`](territory-field-study.md)           | Field study protocol for GPS quality, battery, and distance baseline measurements                                                                                                                                                                                                                            |
+| [`ml.md`](ml.md)                                                 | **ML implementation plan** — Anti-cheat Isolation Forest anomaly detector and Quest Recommendation collaborative filtering engine. Includes feature engineering spec, training pipeline, FastAPI microservice design, DB migration (044), and edge case handling (e.g. 10-second runs). Not yet implemented. |
 
 ## Architecture Decision Records (ADRs)
 
 Each ADR is a permanent record of a specific decision. Read the relevant ADR when you are working in that feature area. **Do not contradict an ADR without creating a new one that explicitly supersedes it.**
 
-| ADR | Decision |
-|-----|----------|
-| [`adr/0001-h3-territory-traversal.md`](adr/0001-h3-territory-traversal.md) | H3 hex grid, resolution, versioned algorithm |
-| [`adr/0002-server-side-privacy-trimming.md`](adr/0002-server-side-privacy-trimming.md) | 200 m server-side trim with provenance record |
-| [`adr/0003-synthetic-gps-test-mode.md`](adr/0003-synthetic-gps-test-mode.md) | Controlled synthetic GPS — cannot substitute field data |
-| [`adr/0004-mmr-place-data.md`](adr/0004-mmr-place-data.md) | Curated MMR data, proxied Nominatim |
-| [`adr/0005-pace-neutral-cosmetic-progression.md`](adr/0005-pace-neutral-cosmetic-progression.md) | XP and levels are cosmetic, never a gameplay advantage |
-| [`adr/0006-weekly-periods-immutable-snapshots.md`](adr/0006-weekly-periods-immutable-snapshots.md) | Asia/Kolkata weekly periods; resets create immutable snapshots |
-| [`adr/0007-opt-in-privacy-minimized-leaderboards.md`](adr/0007-opt-in-privacy-minimized-leaderboards.md) | Global boards are opt-in; friend board is automatic |
-| [`adr/0008-seasonal-territory-weekly-resets.md`](adr/0008-seasonal-territory-weekly-resets.md) | H3 season rules — weekly ownership, capped control-days |
-| [`adr/0009-durable-notifications-first.md`](adr/0009-durable-notifications-first.md) | Durable inbox first; defer Redis and WebSockets |
-| [`adr/0010-cost-governance-approval-bands.md`](adr/0010-cost-governance-approval-bands.md) | Cost approval bands (green/amber/orange/red) |
-| [`adr/0011-enclosure-territory-claims.md`](adr/0011-enclosure-territory-claims.md) | Turf mechanic — named holders, pace-based takeovers, reversal of ADR-0005 and ADR-0008 for this mechanic only |
+| ADR                                                                                                      | Decision                                                                                                      |
+| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| [`adr/0001-h3-territory-traversal.md`](adr/0001-h3-territory-traversal.md)                               | H3 hex grid, resolution, versioned algorithm                                                                  |
+| [`adr/0002-server-side-privacy-trimming.md`](adr/0002-server-side-privacy-trimming.md)                   | 200 m server-side trim with provenance record                                                                 |
+| [`adr/0003-synthetic-gps-test-mode.md`](adr/0003-synthetic-gps-test-mode.md)                             | Controlled synthetic GPS — cannot substitute field data                                                       |
+| [`adr/0004-mmr-place-data.md`](adr/0004-mmr-place-data.md)                                               | Curated MMR data, proxied Nominatim                                                                           |
+| [`adr/0005-pace-neutral-cosmetic-progression.md`](adr/0005-pace-neutral-cosmetic-progression.md)         | XP and levels are cosmetic, never a gameplay advantage                                                        |
+| [`adr/0006-weekly-periods-immutable-snapshots.md`](adr/0006-weekly-periods-immutable-snapshots.md)       | Asia/Kolkata weekly periods; resets create immutable snapshots                                                |
+| [`adr/0007-opt-in-privacy-minimized-leaderboards.md`](adr/0007-opt-in-privacy-minimized-leaderboards.md) | Global boards are opt-in; friend board is automatic                                                           |
+| [`adr/0008-seasonal-territory-weekly-resets.md`](adr/0008-seasonal-territory-weekly-resets.md)           | H3 season rules — weekly ownership, capped control-days                                                       |
+| [`adr/0009-durable-notifications-first.md`](adr/0009-durable-notifications-first.md)                     | Durable inbox first; defer Redis and WebSockets                                                               |
+| [`adr/0010-cost-governance-approval-bands.md`](adr/0010-cost-governance-approval-bands.md)               | Cost approval bands (green/amber/orange/red)                                                                  |
+| [`adr/0011-enclosure-territory-claims.md`](adr/0011-enclosure-territory-claims.md)                       | Turf mechanic — named holders, pace-based takeovers, reversal of ADR-0005 and ADR-0008 for this mechanic only |
 
 ---
 

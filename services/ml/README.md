@@ -2,10 +2,10 @@
 
 Two models, both described in [`docs/ml.md`](../../docs/ml.md):
 
-| Model | What it does | Endpoint |
-| --- | --- | --- |
-| `anticheat` | Isolation Forest over run features. Flags for review; never rejects. | `POST /score` |
-| `quest_recommend` | Implicit-feedback ALS over quest interactions. | `POST /recommend` |
+| Model             | What it does                                                         | Endpoint          |
+| ----------------- | -------------------------------------------------------------------- | ----------------- |
+| `anticheat`       | Isolation Forest over run features. Flags for review; never rejects. | `POST /score`     |
+| `quest_recommend` | Implicit-feedback ALS over quest interactions.                       | `POST /recommend` |
 
 ## What this service does not do
 

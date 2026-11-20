@@ -108,18 +108,18 @@ gate. The substrate is:
 
 ## Service boundaries
 
-| Boundary           | Responsibility                                                                         | Must not do                                                                           |
-| ------------------ | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Client             | Capture with consent, offline queue, local display, explicit sharing controls          | Be authoritative for distance, checkpoints, cells, privacy trimming, or awards.       |
-| Activity ingestion | Authenticate, size-limit, deduplicate, persist encrypted submitted trace               | Publish raw traces or award progress synchronously without validation.                |
-| Validation         | Quality checks, trim route, checkpoint/POI eligibility, H3 traversal, derived outcomes | Infer health status or silently alter policy decisions.                               |
-| Quest catalog      | Versioned POIs/checkpoints, hours/accessibility/source provenance, publication status  | Use unreviewed third-party POIs as a v1 completion dependency.                        |
-| Route suggestion   | Generate loop shapes from curated path data; accept distance/time tuning from user     | Suggest routes through unverified or private land; mandate a specific pace.           |
-| Geo-detection      | Reverse-geocode claim location to city/country tags using cached H3-cell lookup        | Store precise GPS coordinates; use IP address alone as a geo source.                  |
-| Territory (Turf)   | H3-cell carving, effort-grace speed comparison, monthly season reset, leaderboard snapshots | Reject claims based on geography; territory works globally.                      |
-| Recommendation     | Rank configured quest candidates using approved non-pace signals                       | Make irreversible decisions or use raw location history beyond needed coarse context. |
-| Season scoring     | Enrollment/divisions, best-60-minute selection, cell contribution, aggregate ranks     | Expose raw traces or move participants between divisions mid-season.                  |
-| Safety sharing     | Recipient authorization, delayed/coarse transform, automatic expiry                    | Send current/exact coordinates or historic routes.                                    |
+| Boundary           | Responsibility                                                                              | Must not do                                                                           |
+| ------------------ | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Client             | Capture with consent, offline queue, local display, explicit sharing controls               | Be authoritative for distance, checkpoints, cells, privacy trimming, or awards.       |
+| Activity ingestion | Authenticate, size-limit, deduplicate, persist encrypted submitted trace                    | Publish raw traces or award progress synchronously without validation.                |
+| Validation         | Quality checks, trim route, checkpoint/POI eligibility, H3 traversal, derived outcomes      | Infer health status or silently alter policy decisions.                               |
+| Quest catalog      | Versioned POIs/checkpoints, hours/accessibility/source provenance, publication status       | Use unreviewed third-party POIs as a v1 completion dependency.                        |
+| Route suggestion   | Generate loop shapes from curated path data; accept distance/time tuning from user          | Suggest routes through unverified or private land; mandate a specific pace.           |
+| Geo-detection      | Reverse-geocode claim location to city/country tags using cached H3-cell lookup             | Store precise GPS coordinates; use IP address alone as a geo source.                  |
+| Territory (Turf)   | H3-cell carving, effort-grace speed comparison, monthly season reset, leaderboard snapshots | Reject claims based on geography; territory works globally.                           |
+| Recommendation     | Rank configured quest candidates using approved non-pace signals                            | Make irreversible decisions or use raw location history beyond needed coarse context. |
+| Season scoring     | Enrollment/divisions, best-60-minute selection, cell contribution, aggregate ranks          | Expose raw traces or move participants between divisions mid-season.                  |
+| Safety sharing     | Recipient authorization, delayed/coarse transform, automatic expiry                         | Send current/exact coordinates or historic routes.                                    |
 
 Activity creation uses an idempotency key; later activity mutations use the stable activity ID plus a Bearer access token. Activity processing is asynchronous and stateful (`received → validating → accepted/rejected → derived`). The mobile sync coordinator uploads bounded chunks using canonical-JSON SHA-256 values, queries `/v1/activities/:activityId/sync?expectedChunkCount=N` after interruption, retries only returned sequences, then finalizes with the SHA-256 of sequence-ordered chunk checksums. The client can show pending results but must reconcile from the server outcome; a same-payload chunk replay is `204`, a conflicting sequence is `409`, and missing chunks remain `received` with safe validation errors.
 

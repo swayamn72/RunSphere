@@ -78,13 +78,7 @@ export const registerSafetyRoutes = ({ routes, database, authSecret }: SafetyRou
           privacyZoneRadiusMeters
         ]
       );
-      await audit(
-        database,
-        accountId,
-        'privacy_zone.created',
-        'privacy_zone',
-        result.rows[0]!.id
-      );
+      await audit(database, accountId, 'privacy_zone.created', 'privacy_zone', result.rows[0]!.id);
       return reply.code(201).send({
         id: result.rows[0]!.id,
         name: request.body.name,

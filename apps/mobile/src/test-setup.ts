@@ -10,4 +10,3 @@ if (typeof require !== 'undefined' && require.extensions) {
     module.exports = 1;
   };
 }
-

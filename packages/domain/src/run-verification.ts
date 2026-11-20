@@ -78,8 +78,7 @@ export const RUN_VERIFICATION_METHODS: readonly RunVerificationMethod[] = [
 ];
 
 export const isRunVerificationMethod = (value: unknown): value is RunVerificationMethod =>
-  typeof value === 'string' &&
-  RUN_VERIFICATION_METHODS.includes(value as RunVerificationMethod);
+  typeof value === 'string' && RUN_VERIFICATION_METHODS.includes(value as RunVerificationMethod);
 
 /**
  * A verification as it travels with a run.

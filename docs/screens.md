@@ -60,13 +60,13 @@ Shown once, in sequence. Cannot be skipped except where noted. After completion,
 - **Grid layout:** 5 mascot cards, 2–3 columns
 - **Each card:** illustrated mascot + name + one-line personality
 
-| Mascot | One-liner |
-|---|---|
-| Loop | Steady. Calm. Guides and explains. |
-| Rho | Celebrates consistency. Shows up every day. |
-| Mira | Curious. Loves exploring new routes. |
-| Coda | Competitive. Loves a challenge. |
-| Bram | Strategic. Lives for territory wars. |
+| Mascot | One-liner                                   |
+| ------ | ------------------------------------------- |
+| Loop   | Steady. Calm. Guides and explains.          |
+| Rho    | Celebrates consistency. Shows up every day. |
+| Mira   | Curious. Loves exploring new routes.        |
+| Coda   | Competitive. Loves a challenge.             |
+| Bram   | Strategic. Lives for territory wars.        |
 
 - **Selection:** Tap a card to select (lime border). Tap again to deselect and pick another.
 - **"Pick later" link** at bottom — skips, defaults to Loop. Changeable in You → Profile later.
@@ -100,12 +100,14 @@ Shown once, in sequence. Cannot be skipped except where noted. After completion,
 **Map style:** Dark vector basemap. Streets: slightly lighter grey lines. Buildings: very subtle outlines. Parks: dark green tint.
 
 **Territory polygons:**
+
 - Semi-transparent fill (70% opacity) in the holder's assigned colour
 - Solid 2px outline in the same colour, 100% opacity
 - Colours assigned deterministically from a 32-colour curated palette — same runner always gets the same colour
 - Your own territory: always **lime green** (#AEEF34), 3px outline, rendered above all other polygons in z-order
 
 **Mascot avatar pins:**
+
 - Circular pins at the centroid of each claim polygon
 - Holder's chosen mascot illustration inside the circle
 - Your own pins: subtle 2-second pulse ring animation
@@ -265,6 +267,7 @@ Shown if user has ≥1 territory claim this season:
 The ⚠ warning appears if any carve attempt (successful or failed) happened since last app open. Tapping the card → jumps to Turf, highlights the affected claim.
 
 No claims yet:
+
 ```
 [Bram mascot]
 "The city is wide open. Run your first loop to claim some ground."
@@ -316,6 +319,7 @@ Three cards, swipeable: Short, Medium, Long.
 ```
 
 Each card:
+
 - Small map thumbnail with the route polyline drawn on it
 - Distance and estimated time
 - Whether the route passes near existing territory (coloured segments)
@@ -323,6 +327,7 @@ Each card:
 Tapping a card → the map below updates to show that route's loop.
 
 **Tuning controls below the carousel:**
+
 ```
 Distance:  [─────●────────]  2.1 km    [-]  [+]
 
@@ -356,6 +361,7 @@ Run the full Worli Sea Face promenade
 Tapping "Preview on map →": full-screen map with checkpoint markers. "Accept quest" adds it as an overlay to the next run.
 
 No quests available:
+
 ```
 [Mira mascot]
 "No quests near you right now. Try a free run and explore."
@@ -376,6 +382,7 @@ Full-screen MapLibre. Dark basemap. Same visual language as Turf tab.
 **Camera:** Auto-follow. Runner stays in the lower-third of the screen. Camera rotates to match heading direction. Manual pan → auto-follow pauses, relocation button becomes highlighted.
 
 **Right-edge controls (always visible):**
+
 ```
 [+]  zoom in
 [−]  zoom out
@@ -385,6 +392,7 @@ Full-screen MapLibre. Dark basemap. Same visual language as Turf tab.
 **If route guide active:** Dashed white polyline shows the suggested loop. Static from run start — does not update.
 
 **If Ghost Race active:**
+
 - Silver/white polyline advances along ghost trace at holder's original pace
 - Translucent ghost avatar icon at the front of the ghost polyline
 - **Live comparison card** (top of screen):
@@ -406,6 +414,7 @@ Full-screen MapLibre. Dark basemap. Same visual language as Turf tab.
 ```
 
 GPS status:
+
 - 🟢 ≤50m accuracy
 - 🟡 50–100m (flagged samples, run continues)
 - 🔴 >100m or no fix (rejected samples, non-alarming toast: "GPS signal is weak — your route is still recording.")
@@ -417,6 +426,7 @@ Pause → freezes recording. A "Resume" button replaces the map. Paused time not
 2-second calculation animation after tapping Stop.
 
 **Loop detected:**
+
 ```
 Loop detected ✓
 
@@ -429,6 +439,7 @@ Speed:           3.22 m/s average
 ```
 
 **Loop overlaps existing territory:**
+
 ```
 ⚠ This loop overlaps 2 existing claims
   · 6,200 m² of Priya K.'s ground (Bandra)
@@ -439,6 +450,7 @@ Checking now...
 ```
 
 After server validation (3–8 seconds):
+
 ```
 Results
 
@@ -453,6 +465,7 @@ Results
 ```
 
 **No loop detected:**
+
 ```
 No loop this time
 
@@ -517,6 +530,7 @@ Your display name will be visible to everyone.
 ```
 
 Once joined:
+
 ```
 Global Board — This Week
 #1,204  You  ·  104 min
@@ -671,22 +685,23 @@ While you're running, Mum sees:
 
 All 12 notification types the worker must implement.
 
-| ID | Trigger | Message copy | Tap action |
-|---|---|---|---|
-| `CARVE_SUCCESS` | Your territory carved | "[Name] ran through your ground in [area]. They took [Xm²]. You still hold [Ym²]." | Turf → highlight claim |
-| `CARVE_DEFENDED` | Carve attempt failed | "[Name] tried to take your ground in [area]. They weren't fast enough. Your claim stands." | Turf → highlight claim |
-| `GHOST_INCOMING` | Ghost Race started on your claim | "[Name] is racing your ghost right now." | Turf → highlight claim |
-| `WEEKLY_RANK` | Monday rank snapshot | "Week summary: Rank #[N] in [City] · [Xm²] held." | Turf → leaderboard |
-| `SEASON_ENDING_3D` | 3 days before reset | "Season ends in 3 days. You hold rank #[N] with [Xm²]. Keep running." | Turf |
-| `SEASON_ENDED` | Monthly reset completed | "Season ended. Final rank: #[N] in [City]. Peak: [Xm²]. New season starts now." | Turf → season recap |
-| `QUEST_AVAILABLE` | New quest assigned | "New quest near you: [Name] · [XP] XP" | Explore → quest |
-| `QUEST_COMPLETE` | Quest validated | "[Quest Name] — done. +[XP] XP." | Home → XP |
-| `CHALLENGE_RECEIVED` | 1v1 invite received | "[Name] challenged you. [N]-day battle. Active minutes. Accept?" | Play → challenge |
-| `CHALLENGE_WON` | 1v1 ended, you won | "You beat [Name]. [X] min vs [Y] min." | Play |
-| `CHALLENGE_LOST` | 1v1 ended, you lost | "[Name] edged you. [X] min vs [Y] min. Rematch?" | Play |
-| `STREAK` | Consistency milestone | "[N] runs in a row. Rho is watching." | Home |
+| ID                   | Trigger                          | Message copy                                                                               | Tap action             |
+| -------------------- | -------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------- |
+| `CARVE_SUCCESS`      | Your territory carved            | "[Name] ran through your ground in [area]. They took [Xm²]. You still hold [Ym²]."         | Turf → highlight claim |
+| `CARVE_DEFENDED`     | Carve attempt failed             | "[Name] tried to take your ground in [area]. They weren't fast enough. Your claim stands." | Turf → highlight claim |
+| `GHOST_INCOMING`     | Ghost Race started on your claim | "[Name] is racing your ghost right now."                                                   | Turf → highlight claim |
+| `WEEKLY_RANK`        | Monday rank snapshot             | "Week summary: Rank #[N] in [City] · [Xm²] held."                                          | Turf → leaderboard     |
+| `SEASON_ENDING_3D`   | 3 days before reset              | "Season ends in 3 days. You hold rank #[N] with [Xm²]. Keep running."                      | Turf                   |
+| `SEASON_ENDED`       | Monthly reset completed          | "Season ended. Final rank: #[N] in [City]. Peak: [Xm²]. New season starts now."            | Turf → season recap    |
+| `QUEST_AVAILABLE`    | New quest assigned               | "New quest near you: [Name] · [XP] XP"                                                     | Explore → quest        |
+| `QUEST_COMPLETE`     | Quest validated                  | "[Quest Name] — done. +[XP] XP."                                                           | Home → XP              |
+| `CHALLENGE_RECEIVED` | 1v1 invite received              | "[Name] challenged you. [N]-day battle. Active minutes. Accept?"                           | Play → challenge       |
+| `CHALLENGE_WON`      | 1v1 ended, you won               | "You beat [Name]. [X] min vs [Y] min."                                                     | Play                   |
+| `CHALLENGE_LOST`     | 1v1 ended, you lost              | "[Name] edged you. [X] min vs [Y] min. Rematch?"                                           | Play                   |
+| `STREAK`             | Consistency milestone            | "[N] runs in a row. Rho is watching."                                                      | Home                   |
 
 **Rules for all notifications:**
+
 - No raw location, route, or activity detail in any message body
 - Sender identity: display name only — never email or phone
 - Blocked users never appear in any notification
@@ -698,14 +713,14 @@ All 12 notification types the worker must implement.
 
 Every screen must handle empty state gracefully. Never show a blank screen.
 
-| Screen | Empty condition | Mascot | Message |
-|---|---|---|---|
-| Turf map | No claims this season | Bram | "The city is wide open. Run your first loop to claim some ground." |
-| Leaderboard — My City | No runners in your city yet | Bram | "No one has claimed ground here yet. Be the first." |
-| Leaderboard — Global | User not on global board | Loop | "Join the global board in the Play tab to see your global rank." |
-| Home — Territory card | No claims | Bram | "The city is wide open. Run your first loop to claim some ground." |
-| Explore — Quests | No quests available | Mira | "No quests near you right now. Try a free run and explore." |
-| Play — Friend board | <2 mutual friends | Coda | "Add friends to see how you stack up. Invite by email." |
-| Clubs | No clubs | Coda | "You're not in any clubs. Create one or join with an invite code." |
-| You — Run history | No runs | Loop | "No runs yet. Start your first run from the Home tab." |
-| You — Achievements | No achievements | Rho | "Your first achievement is one run away." |
+| Screen                | Empty condition             | Mascot | Message                                                            |
+| --------------------- | --------------------------- | ------ | ------------------------------------------------------------------ |
+| Turf map              | No claims this season       | Bram   | "The city is wide open. Run your first loop to claim some ground." |
+| Leaderboard — My City | No runners in your city yet | Bram   | "No one has claimed ground here yet. Be the first."                |
+| Leaderboard — Global  | User not on global board    | Loop   | "Join the global board in the Play tab to see your global rank."   |
+| Home — Territory card | No claims                   | Bram   | "The city is wide open. Run your first loop to claim some ground." |
+| Explore — Quests      | No quests available         | Mira   | "No quests near you right now. Try a free run and explore."        |
+| Play — Friend board   | <2 mutual friends           | Coda   | "Add friends to see how you stack up. Invite by email."            |
+| Clubs                 | No clubs                    | Coda   | "You're not in any clubs. Create one or join with an invite code." |
+| You — Run history     | No runs                     | Loop   | "No runs yet. Start your first run from the Home tab."             |
+| You — Achievements    | No achievements             | Rho    | "Your first achievement is one run away."                          |

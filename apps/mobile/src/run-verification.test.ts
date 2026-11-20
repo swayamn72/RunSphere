@@ -152,7 +152,9 @@ describe('what the card says', () => {
   it('treats a run allowed through unverified as a warning but a pass as not', () => {
     expect(isVerificationWarning(applyDeviceCapability(noLock, now, deviceId))).toBe(true);
     expect(
-      isVerificationWarning(applyAuthenticationResult({ outcome: 'success' }, biometric, now, deviceId))
+      isVerificationWarning(
+        applyAuthenticationResult({ outcome: 'success' }, biometric, now, deviceId)
+      )
     ).toBe(false);
     expect(isVerificationWarning(idleVerificationGate)).toBe(false);
   });

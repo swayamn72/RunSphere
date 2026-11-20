@@ -27,14 +27,14 @@ The approved visual direction is documented in the supplied mobile artifacts, no
 
 ### Explicit non-states
 
-The app must not imply that a season is always available or that every account participate| State                                | Required UI and behavior                                                                                                                                                                |
+The app must not imply that a season is always available or that every account participate| State | Required UI and behavior |
 | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Before first territory season        | Turf tab shows empty map; no rank, no ownership. Banner: "Season starts on [date] — start running to claim ground." |
-| Season live, not enrolled            | Show rules, auto-enrolled status for friend standings, and a run-first alternative. Do not calculate or display a rank.                               |
-| Enrolled but no qualifying time      | Show `0 qualifying minutes today`, explain the daily best-60-minute cap, and invite any run.                                                                                            |
-| No nearby eligible quest / POI issue | Explain why the quest is unavailable, offer a free run and nearby verified alternatives. Never auto-complete a POI-dependent checkpoint from proximity to an unverified place.          |
-| Offline                              | Continue local recording; mark quest and cell results pending server validation and do not present them as final.                                                                       |
-| User is outside any city with active runners | Show empty Turf map. Allow claiming (claims work globally). Show their city's leaderboard once they make their first claim. No "territory unavailable" message — territory is available everywhere. |     |
+| Before first territory season | Turf tab shows empty map; no rank, no ownership. Banner: "Season starts on [date] — start running to claim ground." |
+| Season live, not enrolled | Show rules, auto-enrolled status for friend standings, and a run-first alternative. Do not calculate or display a rank. |
+| Enrolled but no qualifying time | Show `0 qualifying minutes today`, explain the daily best-60-minute cap, and invite any run. |
+| No nearby eligible quest / POI issue | Explain why the quest is unavailable, offer a free run and nearby verified alternatives. Never auto-complete a POI-dependent checkpoint from proximity to an unverified place. |
+| Offline | Continue local recording; mark quest and cell results pending server validation and do not present them as final. |
+| User is outside any city with active runners | Show empty Turf map. Allow claiming (claims work globally). Show their city's leaderboard once they make their first claim. No "territory unavailable" message — territory is available everywhere. | |
 
 ## Route suggestions
 
@@ -47,6 +47,7 @@ A route suggestion is a server-generated running loop shown on the map before a 
 The system generates route suggestions using curated MMR public paths, so the shapes it proposes are safe, publicly accessible, and verified. It never suggests routes through unverified or private land.
 
 The suggestion engine learns from the user's recent history:
+
 - Recent run distances and durations.
 - Completed, skipped, and declined past suggestions.
 - Time of day and typical availability patterns.
@@ -56,13 +57,13 @@ The system never adapts by demanding faster pace. A shorter suggestion is always
 
 ### Suggestion guardrails
 
-| Guardrail | Baseline |
-| --- | --- |
-| Suggestions per session | At most 3 route options shown at once |
-| Distance range | 1–10 km; default new-user suggestion 2–4 km |
-| High-load fallback | If 7-day active minutes ≥150% of the person's trailing 28-day weekly median, default to shortest option |
-| User distance adjustment | Can reduce (or increase, up to a cap) from the suggestion; minimum loop is 1 km |
-| User time adjustment | Can request a target time (e.g. "30 minutes"); system recalculates distance at typical pace estimate |
+| Guardrail                | Baseline                                                                                                |
+| ------------------------ | ------------------------------------------------------------------------------------------------------- |
+| Suggestions per session  | At most 3 route options shown at once                                                                   |
+| Distance range           | 1–10 km; default new-user suggestion 2–4 km                                                             |
+| High-load fallback       | If 7-day active minutes ≥150% of the person's trailing 28-day weekly median, default to shortest option |
+| User distance adjustment | Can reduce (or increase, up to a cap) from the suggestion; minimum loop is 1 km                         |
+| User time adjustment     | Can request a target time (e.g. "30 minutes"); system recalculates distance at typical pace estimate    |
 
 ## Quests
 
@@ -87,14 +88,14 @@ The server, not the client, evaluates a checkpoint against the accepted trace. I
 
 These are conservative initial operating values, not assertions of field performance. They must be instrumented in Milestone 1 and **frozen only after the MMR field study**.
 
-| Guardrail | Initial baseline | Freeze rule |
-| --- | --- | --- |
-| Quest recommendation volume | At most 3 actionable quests per person per local day | Freeze after 4 weeks with ≥50 consenting pilot accounts and a reviewed opt-out/skip rate. |
-| Distance bands | 1–3 km, 3–6 km, 6–10 km | Freeze per run type after 150 completed valid runs or 6 weeks, whichever is later. |
-| Recommended travel distance to start | ≤1.5 km from current coarse location | Freeze after comparing acceptance and start abandonment across ≥100 impressions. |
-| Adaptation inputs | Last 7 days' active minutes, completion/skip feedback, verified opening status, weather severity, and coarse availability; **not** pace ranking | Freeze input set after privacy review and pilot audit. |
-| High-load fallback | If 7-day active minutes are ≥150% of the trailing 28-day weekly median, prefer a shorter route suggestion | Freeze threshold after pilot distribution review. |
-| POI freshness | Revalidate volatile hours/closure data every 30 days; immediately unpublish on confirmed closure report | Freeze only after city data steward validates 95% of sampled records. |
+| Guardrail                            | Initial baseline                                                                                                                                | Freeze rule                                                                               |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Quest recommendation volume          | At most 3 actionable quests per person per local day                                                                                            | Freeze after 4 weeks with ≥50 consenting pilot accounts and a reviewed opt-out/skip rate. |
+| Distance bands                       | 1–3 km, 3–6 km, 6–10 km                                                                                                                         | Freeze per run type after 150 completed valid runs or 6 weeks, whichever is later.        |
+| Recommended travel distance to start | ≤1.5 km from current coarse location                                                                                                            | Freeze after comparing acceptance and start abandonment across ≥100 impressions.          |
+| Adaptation inputs                    | Last 7 days' active minutes, completion/skip feedback, verified opening status, weather severity, and coarse availability; **not** pace ranking | Freeze input set after privacy review and pilot audit.                                    |
+| High-load fallback                   | If 7-day active minutes are ≥150% of the trailing 28-day weekly median, prefer a shorter route suggestion                                       | Freeze threshold after pilot distribution review.                                         |
+| POI freshness                        | Revalidate volatile hours/closure data every 30 days; immediately unpublish on confirmed closure report                                         | Freeze only after city data steward validates 95% of sampled records.                     |
 
 ## Territory seasons
 

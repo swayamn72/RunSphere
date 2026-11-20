@@ -186,7 +186,7 @@ function RunSphereApp() {
     void (async () => {
       try {
         await Promise.all([activityQueue.initialize(), activityRecorder.initialize()]);
-        
+
         if (BackgroundFetch) {
           try {
             const status = await BackgroundFetch.getStatusAsync();

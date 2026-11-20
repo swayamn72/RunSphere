@@ -41,13 +41,13 @@ The expansion ships in gated phases. Every phase is preceded by its gate in
 5. **Route suggestions** — the server proposes a running loop around the user's
    location. The user can adjust total distance or estimated time before accepting.
    See [`product.md`](product.md#route-suggestions) for the full specification.
-5. **Global period leaderboard** — an explicitly opted-in, server-derived board
+6. **Global period leaderboard** — an explicitly opted-in, server-derived board
    over capped pace-neutral points, segmented by period and cohort/division
    where fairness or scale requires it. Entries reveal no location, route,
    activity detail, or live state.
-6. **Scheduled competition** — opt-in event with a published rule version,
+7. **Scheduled competition** — opt-in event with a published rule version,
    eligibility, window, scope, rewards, and dispute period.
-7. **Territory season** — opt-in 6–8 week MMR season with fixed H3 resolution,
+8. **Territory season** — opt-in 6–8 week MMR season with fixed H3 resolution,
    public-space eligibility, division isolation, weekly ownership rounds, and a
    season-long rank ladder.
 

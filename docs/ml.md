@@ -10,9 +10,9 @@
 
 RunSphere uses two ML systems, both of which improve automatically as more runs are recorded:
 
-| System | What it does | Model type |
-|---|---|---|
-| **Anti-Cheat Anomaly Detector** | Identifies GPS-spoofed, vehicle-recorded, or otherwise fraudulent runs | Isolation Forest |
+| System                          | What it does                                                                    | Model type              |
+| ------------------------------- | ------------------------------------------------------------------------------- | ----------------------- |
+| **Anti-Cheat Anomaly Detector** | Identifies GPS-spoofed, vehicle-recorded, or otherwise fraudulent runs          | Isolation Forest        |
 | **Quest Recommendation Engine** | Surfaces quests and unexplored areas most likely to interest each specific user | Collaborative Filtering |
 
 Both are **additive** — they do not replace the existing rule-based validation in `run-integrity.ts`. They run after the rule-based gates, not instead of them.
@@ -61,46 +61,52 @@ The ML model learns from ALL run outcomes — this is how it gets smarter over t
 The following features are extracted per run and stored in `ml_run_features`. No raw coordinates are stored anywhere in this table.
 
 **Kinematic features (speed and movement):**
-| Feature | Description |
-|---|---|
-| `mean_speed_mps` | Average speed in m/s over the accepted GPS points |
-| `max_speed_mps` | Peak speed across any 5-second window |
+
+| Feature          | Description                                                                             |
+| ---------------- | --------------------------------------------------------------------------------------- |
+| `mean_speed_mps` | Average speed in m/s over the accepted GPS points                                       |
+| `max_speed_mps`  | Peak speed across any 5-second window                                                   |
 | `speed_variance` | Variance of the speed distribution — a car has low variance, a runner has high variance |
-| `p95_speed_mps` | 95th percentile speed — catches brief spikes |
-| `speed_skew` | Asymmetry of the speed distribution — runners slow at turns, cars do not |
+| `p95_speed_mps`  | 95th percentile speed — catches brief spikes                                            |
+| `speed_skew`     | Asymmetry of the speed distribution — runners slow at turns, cars do not                |
 
 **Jitter features (GPS signal quality):**
-| Feature | Description |
-|---|---|
-| `mean_horizontal_accuracy_m` | Average reported GPS accuracy in metres |
-| `accuracy_variance` | Variance of accuracy — real runners have consistent signal outdoors |
-| `lateral_deviation_m` | Mean deviation from the smoothed path centre-line — runners zigzag slightly, cars stay in lanes |
-| `signal_loss_gaps` | Number of gaps > 10 seconds in the trace |
+
+| Feature                      | Description                                                                                     |
+| ---------------------------- | ----------------------------------------------------------------------------------------------- |
+| `mean_horizontal_accuracy_m` | Average reported GPS accuracy in metres                                                         |
+| `accuracy_variance`          | Variance of accuracy — real runners have consistent signal outdoors                             |
+| `lateral_deviation_m`        | Mean deviation from the smoothed path centre-line — runners zigzag slightly, cars stay in lanes |
+| `signal_loss_gaps`           | Number of gaps > 10 seconds in the trace                                                        |
 
 **Cornering and turn features:**
-| Feature | Description |
-|---|---|
-| `mean_turn_rate_deg_per_sec` | How sharply the runner changes direction on average |
-| `max_turn_rate_deg_per_sec` | Sharpest single turn — impossible values indicate a vehicle |
-| `sharp_turn_count` | Number of turns > 90 degrees at > 3 m/s — runners slow for sharp corners, cyclists do not |
+
+| Feature                      | Description                                                                               |
+| ---------------------------- | ----------------------------------------------------------------------------------------- |
+| `mean_turn_rate_deg_per_sec` | How sharply the runner changes direction on average                                       |
+| `max_turn_rate_deg_per_sec`  | Sharpest single turn — impossible values indicate a vehicle                               |
+| `sharp_turn_count`           | Number of turns > 90 degrees at > 3 m/s — runners slow for sharp corners, cyclists do not |
 
 **Loop geometry features:**
-| Feature | Description |
-|---|---|
-| `loop_closure_gap_m` | How close the end-point came to the start (from `detectLoopClaim`) |
-| `loop_area_sqm` | Enclosed area of the detected loop, if any |
-| `loop_perimeter_m` | Perimeter distance of the closed loop |
+
+| Feature               | Description                                                                                                                                     |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `loop_closure_gap_m`  | How close the end-point came to the start (from `detectLoopClaim`)                                                                              |
+| `loop_area_sqm`       | Enclosed area of the detected loop, if any                                                                                                      |
+| `loop_perimeter_m`    | Perimeter distance of the closed loop                                                                                                           |
 | `isoperimetric_ratio` | `(4π × area) / perimeter²` — a perfect circle is 1.0; a long thin loop is near 0. A runner running a natural city block has a predictable range |
 
 **Run meta features:**
-| Feature | Description |
-|---|---|
-| `total_duration_seconds` | Full run duration including warm-up and cool-down |
-| `total_distance_m` | Total distance covered across the whole trace |
-| `accepted_point_fraction` | Share of GPS points that passed the signal quality gates |
-| `hour_of_day` | 0–23 — not used for scoring, but useful for understanding fleet-level patterns |
+
+| Feature                   | Description                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------ |
+| `total_duration_seconds`  | Full run duration including warm-up and cool-down                              |
+| `total_distance_m`        | Total distance covered across the whole trace                                  |
+| `accepted_point_fraction` | Share of GPS points that passed the signal quality gates                       |
+| `hour_of_day`             | 0–23 — not used for scoring, but useful for understanding fleet-level patterns |
 
 **Label (for training):**
+
 - `fraud` — manually flagged by a staff reviewer OR produced a claim that was later reversed by staff
 - `suspicious` — rejected by one or more rule-based gates
 - `legitimate` — accepted and not flagged
@@ -175,6 +181,7 @@ def score(features: RunFeatures):
 **Phase 4 — Continuous Retraining (Monthly)**
 
 A worker job (`services/worker/src/ml-retrain-job.ts`) runs on the 1st of each month:
+
 1. Queries `ml_run_features` for all runs from the last 6 months
 2. POSTs to a training endpoint on the ML microservice
 3. The new model artifact is versioned (e.g., `anticheat_v2.joblib`) and the old one is kept
@@ -203,48 +210,48 @@ Migration file: `infra/postgres/migrations/044_ml_run_features.sql`
 CREATE TABLE ml_run_features (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   activity_submission_id uuid NOT NULL REFERENCES activity_submissions(id) ON DELETE CASCADE,
-  
+
   -- Kinematic
   mean_speed_mps double precision,
   max_speed_mps double precision,
   speed_variance double precision,
   p95_speed_mps double precision,
   speed_skew double precision,
-  
+
   -- Jitter
   mean_horizontal_accuracy_m double precision,
   accuracy_variance double precision,
   lateral_deviation_m double precision,
   signal_loss_gaps integer,
-  
+
   -- Cornering
   mean_turn_rate_deg_per_sec double precision,
   max_turn_rate_deg_per_sec double precision,
   sharp_turn_count integer,
-  
+
   -- Loop geometry
   loop_closure_gap_m double precision,
   loop_area_sqm double precision,
   loop_perimeter_m double precision,
   isoperimetric_ratio double precision,
-  
+
   -- Run meta
   total_duration_seconds integer,
   total_distance_m double precision,
   accepted_point_fraction double precision,
   hour_of_day smallint,
-  
+
   -- Ground truth label for training
   label text NOT NULL DEFAULT 'legitimate'
     CHECK (label IN ('legitimate', 'suspicious', 'fraud')),
   label_source text NOT NULL DEFAULT 'rule_based'
     CHECK (label_source IN ('rule_based', 'staff_review', 'model_flag')),
-  
+
   -- ML model scoring result, written after inference
   ml_anomaly_score double precision,
   ml_model_version text,
   ml_flagged boolean NOT NULL DEFAULT false,
-  
+
   extracted_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -288,6 +295,7 @@ recommendations = model.recommend(user_idx, interactions[user_idx], N=5, filter_
 ```
 
 **API endpoint:** `GET /quests/recommended?accountId=...&lat=...&lng=...`
+
 - Returns up to 5 quest IDs sorted by the recommendation score
 - Filtered by proximity: only quests within 20 km of the user's current location
 - Falls back to proximity-only sorting if the user has no interaction history (cold start)
@@ -304,17 +312,17 @@ The recommendation model **only sees which quests were interacted with, not wher
 
 An agent implementing this should create the following:
 
-| File | Purpose |
-|---|---|
-| `services/ml/src/anticheat/train.py` | Isolation Forest training script |
-| `services/ml/src/anticheat/server.py` | FastAPI inference microservice |
-| `services/ml/src/anticheat/features.py` | Feature extraction logic (no coordinates) |
-| `services/ml/src/recommend/train.py` | Collaborative filtering training script |
-| `services/ml/src/recommend/server.py` | FastAPI recommendation endpoint |
-| `services/worker/src/ml-feature-extractor-job.ts` | Extracts features from accepted activity_submissions |
-| `services/worker/src/ml-retrain-job.ts` | Monthly retrain trigger |
-| `infra/postgres/migrations/044_ml_run_features.sql` | Feature store table |
-| `packages/domain/src/run-integrity.ts` | Add ML score call after existing gates |
+| File                                                | Purpose                                              |
+| --------------------------------------------------- | ---------------------------------------------------- |
+| `services/ml/src/anticheat/train.py`                | Isolation Forest training script                     |
+| `services/ml/src/anticheat/server.py`               | FastAPI inference microservice                       |
+| `services/ml/src/anticheat/features.py`             | Feature extraction logic (no coordinates)            |
+| `services/ml/src/recommend/train.py`                | Collaborative filtering training script              |
+| `services/ml/src/recommend/server.py`               | FastAPI recommendation endpoint                      |
+| `services/worker/src/ml-feature-extractor-job.ts`   | Extracts features from accepted activity_submissions |
+| `services/worker/src/ml-retrain-job.ts`             | Monthly retrain trigger                              |
+| `infra/postgres/migrations/044_ml_run_features.sql` | Feature store table                                  |
+| `packages/domain/src/run-integrity.ts`              | Add ML score call after existing gates               |
 
 ## Key Constraints (Do Not Violate)
 

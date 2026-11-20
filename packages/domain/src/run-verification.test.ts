@@ -33,9 +33,7 @@ describe('run verification trust', () => {
 
   it('names every method in copy that says what happened', () => {
     expect(runVerificationLabel('biometric')).toBe('Confirmed with this phone’s screen lock');
-    expect(runVerificationLabel('device-credential')).toBe(
-      'Confirmed with the device passcode'
-    );
+    expect(runVerificationLabel('device-credential')).toBe('Confirmed with the device passcode');
     expect(runVerificationLabel('unenrolled')).toContain('no screen lock');
     expect(runVerificationLabel('unsupported')).toContain('cannot verify');
   });
@@ -52,9 +50,7 @@ describe('run verification trust', () => {
 describe('run verification freshness', () => {
   it('accepts a verification taken shortly before the run started', () => {
     expect(runVerificationFreshness(at(0), startedAt)).toBe('fresh');
-    expect(runVerificationFreshness(at(RUN_VERIFICATION_MAX_AGE_SECONDS), startedAt)).toBe(
-      'fresh'
-    );
+    expect(runVerificationFreshness(at(RUN_VERIFICATION_MAX_AGE_SECONDS), startedAt)).toBe('fresh');
   });
 
   it('rejects one older than the window, which is no longer about this run', () => {
