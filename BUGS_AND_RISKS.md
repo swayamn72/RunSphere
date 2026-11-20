@@ -12,7 +12,7 @@ Severity: **S1** blocks launch or loses data/security · **S2** a core feature i
 
 ## 1. Functional bugs
 
-### B1 — Users are logged out when several requests hit an expired access token (S1, Confirmed)
+### B1 — ✅ FIXED 2026-11-20 (single-flight refresh, commit f3f0db3) — Users are logged out when several requests hit an expired access token (S1, Confirmed)
 
 - `apps/mobile/src/api-client.ts` `request()`: on 401 each in-flight request calls `this.refresh()`
   independently. There is no single-flight lock.
@@ -25,7 +25,12 @@ Severity: **S1** blocks launch or loses data/security · **S2** a core feature i
 - Fix: a shared in-flight refresh promise in the client, and optionally a short server-side grace
   window for the immediately previous token.
 
-### B2 — XP, levels and weekly consistency are never awarded (S2, Confirmed)
+### B2 — ✅ FIXED 2026-11-20 (worker week-close job; see correction below) — XP, levels and weekly consistency are never awarded (S2, Confirmed)
+
+> **Correction (2026-11-20):** the current week's XP did show, as a live projection. What never
+> happened was persisting _closed_ weeks, so XP and level fell back every Monday. Fixed by a
+> state-driven worker job (`progression_week_close`, migration 047) sharing one implementation with
+> `POST /v1/progression/sync`, rather than a per-activity event.
 
 - XP is written only by `POST /v1/progression/sync` (`progression-routes.ts`).
 - No mobile code calls `syncProgression()` (`HomeScreen.tsx` explicitly avoids it), and the worker has
@@ -34,7 +39,7 @@ Severity: **S1** blocks launch or loses data/security · **S2** a core feature i
 - Fix: award progression server-side when an activity becomes `derived`, via an outbox event the
   worker consumes. The award is already idempotent through `xp_entries.dedupe_key`.
 
-### B3 — The worker loop starves activity processing and has head-of-line failure (S1, Confirmed)
+### B3 — ✅ FIXED 2026-11-20 (isolated jobs, queues drained independently) — The worker loop starves activity processing and has head-of-line failure (S1, Confirmed)
 
 - `services/worker/src/worker.ts` `runWorker()` runs the full `processMaintenance()` (17 jobs,
   including the global-board full recompute) **before every single activity**, then processes at most
@@ -44,7 +49,7 @@ Severity: **S1** blocks launch or loses data/security · **S2** a core feature i
 - Fix: separate the queues from the scheduled jobs. Drain the activity and delivery queues in their
   own loop, run maintenance on a timer, and isolate each job with its own try/catch.
 
-### B4 — The same run can be claimed for territory repeatedly (S2, Confirmed)
+### B4 — ✅ FIXED 2026-11-20 (migration 048 + per-run lock + app filter) — The same run can be claimed for territory repeatedly (S2, Confirmed)
 
 - `territory_claims.activity_id` has no unique constraint (migration 031), and
   `POST /v1/territory/claims` doesn't check for an existing claim from that activity.
@@ -54,6 +59,9 @@ Severity: **S1** blocks launch or loses data/security · **S2** a core feature i
 - Fix: unique partial index on `(activity_id)`, plus an idempotent "already claimed" result.
 
 ### B5 — Two simultaneous claims on empty ground both succeed (S3, Likely)
+
+> **Still open.** M2's per-run lock serialises two submissions of the _same_ run; two _different_
+> runs on the same empty ground can still both claim.
 
 - The claim transaction serialises only through `SELECT … FOR UPDATE` on _existing_ overlapping
   claims. With none, two concurrent requests both insert overlapping claims.
@@ -83,25 +91,25 @@ Severity: **S1** blocks launch or loses data/security · **S2** a core feature i
 - Fix: a minimal web page (or Android App Links / deep links) that POSTs the token to the existing
   `/complete` endpoints.
 
-### B8 — A run with zero points stays in `validating` forever (S3, Confirmed)
+### B8 — ✅ FIXED 2026-11-20 — A run with zero points stays in `validating` forever (S3, Confirmed)
 
 - `services/api/src/activity.ts` `processActivity`: `if (points.length === 0) return;` exits without a
   status change, and the worker then marks the outbox event processed.
 - Fix: transition to `rejected` with reason `no_points`.
 
-### B9 — Activity processing is not transactional (S3, Confirmed)
+### B9 — ✅ FIXED 2026-11-20 — Activity processing is not transactional (S3, Confirmed)
 
 - Four separate writes. `activity_validation_runs` has no `ON CONFLICT`, so a retry after a partial
   failure duplicates rows. A crash between writes leaves derivations without a status change.
 - Fix: wrap `processActivity` in `withTransaction`.
 
-### B10 — The weekly goal week uses UTC, not Asia/Kolkata (S3, Confirmed)
+### B10 — ✅ FIXED 2026-11-20 — The weekly goal week uses UTC, not Asia/Kolkata (S3, Confirmed)
 
 - `quest-routes.ts weeklyGoalResponse` uses `date_trunc('week', now())`. ADR-0006 mandates
   Asia/Kolkata weeks, and other modules (progression, territory ranks) use Kolkata. Runs between
   Sunday 18:30 and 24:00 UTC count toward the wrong week.
 
-### B11 — The Ghost Race limit can be exceeded (S4, Confirmed)
+### B11 — ✅ FIXED 2026-11-20 — The Ghost Race limit can be exceeded (S4, Confirmed)
 
 - `territory-claim-routes.ts` counts views and then inserts in a separate statement. Concurrent
   requests exceed 3/hour. The docs claim DB-level enforcement.
@@ -163,9 +171,9 @@ load `.env`.
 | R1  | ✅ FIXED 2026-11-20. `scripts/seed-admin.mjs` used to hardcode an admin password and a personal email. It now reads everything from `SEED_ADMIN_*` env vars, refuses `NODE_ENV=production` without `SEED_ALLOW_PRODUCTION=true`, never resets an existing password unless asked, and masks addresses in output. | —             | —          | `pnpm seed:admin`                                                    |
 | R2  | ML `/score` and `/recommend` have no authentication, though the API sends `ML_SCORER_TOKEN`                                                                                                                                                                                                                     | S2 if exposed | Confirmed  | `services/ml/src/*/server.py`                                        |
 | R3  | Access tokens can't be revoked: valid up to 15 min after logout, suspension or deletion. `requireAccount` never checks the account state.                                                                                                                                                                       | S3            | Confirmed  | Acceptable with short TTLs. Sanctions are rechecked at refresh only. |
-| R4  | Auth rate limiting is in-memory and per-process. No `trustProxy`, so behind a load balancer every client shares one IP and registration is capped at 10/min **globally**.                                                                                                                                       | S2 at deploy  | Likely     | `auth-routes.ts allowAuthAttempt`, `app.ts` Fastify options          |
+| R4  | ✅ FIXED 2026-11-20. Auth rate limiting is in-memory and per-process. No `trustProxy`, so behind a load balancer every client shares one IP and registration is capped at 10/min **globally**.                                                                                                                  | S2 at deploy  | Likely     | `auth-routes.ts allowAuthAttempt`, `app.ts` Fastify options          |
 | R5  | No general rate limiting on expensive endpoints (claims run H3 + PostGIS synchronously, leaderboards, clusters)                                                                                                                                                                                                 | S2            | Confirmed  | No `@fastify/rate-limit`                                             |
-| R6  | Login timing allows user enumeration: no dummy argon2 verify when the email is unknown                                                                                                                                                                                                                          | S4            | Confirmed  | `auth-routes.ts /v1/auth/login`                                      |
+| R6  | ✅ FIXED 2026-11-20. Login timing allows user enumeration: no dummy argon2 verify when the email is unknown                                                                                                                                                                                                     | S4            | Confirmed  | `auth-routes.ts /v1/auth/login`                                      |
 | R7  | `GET /satellite.json` publishes an Esri World Imagery style. Production use requires an Esri licence and contradicts the "approved provider only" map policy.                                                                                                                                                   | S2 (legal)    | Confirmed  | `services/api/src/app.ts`                                            |
 | R8  | ✅ FIXED 2026-11-20. `DELETE /v1/account` now requires the current password (ADR-0012).                                                                                                                                                                                                                         | —             | —          |                                                                      |
 | R9  | Docker images are single-stage, run as root, and ship dev dependencies and full sources                                                                                                                                                                                                                         | S3            | Confirmed  | `Dockerfile.api`, `Dockerfile.worker`                                |
