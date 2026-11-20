@@ -51,6 +51,7 @@ import { LoopCallout } from '../components/LoopCallout';
 import { PrimaryButton } from '../components/primitives';
 import { useLoopGuidance } from '../components/useLoopGuidance';
 import type { LoopGuidanceCue } from '../loop-guidance';
+import { rhoCue } from '../rho-coach';
 import { useAppStyles } from '../components/styles';
 import { useAppTheme } from '../theme/theme';
 import { MapSurface } from '../maps/MapSurface';
@@ -667,7 +668,7 @@ export function ActivityRecording({
               { color: loop.ready ? tokens.status.success : tokens.status.warning }
             ]}
           >
-            {loop.ready ? 'Loop ready to close' : `Back to start · ${Math.round(loop.gap)} m`}
+            {`Rho: ${rhoCue({ moment: 'mid-run', loopReady: loop.ready, loopGapMetres: loop.gap })?.message ?? ''}`}
           </Text>
         )}
         <Text style={styles.eyebrow}>
