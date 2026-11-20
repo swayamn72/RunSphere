@@ -7,14 +7,19 @@
 
 ## Tab Structure
 
-The app has **6 tabs**, always visible in the bottom navigation bar.
+The app has **5 tabs**, always visible in the bottom navigation bar (decided 2026-11-20; defined in
+`apps/mobile/src/navigation/types.ts`).
 
 ```
-[ Turf ] [ Home ] [ Explore ] [ Play ] [ Clubs ] [ You ]
-   1        2         3          4        5         6
+[ Home ] [ Map ] [ Run ] [ Social ] [ Profile ]
+   1       2       3        4          5
 ```
 
-**Tab 1 (Turf) is the default tab.** The app opens to Turf every time. No splash screen, no onboarding re-entry, no home dashboard as the first view.
+**Home is the default tab.** The app opens to Home every time, and a sign-out returns there. No
+splash screen and no onboarding re-entry.
+
+The per-surface sections below keep their original names. Where they now live: **Turf → Map**,
+**Explore and Play → opened over Home**, **Clubs → Social/Profile**, **You → Profile**.
 
 Tab bar items: icon + label. Active tab uses lime accent colour (#AEEF34). Inactive tabs use muted grey.
 
@@ -22,7 +27,7 @@ Tab bar items: icon + label. Active tab uses lime accent colour (#AEEF34). Inact
 
 ## Onboarding — First Launch Only
 
-Shown once, in sequence. Cannot be skipped except where noted. After completion, the user lands directly on the Turf tab.
+Shown once, in sequence. Cannot be skipped except where noted. After completion, the user lands directly on the Home tab.
 
 ### Screen O1: Welcome
 

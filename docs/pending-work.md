@@ -48,7 +48,13 @@ This document is the single source of truth for what work is not yet done. An ag
 - `PlayScreen.tsx` contains no "join board" button and no friend-scope opt-in
   affordance. Mutual friendship alone puts two runners on each other's board.
 
-### 1.5 App.tsx: Default Tab Must Be Turf, Not Home — ✅ DONE (2026-09-12)
+### 1.5 Landing tab — ✅ DECIDED: Home (2026-11-20)
+
+> **Superseded.** The text below records the September state. On 2026-11-20 the product decision
+> became **Home** as the landing tab, with bar order `Home · Map · Run · Social · Profile` (Turf is
+> the Map tab). `navigation/types.ts` and `tab-style.test.ts` already match.
+
+### (historical) App.tsx: Default Tab Must Be Turf, Not Home — 2026-09-12
 - Bar order in `src/navigation/types.ts` is now
   `['Turf', 'Home', 'Explore', 'Play', 'Clubs', 'You']`, matching `screens.md`.
 - The landing tab is stated once as `landingTab` in that file. `App.tsx` reads

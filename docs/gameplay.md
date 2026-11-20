@@ -149,8 +149,13 @@ defined read/write gates and the forecasted overage has the required approval.
 
 ## Mobile information architecture
 
-The six-tab structure, in bar order. Turf is Tab 1 and the tab every launch
-opens on — see [`screens.md`](screens.md) for the full per-tab specification:
+> **Current bar (decided 2026-11-20):** five tabs — `Home · Map · Run · Social · Profile` — and
+> **Home** is the tab every launch opens on (`apps/mobile/src/navigation/types.ts`). Turf lives in
+> **Map**; Explore and Play surfaces open over Home; Clubs and You live under Social and Profile.
+> The six-tab list below is the original information architecture and is kept for the per-surface
+> content it describes, not for bar order.
+
+The original six-tab structure — see [`screens.md`](screens.md) for the full per-surface specification:
 
 - **Turf** — enclosure territory claims map; held ground, avatar pins, time to beat.
 - **Home** — start run, route suggestion card, weekly consistency, progression summary, pending
