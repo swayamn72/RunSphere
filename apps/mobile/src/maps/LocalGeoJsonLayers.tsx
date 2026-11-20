@@ -6,6 +6,7 @@ import { decimateCoordinates } from './map-model';
 
 export interface LocalGeoJsonLayer {
   readonly id: string;
+  readonly opacity?: number;
   readonly data: FeatureCollection<Geometry, GeoJsonProperties>;
   /**
    * `fill` draws held territory cells (milestone 4.5). A cell is a shape and
@@ -23,7 +24,16 @@ export interface LocalGeoJsonLayer {
    * and somebody else's run — and three lines a runner cannot tell apart at a
    * glance is worse than two.
    */
-  readonly kind: 'line' | 'circle' | 'fill' | 'guide' | 'ghost' | 'ghost-head';
+  readonly kind:
+    | 'line'
+    | 'circle'
+    | 'fill'
+    | 'guide'
+    | 'ghost'
+    | 'ghost-head'
+    | 'run-glow'
+    | 'loop-return'
+    | 'loop-ready';
 }
 
 const decimateGeometry = (geometry: Geometry): Geometry => {
@@ -69,7 +79,30 @@ export function LocalGeoJsonLayers({
     <>
       {rendererLayers.map((layer) => (
         <GeoJSONSource key={layer.id} id={`${layer.id}-source`} data={layer.data}>
-          {layer.kind === 'fill' ? (
+          {layer.kind === 'run-glow' ? (
+            <Layer
+              id={`${layer.id}-layer`}
+              type="line"
+              paint={{
+                'line-color': tokens.route.line,
+                'line-width': 13,
+                'line-blur': 5,
+                'line-opacity': 0.6
+              }}
+            />
+          ) : layer.kind === 'loop-return' || layer.kind === 'loop-ready' ? (
+            <Layer
+              id={`${layer.id}-layer`}
+              type="line"
+              paint={{
+                'line-color': layer.kind === 'loop-ready' ? '#53ffab' : '#f8c969',
+                'line-width': 4,
+                'line-dasharray': [1.2, 1.8],
+                'line-opacity': layer.opacity ?? 1,
+                'line-opacity-transition': { duration: 750, delay: 0 }
+              }}
+            />
+          ) : layer.kind === 'fill' ? (
             <Layer
               id={`${layer.id}-layer`}
               type="fill"

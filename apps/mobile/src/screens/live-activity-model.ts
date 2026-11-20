@@ -1,5 +1,6 @@
 import type { FeatureCollection, GeoJsonProperties, Geometry, Position } from 'geojson';
 import type { LocalGeoJsonLayer } from '../maps/LocalGeoJsonLayers';
+import { DEFAULT_CLAIM_RULE, haversineMetres, ringAreaSqm } from '@runsphere/domain';
 import type {
   ActivitySession,
   RecordedLocationSample,
@@ -69,6 +70,42 @@ export const liveRouteLayers = (
     features: [{ type: 'Feature', properties: {}, geometry }]
   };
   return [{ id: 'private-live-route', kind: 'line', data }];
+};
+
+export const liveLoopFeedback = (samples: readonly RecordedLocationSample[]) => {
+  let start = samples.length;
+  while (start > 0) {
+    const sample = samples[start - 1]!;
+    if (!usable(sample)) break;
+    start -= 1;
+    if (sample.segmentBreak || sample.disposition !== 'usable') break;
+  }
+  const segment = samples.slice(start);
+  const first = segment[0];
+  const last = segment.at(-1);
+  if (!first || !last || segment.length < 4) return undefined;
+  const area = ringAreaSqm(segment.map(({ longitude, latitude }) => [longitude, latitude]));
+  if (area < DEFAULT_CLAIM_RULE.minAreaSqm || area > DEFAULT_CLAIM_RULE.maxAreaSqm)
+    return undefined;
+  const gap = haversineMetres(first, last);
+  const ready =
+    gap <= DEFAULT_CLAIM_RULE.closeWithinMetres &&
+    Date.parse(last.recordedAt) > Date.parse(first.recordedAt);
+  const layer: LocalGeoJsonLayer = {
+    id: 'private-loop-return',
+    kind: ready ? 'loop-ready' : 'loop-return',
+    data: {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          properties: {},
+          geometry: { type: 'LineString', coordinates: [coordinate(last), coordinate(first)] }
+        }
+      ]
+    }
+  };
+  return { layer, ready, gap };
 };
 
 export const latestUsableSample = (

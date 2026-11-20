@@ -181,9 +181,10 @@ export const RHO_TURF_TIP = 'Close a loop around at least 5,000 m² to claim ope
 const DAY_MS = 86_400_000;
 const IST_OFFSET_MS = 19_800_000;
 
-export const seasonCountdown = (now: Date): string => {
+export const seasonDaysLeft = (now: Date): number => {
   const local = new Date(now.getTime() + IST_OFFSET_MS);
   const nextMonth = Date.UTC(local.getUTCFullYear(), local.getUTCMonth() + 1, 1);
-  const days = Math.ceil((nextMonth - local.getTime()) / DAY_MS);
-  return `SEASON 1  RESETS IN ${days}D`;
+  return Math.ceil((nextMonth - local.getTime()) / DAY_MS);
 };
+
+export const seasonCountdown = (now: Date): string => `SEASON 1  RESETS IN ${seasonDaysLeft(now)}D`;

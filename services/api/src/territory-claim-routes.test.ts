@@ -230,6 +230,32 @@ describe('GET /v1/territory/claims', () => {
     expect((await read()).json().claims[0].owner.isSelf).toBe(true);
   });
 
+  it('returns held cell geometry and current-holder battle badges for the viewport', async () => {
+    stubs = {
+      mapClaims: [
+        claimRow({
+          h3_cell_set: ['8b608b0b619dfff'],
+          defended_count: '3',
+          revenge_available: true,
+          revenge_cell: '8b608b0b619dfff'
+        })
+      ]
+    };
+
+    const response = await read();
+    expect(response.statusCode).toBe(200);
+    const [claim] = response.json().claims;
+    const [cell] = claim.heldCellRings;
+    expect(cell).toHaveLength(7);
+    expect(cell[0]).toEqual(cell.at(-1));
+    expect(claim.heldPolygons[0][0]).toHaveLength(7);
+    expect(claim.defendedCount).toBe(3);
+    expect(claim.revengeAvailable).toBe(true);
+    expect(claim.revengeLocation[0]).toBeCloseTo(72.8777, 3);
+    expect(claim.revengeLocation[1]).toBeCloseTo(19.076, 3);
+    expect(calls.find((call) => call.sql.includes('ST_MakeEnvelope'))?.values?.[6]).toBe(ME);
+  });
+
   it('leaves out anybody under a sharing suspension', async () => {
     await read();
 

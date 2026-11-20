@@ -31,10 +31,21 @@ export function FocusedScrollShell({ children }: { children: React.ReactNode }) 
 }
 
 /** Reserved for a future interactive Live/map surface that must own flex gestures. */
-export function FocusedFlexShell({ children }: { children: React.ReactNode }) {
+export function FocusedFlexShell({
+  children,
+  fullBleed = false
+}: {
+  children: React.ReactNode;
+  fullBleed?: boolean;
+}) {
   const { tokens } = useAppTheme();
   return (
-    <View style={[styles.focusedFlex, { backgroundColor: tokens.background.canvas }]}>
+    <View
+      style={[
+        fullBleed ? styles.fullBleed : styles.focusedFlex,
+        { backgroundColor: tokens.background.canvas }
+      ]}
+    >
       {children}
     </View>
   );
@@ -43,5 +54,6 @@ export function FocusedFlexShell({ children }: { children: React.ReactNode }) {
 const styles = StyleSheet.create({
   tabContent: { flexGrow: 1, padding: 20, paddingBottom: 118 },
   focusedContent: { flexGrow: 1, padding: 20, paddingBottom: 36 },
-  focusedFlex: { flex: 1, padding: 20, paddingBottom: 16 }
+  focusedFlex: { flex: 1, padding: 20, paddingBottom: 16 },
+  fullBleed: { flex: 1 }
 });

@@ -44,6 +44,17 @@ export const TerritoryClaimSchema = Type.Object(
     owner: TerritoryClaimOwnerSchema,
     /** The closed loop, as drawn. Bounded so one claim cannot flood a viewport. */
     boundary: Type.Array(CoordinateSchema, { minItems: 3, maxItems: 256 }),
+    /** Closed GeoJSON polygon rings, including holes, derived from the held H3 cells. */
+    heldPolygons: Type.Optional(Type.Array(Type.Array(Type.Array(CoordinateSchema)))),
+    /** Complete grid for smaller claims. Omitted when the viewport grid budget is exhausted. */
+    heldCellRings: Type.Optional(
+      Type.Array(Type.Array(CoordinateSchema, { minItems: 6, maxItems: 11 }), { maxItems: 256 })
+    ),
+    defendedCount: Type.Optional(Type.Integer({ minimum: 0 })),
+    /** The viewer lost ground to this still-visible claim in the current season. */
+    revengeAvailable: Type.Optional(Type.Boolean()),
+    /** An acquired cell that this rival still holds, when it was recorded. */
+    revengeLocation: Type.Optional(CoordinateSchema),
     /** Where the holder's avatar sits. */
     centroid: CoordinateSchema,
     /** Ground held. After a carve this is the surviving cells, not the original loop. */

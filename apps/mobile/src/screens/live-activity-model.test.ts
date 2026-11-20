@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { classifyLiveGps, liveRouteGeometry, liveRouteLayers } from './live-activity-model.js';
+import {
+  classifyLiveGps,
+  liveLoopFeedback,
+  liveRouteGeometry,
+  liveRouteLayers
+} from './live-activity-model.js';
 import type { RecordedLocationSample } from '../activity-recorder-core.js';
 
 const sample = (
@@ -16,6 +21,26 @@ const sample = (
 });
 
 describe('Live activity model', () => {
+  it('guides a large loop back to its start and resets across a recording break', () => {
+    const loop = [
+      [72, 19],
+      [72.001, 19],
+      [72.001, 19.001],
+      [72, 19.001],
+      [72, 19.00005]
+    ].map(([longitude, latitude], minute) => ({
+      ...sample('usable', minute),
+      longitude: longitude!,
+      latitude: latitude!
+    }));
+    expect(liveLoopFeedback(loop.slice(0, 4))?.layer.kind).toBe('loop-return');
+    expect(liveLoopFeedback(loop)?.layer.kind).toBe('loop-ready');
+    expect(
+      liveLoopFeedback(
+        loop.map((point, index) => (index === 2 ? { ...point, segmentBreak: true } : point))
+      )
+    ).toBeUndefined();
+  });
   it('creates renderer-local segmented GeoJSON in longitude/latitude order without mutating observations', () => {
     const observations = [
       sample('usable', 0),

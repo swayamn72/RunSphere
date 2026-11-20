@@ -90,11 +90,14 @@ export const registerQuestRoutes = ({ routes, database, authSecret }: QuestRoute
         accessibility: 'step-free' | 'mixed' | 'unknown';
         open_hours: unknown;
         checkpoint_count: string;
+        map_position?: [number, number] | null;
       }>(
         `SELECT quest.id, quest.title, quest.distance_meters, quest.estimated_active_minutes, quest.accessibility,
-           quest.open_hours, count(link.checkpoint_id)::text AS checkpoint_count
+           quest.open_hours, count(link.checkpoint_id)::text AS checkpoint_count,
+           ((array_agg(ST_AsGeoJSON(ST_PointOnSurface(checkpoint.geometry))::jsonb ORDER BY link.position))[1])->'coordinates' AS map_position
          FROM published_quest_versions quest
          JOIN quest_version_checkpoints link ON link.quest_version_id = quest.id
+         JOIN curated_checkpoints checkpoint ON checkpoint.id = link.checkpoint_id
          GROUP BY quest.id, quest.title, quest.distance_meters, quest.estimated_active_minutes,
            quest.accessibility, quest.open_hours, quest.published_at
          ORDER BY quest.published_at DESC LIMIT 100`
@@ -107,7 +110,8 @@ export const registerQuestRoutes = ({ routes, database, authSecret }: QuestRoute
           estimatedActiveMinutes: Number(quest.estimated_active_minutes),
           accessibility: quest.accessibility,
           openHours: quest.open_hours,
-          checkpointCount: Number(quest.checkpoint_count)
+          checkpointCount: Number(quest.checkpoint_count),
+          ...(quest.map_position ? { mapPosition: quest.map_position } : {})
         }))
       };
     }

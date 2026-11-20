@@ -63,6 +63,12 @@ export const QuestSummarySchema = Type.Object(
     accessibility: AccessibilitySchema,
     openHours: OpenHoursSchema,
     checkpointCount: Type.Integer({ minimum: 1 }),
+    mapPosition: Type.Optional(
+      Type.Tuple([
+        Type.Number({ minimum: -180, maximum: 180 }),
+        Type.Number({ minimum: -90, maximum: 90 })
+      ])
+    ),
     /** @deprecated Compatibility-only field; v1 API responses never include XP. */
     rewardXp: Type.Optional(Type.Integer({ minimum: 0 }))
   },

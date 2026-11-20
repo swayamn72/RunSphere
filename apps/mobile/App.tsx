@@ -455,7 +455,18 @@ function RunSphereApp() {
     ) : activeTab === 'Map' ? (
       <TurfScreen
         api={apiClient}
+        {...(accountId ? { accountId } : {})}
         onOpenRun={() => openActivity('map')}
+        onOpenQuest={setSelectedQuest}
+        onOpenProfile={() => {
+          setProfileEntry('profile');
+          setActiveTab('Profile');
+        }}
+        onOpenSettings={() => {
+          setProfileEntry('settings');
+          setActiveTab('Profile');
+        }}
+        onSessionExpired={expireSession}
         onGhostRace={(run) => {
           setGhostRun(run);
           // A ghost is a reference on the map, not a route to follow, so it
@@ -503,7 +514,7 @@ function RunSphereApp() {
       {shell === 'tab-scroll' ? (
         <TabScrollShell>{content}</TabScrollShell>
       ) : shell === 'tab-map' ? (
-        <FocusedFlexShell>{content}</FocusedFlexShell>
+        <FocusedFlexShell fullBleed>{content}</FocusedFlexShell>
       ) : shell === 'focused-scroll' ? (
         <FocusedScrollShell>{content}</FocusedScrollShell>
       ) : (
@@ -512,6 +523,7 @@ function RunSphereApp() {
       {isTabBarVisible(shell) && (
         <TabBar
           activeTab={activeTab}
+          turf={shell === 'tab-map'}
           onChange={(tab) => {
             setSelectedQuest(undefined);
             setFocus('none');

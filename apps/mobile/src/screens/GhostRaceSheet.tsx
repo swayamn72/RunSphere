@@ -32,6 +32,7 @@ export function GhostRaceSheet({
   api,
   claimId,
   holderName,
+  previewTrace,
   onStart,
   onCancel,
   onSessionExpired
@@ -39,6 +40,7 @@ export function GhostRaceSheet({
   api: MobileApiClient;
   claimId: string;
   holderName: string;
+  previewTrace?: GhostTraceResponse;
   onStart: (run: GhostRun) => void;
   onCancel: () => void;
   onSessionExpired: () => void;
@@ -51,8 +53,7 @@ export function GhostRaceSheet({
   useEffect(() => {
     mounted.current = true;
     let cancelled = false;
-    void api
-      .getGhostTrace(claimId)
+    void (previewTrace ? Promise.resolve(previewTrace) : api.getGhostTrace(claimId))
       .then((response) => {
         if (cancelled || !mounted.current) return;
         setTrace(response);
@@ -72,7 +73,7 @@ export function GhostRaceSheet({
     // an hour, so this keys on the claim and the session alone.
     // `onSessionExpired` is a `useCallback` in `App.tsx` keyed on the account,
     // so it turns over with `api` and never on an ordinary parent render.
-  }, [api, claimId, onSessionExpired]);
+  }, [api, claimId, onSessionExpired, previewTrace]);
 
   const run = useMemo(() => (trace ? ghostRunFrom(trace) : undefined), [trace]);
   const confirmation = useMemo(() => (trace ? ghostConfirmation(trace) : undefined), [trace]);

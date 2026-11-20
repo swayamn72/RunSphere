@@ -37,6 +37,8 @@ vi.mock('react-native', async () => {
     ({ children, ...props }: Record<string, unknown>) =>
       React.createElement(name as React.ElementType, props, children as React.ReactNode);
   return {
+    BackHandler: { addEventListener: () => ({ remove: () => undefined }) },
+    Keyboard: { dismiss: () => undefined },
     Pressable: native('Pressable'),
     ScrollView: native('ScrollView'),
     StyleSheet: { create: <T,>(styles: T) => styles, absoluteFill: {} },
@@ -45,6 +47,10 @@ vi.mock('react-native', async () => {
     View: native('View')
   };
 });
+vi.mock('../maps/use-turf-position', () => ({
+  useTurfPosition: () => ({ position: undefined, requestPosition: async () => false })
+}));
+vi.mock('../maps/use-turf-exploration', () => ({ useTurfExploration: () => undefined }));
 vi.mock('../theme/theme', () => ({
   useAppTheme: () => ({
     colorScheme: 'light',
@@ -184,6 +190,12 @@ const byLabel = (renderer: ReactTestRenderer, label: string) =>
     (node) => (node.props as { accessibilityLabel?: string }).accessibilityLabel === label
   );
 
+const press = async (renderer: ReactTestRenderer, label: string) => {
+  const [button] = byLabel(renderer, label);
+  if (!button) throw new Error(`Missing control ${label}`);
+  await act(async () => (button.props as { onPress: () => void }).onPress());
+};
+
 /** Drives the map's region-change handler the way a pan or zoom would. */
 const moveMap = async (renderer: ReactTestRenderer, bounds: number[], zoom: number) => {
   const map = renderer.root.findByType('Map' as unknown as React.ElementType);
@@ -201,6 +213,8 @@ describe('the turf map', () => {
   it('invites somebody holding nothing to claim some', async () => {
     const renderer = await renderTurf(stubApi({}));
 
+    expect(textOf(renderer)).not.toContain('You hold no ground yet');
+    await press(renderer, 'Open map intel');
     expect(textOf(renderer)).toContain('You hold no ground yet');
   });
 
@@ -217,7 +231,10 @@ describe('the turf map', () => {
     await moveMap(renderer, [72.8, 19, 72.95, 19.15], 13);
 
     // ADR-0011: this map names holders. The pin is the reversal made visible.
-    const pins = byLabel(renderer, 'Ravi holds 9.0 ha in 10:00. Beat that time to take it.');
+    const pins = byLabel(
+      renderer,
+      'Ravi holds 9.0 ha in 10:00. Beat that time to take it. Held for at least seven days.'
+    );
     expect(pins.length).toBeGreaterThan(0);
   });
 
@@ -225,7 +242,10 @@ describe('the turf map', () => {
     const renderer = await renderTurf(stubApi({}));
     await moveMap(renderer, [72.8, 19, 72.95, 19.15], 13);
 
-    const [pin] = byLabel(renderer, 'Ravi holds 9.0 ha in 10:00. Beat that time to take it.');
+    const [pin] = byLabel(
+      renderer,
+      'Ravi holds 9.0 ha in 10:00. Beat that time to take it. Held for at least seven days.'
+    );
     await act(async () => {
       (pin!.props as { onPress: () => void }).onPress();
       await Promise.resolve();
@@ -244,7 +264,10 @@ describe('the turf map', () => {
     );
     await moveMap(renderer, [72.8, 19, 72.95, 19.15], 13);
 
-    const [pin] = byLabel(renderer, 'Your ground, 9.0 ha, held in 10:00.');
+    const [pin] = byLabel(
+      renderer,
+      'Your ground, 9.0 ha, held in 10:00. Held for at least seven days.'
+    );
     await act(async () => {
       (pin!.props as { onPress: () => void }).onPress();
       await Promise.resolve();
@@ -279,10 +302,11 @@ describe('the turf map', () => {
     expect(textOf(renderer)).toContain('Zoom in to see it all');
   });
 
-  it('says what the map records about people, under the map', async () => {
+  it('says what the map records about people in map intel', async () => {
     const renderer = await renderTurf(stubApi({}));
     await moveMap(renderer, [72.8, 19, 72.95, 19.15], 13);
 
+    await press(renderer, 'Open map intel');
     expect(textOf(renderer)).toContain('the holder’s name');
   });
 
@@ -327,6 +351,7 @@ describe('the turf map', () => {
       })
     );
 
+    await press(renderer, 'Open map intel');
     expect(textOf(renderer)).toContain('Ravi took your ground — 12:00 against your 15:00.');
   });
 
@@ -452,6 +477,7 @@ describe('the turf map', () => {
         ]
       })
     );
+    await press(renderer, 'Open map intel');
     const rendered = textOf(renderer);
 
     expect(rendered).toContain('Capture the Park');
@@ -482,6 +508,7 @@ describe('the turf map', () => {
         }
       })
     );
+    await press(renderer, 'Open map intel');
     const rendered = textOf(renderer);
 
     expect(rendered).toContain('Ravi');
@@ -514,9 +541,8 @@ describe('the zone bar', () => {
 
   /** Selects a zone chip the way a person would, by the name it announces. */
   const chooseFilter = async (renderer: ReactTestRenderer, label: string) => {
-    const [chip] = byLabel(renderer, label);
-    if (!chip) throw new Error(`No zone filter labelled ${label}`);
-    await act(async () => (chip.props as { onPress: () => void }).onPress());
+    if (byLabel(renderer, label).length === 0) await press(renderer, 'Territory filters');
+    await press(renderer, label);
   };
 
   const drawnIds = (renderer: ReactTestRenderer): string[] => {
@@ -531,6 +557,8 @@ describe('the zone bar', () => {
     const renderer = await renderTurf(stubApi({ map: mixedMap }));
     await moveMap(renderer, [72.87, 19.07, 72.89, 19.09], 14);
 
+    expect(byLabel(renderer, 'All Turf')).toHaveLength(0);
+    await press(renderer, 'Territory filters');
     for (const label of ['All Turf', 'My Turf', 'Rivals', 'Contested'])
       expect(byLabel(renderer, label).length).toBeGreaterThan(0);
     expect(drawnIds(renderer)).toHaveLength(2);
@@ -569,6 +597,9 @@ describe('the zone bar', () => {
     const renderer = await renderTurf(stubApi({ map: mixedMap }));
     await moveMap(renderer, [72.87, 19.07, 72.89, 19.09], 14);
 
+    expect(byLabel(renderer, 'Search zones by holder or city')).toHaveLength(0);
+    const [openSearch] = byLabel(renderer, 'Open zone search');
+    await act(async () => (openSearch!.props as { onPress: () => void }).onPress());
     const [field] = byLabel(renderer, 'Search zones by holder or city');
     await act(async () =>
       (field!.props as { onChangeText: (text: string) => void }).onChangeText('ravi')

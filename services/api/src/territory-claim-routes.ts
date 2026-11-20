@@ -57,6 +57,8 @@ import {
   mlLabelFor,
   h3CellSet,
   h3Indexer,
+  heldCellPolygons,
+  heldCellRing,
   recommendCaptures,
   ringCentroid,
   runSpeed,
@@ -320,6 +322,10 @@ interface ClaimRow {
   claimed_at: Date;
   /** Whether a ghost trace exists for this claim (UX.10). */
   ghost_available?: boolean;
+  h3_cell_set?: string[] | null;
+  defended_count?: string;
+  revenge_available?: boolean;
+  revenge_cell?: string | null;
 }
 
 /** Every live-claim read is scoped to the month, which is the reset cycle. */
@@ -597,11 +603,21 @@ export const registerTerritoryClaimRoutes = ({
       // live map is this season's ground. The reset job archives them; this
       // filter means the month boundary is correct even before it has run.
       const found = await database.query<ClaimRow>(
-        `SELECT ${CLAIM_COLUMNS}
+        `SELECT ${CLAIM_COLUMNS}, claim.h3_cell_set,
+           (SELECT count(*) FROM territory_claim_attempts attempt
+            WHERE attempt.lineage_id = claim.lineage_id AND attempt.defending_claim_id = claim.id
+              AND attempt.outcome = 'slower') AS defended_count,
+           COALESCE(revenge.available, false) AS revenge_available, revenge.revenge_cell
          FROM territory_claims claim
          JOIN accounts account ON account.id = claim.account_id
          LEFT JOIN profiles profile ON profile.account_id = claim.account_id
          LEFT JOIN clubs club ON club.id = claim.club_id
+         LEFT JOIN LATERAL (
+           SELECT true AS available, takeover.revenge_cell
+           FROM territory_claim_takeovers takeover
+           WHERE takeover.taken_from_account_id = $7 AND takeover.taken_by_claim_id = claim.id
+           ORDER BY takeover.created_at DESC, takeover.id DESC LIMIT 1
+         ) revenge ON true
          WHERE claim.released_at IS NULL
            AND claim.season_month = $6
            AND account.deleted_at IS NULL
@@ -609,14 +625,33 @@ export const registerTerritoryClaimRoutes = ({
            AND claim.boundary && ST_MakeEnvelope($1, $2, $3, $4, 4326)
          ORDER BY claim.area_sqm DESC
          LIMIT $5`,
-        [west, south, east, north, MAP_LIMIT + 1, seasonMonthFor(new Date())]
+        [west, south, east, north, MAP_LIMIT + 1, seasonMonthFor(new Date()), accountId]
       );
 
       const truncated = found.rows.length > MAP_LIMIT;
+      let gridBudget = 3000;
       const response: TerritoryClaimMapResponse = {
         claims: found.rows.slice(0, MAP_LIMIT).flatMap((row) => {
           const view = claimView(row, accountId);
-          return view ? [view] : [];
+          if (!view) return [];
+          const cells = row.h3_cell_set ?? [];
+          const polygons = heldCellPolygons(cells);
+          const includeCells = polygons.length > 0 && cells.length <= Math.min(256, gridBudget);
+          if (includeCells) gridBudget -= cells.length;
+          const revenge = row.revenge_available && !view.owner.isSelf;
+          const revengeCell = revenge && polygons.length > 0 && row.revenge_cell;
+          return [
+            {
+              ...view,
+              ...(polygons.length > 0 ? { heldPolygons: polygons } : {}),
+              ...(includeCells ? { heldCellRings: cells.map(heldCellRing) } : {}),
+              ...(row.defended_count ? { defendedCount: Number(row.defended_count) } : {}),
+              ...(revenge ? { revengeAvailable: true } : {}),
+              ...(revengeCell && cells.includes(revengeCell)
+                ? { revengeLocation: [...h3Indexer.cellCentre(revengeCell)] as Coordinate }
+                : {})
+            }
+          ];
         }),
         truncated,
         mapNote: TERRITORY_CLAIM_MAP_NOTE
@@ -1256,8 +1291,8 @@ export const registerTerritoryClaimRoutes = ({
                taken_by_claim_id, taken_by_account_id, previous_duration_seconds,
                new_duration_seconds, kind, carved_area_sqm, carved_cell_count,
                holder_survived, effort_ratio, grace_applied, effective_speed_mps,
-               holder_speed_mps)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+               holder_speed_mps, revenge_cell)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
             [
               entry.id,
               previous.account_id,
@@ -1272,7 +1307,8 @@ export const registerTerritoryClaimRoutes = ({
               entry.assessment.effortRatio,
               entry.assessment.graceApplied,
               entry.assessment.effectiveSpeedMps,
-              entry.assessment.holderSpeedMps
+              entry.assessment.holderSpeedMps,
+              entry.carvedCells[0] ?? null
             ]
           );
         }

@@ -61,6 +61,7 @@ import {
   formatProvisionalDuration,
   latestUsableSample,
   liveRouteLayers,
+  liveLoopFeedback,
   provisionalPace
 } from './live-activity-model';
 import { ROUTE_GUIDE_CAPTION, routeGuideLayers, type RouteGuide } from './route-preview-model';
@@ -446,7 +447,7 @@ export function ActivityRecording({
   const styles = useAppStyles();
   // The ghost card takes a status colour that changes as the race does, so the
   // token has to be read here rather than baked into a stylesheet entry.
-  const { tokens } = useAppTheme();
+  const { tokens, reduceMotion } = useAppTheme();
   const [current, setCurrent] = useState(session);
   const [samples, setSamples] = useState<RecordedLocationSample[]>([]);
   const [now, setNow] = useState(() => Date.now());
@@ -558,14 +559,36 @@ export function ActivityRecording({
   const elapsedSeconds = Math.max(0, Math.round(current.durationSeconds));
   // Guide, then ghost, then the runner's own trace on top: the line that
   // matters most is the one they are drawing.
-  const layers = useMemo(
-    () => [
+  const loop = useMemo(
+    () =>
+      status.state === 'strong' || status.state === 'recovered'
+        ? liveLoopFeedback(samples)
+        : undefined,
+    [samples, status.state]
+  );
+  const [loopBright, setLoopBright] = useState(true);
+  const loopReady = loop?.ready === true;
+  useEffect(() => {
+    if (!loopReady || reduceMotion) return;
+    const timer = setInterval(() => setLoopBright((bright) => !bright), 900);
+    return () => clearInterval(timer);
+  }, [loopReady, reduceMotion]);
+  const layers = useMemo(() => {
+    const liveRoute = liveRouteLayers(samples);
+    return [
       ...routeGuideLayers(guide),
       ...ghostLayers(ghost, elapsedSeconds),
-      ...liveRouteLayers(samples)
-    ],
-    [elapsedSeconds, ghost, guide, samples]
-  );
+      ...liveRoute.map((layer) => ({
+        ...layer,
+        id: `${layer.id}-glow`,
+        kind: 'run-glow' as const
+      })),
+      ...liveRoute,
+      ...(loop
+        ? [{ ...loop.layer, opacity: !reduceMotion && loop.ready && !loopBright ? 0.5 : 1 }]
+        : [])
+    ];
+  }, [elapsedSeconds, ghost, guide, loop, loopBright, reduceMotion, samples]);
   const ghostStatus = useMemo(
     () => (ghost ? ghostCard(ghost, elapsedSeconds, current.distanceMeters) : undefined),
     [current.distanceMeters, elapsedSeconds, ghost]
@@ -636,6 +659,14 @@ export function ActivityRecording({
         </View>
       </View>
       <View style={styles.liveOverlay}>
+        {loop && (
+          <Text
+            accessibilityLiveRegion="polite"
+            style={[styles.rowDetail, { color: loop.ready ? '#53ffab' : '#f8c969' }]}
+          >
+            {loop.ready ? 'Loop ready to close' : `Back to start · ${Math.round(loop.gap)} m`}
+          </Text>
+        )}
         <Text style={styles.eyebrow}>
           {current.movementType.toUpperCase()} · PRIVATE ON THIS DEVICE
         </Text>

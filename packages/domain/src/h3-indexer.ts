@@ -1,14 +1,29 @@
 import {
   cellArea,
+  cellToBoundary,
   cellToLatLng,
   cellsToMultiPolygon,
   getResolution,
   gridDisk,
+  isValidCell,
   latLngToCell,
   polygonToCells,
   UNITS
 } from 'h3-js';
 import type { ClaimRing, H3Indexer } from './territory-claim.js';
+
+const geoJsonRing = (positions: number[][]): [number, number][] =>
+  positions.map(([longitude, latitude]) => [longitude!, latitude!]);
+
+export const heldCellPolygons = (cells: readonly string[]): [number, number][][][] =>
+  cells.length > 0 &&
+  cells.every(isValidCell) &&
+  cells.every((cell) => getResolution(cell) === getResolution(cells[0]!))
+    ? cellsToMultiPolygon([...cells], true).map((polygon) => polygon.map(geoJsonRing))
+    : [];
+
+export const heldCellRing = (cell: string): [number, number][] =>
+  isValidCell(cell) ? geoJsonRing(cellToBoundary(cell, true)) : [];
 
 /**
  * The one place this product binds to H3 (ADR-0001).

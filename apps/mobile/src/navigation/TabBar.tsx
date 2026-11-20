@@ -4,6 +4,7 @@ import {
   Platform,
   Pressable,
   StyleSheet,
+  Text,
   View,
   type ImageSourcePropType
 } from 'react-native';
@@ -24,39 +25,62 @@ const tabIconAssets: Record<Tab, ImageSourcePropType> = {
   Profile: profileIcon
 };
 
-export function TabBar({ activeTab, onChange }: { activeTab: Tab; onChange: (tab: Tab) => void }) {
+export function TabBar({
+  activeTab,
+  onChange,
+  turf = false
+}: {
+  activeTab: Tab;
+  onChange: (tab: Tab) => void;
+  turf?: boolean;
+}) {
   const { tokens } = useAppTheme();
   const styles = useMemo(() => createStyles(tokens), [tokens]);
   return (
-    <View style={styles.nav} accessibilityRole="tablist">
+    <View style={[styles.nav, turf && styles.turfNav]} accessibilityRole="tablist">
+      {turf && <View pointerEvents="none" style={styles.turfNavBackdrop} />}
       {tabs.map((tab) => {
         const selected = activeTab === tab;
         const quiet = tabEmphasis(tab) === 'quiet';
+        const startRun = turf && tab === 'Run';
         return (
           <Pressable
             key={tab}
             onPress={() => onChange(tab)}
-            accessibilityRole="tab"
-            accessibilityLabel={tab}
+            accessibilityRole={startRun ? 'button' : 'tab'}
+            accessibilityLabel={startRun ? 'Start Run' : tab}
             accessibilityState={{ selected }}
-            style={({ pressed }) => [styles.navItem, pressed && styles.pressed]}
+            style={({ pressed }) => [
+              styles.navItem,
+              turf && !startRun && styles.turfNavItem,
+              pressed && styles.pressed
+            ]}
           >
             {/* The lit pill is what reads as "you are here" at a glance. */}
-            <View style={[styles.iconWell, selected && styles.iconWellActive]}>
+            <View
+              style={[
+                styles.iconWell,
+                selected && styles.iconWellActive,
+                startRun && styles.runOrb
+              ]}
+            >
               <Image
                 source={tabIconAssets[tab]}
                 style={[
                   styles.tabIconImage,
                   {
-                    tintColor: selected
-                      ? tokens.action.selected
-                      : quiet
-                        ? tokens.text.tertiary
-                        : tokens.text.secondary
+                    tintColor: startRun
+                      ? '#063022'
+                      : selected
+                        ? tokens.action.selected
+                        : quiet
+                          ? tokens.text.tertiary
+                          : tokens.text.secondary
                   }
                 ]}
                 resizeMode="contain"
               />
+              {startRun && <Text style={styles.runLabel}>START RUN</Text>}
             </View>
           </Pressable>
         );
@@ -86,6 +110,34 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       justifyContent: 'center',
       minHeight: 50
     },
+    turfNav: {
+      backgroundColor: 'transparent',
+      borderTopWidth: 0,
+      paddingTop: 0,
+      paddingBottom: Platform.OS === 'ios' ? 22 : 17
+    },
+    turfNavBackdrop: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      top: 18,
+      backgroundColor: '#0b1426ee',
+      borderColor: '#355275',
+      borderTopWidth: 1
+    },
+    turfNavItem: { paddingTop: 18 },
+    runOrb: {
+      backgroundColor: '#6fffc6',
+      borderColor: '#c5ffe8',
+      borderWidth: 2,
+      height: 64,
+      width: 64,
+      borderRadius: 32,
+      elevation: 12,
+      shadowColor: '#47ffbf'
+    },
+    runLabel: { color: '#063022', fontSize: 8, fontWeight: '900' },
     iconWell: {
       alignItems: 'center',
       borderRadius: 999,

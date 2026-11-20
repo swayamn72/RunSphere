@@ -1,4 +1,4 @@
-import type { FeatureCollection, Polygon } from 'geojson';
+import type { FeatureCollection, MultiPolygon, Polygon } from 'geojson';
 import type {
   TerritoryClaim,
   TerritoryClaimActivityItem,
@@ -38,9 +38,10 @@ export const OWNER_PALETTE = ownerPalette;
  * exactly what happened when the palette changed and this literal did not.
  */
 export const SELF_COLOUR = darkTokens.zone.owned;
+export const CONTESTED_COLOUR = darkTokens.zone.neutral;
 
 const turfColour = (claim: TerritoryClaim): string => {
-  if (claim.status === 'contested') return darkTokens.zone.neutral;
+  if (claim.status === 'contested') return CONTESTED_COLOUR;
   return claim.owner.isSelf ? SELF_COLOUR : darkTokens.zone.rival;
 };
 
@@ -69,7 +70,7 @@ export interface ClaimFeatureProperties {
  */
 export const claimFeatures = (
   claims: readonly TerritoryClaim[]
-): FeatureCollection<Polygon, ClaimFeatureProperties> => ({
+): FeatureCollection<Polygon | MultiPolygon, ClaimFeatureProperties> => ({
   type: 'FeatureCollection',
   features: claims
     .filter((claim) => claim.boundary.length >= 3)
@@ -80,11 +81,31 @@ export const claimFeatures = (
         colour: turfColour(claim),
         isSelf: claim.owner.isSelf
       },
-      geometry: {
-        type: 'Polygon' as const,
-        coordinates: [[...claim.boundary.map(([lng, lat]) => [lng, lat]), [...claim.boundary[0]!]]]
-      }
+      geometry: claim.heldPolygons?.length
+        ? {
+            type: 'MultiPolygon' as const,
+            coordinates: claim.heldPolygons
+          }
+        : {
+            type: 'Polygon' as const,
+            coordinates: [
+              [...claim.boundary.map(([lng, lat]) => [lng, lat]), [...claim.boundary[0]!]]
+            ]
+          }
     }))
+});
+
+export const claimGridFeatures = (
+  claims: readonly TerritoryClaim[]
+): FeatureCollection<Polygon> => ({
+  type: 'FeatureCollection',
+  features: claims.flatMap((claim) =>
+    (claim.heldCellRings ?? []).map((ring) => ({
+      type: 'Feature' as const,
+      properties: { colour: turfColour(claim) },
+      geometry: { type: 'Polygon' as const, coordinates: [ring] }
+    }))
+  )
 });
 
 export interface ClaimMarker {
@@ -95,6 +116,10 @@ export interface ClaimMarker {
   colour: string;
   isSelf: boolean;
   accessibilityLabel: string;
+  crowned: boolean;
+  defendedCount: number;
+  revenge: boolean;
+  revengeLocation?: [number, number];
 }
 
 /** Seconds as `m:ss`, the way a lap time is read. */
@@ -117,7 +142,7 @@ export const formatArea = (areaSqm: number): string => {
  * and the time to beat — because the map is the one surface where a sighted
  * reader gets information purely from position and colour.
  */
-export const claimMarkers = (claims: readonly TerritoryClaim[]): ClaimMarker[] =>
+export const claimMarkers = (claims: readonly TerritoryClaim[], now = Date.now()): ClaimMarker[] =>
   claims.map((claim) => {
     const colour = turfColour(claim);
     const time = formatLoopTime(claim.durationSeconds);
@@ -129,6 +154,12 @@ export const claimMarkers = (claims: readonly TerritoryClaim[]): ClaimMarker[] =
       avatarKey: claim.owner.avatarKey,
       colour,
       isSelf: claim.owner.isSelf,
+      crowned: now - Date.parse(claim.claimedAt) >= 7 * 86_400_000,
+      defendedCount: claim.defendedCount ?? 0,
+      revenge: !claim.owner.isSelf && claim.revengeAvailable === true,
+      ...(!claim.owner.isSelf && claim.revengeLocation
+        ? { revengeLocation: claim.revengeLocation }
+        : {}),
       accessibilityLabel: claim.owner.isSelf
         ? `Your ground, ${area}, held in ${time}.`
         : `${claim.owner.displayName} holds ${area} in ${time}. Beat that time to take it.`
