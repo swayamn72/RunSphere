@@ -6,6 +6,8 @@ import {
   consistencyPresentation,
   levelPresentation,
   progressionCardState,
+  seasonCountdown,
+  turfAreaLabel,
   progressionErrorState,
   progressionPresentation,
   progressionStatusMessage
@@ -34,6 +36,17 @@ const profile: Profile = {
 };
 
 describe('Home progression model', () => {
+  it('rolls the countdown into the new month at midnight in Kolkata', () => {
+    expect(seasonCountdown(new Date('2026-11-30T18:29:59Z'))).toBe('SEASON 1  RESETS IN 1D');
+    expect(seasonCountdown(new Date('2026-11-30T18:30:00Z'))).toBe('SEASON 1  RESETS IN 31D');
+  });
+
+  it('formats server-reported area and distinguishes unavailable from zero', () => {
+    expect(turfAreaLabel(5000)).toBe('5,000 m²');
+    expect(turfAreaLabel(0)).toBe('0 m²');
+    expect(turfAreaLabel(undefined)).toBe('—');
+  });
+
   it('presents the served XP total, level band, and cosmetic tier without deriving anything', () => {
     const presentation = progressionPresentation(summary, profile);
     expect(presentation.totalXpLabel).toBe('1,240 XP');

@@ -42,7 +42,10 @@ import {
   activityResultPresentation,
   calculatedPace,
   derivedResultRouteLayers,
-  derivedRouteCenter
+  derivedRouteCenter,
+  CLAIM_CHECKLIST,
+  VERIFYING_RUN_TITLE,
+  VERIFYING_RUN_COPY
 } from './activity-results-model';
 import { LoopCallout } from '../components/LoopCallout';
 import { PrimaryButton } from '../components/primitives';
@@ -318,22 +321,12 @@ export function ActivityPreparation({
   const guidance = useLoopGuidance(guidanceCandidates);
   return (
     <View style={styles.recordCard}>
-      <Text style={styles.eyebrow}>FREE ACTIVITY</Text>
-      <Text style={styles.recordTitle}>Prepare your private activity.</Text>
-      <Text style={styles.lead}>
-        Current location is used only while RunSphere is open to build a private route and distance.
-        It is retained on this device only after recording starts. No background location is
-        requested.
-      </Text>
-      {/*
-        Named before the OS dialog appears, per the consent rule in
-        `safety-and-privacy.md`: capability, purpose, and what declining costs.
-      */}
-      <Text style={styles.lead}>
-        Your phone will ask you to confirm it is you before the run starts, so nobody else can
-        record a run on your account. RunSphere never sees your face, fingerprint, or passcode —
-        your phone checks and answers yes or no.
-      </Text>
+      <Text style={styles.eyebrow}>TURF RUN</Text>
+      <Text style={styles.recordTitle}>How to Claim Turf</Text>
+      {CLAIM_CHECKLIST.map((item) => (
+        <Text key={item} style={styles.lead}>{`• ${item}`}</Text>
+      ))}
+      <Text style={styles.privateNote}>Your phone confirms it is you before recording starts.</Text>
       {originLabel && <Text style={styles.privateNote}>Started from {originLabel}</Text>}
       {guide && (
         <Text style={styles.privateNote}>
@@ -386,7 +379,7 @@ export function ActivityPreparation({
                 ? 'Checking location…'
                 : isAcquiring
                   ? 'Finding GPS…'
-                  : 'Start recording'
+                  : 'Start GPS Run'
           }
           disabled={verifying || permission === 'requesting' || isAcquiring || isActivating}
           onPress={() => void begin()}
@@ -685,7 +678,7 @@ export function ActivityRecording({
             <Text style={styles.metricCellLabel}>Pace /km</Text>
           </View>
         </View>
-        <Text style={styles.provisional}>PROVISIONAL · ACCURACY-FILTERED</Text>
+        <Text style={styles.provisional}>LIVE ESTIMATE</Text>
         <Text style={styles.privateNote}>
           {cameraMode === 'follow'
             ? 'Following your private local route'
@@ -876,7 +869,7 @@ export function ActivityDetail({
             ? 'SAVED PRIVATELY'
             : terminalDeleted
               ? 'DELETED ON RUNSPHERE'
-              : 'PENDING SERVER VALIDATION'}
+              : 'RUN CHECK'}
       </Text>
       <Text style={styles.recordTitle}>
         {presentation.state === 'validated'
@@ -887,7 +880,7 @@ export function ActivityDetail({
               ? 'Activity deleted.'
               : current.state === 'failed'
                 ? 'Sync paused.'
-                : 'Activity pending.'}
+                : VERIFYING_RUN_TITLE}
       </Text>
       {guidance.cue && <LoopCallout cue={guidance.cue} onDismiss={guidance.dismiss} />}
       <Text style={styles.lead}>
@@ -898,8 +891,9 @@ export function ActivityDetail({
               'This activity was saved privately but is not eligible for validated totals.')
             : terminalDeleted
               ? 'This activity was deleted on RunSphere and is no longer available for validation.'
-              : (current.syncError ??
-                'Results remain pending until RunSphere validates this activity. Local recording does not count toward validated totals.')}
+              : current.state === 'failed'
+                ? 'Sync paused. Refresh to try again.'
+                : VERIFYING_RUN_COPY}
       </Text>
       <ActivityDetailMap presentation={presentation} localSamples={localSamples} />
       {presentation.state === 'validated' ? (
@@ -907,14 +901,14 @@ export function ActivityDetail({
           distance={(presentation.detail.summary!.distanceMeters / 1_000).toFixed(2)}
           time={formatDuration(presentation.detail.summary!.durationSeconds)}
           pace={calculatedPace(presentation.detail.summary!)}
-          provenance="Validated by RunSphere. Pace is calculated from validated totals."
+          provenance="Verified run totals"
         />
       ) : (
         <SummaryMetrics
           distance={(current.distanceMeters / 1_000).toFixed(2)}
           time={formatDuration(current.durationSeconds)}
           pace={localPace}
-          provenance="Provisional: recorded on this device and not yet validated."
+          provenance="Recorded on your device. Run check pending."
         />
       )}
       {(terminalRejected || terminalDeleted) && (
@@ -1086,7 +1080,7 @@ export function ActivityHistory({
               </Text>
               <Text style={styles.rowDetail}>
                 {item.state === 'failed' && !item.remoteStatus
-                  ? 'Sync failed — refresh to retry · provisional local distance'
+                  ? 'Sync paused. Refresh to try again.'
                   : `${activityHistoryLabel(item.remoteStatus)} · ${metric.detail}`}
               </Text>
             </View>
@@ -1206,9 +1200,7 @@ function ActivityResults({
     <View style={styles.recordCard}>
       <Text style={styles.eyebrow}>ACTIVITY COMPLETE · LOCAL RESULT</Text>
       <Text style={styles.recordTitle}>New ground covered</Text>
-      <Text style={styles.lead}>
-        Saved on this device. Distance, time, and pace are provisional until processing.
-      </Text>
+      <Text style={styles.lead}>Saved on this device. Run totals update after verification.</Text>
       {/* Distance, time, and pace as one row of equals, which is how a
           finished run is actually read. */}
       <View style={styles.metricRow}>

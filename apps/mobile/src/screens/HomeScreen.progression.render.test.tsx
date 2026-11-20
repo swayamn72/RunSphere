@@ -81,6 +81,8 @@ const stubApi = (overrides: {
   ({
     getWeeklyGoal: overrides.goal ?? (() => Promise.resolve(goal)),
     listQuests: () => Promise.resolve([]),
+    getTerritoryClaimSummary: () =>
+      Promise.resolve({ claimCount: 2, totalAreaSqm: 12000, lostCount: 0 }),
     getProgressionSummary: overrides.progression ?? (() => Promise.resolve(summary)),
     getProfile: overrides.profile ?? (() => Promise.resolve(profile)),
     getNotificationInbox: overrides.inbox ?? (() => Promise.resolve([]))
@@ -147,9 +149,11 @@ describe('Home dashboard renders', () => {
 
   it('reports the served weekly figures and XP without inventing a tile', async () => {
     const text = renderedText(await renderHome(stubApi({})));
+    expect(text).toContain('TURF CONTROLLED');
+    expect(text).toContain('12,000 m²');
     expect(text).toContain('DISTANCE');
     expect(text).toContain('3.2');
-    expect(text).toContain('ACTIVE MINUTES');
+    expect(text).toContain('ACTIVE TIME');
     expect(text).toContain('TOTAL XP');
     expect(text).toContain('1,240');
     expect(text).toContain('LEVEL');
@@ -244,7 +248,7 @@ describe('Home dashboard renders', () => {
 
   it('offers the three quick actions', async () => {
     const renderer = await renderHome(stubApi({}));
-    for (const label of ['Start Run', 'Explore Map', 'Friends'])
+    for (const label of ['Start Turf Run', 'Scout Map', 'Friends'])
       expect(
         hostsMatching(renderer, (props) => props['accessibilityLabel'] === label)
       ).toHaveLength(1);

@@ -1,3 +1,4 @@
+import { seasonCountdown } from './home-progression-model';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type {
@@ -1029,13 +1030,10 @@ export function PlayScreen({
         <>
           <View style={styles.header}>
             <Text accessibilityRole="header" style={styles.title}>
-              Community
+              Season 1 Turf Wars
             </Text>
           </View>
-          <Text style={styles.lead}>
-            One number per person per week - counted active minutes. Never a route, a pace, or where
-            anybody went.
-          </Text>
+          <Text style={styles.lead}>{seasonCountdown(new Date())}</Text>
 
           <View accessibilityRole="tablist" style={styles.segmented}>
             {SOCIAL_SEGMENTS.map((segment) => (
@@ -1081,17 +1079,6 @@ export function PlayScreen({
           {socialSegment === 'nearby' && nearbyView}
         </>
       )}
-
-      <View style={styles.notice}>
-        <Text style={styles.noticeIcon}>⌁</Text>
-        <View style={styles.flexCopy}>
-          <Text style={styles.noticeTitle}>Private by design</Text>
-          <Text style={styles.noticeCopy}>
-            A challenge or standing shares only consented weekly totals. No territory season is
-            active, and territory stays off until a future enrollment flag opens.
-          </Text>
-        </View>
-      </View>
     </>
   );
 }

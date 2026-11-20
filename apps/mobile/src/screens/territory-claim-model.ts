@@ -289,6 +289,9 @@ export const statusLabel = (claim: TerritoryClaim): string => {
  * The line under a territory's name: what it takes to run it, and how hard it
  * has been fought over.
  */
+export const targetPaceLabel = (speedMps: number): string | undefined =>
+  speedMps > 0 ? `Target pace: ${formatLoopTime(Math.round(1_000 / speedMps))}/km` : undefined;
+
 export const territoryFacts = (claim: TerritoryClaim): string => {
   const parts = [formatArea(claim.areaSqm), `record ${formatLoopTime(claim.durationSeconds)}`];
   if (claim.distanceMetres && claim.distanceMetres > 0)

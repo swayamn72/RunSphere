@@ -132,7 +132,7 @@ export const dashboardTiles = (
         key: 'active-minutes',
         glyph: '◷',
         hue: 'azure',
-        label: 'ACTIVE MINUTES',
+        label: 'ACTIVE TIME',
         value: grouped(goal.activeMinutes.actual),
         suffix: 'min'
       }
@@ -167,7 +167,7 @@ export interface QuickAction {
 
 /** The three actions the dashboard offers, in the order the design fixes them. */
 export const QUICK_ACTIONS: readonly QuickAction[] = [
-  { key: 'run', label: 'Start Run', glyph: '▶' },
-  { key: 'map', label: 'Explore Map', glyph: '◉' },
+  { key: 'run', label: 'Start Turf Run', glyph: '▶' },
+  { key: 'map', label: 'Scout Map', glyph: '◉' },
   { key: 'social', label: 'Friends', glyph: '◎' }
 ];

@@ -52,6 +52,7 @@ import {
   summaryLine,
   takeoverLine,
   territoryFacts,
+  targetPaceLabel,
   worthRefetching,
   SELF_COLOUR,
   ZONE_FILTERS,
@@ -573,6 +574,20 @@ export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: Tu
                 ? 'Somebody who runs this loop faster than you takes it.'
                 : `Run this loop in under ${formatLoopTime(chosen.durationSeconds)} to take it.`}
             </Text>
+            {!chosen.owner.isSelf && (
+              <>
+                <Text style={styles.helper}>{targetPaceLabel(chosen.speedMps)}</Text>
+                {onGhostRace && (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setGhostClaimId(chosen.id)}
+                    style={[styles.primary, { backgroundColor: tokens.zone.rival }]}
+                  >
+                    <Text style={styles.primaryText}>Race Ghost</Text>
+                  </Pressable>
+                )}
+              </>
+            )}
             {history && history.entries.length > 1 ? (
               <>
                 <Text style={styles.cardTitle}>Owner history</Text>
@@ -588,7 +603,7 @@ export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: Tu
               accessibilityLabel="Open the full history of this territory"
               onPress={() => setShowDetail(true)}
             >
-              <Text style={styles.link}>Full history</Text>
+              <Text style={styles.link}>Turf History</Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -642,6 +657,14 @@ export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: Tu
           </Pressable>
         ) : null}
 
+        {!chosen && !claimableRunId && onOpenRun && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Unclaimed Ground</Text>
+            <Text style={styles.helper}>
+              Close a loop around at least 5,000 m² to claim open ground.
+            </Text>
+          </View>
+        )}
         {onOpenRun ? (
           <Pressable
             accessibilityRole="button"
@@ -649,7 +672,9 @@ export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: Tu
             onPress={onOpenRun}
             style={styles.primary}
           >
-            <Text style={styles.primaryText}>Start a run</Text>
+            <Text style={styles.primaryText}>
+              {chosen || claimableRunId ? 'Start a run' : 'Claim This Area'}
+            </Text>
           </Pressable>
         ) : null}
 
@@ -756,7 +781,7 @@ export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: Tu
 const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
   StyleSheet.create({
     root: { backgroundColor: tokens.background.canvas, flex: 1 },
-    mapWrap: { backgroundColor: tokens.background.surfaceInset, flex: 1, minHeight: 260 },
+    mapWrap: { backgroundColor: tokens.background.surfaceInset, flex: 3, minHeight: 260 },
     fallback: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 24 },
     fallbackTitle: {
       color: tokens.text.primary,
@@ -860,7 +885,7 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       backgroundColor: tokens.background.surface,
       borderColor: tokens.border.subtle,
       borderTopWidth: 1,
-      maxHeight: '46%'
+      maxHeight: '29%'
     },
     sheetContent: { gap: 8, padding: 16, paddingBottom: 96 },
     title: { color: tokens.text.primary, fontSize: 20, fontWeight: '900' },

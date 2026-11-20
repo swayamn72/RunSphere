@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useReducer, useState } from 'react';
-import { SafeAreaView, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { activityQueue } from './src/activity-queue.native';
 import { accountScopeFor, legacyAccountScopesFor } from './src/account-scope';
 import { activityRecorder } from './src/activity-recorder.native';
@@ -111,9 +112,11 @@ if (TaskManager && BackgroundFetch) {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <RunSphereApp />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <RunSphereApp />
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
 
@@ -158,7 +161,9 @@ function RunSphereApp() {
    * Which Profile sub-screen to land on. The dashboard's bell opens the inbox
    * directly; every other route into Profile starts at the profile itself.
    */
-  const [profileEntry, setProfileEntry] = useState<'profile' | 'notifications'>('profile');
+  const [profileEntry, setProfileEntry] = useState<'profile' | 'notifications' | 'settings'>(
+    'profile'
+  );
   const [storageAttempt, retryStorage] = useReducer((attempt: number) => attempt + 1, 0);
 
   /**
@@ -259,10 +264,18 @@ function RunSphereApp() {
     }).then(finishSession);
   }, [accountId, finishSession]);
   if (initializationState === 'loading')
-    return <SafeAreaView style={[styles.screen, { backgroundColor: tokens.background.canvas }]} />;
+    return (
+      <SafeAreaView
+        edges={['top']}
+        style={[styles.screen, { backgroundColor: tokens.background.canvas }]}
+      />
+    );
   if (initializationState === 'storage-failure')
     return (
-      <SafeAreaView style={[styles.screen, { backgroundColor: tokens.background.canvas }]}>
+      <SafeAreaView
+        edges={['top']}
+        style={[styles.screen, { backgroundColor: tokens.background.canvas }]}
+      >
         <View style={styles.loading}>
           <Text style={styles.onboardingTitle}>Secure storage unavailable</Text>
           <Text style={styles.lead}>
@@ -429,6 +442,10 @@ function RunSphereApp() {
           setProfileEntry('notifications');
           setActiveTab('Profile');
         }}
+        onOpenSettings={() => {
+          setProfileEntry('settings');
+          setActiveTab('Profile');
+        }}
         onOpenProfile={() => {
           setProfileEntry('profile');
           setActiveTab('Profile');
@@ -478,7 +495,10 @@ function RunSphereApp() {
     );
 
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: tokens.background.canvas }]}>
+    <SafeAreaView
+      edges={['top']}
+      style={[styles.screen, { backgroundColor: tokens.background.canvas }]}
+    >
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       {shell === 'tab-scroll' ? (
         <TabScrollShell>{content}</TabScrollShell>

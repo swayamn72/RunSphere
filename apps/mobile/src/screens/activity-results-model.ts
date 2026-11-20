@@ -35,7 +35,7 @@ export const activityHistoryMetric = (
 ): { readonly distanceMeters: number; readonly detail: string } => {
   if (fetchedDetail?.status === 'derived' && fetchedDetail.summary)
     return { distanceMeters: fetchedDetail.summary.distanceMeters, detail: 'Validated distance' };
-  return { distanceMeters: session.distanceMeters, detail: 'Provisional local distance' };
+  return { distanceMeters: session.distanceMeters, detail: 'Recorded distance' };
 };
 
 const validPosition = (position: unknown): position is Position =>
@@ -133,5 +133,15 @@ export const activityHistoryLabel = (remoteStatus: ActivityLifecycleStatus | und
   if (remoteStatus === 'derived') return 'Validated totals refresh when connected';
   if (remoteStatus === 'rejected') return 'Saved privately — not eligible for validated totals';
   if (remoteStatus === 'deleted') return 'Deleted on RunSphere';
-  return 'Pending server validation';
+  return 'Waiting for run check';
 };
+
+export const CLAIM_CHECKLIST = [
+  'Close a loop around at least 5,000 m².',
+  "Beat a rival's pace to carve into their turf.",
+  'Longer loops can earn up to 15% Effort Grace when challenging a rival.'
+] as const;
+
+export const VERIFYING_RUN_TITLE = 'Verifying Your Run...';
+export const VERIFYING_RUN_COPY =
+  'Rho: Checking GPS and pace for fair play. Once your run is verified, head to Map to claim turf.';

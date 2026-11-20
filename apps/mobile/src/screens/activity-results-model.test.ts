@@ -36,7 +36,7 @@ describe('activity Results presentation', () => {
   it('does not infer validated Results from local state or an absent server detail', () => {
     expect(activityResultPresentation(undefined)).toEqual({ state: 'pending' });
     expect(activityResultPresentation({ status: 'derived' })).toEqual({ state: 'pending' });
-    expect(activityHistoryLabel(undefined)).toBe('Pending server validation');
+    expect(activityHistoryLabel(undefined)).toBe('Waiting for run check');
   });
 
   it('renders totals and renderer-local geometry only from a valid derived server response', () => {
@@ -76,7 +76,7 @@ describe('activity Results presentation', () => {
     const session = { distanceMeters: 300, remoteStatus: 'derived' as const };
     expect(activityHistoryMetric(session, undefined)).toEqual({
       distanceMeters: 300,
-      detail: 'Provisional local distance'
+      detail: 'Recorded distance'
     });
     expect(activityHistoryMetric(session, derived)).toEqual({
       distanceMeters: 1_000,

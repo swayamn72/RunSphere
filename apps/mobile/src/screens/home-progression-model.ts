@@ -172,3 +172,18 @@ export const progressionStatusMessage = (state: ProgressionCardState): string =>
   if (state === 'error') return 'Progression is unavailable.';
   return '';
 };
+
+export const turfAreaLabel = (areaSqm: number | undefined): string =>
+  areaSqm === undefined ? '—' : `${grouped(areaSqm)} m²`;
+
+export const RHO_TURF_TIP = 'Close a loop around at least 5,000 m² to claim open ground.';
+
+const DAY_MS = 86_400_000;
+const IST_OFFSET_MS = 19_800_000;
+
+export const seasonCountdown = (now: Date): string => {
+  const local = new Date(now.getTime() + IST_OFFSET_MS);
+  const nextMonth = Date.UTC(local.getUTCFullYear(), local.getUTCMonth() + 1, 1);
+  const days = Math.ceil((nextMonth - local.getTime()) / DAY_MS);
+  return `SEASON 1  RESETS IN ${days}D`;
+};

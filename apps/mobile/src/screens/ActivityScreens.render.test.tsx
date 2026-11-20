@@ -231,7 +231,7 @@ describe('activity render lifecycle regressions', () => {
       );
     });
     expect(sync.refresh).toHaveBeenCalledTimes(2);
-    expect(text(renderer)).toContain('Activity pending.');
+    expect(text(renderer)).toContain('Verifying Your Run...');
   });
 
   it('keeps a parent-learned remote ID when retrying a stale no-remote detail session', async () => {

@@ -1,11 +1,22 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Linking, Pressable, Switch, Text, TextInput, View } from 'react-native';
+import {
+  Alert,
+  Linking,
+  Modal,
+  Pressable,
+  ScrollView,
+  Switch,
+  Text,
+  TextInput,
+  View
+} from 'react-native';
 import * as Location from 'expo-location';
 import type {
   Profile,
   ProgressionSummary,
   Sanction,
   SafetyContactResponse,
+  TerritoryClaimSummary,
   WeeklyGoalResponse
 } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
@@ -25,7 +36,11 @@ import { ProfileIdentityScreen } from './ProfileIdentityScreen';
 import type { NotificationTarget } from './notifications-model';
 import { profileInitials, profileNameLabel } from './profile-model';
 import { AchievementStrip, LevelCard, ProfileIdentityHead, ProfileStats } from './ProfileOverview';
-import { achievementMedallions, profileStatCells } from './profile-overview-model';
+import {
+  achievementMedallions,
+  FAIR_PLAY_PRIVACY,
+  profileStatCells
+} from './profile-overview-model';
 import { progressionPresentation } from './home-progression-model';
 import {
   DELETION_DONE_MESSAGE,
@@ -120,7 +135,7 @@ export function ProfileScreen({
    * Opens straight onto one of the sub-screens. The dashboard's bell arrives
    * here on `notifications`, so the inbox is one tap away rather than three.
    */
-  initialScreen?: 'profile' | 'notifications';
+  initialScreen?: 'profile' | 'notifications' | 'settings';
 }) {
   const styles = useAppStyles();
   const { tokens } = useAppTheme();
@@ -160,7 +175,7 @@ export function ProfileScreen({
    * neither is ever projected locally (ADR-0005).
    */
   const [progression, setProgression] = useState<ProgressionSummary>();
-  const [overviewGoal, setOverviewGoal] = useState<WeeklyGoalResponse>();
+  const [overviewTurf, setOverviewTurf] = useState<TerritoryClaimSummary>();
   useEffect(() => {
     let active = true;
     void api
@@ -171,13 +186,13 @@ export function ProfileScreen({
       .catch(() => {
         if (active) setProgression(undefined);
       });
-    void api
-      .getWeeklyGoal()
+    void Promise.resolve()
+      .then(() => api.getTerritoryClaimSummary())
       .then((next) => {
-        if (active) setOverviewGoal(next);
+        if (active) setOverviewTurf(next);
       })
       .catch(() => {
-        if (active) setOverviewGoal(undefined);
+        if (active) setOverviewTurf(undefined);
       });
     return () => {
       active = false;
@@ -189,6 +204,7 @@ export function ProfileScreen({
   const [appealBusy, setAppealBusy] = useState(false);
   const [visibility, setVisibility] = useState<'private' | 'followers'>('private');
   const [visibilityBusy, setVisibilityBusy] = useState(false);
+  const [fairPlayOpen, setFairPlayOpen] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState('Not verified');
   const sendAppeal = async (sanctionId: string) => {
     const validation = validateAppeal(appealDrafts[sanctionId] ?? '');
@@ -360,6 +376,30 @@ export function ProfileScreen({
           Social tab.
         </Text>
       </SettingsGroup>
+      <SettingsGroup title="Fair play">
+        <Setting
+          label="Fair Play & Privacy"
+          value="GPS checks and what you share"
+          onPress={() => setFairPlayOpen(true)}
+        />
+      </SettingsGroup>
+      {fairPlayOpen && (
+        <Modal transparent animationType="fade" onRequestClose={() => setFairPlayOpen(false)}>
+          <ScrollView contentContainerStyle={styles.modalBackdrop}>
+            <View accessibilityViewIsModal style={styles.recordCard}>
+              <Text accessibilityRole="header" style={styles.recordTitle}>
+                Fair Play &amp; Privacy
+              </Text>
+              {FAIR_PLAY_PRIVACY.map((detail) => (
+                <Text key={detail} style={styles.lead}>
+                  {detail}
+                </Text>
+              ))}
+              <PrimaryButton label="Done" onPress={() => setFairPlayOpen(false)} />
+            </View>
+          </ScrollView>
+        </Modal>
+      )}
       <SettingsGroup title="Account visibility">
         <Setting
           label="Email verification"
@@ -462,7 +502,7 @@ export function ProfileScreen({
         onEdit={() => setScreen('identity')}
         onOpenSettings={() => setScreen('settings')}
       />
-      <Text style={styles.mvpLabel}>PRIVATE PROFILE</Text>
+      <Text style={styles.mvpLabel}>LOCAL RUNNER</Text>
       {overview && (
         <LevelCard
           totalXpLabel={overview.totalXpLabel}
@@ -470,7 +510,7 @@ export function ProfileScreen({
           tierLabel={overview.tierLabel}
         />
       )}
-      <ProfileStats cells={profileStatCells(overviewGoal, progression)} />
+      <ProfileStats cells={profileStatCells(overviewTurf)} />
       <AchievementStrip
         medallions={achievementMedallions(progression?.achievements ?? [])}
         earnedCount={progression?.achievements.length ?? 0}

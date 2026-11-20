@@ -4,6 +4,7 @@ import type {
   Profile,
   ProgressionSummary,
   QuestSummary,
+  TerritoryClaimSummary,
   WeeklyGoalResponse
 } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
@@ -36,6 +37,9 @@ import {
 } from './home-state';
 import { unreadBadgeLabel, unreadIds } from './notifications-model';
 import {
+  seasonCountdown,
+  turfAreaLabel,
+  RHO_TURF_TIP,
   progressionCardState,
   progressionErrorState,
   progressionStatusMessage,
@@ -51,6 +55,7 @@ interface HomeRemoteData {
   readonly questState: HomeRemoteState;
   readonly progression: ProgressionSummary | undefined;
   readonly progressionState: ProgressionCardState;
+  readonly turf: TerritoryClaimSummary | undefined;
   readonly profile: Profile | undefined;
   readonly reloadGoals: () => void;
   readonly reloadQuests: () => void;
@@ -64,6 +69,7 @@ const useHomeRemoteData = (api: MobileApiClient, onSessionExpired: () => void): 
   const [questState, setQuestState] = useState<HomeRemoteState>('loading');
   const [progression, setProgression] = useState<ProgressionSummary>();
   const [progressionState, setProgressionState] = useState<ProgressionCardState>('loading');
+  const [turf, setTurf] = useState<TerritoryClaimSummary>();
   const [profile, setProfile] = useState<Profile>();
   /**
    * Unread notices, for the bell's marker only.
@@ -131,6 +137,13 @@ const useHomeRemoteData = (api: MobileApiClient, onSessionExpired: () => void): 
     const generation = ++progressionGeneration.current;
     setProgression(undefined);
     setProfile(undefined);
+    setTurf(undefined);
+    void Promise.resolve()
+      .then(() => api.getTerritoryClaimSummary())
+      .then((next) => {
+        if (mounted.current && generation === progressionGeneration.current) setTurf(next);
+      })
+      .catch(() => undefined);
     setProgressionState('loading');
     void api
       .getProgressionSummary()
@@ -191,6 +204,7 @@ const useHomeRemoteData = (api: MobileApiClient, onSessionExpired: () => void): 
     questState,
     progression,
     progressionState,
+    turf,
     profile,
     reloadGoals: loadGoals,
     reloadQuests: loadQuests,
@@ -208,6 +222,7 @@ export function HomeScreen({
   onOpenSocial,
   onOpenNotifications,
   onOpenProfile,
+  onOpenSettings,
   onSessionExpired
 }: {
   api: MobileApiClient;
@@ -220,6 +235,7 @@ export function HomeScreen({
   onOpenSocial: () => void;
   onOpenNotifications: () => void;
   onOpenProfile: () => void;
+  onOpenSettings?: () => void;
   onSessionExpired: () => void;
 }) {
   const styles = useAppStyles();
@@ -233,6 +249,7 @@ export function HomeScreen({
     questState,
     progression,
     progressionState,
+    turf,
     profile,
     reloadGoals,
     reloadQuests,
@@ -267,7 +284,14 @@ export function HomeScreen({
         {...(unreadLabel ? { unreadLabel } : {})}
         onOpenNotifications={onOpenNotifications}
         onOpenProfile={onOpenProfile}
+        season={seasonCountdown(new Date())}
+        {...(onOpenSettings ? { onOpenSettings } : {})}
       />
+
+      <View style={styles.recordCard}>
+        <Text style={[styles.eyebrow, { color: tokens.zone.owned }]}>TURF CONTROLLED</Text>
+        <Text style={styles.recordTitle}>{turfAreaLabel(turf?.totalAreaSqm)}</Text>
+      </View>
 
       {guidance.cue && <LoopCallout cue={guidance.cue} onDismiss={guidance.dismiss} />}
 
@@ -351,6 +375,11 @@ export function HomeScreen({
         />
       )}
 
+      <View style={styles.recordCard}>
+        <Text style={[styles.eyebrow, { color: tokens.zone.owned }]}>RHO FIELD COACH</Text>
+        <Text style={styles.lead}>{RHO_TURF_TIP}</Text>
+      </View>
+
       <QuickActions
         onAction={(action) => {
           if (action === 'run') onStart();
@@ -359,9 +388,12 @@ export function HomeScreen({
         }}
       />
 
-      <Text style={local.privacyNote}>
-        A free run records locally first. Exact route, start, and finish stay private.
-      </Text>
+      <Pressable accessibilityRole="button" style={styles.recordCard} onPress={onOpenMap}>
+        <Text style={[styles.eyebrow, { color: tokens.zone.rival }]}>GHOST RACES</Text>
+        <Text style={styles.cardTitle}>Scout for a nearby rival</Text>
+        <Text style={styles.rowDetail}>Open Map to find a rival loop and check for a ghost.</Text>
+      </Pressable>
+
       <Pressable accessibilityRole="button" onPress={onChooseRoute}>
         <Text style={local.chooseRoute}>Choose a route instead →</Text>
       </Pressable>
@@ -511,7 +543,6 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
     skeleton: { backgroundColor: t.background.surfaceInset, borderRadius: 18 },
     skeletonCard: { height: 116, marginBottom: 12 },
     skeletonTile: { flexBasis: '46%', flexGrow: 1, height: 86 },
-    privacyNote: { color: t.text.secondary, fontSize: 12, lineHeight: 18, marginTop: 16 },
     chooseRoute: {
       color: t.action.primary,
       fontSize: 14,

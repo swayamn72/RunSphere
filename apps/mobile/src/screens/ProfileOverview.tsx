@@ -1,8 +1,14 @@
+import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
+import { SettingsButton } from '../components/SettingsButton';
 import { useAppStyles } from '../components/styles';
 import { useAppTheme } from '../theme/theme';
 import type { LevelPresentation } from './home-progression-model';
-import type { AchievementMedallion, ProfileStatCell } from './profile-overview-model';
+import {
+  XP_INFO_COPY,
+  type AchievementMedallion,
+  type ProfileStatCell
+} from './profile-overview-model';
 
 /**
  * The profile overview: identity, cosmetic level band, weekly figures, and the
@@ -25,19 +31,8 @@ export function ProfileIdentityHead({
 }) {
   const styles = useAppStyles();
   return (
-    <>
-      <View style={styles.profileHeader}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Account settings"
-          onPress={onOpenSettings}
-          style={({ pressed }) => [styles.headerButton, pressed && styles.buttonPressed]}
-        >
-          <Text style={styles.headerButtonGlyph}>⚙</Text>
-        </Pressable>
-        <View />
-      </View>
-      <View style={styles.profileHead}>
+    <View style={styles.header}>
+      <View style={[styles.profileHead, styles.flexCopy]}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Edit your display name"
@@ -50,7 +45,8 @@ export function ProfileIdentityHead({
           {name}
         </Text>
       </View>
-    </>
+      <SettingsButton onPress={onOpenSettings} />
+    </View>
   );
 }
 
@@ -71,6 +67,7 @@ export function LevelCard({
   tierLabel: string | undefined;
 }) {
   const styles = useAppStyles();
+  const [showXpInfo, setShowXpInfo] = useState(false);
   return (
     <View style={styles.card}>
       <View style={styles.cardRow}>
@@ -80,6 +77,15 @@ export function LevelCard({
           </Text>
           {level && <Text style={styles.rowDetail}>{level.xpInLevelLabel}</Text>}
         </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="How XP works"
+          accessibilityState={{ expanded: showXpInfo }}
+          hitSlop={8}
+          onPress={() => setShowXpInfo((shown) => !shown)}
+        >
+          <Text style={styles.headerButtonGlyph}>{'ⓘ'}</Text>
+        </Pressable>
         {tierLabel && <Text style={styles.badge}>{tierLabel.toUpperCase()}</Text>}
       </View>
       {level?.progress !== undefined && (
@@ -99,14 +105,7 @@ export function LevelCard({
           </View>
         </View>
       )}
-      {!level && (
-        <Text style={styles.rowDetail}>
-          Cosmetic levels are not published yet, so only your XP total is available.
-        </Text>
-      )}
-      <Text style={styles.settingsHint}>
-        XP is cosmetic. It never changes quest eligibility, validation, or who you are matched with.
-      </Text>
+      {showXpInfo && <Text style={styles.settingsHint}>{XP_INFO_COPY}</Text>}
     </View>
   );
 }
@@ -115,13 +114,18 @@ export function ProfileStats({ cells }: { cells: readonly ProfileStatCell[] }) {
   const styles = useAppStyles();
   if (!cells.length) return null;
   return (
-    <View style={styles.statGrid}>
-      {cells.map((cell) => (
-        <View key={cell.key} style={styles.statTile}>
-          <Text style={styles.statTileValue}>{cell.value}</Text>
-          <Text style={styles.metricCellLabel}>{cell.label}</Text>
-        </View>
-      ))}
+    <View>
+      <Text accessibilityRole="header" style={styles.sectionTitle}>
+        Career &amp; Turf Stats
+      </Text>
+      <View style={styles.statGrid}>
+        {cells.map((cell) => (
+          <View key={cell.key} style={styles.statTile}>
+            <Text style={styles.statTileValue}>{cell.value}</Text>
+            <Text style={styles.metricCellLabel}>{cell.label}</Text>
+          </View>
+        ))}
+      </View>
     </View>
   );
 }

@@ -14,6 +14,12 @@ export const createAppStyles = (t: SemanticTokens) =>
     // read the same information from the cards themselves.
     visuallyHidden: { color: t.text.secondary, fontSize: 1, height: 1, opacity: 0, width: 1 },
     loading: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 30 },
+    modalBackdrop: {
+      backgroundColor: t.scrim.strong,
+      flexGrow: 1,
+      justifyContent: 'center',
+      padding: 20
+    },
     eyebrow: { color: t.status.success, fontSize: 11, fontWeight: '900', letterSpacing: 1.4 },
     teal: { color: t.status.success },
     lead: { color: t.text.secondary, fontSize: 15, lineHeight: 23, marginBottom: 18 },
@@ -342,7 +348,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       minHeight: 56,
       paddingHorizontal: 20
     },
-    dangerText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900', letterSpacing: 0.3 },
+    dangerText: { color: t.text.primary, fontSize: 16, fontWeight: '900', letterSpacing: 0.3 },
     secondaryButton: {
       alignItems: 'center',
       backgroundColor: t.background.surfaceRaised,

@@ -27,6 +27,7 @@ import {
   recommendationLine,
   showsClusters,
   statusLabel,
+  targetPaceLabel,
   territoryFacts,
   SELF_COLOUR,
   TRUNCATED_NOTE,
@@ -616,5 +617,12 @@ describe('claimableRunId (B4)', () => {
         { id: 'b', status: 'rejected' }
       ])
     ).toBeUndefined();
+  });
+});
+
+describe('rival target pace', () => {
+  it('formats the confirmed pace per kilometre and omits an invalid target', () => {
+    expect(targetPaceLabel(2)).toBe('Target pace: 8:20/km');
+    expect(targetPaceLabel(0)).toBeUndefined();
   });
 });

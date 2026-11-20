@@ -3,6 +3,7 @@ import type { SemanticTokens } from '@runsphere/ui';
 import mapIcon from '../../assets/tabs/map.png';
 import runIcon from '../../assets/tabs/run.png';
 import socialIcon from '../../assets/tabs/social.png';
+import { SettingsButton } from '../components/SettingsButton';
 import { useAppStyles } from '../components/styles';
 import { useAppTheme } from '../theme/theme';
 import type {
@@ -39,18 +40,24 @@ export function HomeHeader({
   greeting,
   unreadLabel,
   onOpenNotifications,
-  onOpenProfile
+  onOpenProfile,
+  onOpenSettings,
+  season
 }: {
   greeting: GreetingPresentation;
   /** Present only when the inbox has actually reported unread notices. */
   unreadLabel?: string;
   onOpenNotifications: () => void;
   onOpenProfile: () => void;
+  onOpenSettings?: () => void;
+  season: string;
 }) {
   const styles = useAppStyles();
+  const { tokens } = useAppTheme();
   return (
     <View style={styles.header}>
       <View style={styles.flexCopy}>
+        <Text style={[styles.greeting, { color: tokens.zone.owned }]}>{season}</Text>
         <Text style={styles.greeting}>{greeting.salutation}</Text>
         <Text accessibilityRole="header" style={styles.greetingName}>
           {greeting.name}
@@ -76,6 +83,7 @@ export function HomeHeader({
         >
           <Text style={styles.avatarText}>{greeting.initials}</Text>
         </Pressable>
+        {onOpenSettings && <SettingsButton onPress={onOpenSettings} />}
       </View>
     </View>
   );
@@ -205,7 +213,7 @@ export function QuickActions({ onAction }: { onAction: (action: QuickAction['key
   // glance, which is the whole point of a quick-action row.
   const tint: Record<QuickAction['key'], string> = {
     run: tokens.action.primary,
-    map: tokens.accent.violet,
+    map: tokens.background.surface,
     social: tokens.accent.amber
   };
   return (
@@ -230,10 +238,18 @@ export function QuickActions({ onAction }: { onAction: (action: QuickAction['key
           >
             <Image
               source={quickActionIcons[action.key]}
-              style={[styles.quickActionIcon, { tintColor: tokens.text.onAccent }]}
+              style={[
+                styles.quickActionIcon,
+                { tintColor: action.key === 'map' ? tokens.text.primary : tokens.text.onAccent }
+              ]}
               resizeMode="contain"
             />
-            <Text style={[styles.quickActionText, { color: tokens.text.onAccent }]}>
+            <Text
+              style={[
+                styles.quickActionText,
+                { color: action.key === 'map' ? tokens.text.primary : tokens.text.onAccent }
+              ]}
+            >
               {action.label}
             </Text>
           </Pressable>
