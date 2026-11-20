@@ -255,7 +255,10 @@ export const renderTransactional = (
     case 'deletion_verify':
       return {
         subject: 'Confirm your RunSphere deletion request',
-        text: `Confirm this request to schedule your RunSphere account for deletion.\n\n${link('/confirm-deletion')}\n\nThe link works for 24 hours. Deletion begins after a 30-day waiting period, and signing in to RunSphere cancels it. If you did not ask for this, ignore this message.`
+        // ADR-0012: erasure follows confirmation without a waiting period, so
+        // the copy must not promise one, nor a way to cancel that no longer
+        // exists. It says plainly that confirming is final.
+        text: `Confirm this request to permanently delete your RunSphere account.\n\n${link('/confirm-deletion')}\n\nThe link works for 24 hours. Once you confirm, you are signed out everywhere and your account, runs, territory, and social data are erased within minutes. This cannot be undone. If you did not ask for this, ignore this message and nothing will happen.`
       };
   }
 };

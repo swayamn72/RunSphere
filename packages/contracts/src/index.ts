@@ -292,6 +292,15 @@ export const AccountExportResponseSchema = Type.Object(
   },
   { $id: 'AccountExportResponse' }
 );
+/**
+ * In-app account deletion. The current password is required: erasure is
+ * irreversible, so a bearer token alone (which may have been lifted from a
+ * device) must not be enough to destroy somebody's data. See ADR-0012.
+ */
+export const AccountDeletionRequestSchema = Type.Object(
+  { password: Type.String({ minLength: 1, maxLength: 256 }) },
+  { ...Strict, $id: 'AccountDeletionRequest' }
+);
 export const AccountDeletionResponseSchema = Type.Object(
   { status: Type.Literal('scheduled') },
   { $id: 'AccountDeletionResponse' }
@@ -549,6 +558,7 @@ export type SafetyShareResponse = Static<typeof SafetyShareResponseSchema>;
 export type SafetyShareUpdateRequest = Static<typeof SafetyShareUpdateRequestSchema>;
 export type SafetyShareReadResponse = Static<typeof SafetyShareReadResponseSchema>;
 export type AccountExportResponse = Static<typeof AccountExportResponseSchema>;
+export type AccountDeletionRequest = Static<typeof AccountDeletionRequestSchema>;
 export type AccountDeletionResponse = Static<typeof AccountDeletionResponseSchema>;
 export type RunVerificationMethod = Static<typeof RunVerificationMethodSchema>;
 export type RunVerificationPayload = Static<typeof RunVerificationSchema>;

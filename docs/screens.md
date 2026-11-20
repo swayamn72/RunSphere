@@ -654,9 +654,10 @@ While you're running, Mum sees:
   Downloads all runs as GPX. Territory claim history included.
 
 [ Delete my account ]
-  Permanent. 30-day waiting period.
-  All runs, claims, XP, and friends are deleted.
+  Permanent. Requires your current password. No waiting period (ADR-0012).
+  Signs you out everywhere; runs, claims, XP, and friends are erased within minutes.
   Territory held by you is immediately released.
+  Also available on the web at /account/delete (Google Play requirement).
 
 [ Community Guidelines ]
 [ Privacy Notice ]

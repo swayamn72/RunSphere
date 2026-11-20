@@ -105,6 +105,16 @@ export const convergeAccountDeletion = async (db: Database): Promise<number> => 
          WHERE account_id = $1 OR lower(email) = (SELECT lower(email) FROM accounts WHERE id = $1)`,
         [account.id]
       );
+      // Keyed by address rather than account, so nothing cascades to it. The
+      // request has done its job once erasure runs, and keeping the address
+      // afterwards would retain exactly the identifier erasure exists to
+      // remove (ADR-0012). `email_suppressions` is deliberately left alone: a
+      // do-not-email list is how a past complaint or bounce stays honoured.
+      await client.query(
+        `DELETE FROM public_deletion_requests
+         WHERE lower(email) = (SELECT lower(email) FROM accounts WHERE id = $1)`,
+        [account.id]
+      );
       await client.query('DELETE FROM account_export_requests WHERE account_id = $1', [account.id]);
       await client.query(
         'DELETE FROM account_audit_events WHERE account_id = $1 OR actor_account_id = $1',

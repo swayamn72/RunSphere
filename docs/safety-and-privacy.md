@@ -104,6 +104,12 @@ Retention durations and deletion-service objectives must be published before pub
 - account deletion request;
 - consent and permission guidance.
 
+**Account deletion** follows [ADR-0012](adr/0012-account-deletion-policy.md): verified (current
+password in app, an emailed single-use link on the web at `/account/delete`), immediate withdrawal
+(all sessions and shares revoked), and complete erasure within minutes, with no waiting period.
+Only an abuse tombstone, do-not-email suppressions, and de-identified staff audit rows are
+retained, and those are disclosed.
+
 No photos are accepted, processed, or retained in v1. The results mockup’s “Add photos or notes” affordance is not a v1 commitment; it must be hidden or replaced with non-upload functionality until a later approved policy and architecture decision.
 
 ## Social identity, friends, and blocks

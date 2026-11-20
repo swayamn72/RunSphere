@@ -289,8 +289,12 @@ export class MobileApiClient {
   async exportAccount(): Promise<AccountExportResponse> {
     return this.request('/v1/account/export', { method: 'GET' });
   }
-  async requestAccountDeletion(): Promise<AccountDeletionResponse> {
-    return this.request('/v1/account', { method: 'DELETE' });
+  /**
+   * Permanently erase this account (ADR-0012). The current password is
+   * required; a wrong one comes back as `AuthFailure` with status 403.
+   */
+  async requestAccountDeletion(password: string): Promise<AccountDeletionResponse> {
+    return this.request('/v1/account', { method: 'DELETE', body: { password } });
   }
 
   /**

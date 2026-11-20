@@ -1,12 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 import {
   ActivityAuthorizationHeadersSchema,
+  AccountDeletionRequestSchema,
   AccountDeletionResponseSchema,
   AccountExportResponseSchema,
-  ErrorResponseSchema
+  ErrorResponseSchema,
+  type AccountDeletionRequest
 } from '@runsphere/contracts';
 import { withTransaction, type Database } from '@runsphere/db';
-import { audit, requireAccount } from './auth-routes.js';
+import { verifyPassword } from './auth.js';
+import { allowAuthAttempt, audit, requireAccount } from './auth-routes.js';
 
 const privacyZoneRadiusMeters = 200;
 
@@ -90,14 +93,25 @@ export const registerAccountPrivacyRoutes = ({
     }
   );
 
-  routes.delete(
+  /**
+   * In-app erasure (ADR-0012). The password is checked first because erasure
+   * cannot be undone and an access token on its own may have come off a lost
+   * or shared phone. On success the account is withdrawn from every surface at
+   * once — sessions, shares, visibility — and the worker erases it on its next
+   * sweep, which is the "without undue delay" the DPDP Act and GDPR require.
+   * There is deliberately no grace period: nothing is kept "just in case".
+   */
+  routes.delete<{ Body: AccountDeletionRequest }>(
     '/v1/account',
     {
       schema: {
         headers: ActivityAuthorizationHeadersSchema,
+        body: AccountDeletionRequestSchema,
         response: {
           202: AccountDeletionResponseSchema,
           401: ErrorResponseSchema,
+          403: ErrorResponseSchema,
+          429: ErrorResponseSchema,
           503: ErrorResponseSchema
         }
       }
@@ -106,10 +120,26 @@ export const registerAccountPrivacyRoutes = ({
       if (!database) return reply.code(503).send({ message: 'Service unavailable' });
       const accountId = requireAccount(request, reply, authSecret);
       if (!accountId) return;
+      if (!allowAuthAttempt(`account-deletion:${accountId}`))
+        return reply.code(429).send({ message: 'Too many attempts' });
+      const account = await database.query<{ password_hash: string }>(
+        'SELECT password_hash FROM accounts WHERE id = $1 AND deleted_at IS NULL',
+        [accountId]
+      );
+      if (!account.rows[0]) return reply.code(401).send({ message: 'Unauthorized' });
+      if (!(await verifyPassword(account.rows[0].password_hash, request.body.password)))
+        return reply.code(403).send({ message: 'Password is incorrect' });
       await withTransaction(database, async (client) => {
         await client.query(
           `UPDATE accounts SET deletion_requested_at = coalesce(deletion_requested_at, now()),
            profile_visibility = 'private', updated_at = now() WHERE id = $1`,
+          [accountId]
+        );
+        // Every device is signed out now rather than when the worker gets to
+        // the account: a refresh token must not outlive the request to erase.
+        await client.query(
+          `UPDATE refresh_token_families SET revoked_at = coalesce(revoked_at, now())
+           WHERE account_id = $1 AND revoked_at IS NULL`,
           [accountId]
         );
         await client.query(

@@ -13,3 +13,4 @@ ADRs record durable decisions. A new ADR is required when a change affects priva
 - [ADR-0009: Durable notifications first; defer Redis and WebSockets](0009-durable-notifications-first.md)
 - [ADR-0010: Cost governance — soft target with approval bands](0010-cost-governance-approval-bands.md)
 - [ADR-0011: Enclosure territory claims — named holders and pace-based takeovers](0011-enclosure-territory-claims.md) — **reverses ADR-0005 and ADR-0008 for that mechanic only**
+- [ADR-0012: Account deletion — prompt, verified, complete erasure](0012-account-deletion-policy.md)

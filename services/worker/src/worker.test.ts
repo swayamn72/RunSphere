@@ -54,6 +54,24 @@ describe('privacy maintenance', () => {
     expect(database.clientQuery.mock.calls.at(-1)![0]).toBe('COMMIT');
   });
 
+  it('erases address-keyed deletion requests before the account row goes', async () => {
+    const database = transactionDatabase();
+    database.query.mockResolvedValueOnce({ rows: [{ id: 'account-id' }] });
+    database.clientQuery.mockImplementation(async (sql: string) =>
+      sql.includes('SELECT id FROM accounts') ? { rows: [{ id: 'account-id' }] } : { rows: [] }
+    );
+
+    await convergeAccountDeletion(database as unknown as Database);
+
+    const statements = database.clientQuery.mock.calls.map(([sql]) => sql);
+    const scrub = statements.findIndex((sql) =>
+      sql.includes('DELETE FROM public_deletion_requests')
+    );
+    expect(scrub).toBeGreaterThan(-1);
+    // The address is looked up from the account row, so this must run first.
+    expect(scrub).toBeLessThan(statements.findIndex((sql) => sql.includes('DELETE FROM accounts')));
+  });
+
   it('archives a club the erased account owned, so it is not left ownerless', async () => {
     const database = transactionDatabase();
     database.query.mockResolvedValueOnce({ rows: [{ id: 'account-id' }] });

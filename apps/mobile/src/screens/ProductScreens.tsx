@@ -28,6 +28,15 @@ import { AchievementStrip, LevelCard, ProfileIdentityHead, ProfileStats } from '
 import { achievementMedallions, profileStatCells } from './profile-overview-model';
 import { progressionPresentation } from './home-progression-model';
 import {
+  DELETION_DONE_MESSAGE,
+  DELETION_DONE_TITLE,
+  DELETION_EXPLANATION,
+  DELETION_RETENTION_NOTE,
+  DELETION_TITLE,
+  canSubmitDeletion,
+  deletionFailure
+} from './account-deletion-model';
+import {
   APPEAL_CONSEQUENCE,
   NO_SANCTIONS_MESSAGE,
   appealFailureNotice,
@@ -124,6 +133,7 @@ export function ProfileScreen({
     | 'notifications'
     | 'achievements'
     | 'clubs'
+    | 'delete-account'
   >(initialScreen);
   // The profile is the only identity a social surface may show, and an account
   // without one is invisible to friends: a 404 here is a normal "unset" state.
@@ -262,35 +272,24 @@ export function ProfileScreen({
       );
     }
   };
-  const confirmDelete = () =>
-    Alert.alert(
-      'Schedule account deletion?',
-      'Your profile becomes private and active safety shares are revoked. This cannot be undone from the app.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Schedule deletion',
-          style: 'destructive',
-          onPress: () =>
-            void api
-              .requestAccountDeletion()
-              .then(async () => {
-                await clearAccountData(
-                  activityQueue,
-                  authStorage,
-                  accountId ? { clear: () => activityRecorder.clearAccount(accountId) } : undefined
-                );
-                Alert.alert('Deletion scheduled', 'Local account data has been cleared.');
-                onLogoutComplete();
-              })
-              .catch((error) =>
-                Alert.alert(
-                  'Deletion unavailable',
-                  error instanceof Error ? error.message : 'Try again when connected.'
-                )
-              )
-        }
-      ]
+  if (screen === 'delete-account')
+    return (
+      <DeleteAccountScreen
+        api={api}
+        onBack={() => setScreen('settings')}
+        onDeleted={async () => {
+          // The server has already revoked every session; this clears what
+          // the device itself holds for the account.
+          await clearAccountData(
+            activityQueue,
+            authStorage,
+            accountId ? { clear: () => activityRecorder.clearAccount(accountId) } : undefined
+          );
+          Alert.alert(DELETION_DONE_TITLE, DELETION_DONE_MESSAGE);
+          onLogoutComplete();
+        }}
+        onSessionExpired={onLogoutComplete}
+      />
     );
   if (screen === 'safety') return <SafetyScreen api={api} onBack={() => setScreen('profile')} />;
   if (screen === 'goals') return <GoalsScreen api={api} onBack={() => setScreen('profile')} />;
@@ -436,9 +435,9 @@ export function ProfileScreen({
         <Setting label="Log out" value="Clear this device" onPress={confirmLogout} />
         <Setting
           label="Delete account"
-          value="Schedule deletion"
+          value="Permanent"
           destructive
-          onPress={confirmDelete}
+          onPress={() => setScreen('delete-account')}
         />
       </SettingsGroup>
     </>
@@ -486,6 +485,79 @@ export function ProfileScreen({
         label="Settings"
         value="Goals, clubs, privacy, data"
         onPress={() => setScreen('settings')}
+      />
+    </>
+  );
+}
+
+/**
+ * In-app account deletion (ADR-0012). A dedicated screen rather than an alert
+ * because Android alerts cannot hold a password field, and because a
+ * permanent action deserves the full explanation in front of it.
+ */
+function DeleteAccountScreen({
+  api,
+  onBack,
+  onDeleted,
+  onSessionExpired
+}: {
+  api: MobileApiClient;
+  onBack: () => void;
+  onDeleted: () => Promise<void>;
+  onSessionExpired: () => void;
+}) {
+  const styles = useAppStyles();
+  const { tokens } = useAppTheme();
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [failure, setFailure] = useState<string>();
+  const submit = async () => {
+    if (!canSubmitDeletion(password, submitting)) return;
+    setSubmitting(true);
+    setFailure(undefined);
+    try {
+      await api.requestAccountDeletion(password);
+    } catch (error) {
+      const next = deletionFailure(error);
+      setSubmitting(false);
+      if (next.sessionExpired) {
+        onSessionExpired();
+        return;
+      }
+      setFailure(next.message);
+      return;
+    }
+    setPassword('');
+    await onDeleted();
+  };
+  return (
+    <>
+      <BackHeader label="DELETE ACCOUNT" onBack={onBack} />
+      <Text style={styles.homeTitle}>{DELETION_TITLE}</Text>
+      <Text style={styles.lead}>{DELETION_EXPLANATION}</Text>
+      <Text style={styles.privateNote}>{DELETION_RETENTION_NOTE}</Text>
+      <Text style={styles.fieldLabel}>CURRENT PASSWORD</Text>
+      <TextInput
+        accessibilityLabel="Current password"
+        secureTextEntry
+        autoCapitalize="none"
+        autoComplete="current-password"
+        textContentType="password"
+        value={password}
+        onChangeText={setPassword}
+        style={styles.input}
+        placeholderTextColor={tokens.text.secondary}
+      />
+      {failure && (
+        <Text accessibilityRole="alert" style={styles.privateNote}>
+          {failure}
+        </Text>
+      )}
+      <PrimaryButton
+        label={submitting ? 'Deleting…' : 'Delete my account permanently'}
+        accessibilityLabel="Delete my account permanently"
+        disabled={!canSubmitDeletion(password, submitting)}
+        onPress={() => void submit()}
       />
     </>
   );

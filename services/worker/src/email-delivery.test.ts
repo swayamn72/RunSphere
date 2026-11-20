@@ -234,6 +234,9 @@ describe('what each message says', () => {
   it('says how long a link lasts', () => {
     expect(render('password_reset').text).toContain('one hour');
     expect(render('email_verification').text).toContain('24 hours');
+    // ADR-0012: no grace period exists, so the copy must not promise one.
+    expect(render('deletion_verify').text).toContain('cannot be undone');
+    expect(render('deletion_verify').text).not.toMatch(/waiting period|cancels it/i);
   });
 });
 

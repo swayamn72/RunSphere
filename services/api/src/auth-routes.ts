@@ -228,7 +228,11 @@ export const registerAuthRoutes = ({ routes, database, authSecret }: AuthRouteDe
       if (!allowAuthAttempt(`login:${request.ip}:${request.body.email.toLowerCase()}`))
         return reply.code(429).send({ message: 'Too many attempts' });
       const accounts = await database.query<{ id: string; password_hash: string }>(
-        'SELECT id, password_hash FROM accounts WHERE lower(email) = lower($1)',
+        // An account whose erasure has been requested is already gone as far
+        // as sign-in is concerned (ADR-0012): it answers exactly like an
+        // unknown address rather than resurrecting a session.
+        `SELECT id, password_hash FROM accounts
+         WHERE lower(email) = lower($1) AND deleted_at IS NULL AND deletion_requested_at IS NULL`,
         [request.body.email.trim()]
       );
       if (

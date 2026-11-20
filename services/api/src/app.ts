@@ -76,6 +76,7 @@ import { registerSafetyRoutes } from './safety-routes.js';
 import { registerActivityRoutes } from './activity-routes.js';
 import { registerQuestRoutes } from './quest-routes.js';
 import { registerAccountPrivacyRoutes } from './account-privacy-routes.js';
+import { registerAccountDeletionPages } from './account-deletion-pages.js';
 import { registerStaffRoutes } from './staff-routes.js';
 import { registerGamificationRoutes } from './gamification-routes.js';
 import { registerAccountLifecycleRoutes } from './account-routes.js';
@@ -243,6 +244,7 @@ export const buildApp = ({
     registerAuthRoutes({ routes, database, authSecret });
     registerQuestRoutes({ routes, database, authSecret });
     registerAccountPrivacyRoutes({ routes, database, authSecret });
+    registerAccountDeletionPages({ routes });
     registerSafetyRoutes({ routes, database, authSecret });
     registerActivityRoutes({ routes, database, authSecret });
 
