@@ -105,6 +105,22 @@ export interface TerritoryClaimRouteDeps {
   mlScorer?: MlScorer;
 }
 
+/** The answer to a run that has already claimed its ground (B4). */
+const alreadyClaimed = (): TerritoryClaimResult => ({
+  claimed: false,
+  refusal: 'already_claimed',
+  message: CLAIM_REFUSAL_MESSAGE.already_claimed,
+  carves: [],
+  takenOverCount: 0,
+  carvedAreaSqm: 0,
+  isFirstClaim: false
+});
+
+/** A unique violation on the one-claim-per-run index from migration 048. */
+const isOnePerActivityViolation = (error: unknown): boolean =>
+  (error as { code?: string; constraint?: string }).code === '23505' &&
+  (error as { constraint?: string }).constraint === 'territory_claims_one_per_activity';
+
 /**
  * Said wherever the map is shown. Somebody looking at a picture of their own
  * neighbourhood with names on it should not have to infer what it records.
@@ -646,6 +662,14 @@ export const registerTerritoryClaimRoutes = ({
       if (!owned.rows[0])
         return reply.code(404).send({ message: 'That run is not available to claim from' });
 
+      // A run claims at most once (B4, migration 048). Answered before any
+      // work so a repeat tap costs one indexed read and changes nothing.
+      const previous = await database.query<{ id: string }>(
+        'SELECT id FROM territory_claims WHERE activity_id = $1 LIMIT 1',
+        [request.body.activityId]
+      );
+      if (previous.rows[0]) return alreadyClaimed();
+
       const chunks = await database.query<{ payload: unknown }>(
         `SELECT payload FROM activity_chunks WHERE activity_id = $1 ORDER BY sequence`,
         [request.body.activityId]
@@ -808,6 +832,19 @@ export const registerTerritoryClaimRoutes = ({
       const seasonMonth = seasonMonthFor(new Date());
 
       return withTransaction(database, async (client) => {
+        // One decision per run at a time (B4). Two submissions of the same run
+        // both pass the check above; without this the second would find the
+        // first's fresh claim, contest its own ground, and answer with a
+        // misleading refusal instead of "already claimed". Released at commit.
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+          `territory-claim:${request.body.activityId}`
+        ]);
+        const claimedMeanwhile = await client.query<{ id: string }>(
+          'SELECT id FROM territory_claims WHERE activity_id = $1 LIMIT 1',
+          [request.body.activityId]
+        );
+        if (claimedMeanwhile.rows[0]) return alreadyClaimed();
+
         // Lock every claim this loop could contest before deciding anything, so
         // two runners finishing together cannot both be told they won.
         //
@@ -1302,6 +1339,11 @@ export const registerTerritoryClaimRoutes = ({
           isFirstClaim
         };
         return result;
+      }).catch((error: unknown) => {
+        // Two requests for the same run can both pass the check above; the
+        // unique index decides, and the loser gets the same answer as a repeat.
+        if (isOnePerActivityViolation(error)) return alreadyClaimed();
+        throw error;
       });
     }
   );

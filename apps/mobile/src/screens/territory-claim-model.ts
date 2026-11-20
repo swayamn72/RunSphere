@@ -495,3 +495,18 @@ export const zoneFilterSummary = (
     ? `${total} ${total === 1 ? 'zone' : 'zones'} in this view.`
     : `${shown} of ${total} zones in this view.`;
 };
+
+/**
+ * The run the Claim button should offer: the most recent derived run that has
+ * not already claimed. A run claims at most once (B4); offering a claimed run
+ * again only ever produced a refusal, and before migration 048 it produced a
+ * duplicate claim.
+ */
+export const claimableRunId = (
+  runs: ReadonlyArray<{
+    readonly id: string;
+    readonly status: string;
+    readonly territoryClaimed?: boolean;
+  }>
+): string | undefined =>
+  runs.find((run) => run.status === 'derived' && run.territoryClaimed !== true)?.id;

@@ -434,14 +434,21 @@ export const registerActivityRoutes = ({ routes, database, authSecret }: Activit
       if (!database) return reply.code(503).send({ message: 'Service unavailable' });
       const accountId = requireAccount(request, reply, authSecret);
       if (!accountId) return;
-      const activities = await database.query<ActivityRow>(
+      const activities = await database.query<ActivityRow & { territory_claimed: boolean }>(
         `SELECT id, status, summary, rejection_reason, validation_errors, expected_chunk_count, movement_type, created_at,
-           ${activityVerificationColumns}
+           ${activityVerificationColumns},
+           EXISTS (SELECT 1 FROM territory_claims claim WHERE claim.activity_id = activity_submissions.id)
+             AS territory_claimed
          FROM activity_submissions WHERE account_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 100`,
         [accountId]
       );
       return {
-        data: await Promise.all(activities.rows.map((row) => statusResponse(database, row)))
+        data: await Promise.all(
+          activities.rows.map(async (row) => ({
+            ...(await statusResponse(database, row)),
+            territoryClaimed: row.territory_claimed
+          }))
+        )
       };
     }
   );

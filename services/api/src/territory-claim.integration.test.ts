@@ -522,6 +522,56 @@ describePostgis('territory claims on real PostGIS', () => {
       expect(body.claim.speedMps).toBeGreaterThan(0);
     });
 
+    // B4: a run claims at most once (migration 048).
+    const claimsFrom = async (activityId: string) =>
+      Number(
+        (
+          await db.query<{ count: string }>(
+            'SELECT count(*)::text AS count FROM territory_claims WHERE activity_id = $1',
+            [activityId]
+          )
+        ).rows[0]!.count
+      );
+
+    it('answers a second claim from the same run with already_claimed and writes nothing', async () => {
+      const activity = await runWithLoop(account, 300, 700, 7.1);
+      expect((await claim(account, activity)).json().claimed).toBe(true);
+
+      const again = await claim(account, activity);
+
+      expect(again.statusCode).toBe(200);
+      expect(again.json()).toMatchObject({ claimed: false, refusal: 'already_claimed' });
+      expect(await claimsFrom(activity)).toBe(1);
+    });
+
+    it('lets only one of two simultaneous claims from the same run through', async () => {
+      const activity = await runWithLoop(account, 300, 700, 7.3);
+
+      const answers = (await Promise.all([claim(account, activity), claim(account, activity)])).map(
+        (response) => response.json() as { claimed: boolean; refusal?: string }
+      );
+
+      expect(answers.filter((answer) => answer.claimed)).toHaveLength(1);
+      expect(answers.filter((answer) => answer.refusal === 'already_claimed')).toHaveLength(1);
+      expect(await claimsFrom(activity)).toBe(1);
+    });
+
+    it('marks a claimed run in the activity list so the app stops offering it', async () => {
+      const activity = await runWithLoop(account, 300, 700, 7.5);
+      await claim(account, activity);
+
+      const list = await app.inject({
+        method: 'GET',
+        url: '/v1/activities',
+        headers: { authorization: `Bearer ${createAccessToken(account, SECRET)}` }
+      });
+
+      const row = (list.json() as { data: { id: string; territoryClaimed?: boolean }[] }).data.find(
+        (entry) => entry.id === activity
+      );
+      expect(row?.territoryClaimed).toBe(true);
+    });
+
     it('hands the ground to a faster rival and records both times', async () => {
       const mine = await runWithLoop(account, 400, 1200, 2);
       const first = (await claim(account, mine)).json();

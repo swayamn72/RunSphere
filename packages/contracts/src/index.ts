@@ -501,7 +501,9 @@ export const ActivityStatusResponseSchema = Type.Object(
     summary: Type.Optional(ActivitySummarySchema),
     rejectionReason: Type.Optional(Type.String()),
     validationErrors: Type.Optional(Type.Array(Type.String({ maxLength: 160 }), { maxItems: 20 })),
-    missingSequences: Type.Optional(Type.Array(Type.Integer({ minimum: 0 }), { maxItems: 10000 }))
+    missingSequences: Type.Optional(Type.Array(Type.Integer({ minimum: 0 }), { maxItems: 10000 })),
+    /** Whether this run has already made its one territory claim (B4). Set on list reads. */
+    territoryClaimed: Type.Optional(Type.Boolean())
   },
   { $id: 'ActivityStatusResponse' }
 );

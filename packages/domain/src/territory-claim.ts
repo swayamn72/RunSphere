@@ -416,7 +416,9 @@ export type ClaimRefusal =
   | 'too_large'
   | 'no_duration'
   | 'slower_than_holder'
-  | 'privacy_zone';
+  | 'privacy_zone'
+  /** This run already made a claim; a run claims at most once (B4). */
+  | 'already_claimed';
 
 export interface ClaimCandidate {
   boundary: ClaimRing;
@@ -742,5 +744,6 @@ export const CLAIM_REFUSAL_MESSAGE: Readonly<Record<ClaimRefusal, string>> = {
   slower_than_holder:
     'Every part of this loop is already held by someone with a faster loop, so there was nothing left to claim. Beat one of them on speed — a longer loop counts for a little more — and their ground is yours.',
   privacy_zone:
-    'This loop passes through one of your private areas. Claiming it would put that area on a public map, so it was not claimed. The run itself is saved as normal.'
+    'This loop passes through one of your private areas. Claiming it would put that area on a public map, so it was not claimed. The run itself is saved as normal.',
+  already_claimed: 'This run has already claimed its ground. Run a new loop to claim more.'
 };

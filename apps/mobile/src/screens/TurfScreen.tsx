@@ -38,6 +38,7 @@ import {
   TRUNCATED_NOTE,
   boundsFrom,
   captureCelebration,
+  claimableRunId as pickClaimableRun,
   claimFeatures,
   claimMarkers,
   clusterMarkers,
@@ -170,7 +171,7 @@ export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: Tu
       setFeed(activity.data);
       setEvents(eventList.data);
       if (leaderboard) setBoard(leaderboard);
-      setClaimableRunId(runs.filter((run) => run.status === 'derived').at(0)?.id);
+      setClaimableRunId(pickClaimableRun(runs));
     } catch {
       // The map is the point of the screen; a failed sidebar must not take it
       // down with it.
@@ -614,6 +615,10 @@ export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: Tu
                   const result = await api.claimTerritory(claimableRunId);
                   if (!mounted.current) return;
                   setNotice(result.message);
+                  // A run claims once (B4). Whether it just did or already
+                  // had, there is nothing more to offer from it.
+                  if (result.claimed || result.refusal === 'already_claimed')
+                    setClaimableRunId(undefined);
                   if (result.claimed) {
                     setCelebration(captureCelebration(result.claim, result.takenOverCount));
                     // Said once, the moment it becomes true, rather than

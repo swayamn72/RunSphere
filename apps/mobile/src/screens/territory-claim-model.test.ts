@@ -14,6 +14,7 @@ import {
   zoneFilterSummary,
   TIER_HINT,
   captureCelebration,
+  claimableRunId,
   clusterMarkers,
   crewForAvatar,
   activeEvents,
@@ -593,5 +594,27 @@ describe('zone filters', () => {
     expect(ZONE_FILTERS.map((entry) => entry.key)).toEqual(['all', 'mine', 'rivals', 'contested']);
     // No filter promises a popularity the API does not measure.
     for (const entry of ZONE_FILTERS) expect(entry.label).not.toMatch(/popular/i);
+  });
+});
+
+describe('claimableRunId (B4)', () => {
+  it('offers the newest derived run that has not claimed yet', () => {
+    expect(
+      claimableRunId([
+        { id: 'pending', status: 'validating' },
+        { id: 'claimed', status: 'derived', territoryClaimed: true },
+        { id: 'fresh', status: 'derived', territoryClaimed: false },
+        { id: 'older', status: 'derived' }
+      ])
+    ).toBe('fresh');
+  });
+
+  it('offers nothing when every derived run has already claimed', () => {
+    expect(
+      claimableRunId([
+        { id: 'a', status: 'derived', territoryClaimed: true },
+        { id: 'b', status: 'rejected' }
+      ])
+    ).toBeUndefined();
   });
 });

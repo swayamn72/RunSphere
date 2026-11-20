@@ -279,7 +279,9 @@ export const TerritoryClaimResultSchema = Type.Object(
         /** The trace could not have been run. See `run-integrity.ts`. */
         Type.Literal('run_integrity'),
         /** The loop passes through one of the claimant's own privacy zones. */
-        Type.Literal('privacy_zone')
+        Type.Literal('privacy_zone'),
+        /** This run already made a claim; a run claims at most once (B4). */
+        Type.Literal('already_claimed')
       ])
     ),
     message: Type.String({ minLength: 1, maxLength: 400 }),
