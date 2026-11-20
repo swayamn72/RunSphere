@@ -858,10 +858,10 @@ export function TurfScreen({
           </Map>
         ) : (
           <View style={styles.fallback}>
-            <Text style={styles.fallbackTitle}>The map is not configured</Text>
+            <Text style={styles.fallbackTitle}>The map isn't available</Text>
             <Text style={styles.body}>
-              Territory still counts, and the list below is all of it. A map style has to be
-              configured before ground can be drawn.
+              Your ground still counts, and the list below shows all of it. The map will be back
+              soon.
             </Text>
           </View>
         )}

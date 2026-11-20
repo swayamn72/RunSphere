@@ -190,7 +190,7 @@ describe('failure copy', () => {
     ).toMatch(/quest_completion/);
     expect(createChallengeFailure(new ApiFailure(409, 'conflict'))).toMatch(/already have/);
     expect(createChallengeFailure(new ApiFailure(404, 'gone'))).toMatch(/no longer available/);
-    expect(createChallengeFailure(new ApiFailure(503, 'unavailable'))).toMatch(/not available/);
+    expect(createChallengeFailure(new ApiFailure(503, 'unavailable'))).toMatch(/coming soon/);
     expect(createChallengeFailure(new AuthFailure('network'))).toMatch(/offline/);
     expect(createChallengeFailure(new Error('boom'))).toMatch(/could not be created/);
   });

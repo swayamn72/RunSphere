@@ -373,7 +373,7 @@ describe('club board rows', () => {
   });
 
   it('separates "no scoring published" from "nobody has joined"', () => {
-    expect(clubBoardEmptyMessage(undefined)).toContain('unavailable until scoring is published');
+    expect(clubBoardEmptyMessage(undefined)).toContain("aren't live yet");
     expect(clubBoardEmptyMessage('4')).toContain('Nobody else in this club has joined');
   });
 

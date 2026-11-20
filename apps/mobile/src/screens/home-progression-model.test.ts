@@ -162,7 +162,7 @@ describe('Home progression model', () => {
   });
 
   it('announces progression only when the weekly goal and quest list are both fine', () => {
-    expect(progressionStatusMessage('unavailable')).toMatch(/not available on this server/);
+    expect(progressionStatusMessage('unavailable')).toMatch(/coming soon/);
     expect(progressionStatusMessage('ready')).toBe('');
     expect(progressionStatusMessage('unpublished')).toBe('');
     expect(homeStatusMessage('ready', 'ready', progressionStatusMessage('offline'))).toBe(

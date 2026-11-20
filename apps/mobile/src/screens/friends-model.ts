@@ -72,7 +72,7 @@ export const inviteFailureNotice = (error: unknown): string => {
     if (error.kind === 'network' || error.kind === 'tls')
       return 'Friend requests need a connection. Nothing was sent.';
     if (error.kind === 'configuration')
-      return 'Friend requests are unavailable until RunSphere is configured.';
+      return "Friend requests aren't available right now. Try again later.";
   }
   return 'That request could not be recorded. Nothing was sent.';
 };
@@ -147,7 +147,7 @@ export const friendsStatusMessage = (
   requestCount: number
 ): string => {
   if (notice) return notice;
-  if (state === 'configuration') return 'Friends are unavailable until RunSphere is configured.';
+  if (state === 'configuration') return "Friends aren't available right now. Try again later.";
   if (state === 'loading') return 'Loading friends.';
   if (state === 'offline') return 'Friends are unavailable offline.';
   if (state === 'error') return 'Friends are unavailable.';

@@ -67,7 +67,7 @@ describe('Home state model', () => {
     expect(homeErrorState(new AuthFailure('configuration'))).toBe('configuration');
     expect(homeErrorState(new AuthFailure('network'))).toBe('offline');
     expect(homeErrorState(new AuthFailure('invalid-credentials'))).toBe('session-expired');
-    expect(homeStatusMessage('configuration', 'loading')).toMatch(/configured/);
+    expect(homeStatusMessage('configuration', 'loading')).toMatch(/Try again later/);
     expect(homeStatusMessage('offline', 'ready')).toMatch(/unavailable offline/);
   });
 });

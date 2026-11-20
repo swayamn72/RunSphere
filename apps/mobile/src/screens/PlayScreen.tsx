@@ -637,7 +637,7 @@ export function PlayScreen({
       {challengeState === 'configuration' && (
         <Unavailable
           styles={styles}
-          label="Challenges are unavailable until RunSphere is configured."
+          label="Challenges aren't available right now. Try again later."
         />
       )}
       {challengeState === 'error' && (

@@ -402,7 +402,7 @@ export function HomeScreen({
         <Unavailable
           local={local}
           styles={styles}
-          label="Weekly progress is unavailable until RunSphere is configured."
+          label="Weekly progress isn't available right now. Try again later."
         />
       )}
       {goalState === 'error' && (
@@ -515,7 +515,7 @@ export function HomeScreen({
         <Unavailable
           local={local}
           styles={styles}
-          label="Verified quests are unavailable until RunSphere is configured."
+          label="Quests aren't available right now. Try again later."
         />
       )}
       {questState === 'error' && (

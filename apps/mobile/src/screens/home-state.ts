@@ -63,7 +63,7 @@ export const homeStatusMessage = (
   secondaryMessage = ''
 ): string => {
   if (goalState === 'configuration' || questState === 'configuration')
-    return 'Home data is unavailable until RunSphere is configured.';
+    return "Your home stats aren't available right now. Try again later.";
   if (goalState === 'loading' || questState === 'loading') return 'Refreshing Home data.';
   if (goalState === 'offline' || questState === 'offline')
     return 'Some Home data is unavailable offline.';

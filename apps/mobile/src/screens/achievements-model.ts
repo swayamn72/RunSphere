@@ -102,8 +102,7 @@ export const achievementsStatusMessage = (
   achievements: readonly AchievementStatus[]
 ): string => {
   if (notice) return notice;
-  if (state === 'configuration')
-    return 'Achievements are unavailable until RunSphere is configured.';
+  if (state === 'configuration') return "Achievements aren't available right now. Try again later.";
   if (state === 'loading') return 'Loading achievements.';
   if (state === 'offline') return 'Achievements are unavailable offline.';
   if (state === 'error') return 'Achievements are unavailable.';

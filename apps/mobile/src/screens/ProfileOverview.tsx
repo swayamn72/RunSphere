@@ -189,9 +189,7 @@ export function AchievementStrip({
           ))}
         </View>
       ) : (
-        <Text style={styles.muted}>
-          No achievements yet. They are awarded by the server as you run.
-        </Text>
+        <Text style={styles.muted}>No achievements yet. They arrive as you run.</Text>
       )}
       {earnedCount > medallions.length && (
         <Text style={styles.settingsHint}>{`${earnedCount - medallions.length} more earned.`}</Text>

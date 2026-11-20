@@ -195,7 +195,7 @@ export const clubsStatusMessage = (
   clubCount: number
 ): string => {
   if (notice) return notice;
-  if (state === 'configuration') return 'Clubs are unavailable until RunSphere is configured.';
+  if (state === 'configuration') return "Clubs aren't available right now. Try again later.";
   if (state === 'loading') return 'Loading your clubs.';
   if (state === 'offline') return 'Clubs are unavailable offline.';
   if (state === 'error') return 'Clubs are unavailable.';
@@ -348,7 +348,7 @@ export const CLUB_BOARD_OFF_EXPLANATION =
 
 export const clubBoardEmptyMessage = (ruleVersion: string | undefined): string =>
   ruleVersion === undefined
-    ? 'Club boards are unavailable until scoring is published on this deployment.'
+    ? "Club boards aren't live yet."
     : 'Nobody else in this club has joined the board yet.';
 
 export const clubBoardFailureNotice = (error: unknown): string => {

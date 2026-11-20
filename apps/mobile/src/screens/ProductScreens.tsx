@@ -735,7 +735,7 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
         center: center.coords
       });
       setZoneStatus(
-        `${zone.name}: fixed ${zone.radiusMeters} m privacy zone saved and server enforced.`
+        `${zone.name}: fixed ${zone.radiusMeters} m privacy zone saved. Your shared routes skip it.`
       );
     } catch (error) {
       setZoneStatus(error instanceof Error ? error.message : 'Could not save the privacy zone.');
@@ -792,7 +792,7 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
         <View style={styles.settingStack}>
           <Text style={styles.rowTitle}>Fixed-center privacy zone</Text>
           <Text style={styles.rowDetail}>
-            Every zone has a fixed 200 m radius. The server trims it from eligible route output.
+            Every zone has a fixed 200 m radius. Routes you share are trimmed inside it.
           </Text>
           <TextInput
             accessibilityLabel="Privacy zone name"

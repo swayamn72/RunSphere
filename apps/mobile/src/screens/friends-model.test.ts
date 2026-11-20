@@ -169,7 +169,7 @@ describe('status message', () => {
 
   it('announces an unavailable surface rather than staying silent', () => {
     expect(friendsStatusMessage('offline', '', 0)).toContain('offline');
-    expect(friendsStatusMessage('configuration', '', 0)).toContain('configured');
+    expect(friendsStatusMessage('configuration', '', 0)).toContain('Try again later');
     expect(friendsStatusMessage('loading', '', 0)).toBe('Loading friends.');
   });
 });

@@ -134,7 +134,7 @@ export const createChallengeFailure = (error: unknown): string => {
     if (error.status === 422) return error.message;
     if (error.status === 409) return 'You already have a challenge open with this friend.';
     if (error.status === 404) return 'That friend is no longer available for a challenge.';
-    if (error.status === 503) return 'Challenges are not available on this server yet.';
+    if (error.status === 503) return 'Challenges are coming soon.';
   }
   if (error instanceof AuthFailure && (error.kind === 'network' || error.kind === 'tls'))
     return 'You are offline. Try again when connected.';

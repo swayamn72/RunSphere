@@ -131,9 +131,9 @@ export function AchievementsScreen({
         <View style={styles.notice}>
           <Text style={styles.noticeIcon}>i</Text>
           <View style={styles.flexCopy}>
-            <Text style={styles.noticeTitle}>No achievements published</Text>
+            <Text style={styles.noticeTitle}>No achievements yet</Text>
             <Text style={styles.noticeCopy}>
-              This deployment has no achievement rules yet. Nothing is missing from your account.
+              Achievements are coming soon. Nothing is missing from your account.
             </Text>
           </View>
         </View>

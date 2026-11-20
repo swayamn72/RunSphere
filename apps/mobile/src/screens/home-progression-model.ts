@@ -165,10 +165,11 @@ export const consistencyPresentation = (
 
 /** Progression is secondary to the weekly goal, so it only speaks when nothing louder is wrong. */
 export const progressionStatusMessage = (state: ProgressionCardState): string => {
-  if (state === 'configuration') return 'Progression is unavailable until RunSphere is configured.';
+  if (state === 'configuration')
+    return "Levels and XP aren't available right now. Try again later.";
   if (state === 'loading') return 'Refreshing progression.';
   if (state === 'offline') return 'Progression is unavailable offline.';
-  if (state === 'unavailable') return 'Progression is not available on this server yet.';
+  if (state === 'unavailable') return 'Levels and XP are coming soon.';
   if (state === 'error') return 'Progression is unavailable.';
   return '';
 };

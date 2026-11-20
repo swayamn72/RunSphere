@@ -355,7 +355,7 @@ export const notificationsStatusMessage = (
 ): string => {
   if (notice) return notice;
   if (state === 'configuration')
-    return 'Notifications are unavailable until RunSphere is configured.';
+    return "Notifications aren't available right now. Try again later.";
   if (state === 'loading') return 'Loading notifications.';
   if (state === 'offline') return 'Notifications are unavailable offline.';
   if (state === 'error') return 'Notifications are unavailable.';
