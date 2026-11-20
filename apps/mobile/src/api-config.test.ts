@@ -1,7 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getApiBaseUrl } from './api-config.js';
 
 describe('mobile API base URL', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('normalizes a public HTTPS backend URL without a trailing slash', () => {
     expect(getApiBaseUrl('https://api.runsphere.test/', 'production')).toBe(
       'https://api.runsphere.test'
@@ -20,6 +24,10 @@ describe('mobile API base URL', () => {
   });
 
   it('allows an unset URL and rejects malformed URLs', () => {
+    // `undefined` falls through to the parameter default, which reads
+    // process.env; pin it empty so a developer's or CI's real API URL cannot
+    // leak in and make "unset" look set.
+    vi.stubEnv('EXPO_PUBLIC_API_BASE_URL', '');
     expect(getApiBaseUrl(undefined)).toBeUndefined();
     expect(() => getApiBaseUrl('not-a-url')).toThrow('EXPO_PUBLIC_API_BASE_URL');
   });
