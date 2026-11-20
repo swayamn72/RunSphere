@@ -2,9 +2,8 @@
  * RunSphere's semantic visual system. Screens consume these roles rather than
  * deriving colors from a palette or inverting a scheme at runtime.
  *
- * The product ships one appearance: a near-black green canvas with a single
- * mint accent, plus a small set of named hues that carry meaning on the map
- * (owned turf, rival turf, neutral turf) and in the reward surfaces.
+ * Tactical Night uses dark slate surfaces and distinct accents for actions,
+ * territory ownership, and run guidance.
  */
 export interface SemanticTokens {
   readonly background: {
@@ -76,62 +75,62 @@ export interface SemanticTokens {
 
 export const darkTokens: SemanticTokens = {
   background: {
-    canvas: '#0B1A14',
-    surface: '#14261E',
-    surfaceRaised: '#1C3328',
-    surfaceInset: '#102019'
+    canvas: '#090D16',
+    surface: '#111827',
+    surfaceRaised: '#182235',
+    surfaceInset: '#0D1320'
   },
   text: {
-    primary: '#F2F7F4',
-    secondary: '#9DB3A8',
-    inverse: '#04180E',
-    disabled: '#657A70',
-    tertiary: '#9DB3A8',
-    onAccent: '#04180E'
+    primary: '#F8FAFC',
+    secondary: '#94A3B8',
+    inverse: '#090D16',
+    disabled: '#64748B',
+    tertiary: '#94A3B8',
+    onAccent: '#090D16'
   },
-  border: { subtle: '#21362C', strong: '#3A564A', focus: '#3DDC7E' },
+  border: { subtle: '#1E293B', strong: '#475569', focus: '#00E5FF' },
   action: {
-    primary: '#3DDC7E',
-    primaryPressed: '#32BC6B',
-    secondary: '#1C3328',
-    selected: '#3DDC7E',
-    disabled: '#264034',
-    danger: '#D93B2B',
-    dangerPressed: '#B93123'
+    primary: '#22C55E',
+    primaryPressed: '#20B955',
+    secondary: '#182235',
+    selected: '#22C55E',
+    disabled: '#253246',
+    danger: '#BE123C',
+    dangerPressed: '#9F1239'
   },
   status: {
-    info: '#5AA9FF',
-    success: '#3DDC7E',
-    warning: '#F2A33C',
-    error: '#FF6B5A',
-    pending: '#F2A33C'
+    info: '#00E5FF',
+    success: '#22C55E',
+    warning: '#F59E0B',
+    error: '#F43F5E',
+    pending: '#F59E0B'
   },
   accent: {
     violet: '#A78BFA',
-    amber: '#F2A33C',
-    coral: '#FF6B5A',
-    azure: '#5AA9FF',
+    amber: '#F59E0B',
+    coral: '#F43F5E',
+    azure: '#00E5FF',
     gold: '#FFC861'
   },
   zone: {
-    owned: '#3DDC7E',
-    ownedFill: '#3DDC7E2E',
-    rival: '#FF6B5A',
-    rivalFill: '#FF6B5A2E',
-    neutral: '#A78BFA',
-    neutralFill: '#A78BFA2E'
+    owned: '#00E5FF',
+    ownedFill: '#00E5FF2E',
+    rival: '#F43F5E',
+    rivalFill: '#F43F5E2E',
+    neutral: '#F59E0B',
+    neutralFill: '#F59E0B2E'
   },
-  route: { line: '#3DDC7E', fill: '#3DDC7E33', water: '#12303A' },
-  checkpoint: { fill: '#3DDC7E', text: '#04180E', outline: '#F2F7F4' },
-  map: { control: '#14261E', controlText: '#F2F7F4', scrim: '#0B1A14E8' },
-  scrim: { subtle: '#04180E66', strong: '#04180ED9' },
+  route: { line: '#00E5FF', fill: '#00E5FF33', water: '#13263D' },
+  checkpoint: { fill: '#22C55E', text: '#090D16', outline: '#F8FAFC' },
+  map: { control: '#111827', controlText: '#F8FAFC', scrim: '#090D16E8' },
+  scrim: { subtle: '#090D1666', strong: '#090D16D9' },
   mascot: {
-    body: '#1C3328',
-    outline: '#4E7263',
-    orbit: '#3DDC7E',
-    pointer: '#5AA9FF',
-    eye: '#F2F7F4',
-    beacon: '#3DDC7E'
+    body: '#182235',
+    outline: '#64748B',
+    orbit: '#00E5FF',
+    pointer: '#00E5FF',
+    eye: '#F8FAFC',
+    beacon: '#00E5FF'
   }
 };
 
@@ -159,7 +158,21 @@ export const contrastPairs = {
     background: darkTokens.action.primary,
     minimum: 4.5
   },
-  danger: { foreground: '#FFFFFF', background: darkTokens.action.danger, minimum: 4.5 },
+  danger: {
+    foreground: darkTokens.text.primary,
+    background: darkTokens.action.danger,
+    minimum: 4.5
+  },
+  raceGhost: {
+    foreground: darkTokens.text.onAccent,
+    background: darkTokens.zone.rival,
+    minimum: 4.5
+  },
+  season: {
+    foreground: darkTokens.zone.owned,
+    background: darkTokens.background.canvas,
+    minimum: 4.5
+  },
   tertiaryTab: {
     foreground: darkTokens.text.tertiary,
     background: darkTokens.background.surface,

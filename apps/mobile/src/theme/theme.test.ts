@@ -31,15 +31,17 @@ describe('single-appearance theme', () => {
   });
 
   it('provides one complete semantic system covering every role a screen reads', () => {
-    expect(darkTokens.background.canvas).toMatch(/^#/);
+    expect(darkTokens.background.canvas).toBe('#090D16');
+    expect(darkTokens.background.surface).toBe('#111827');
+    expect(darkTokens.action.primary).toBe('#22C55E');
     expect(darkTokens.map.control).toMatch(/^#/);
     expect(darkTokens.route.line).toMatch(/^#/);
     expect(darkTokens.checkpoint.fill).toMatch(/^#/);
     expect(darkTokens.mascot.beacon).toMatch(/^#/);
     // The named hues the redesign leans on: zone ownership and reward tiers.
-    expect(darkTokens.zone.owned).toMatch(/^#/);
-    expect(darkTokens.zone.rival).toMatch(/^#/);
-    expect(darkTokens.zone.neutral).toMatch(/^#/);
+    expect(darkTokens.zone.owned).toBe('#00E5FF');
+    expect(darkTokens.zone.rival).toBe('#F43F5E');
+    expect(darkTokens.zone.neutral).toBe('#F59E0B');
     expect(darkTokens.accent.gold).toMatch(/^#/);
     expect(darkTokens.action.danger).toMatch(/^#/);
   });

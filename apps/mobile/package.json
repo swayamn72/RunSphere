@@ -34,7 +34,8 @@
     "expo-system-ui": "~57.0.3",
     "expo-task-manager": "~57.0.21",
     "react": "19.2.3",
-    "react-native": "0.86.3"
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0"
   },
   "devDependencies": {
     "@types/geojson": "^7946.0.16",
