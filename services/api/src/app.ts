@@ -58,6 +58,25 @@ export interface BuildAppOptions {
   allowInsecureAuthSecret?: boolean;
 }
 
+/**
+ * Which proxies may set `X-Forwarded-For` (R4). Rate limits key on
+ * `request.ip`; behind a load balancer without this, every client shares the
+ * balancer's address, so one person's attempts throttle everyone. Off by
+ * default, because trusting the header with no proxy in front lets any client
+ * choose its own IP. Accepts `true` (trust every hop; only behind a proxy that
+ * overwrites the header) or, preferably, a comma-separated list of proxy
+ * addresses or CIDRs.
+ */
+export const parseTrustProxy = (value: string | undefined): boolean | string[] => {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed === 'false') return false;
+  if (trimmed === 'true') return true;
+  return trimmed
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+};
+
 const assertAuthSecret = (secret: string, allowed: boolean) => {
   if (!allowed && (secret.length < 32 || secret === 'development-secret-not-for-production')) {
     throw new Error('AUTH_TOKEN_SECRET must be at least 32 characters outside tests.');
@@ -75,9 +94,11 @@ export const buildApp = ({
   const config = configuredApiConfig(apiConfig);
   const database = db;
   const metrics = createMetrics();
+  const trustProxy = parseTrustProxy(process.env.TRUST_PROXY);
   const app = loggerInstance
-    ? Fastify({ loggerInstance })
+    ? Fastify({ loggerInstance, trustProxy })
     : Fastify({
+        trustProxy,
         logger: {
           level: process.env.LOG_LEVEL ?? 'info',
           redact: { paths: [...pinoRedactionPaths], censor: '[REDACTED]' }

@@ -26,6 +26,15 @@ import {
 import { loadRestrictions } from './sanction-guard.js';
 
 const genericAuthError = { message: 'Invalid email or password' };
+
+/**
+ * A real argon2id hash of a random secret nobody knows, made once per process
+ * with the same parameters as account hashes. Login verifies against it when
+ * the address is unknown, so both paths cost the same.
+ */
+let dummyHash: Promise<string> | undefined;
+const dummyPasswordHash = (): Promise<string> =>
+  (dummyHash ??= hashPassword(randomBytes(32).toString('base64url')));
 const emailVerificationLifetime = '24 hours';
 
 const authRateLimit = new Map<string, { attempts: number; resetAt: number }>();
@@ -235,11 +244,12 @@ export const registerAuthRoutes = ({ routes, database, authSecret }: AuthRouteDe
          WHERE lower(email) = lower($1) AND deleted_at IS NULL AND deletion_requested_at IS NULL`,
         [request.body.email.trim()]
       );
-      if (
-        !accounts.rows[0] ||
-        !(await verifyPassword(accounts.rows[0].password_hash, request.body.password))
-      )
-        return reply.code(401).send(genericAuthError);
+      // An unknown address still pays for one argon2 verification, so the
+      // response time does not reveal which addresses have accounts (R6).
+      const passwordMatches = accounts.rows[0]
+        ? await verifyPassword(accounts.rows[0].password_hash, request.body.password)
+        : (await verifyPassword(await dummyPasswordHash(), request.body.password), false);
+      if (!accounts.rows[0] || !passwordMatches) return reply.code(401).send(genericAuthError);
       // A suspended account is told why, and only after its password checked
       // out: answering before that would turn sign-in into a way to test
       // whether somebody else has been suspended.

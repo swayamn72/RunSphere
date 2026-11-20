@@ -1,7 +1,7 @@
 import type { FastifyBaseLogger } from 'fastify';
 import pino from 'pino';
 import { afterEach, describe, expect, it } from 'vitest';
-import { buildApp, pinoRedactionPaths } from './app.js';
+import { buildApp, parseTrustProxy, pinoRedactionPaths } from './app.js';
 
 const apps: ReturnType<typeof buildApp>[] = [];
 afterEach(async () => {
@@ -103,5 +103,43 @@ describe('Pino redaction', () => {
     expect(output).toHaveLength(1);
     expect(output[0]).toContain('[REDACTED]');
     expect(output[0]).not.toContain('private');
+  });
+});
+
+describe('TRUST_PROXY parsing (R4)', () => {
+  it('stays off unless configured, because trusting the header with no proxy lets clients pick their IP', () => {
+    expect(parseTrustProxy(undefined)).toBe(false);
+    expect(parseTrustProxy('')).toBe(false);
+    expect(parseTrustProxy('false')).toBe(false);
+  });
+
+  it('accepts true or an explicit list of proxies', () => {
+    expect(parseTrustProxy('true')).toBe(true);
+    expect(parseTrustProxy('10.0.0.0/8, 192.168.1.4')).toEqual(['10.0.0.0/8', '192.168.1.4']);
+  });
+
+  it('uses the forwarded client address for request.ip only when a proxy is trusted', async () => {
+    const previous = process.env.TRUST_PROXY;
+    try {
+      const seen: string[] = [];
+      for (const setting of [undefined, '127.0.0.1']) {
+        if (setting === undefined) delete process.env.TRUST_PROXY;
+        else process.env.TRUST_PROXY = setting;
+        const app = buildApp();
+        apps.push(app);
+        app.get('/whoami', async (request) => ({ ip: request.ip }));
+        const response = await app.inject({
+          method: 'GET',
+          url: '/whoami',
+          remoteAddress: '127.0.0.1',
+          headers: { 'x-forwarded-for': '203.0.113.9' }
+        });
+        seen.push((response.json() as { ip: string }).ip);
+      }
+      expect(seen).toEqual(['127.0.0.1', '203.0.113.9']);
+    } finally {
+      if (previous === undefined) delete process.env.TRUST_PROXY;
+      else process.env.TRUST_PROXY = previous;
+    }
   });
 });
