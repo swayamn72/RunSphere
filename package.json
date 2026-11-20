@@ -20,6 +20,7 @@
     "format:check": "prettier --check .",
     "test": "turbo run test --continue",
     "migrate": "node scripts/migrate.mjs",
+    "seed:admin": "node scripts/seed-admin.mjs",
     "test:integration": "pnpm --filter @runsphere/api exec vitest run src/integration.test.ts src/territory-claim.integration.test.ts src/friend-standings.integration.test.ts && pnpm --filter @runsphere/worker exec vitest run src/territory-claim-season.integration.test.ts src/email-delivery.integration.test.ts",
     "typecheck": "turbo run typecheck --continue"
   },
