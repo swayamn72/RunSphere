@@ -25,6 +25,7 @@ import { processTerritoryRanks } from './territory-rank-job.js';
 import { processTerritorySeasonReset } from './territory-season-reset-job.js';
 import { processTerritorySeasonEnding } from './territory-season-ending-job.js';
 import { processMlFeatureExtraction } from './ml-feature-extractor-job.js';
+import { processProgressionWeekClose } from './progression-week-close.js';
 import {
   processAnticheatRetrain,
   processQuestRecommendRetrain,
@@ -208,6 +209,11 @@ export const maintenanceJobs: readonly MaintenanceJob[] = [
   { name: 'global_boards', run: (db) => processGlobalBoards(db) },
   { name: 'competitions', run: (db) => processCompetitions(db) },
   { name: 'sanction_expiry', run: (db) => expireSanctions(db) },
+  {
+    // After account deletion, so an erased account is never granted XP (B2).
+    name: 'progression_week_close',
+    run: async (db, now) => (await processProgressionWeekClose({ db }, now)).accountsFinalized
+  },
   {
     name: 'territory_scoring',
     run: async (db, now) => (await processTerritory({ db }, now)).contributionsWritten

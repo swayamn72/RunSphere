@@ -10,18 +10,12 @@ import {
   type WeeklyConsistency
 } from '@runsphere/contracts';
 import type { Database } from '@runsphere/db';
-import {
-  kolkataDate,
-  weeklyPeriodStart,
-  weeklyXpGrants,
-  xpLevel,
-  type ScoredActivity,
-  type XpGrant
-} from '@runsphere/domain';
+import { weeklyPeriodStart, xpLevel } from '@runsphere/domain';
 import { verifyAccessToken } from './auth.js';
 import {
   currentWeek,
   derivedActivitiesInWindow,
+  finalizeProgressionWeek,
   loadActiveProgressionRule,
   persistedXpExcludingCurrentActivity,
   projectedWeekXp,
@@ -74,30 +68,6 @@ const awardsFrom = (rows: readonly AwardRow[]): AchievementAward[] =>
     ruleVersion: row.rule_version,
     awardedAt: row.awarded_at.toISOString()
   }));
-
-const insertGrant = async (
-  database: Database,
-  accountId: string,
-  version: number,
-  grant: XpGrant
-): Promise<void> => {
-  await database.query(
-    `INSERT INTO xp_entries (account_id, source, amount, rule_version, dedupe_key, period_start)
-     VALUES ($1, $2, $3, $4, $5, $6::date)
-     ON CONFLICT (account_id, dedupe_key) DO NOTHING`,
-    [accountId, grant.source, grant.amount, String(version), grant.dedupeKey, grant.periodStart]
-  );
-};
-
-/** Ensure the immutable weekly period record exists for a week being closed. */
-const ensureWeeklyPeriod = async (database: Database, periodStart: string): Promise<void> => {
-  await database.query(
-    `INSERT INTO weekly_periods (period_start, period_end)
-     VALUES ($1::date, $1::date + 7)
-     ON CONFLICT (period_start) DO NOTHING`,
-    [periodStart]
-  );
-};
 
 export const registerProgressionRoutes = ({
   routes,
@@ -191,30 +161,15 @@ export const registerProgressionRoutes = ({
         [accountId, currentStart]
       );
 
-      const byWeek = new Map<number, ScoredActivity[]>();
-      for (const row of rows.rows) {
-        const weekStart = weeklyPeriodStart(row.processed_at).getTime();
-        const bucket = byWeek.get(weekStart) ?? [];
-        bucket.push({
-          activeDurationSeconds: row.active_duration_seconds,
-          endedAt: row.processed_at
-        });
-        byWeek.set(weekStart, bucket);
-      }
-
-      const grants: XpGrant[] = [];
-      for (const [weekStart, activities] of byWeek) {
-        const start = new Date(weekStart);
-        grants.push(...weeklyXpGrants(activities, loaded.rule, start));
-        await ensureWeeklyPeriod(database, kolkataDate(start));
-      }
-      for (const grant of grants) {
-        await insertGrant(database, accountId, loaded.version, grant);
+      const weeks = new Set<number>();
+      for (const row of rows.rows) weeks.add(weeklyPeriodStart(row.processed_at).getTime());
+      for (const weekStart of weeks) {
+        await finalizeProgressionWeek(database, accountId, new Date(weekStart), loaded);
       }
 
       const response: ProgressionSyncResponse = {
         status: 'synced',
-        finalizedWeeks: byWeek.size
+        finalizedWeeks: weeks.size
       };
       return response;
     }

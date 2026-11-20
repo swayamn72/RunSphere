@@ -149,6 +149,10 @@ describe('privacy maintenance', () => {
           calls.push('competitions');
           return { rows: [] };
         }
+        if (sql.includes("kind = 'progression'")) {
+          calls.push('progression-rule');
+          return { rows: [] };
+        }
         if (sql.includes('UPDATE sanctions SET')) {
           calls.push('sanctions');
           return { rows: [] };
@@ -204,6 +208,8 @@ describe('privacy maintenance', () => {
       'global-board-rule',
       'competitions',
       'sanctions',
+      // Closed-week XP, after erasure so a deleted account is never granted.
+      'progression-rule',
       'territory-geo',
       'territory-week',
       'territory-held',

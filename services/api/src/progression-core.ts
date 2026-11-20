@@ -7,7 +7,8 @@ import {
   weeklyConsistency,
   weeklyPeriodStart,
   weeklyXpGrants,
-  type ScoredActivity
+  type ScoredActivity,
+  type XpGrant
 } from '@runsphere/domain';
 
 /**
@@ -143,3 +144,55 @@ export const weeklyConsistencyFor = (
     minMinutesPerActiveDay: rule.minMinutesPerActiveDay,
     goalActiveDays: rule.goalActiveDays
   });
+
+type Queryable = Pick<Database, 'query'>;
+
+/** Write one XP grant. Idempotent on (account, dedupe key). */
+export const insertXpGrant = async (
+  database: Queryable,
+  accountId: string,
+  version: number,
+  grant: XpGrant
+): Promise<void> => {
+  await database.query(
+    `INSERT INTO xp_entries (account_id, source, amount, rule_version, dedupe_key, period_start)
+     VALUES ($1, $2, $3, $4, $5, $6::date)
+     ON CONFLICT (account_id, dedupe_key) DO NOTHING`,
+    [accountId, grant.source, grant.amount, String(version), grant.dedupeKey, grant.periodStart]
+  );
+};
+
+/** Ensure the immutable weekly period record exists for a week being closed. */
+export const ensureWeeklyPeriod = async (
+  database: Queryable,
+  periodStart: string
+): Promise<void> => {
+  await database.query(
+    `INSERT INTO weekly_periods (period_start, period_end)
+     VALUES ($1::date, $1::date + 7)
+     ON CONFLICT (period_start) DO NOTHING`,
+    [periodStart]
+  );
+};
+
+/**
+ * Persist one account's activity XP for one closed Asia/Kolkata week.
+ *
+ * The single implementation behind both `POST /v1/progression/sync` and the
+ * worker's week-close job. Idempotent: grants carry dedupe keys, so running it
+ * twice, or from both places, writes each grant once. Returns the number of
+ * grants computed for the week.
+ */
+export const finalizeProgressionWeek = async (
+  database: Database,
+  accountId: string,
+  weekStart: Date,
+  loaded: ActiveProgressionRule
+): Promise<number> => {
+  const weekEnd = new Date(weekStart.getTime() + 7 * MILLIS_PER_DAY);
+  const activities = await derivedActivitiesInWindow(database, accountId, weekStart, weekEnd);
+  const grants = weeklyXpGrants(activities, loaded.rule, weekStart);
+  await ensureWeeklyPeriod(database, kolkataDate(weekStart));
+  for (const grant of grants) await insertXpGrant(database, accountId, loaded.version, grant);
+  return grants.length;
+};
