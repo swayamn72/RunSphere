@@ -15,6 +15,7 @@ import { useAppStyles } from '../components/styles';
 import { useLoopGuidance } from '../components/useLoopGuidance';
 import type { LoopGuidanceCue } from '../loop-guidance';
 import { dashboardPreviewEnabled } from './dashboard-preview';
+import { homeGhostCard } from './ghost-race-model';
 import { useAppTheme } from '../theme/theme';
 import {
   ActiveDaysCard,
@@ -445,8 +446,8 @@ export function HomeScreen({
 
       <Pressable accessibilityRole="button" style={styles.recordCard} onPress={onOpenMap}>
         <Text style={[styles.eyebrow, { color: tokens.text.danger }]}>GHOST RACES</Text>
-        <Text style={styles.cardTitle}>Scout for a nearby rival</Text>
-        <Text style={styles.rowDetail}>Open Map to find a rival loop and check for a ghost.</Text>
+        <Text style={styles.cardTitle}>{homeGhostCard(turf?.ghostRacesLeft).title}</Text>
+        <Text style={styles.rowDetail}>{homeGhostCard(turf?.ghostRacesLeft).detail}</Text>
       </Pressable>
 
       <Pressable accessibilityRole="button" onPress={onChooseRoute}>

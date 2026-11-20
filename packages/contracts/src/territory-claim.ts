@@ -93,6 +93,12 @@ export const TerritoryClaimSchema = Type.Object(
         { $id: 'TerritoryClaimClub' }
       )
     ),
+    /**
+     * A rival's loop that has a ghost to race (UX.10). Set only on other
+     * people's claims. A hint for where to offer the race: the ghost endpoint
+     * still applies its own checks (hourly limit, blocks, region).
+     */
+    ghostAvailable: Type.Optional(Type.Boolean()),
     claimedAt: DateTimeSchema
   },
   { $id: 'TerritoryClaim' }
@@ -324,7 +330,9 @@ export const TerritoryClaimSummarySchema = Type.Object(
     claimCount: Type.Integer({ minimum: 0 }),
     totalAreaSqm: Type.Number({ minimum: 0 }),
     /** Claims of theirs that somebody else has taken. */
-    lostCount: Type.Integer({ minimum: 0 })
+    lostCount: Type.Integer({ minimum: 0 }),
+    /** Ghost races left in the current hour, so the app can say so before a tap (UX.10). */
+    ghostRacesLeft: Type.Optional(Type.Integer({ minimum: 0 }))
   },
   { $id: 'TerritoryClaimSummary' }
 );

@@ -6,6 +6,8 @@ import {
   GHOST_REFUSAL_MESSAGE,
   GHOST_TRIM_SUMMARY,
   ghostCard,
+  ghostOffer,
+  homeGhostCard,
   ghostConfirmation,
   ghostErrorState,
   ghostLayers,
@@ -214,5 +216,35 @@ describe('when a ghost cannot be had', () => {
     ] as const) {
       expect(GHOST_REFUSAL_MESSAGE[reason]).toMatch(/\S/);
     }
+  });
+});
+
+describe('ghost entry points (UX.10)', () => {
+  const rival = { owner: { isSelf: false }, ghostAvailable: true };
+
+  it('offers a race only on a rival loop that has a ghost', () => {
+    expect(ghostOffer({ owner: { isSelf: true }, ghostAvailable: true }, 3)).toEqual({
+      kind: 'none'
+    });
+    expect(ghostOffer({ owner: { isSelf: false } }, 3)).toEqual({ kind: 'none' });
+    expect(ghostOffer(rival, 2)).toEqual({
+      kind: 'available',
+      label: 'Race ghost · 2 left this hour'
+    });
+  });
+
+  it('says the hourly limit is spent instead of offering a race that would be refused', () => {
+    expect(ghostOffer(rival, 0)).toMatchObject({ kind: 'rate_limited' });
+  });
+
+  it('still offers the race when the count is unknown', () => {
+    expect(ghostOffer(rival, undefined)).toEqual({ kind: 'available', label: 'Race ghost' });
+  });
+
+  it('words the Home card for each state, singular and plural', () => {
+    expect(homeGhostCard(1).detail).toContain('1 race left');
+    expect(homeGhostCard(3).detail).toContain('3 races left');
+    expect(homeGhostCard(0).title).toBe('Ghost races resting');
+    expect(homeGhostCard(undefined).title).toBe('Race a rival’s ghost');
   });
 });

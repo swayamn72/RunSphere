@@ -647,7 +647,7 @@ describe('GET /v1/territory/claims/summary', () => {
       await app.inject({ method: 'GET', url: '/v1/territory/claims/summary', headers: auth })
     ).json();
 
-    expect(body).toEqual({ claimCount: 3, totalAreaSqm: 270_000, lostCount: 1 });
+    expect(body).toEqual({ claimCount: 3, totalAreaSqm: 270_000, lostCount: 1, ghostRacesLeft: 3 });
     // Divisions and ladders belong to the cell engine, not to this mechanic.
     expect(Object.keys(body)).not.toContain('rank');
   });
@@ -658,6 +658,6 @@ describe('GET /v1/territory/claims/summary', () => {
       await app.inject({ method: 'GET', url: '/v1/territory/claims/summary', headers: auth })
     ).json();
 
-    expect(body).toEqual({ claimCount: 0, totalAreaSqm: 0, lostCount: 0 });
+    expect(body).toEqual({ claimCount: 0, totalAreaSqm: 0, lostCount: 0, ghostRacesLeft: 3 });
   });
 });

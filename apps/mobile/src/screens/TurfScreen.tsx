@@ -27,7 +27,7 @@ import { CrewMascot } from '../components/CrewMascot';
 import { TerritoryDetailScreen } from './TerritoryDetailScreen';
 import { GhostRaceSheet } from './GhostRaceSheet';
 import { dashboardPreviewEnabled, previewClaims } from './dashboard-preview';
-import type { GhostRun } from './ghost-race-model';
+import { ghostOffer, type GhostRun } from './ghost-race-model';
 import { CLAIM_PUBLISHES_NOTICE, FIRST_CLAIM_PRIVACY_PROMPT } from '@runsphere/domain';
 import {
   TIER_HINT,
@@ -582,15 +582,24 @@ export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: Tu
             {!chosen.owner.isSelf && (
               <>
                 <Text style={styles.helper}>{targetPaceLabel(chosen.speedMps)}</Text>
-                {!dashboardPreviewEnabled && onGhostRace && (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => setGhostClaimId(chosen.id)}
-                    style={[styles.primary, { backgroundColor: tokens.zone.rival }]}
-                  >
-                    <Text style={styles.primaryText}>Race Ghost</Text>
-                  </Pressable>
-                )}
+                {!dashboardPreviewEnabled &&
+                  onGhostRace &&
+                  (() => {
+                    const offer = ghostOffer(chosen, summary?.ghostRacesLeft);
+                    if (offer.kind === 'rate_limited')
+                      return <Text style={styles.helper}>{offer.note}</Text>;
+                    if (offer.kind === 'none') return null;
+                    return (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={offer.label}
+                        onPress={() => setGhostClaimId(chosen.id)}
+                        style={[styles.primary, { backgroundColor: tokens.zone.rival }]}
+                      >
+                        <Text style={styles.primaryText}>{offer.label}</Text>
+                      </Pressable>
+                    );
+                  })()}
               </>
             )}
             {history && history.entries.length > 1 ? (

@@ -958,6 +958,45 @@ describePostgis('territory claims on real PostGIS', () => {
 
       // B11: the count and the spend are one step, so parallel requests can't
       // all read "0 used" and all get through.
+      // UX.10: the map says which rival loops have a ghost, and the summary
+      // says how many races are left, without spending one.
+      it('flags rivals’ ghosts on the map and counts races left', async () => {
+        await clearViews();
+        const claimId = await heldWithGhost(37);
+        expect(claimId).not.toBe('');
+        const lng = BASE_LNG + 37;
+        const mapFor = async (reader: string) =>
+          (
+            await app.inject({
+              method: 'GET',
+              url: `/v1/territory/claims?west=${lng - 0.05}&south=${BASE_LAT - 0.05}&east=${lng + 0.05}&north=${BASE_LAT + 0.05}`,
+              headers: { authorization: `Bearer ${createAccessToken(reader, SECRET)}` }
+            })
+          ).json() as { claims: { id: string; ghostAvailable?: boolean }[] };
+        const left = async (reader: string) =>
+          (
+            (
+              await app.inject({
+                method: 'GET',
+                url: '/v1/territory/claims/summary',
+                headers: { authorization: `Bearer ${createAccessToken(reader, SECRET)}` }
+              })
+            ).json() as { ghostRacesLeft?: number }
+          ).ghostRacesLeft;
+
+        expect((await mapFor(rival)).claims.find((c) => c.id === claimId)?.ghostAvailable).toBe(
+          true
+        );
+        // Your own ground never offers your own ghost.
+        expect((await mapFor(account)).claims.find((c) => c.id === claimId)?.ghostAvailable).toBe(
+          undefined
+        );
+
+        expect(await left(rival)).toBe(3);
+        expect((await ghost(rival, claimId)).statusCode).toBe(200);
+        expect(await left(rival)).toBe(2);
+      });
+
       it('holds the hourly limit under five simultaneous requests', async () => {
         await clearViews();
         const claimId = await heldWithGhost(33);

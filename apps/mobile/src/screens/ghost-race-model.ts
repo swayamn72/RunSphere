@@ -247,3 +247,49 @@ export const ghostConfirmation = (response: GhostTraceResponse): GhostConfirmati
  * trusting the app about, so it is stated where the *challenger* sees it too.
  */
 export const GHOST_TRIM_SUMMARY = `Trimmed by ${GHOST_TRIM_METRES} m at both ends.`;
+
+/**
+ * Whether, and how, the Map offers a Ghost Race on a selected claim (UX.10).
+ *
+ * Only rivals' loops that actually have a ghost are offered: offering one that
+ * doesn't only ends in "this run cannot be shown as a ghost". The hourly limit
+ * is said up front, from the summary, so nobody taps into a refusal.
+ */
+export type GhostOffer =
+  | { readonly kind: 'none' }
+  | { readonly kind: 'available'; readonly label: string }
+  | { readonly kind: 'rate_limited'; readonly note: string };
+
+export const ghostOffer = (
+  claim: { readonly owner: { readonly isSelf: boolean }; readonly ghostAvailable?: boolean },
+  racesLeft: number | undefined
+): GhostOffer => {
+  if (claim.owner.isSelf || claim.ghostAvailable !== true) return { kind: 'none' };
+  if (racesLeft === 0)
+    return { kind: 'rate_limited', note: 'No ghost races left this hour. Try again soon.' };
+  if (racesLeft === undefined) return { kind: 'available', label: 'Race ghost' };
+  return {
+    kind: 'available',
+    label: `Race ghost · ${racesLeft} left this hour`
+  };
+};
+
+/** The Home card that points at Ghost Races, in the voice of `docs/voice.md`. */
+export const homeGhostCard = (
+  racesLeft: number | undefined
+): { readonly title: string; readonly detail: string } => {
+  if (racesLeft === 0)
+    return {
+      title: 'Ghost races resting',
+      detail: 'You’ve used this hour’s 3 races. Scout rival loops on Map meanwhile.'
+    };
+  if (racesLeft === undefined)
+    return {
+      title: 'Race a rival’s ghost',
+      detail: 'Open Map, tap a rival loop, and race the pace it was run at.'
+    };
+  return {
+    title: 'Race a rival’s ghost',
+    detail: `${racesLeft} ${racesLeft === 1 ? 'race' : 'races'} left this hour. Open Map and tap a rival loop.`
+  };
+};

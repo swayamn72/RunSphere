@@ -317,6 +317,8 @@ interface ClaimRow {
   city_tag: string | null;
   country_tag: string | null;
   claimed_at: Date;
+  /** Whether a ghost trace exists for this claim (UX.10). */
+  ghost_available?: boolean;
 }
 
 /** Every live-claim read is scoped to the month, which is the reset cycle. */
@@ -325,7 +327,9 @@ const CLAIM_COLUMNS = `claim.id, claim.account_id, profile.display_name, profile
            ST_AsGeoJSON(claim.centroid) AS centroid, claim.area_sqm,
            claim.distance_metres, claim.duration_seconds, claim.capture_count,
            claim.club_id, club.name AS club_name, claim.season_month,
-           claim.city_tag, claim.country_tag, claim.claimed_at`;
+           claim.city_tag, claim.country_tag, claim.claimed_at,
+           EXISTS (SELECT 1 FROM territory_claim_ghost_traces ghost
+                   WHERE ghost.claim_id = claim.id) AS ghost_available`;
 
 const claimView = (row: ClaimRow, readerId: string): TerritoryClaim | undefined => {
   const boundary = ringFromGeoJson(row.boundary);
@@ -364,6 +368,8 @@ const claimView = (row: ClaimRow, readerId: string): TerritoryClaim | undefined 
         ? 'contested'
         : 'owned',
     ...(row.club_id && row.club_name ? { club: { id: row.club_id, name: row.club_name } } : {}),
+    // Only on rivals' ground: you can't race your own ghost.
+    ...(row.ghost_available && row.account_id !== readerId ? { ghostAvailable: true } : {}),
     claimedAt: row.claimed_at.toISOString()
   };
 };
@@ -1949,10 +1955,18 @@ export const registerTerritoryClaimRoutes = ({
         [accountId, seasonMonthFor(new Date())]
       );
       const row = summary.rows[0];
+      // Same window and limit the ghost endpoint enforces, read without
+      // spending one, so the app can say "2 races left" before anyone taps.
+      const views = await database.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM territory_claim_ghost_views
+         WHERE account_id = $1 AND created_at > now() - interval '1 hour'`,
+        [accountId]
+      );
       const response: TerritoryClaimSummary = {
         claimCount: Number(row?.claim_count ?? 0),
         totalAreaSqm: Number(row?.total_area ?? 0),
-        lostCount: Number(row?.lost_count ?? 0)
+        lostCount: Number(row?.lost_count ?? 0),
+        ghostRacesLeft: Math.max(0, GHOST_VIEWS_PER_HOUR - Number(views.rows[0]?.count ?? 0))
       };
       return response;
     }
