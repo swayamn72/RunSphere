@@ -90,6 +90,15 @@ describePostgis('progression week close (B2)', () => {
       30 * 60
     );
 
+    // In production a run is always processed in the open week, so a week has
+    // never been finalized before its runs exist. This fixture writes into a
+    // past week, and a persistent test database may already have closed it in
+    // an earlier run, so reopen it (and anything later) to match reality.
+    await db.query(
+      'UPDATE weekly_periods SET progression_finalized_at = NULL WHERE period_start >= $1::date',
+      [lastWeekId]
+    );
+
     // The job takes one week per sweep, oldest first, and the test database
     // may hold other unfinalized weeks; sweep until ours is done.
     for (let sweep = 0; sweep < 25; sweep += 1) {
