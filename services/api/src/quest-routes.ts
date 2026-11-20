@@ -14,7 +14,17 @@ import {
 import type { Database } from '@runsphere/db';
 import { requireAccount } from './auth-routes.js';
 
-export const weeklyGoalResponse = async (database: Database, accountId: string) => {
+/**
+ * The weekly goal's progress for the Asia/Kolkata week containing `now`
+ * (ADR-0006). This used `date_trunc('week', now())`, which is the server's
+ * (UTC) week, so a run between Sunday 18:30 and 24:00 UTC, which is already
+ * Monday in India, counted toward the previous week (B10).
+ */
+export const weeklyGoalResponse = async (
+  database: Database,
+  accountId: string,
+  now: Date = new Date()
+) => {
   const result = await database.query<{
     active_minutes_goal: number | null;
     distance_meters_goal: number | null;
@@ -22,17 +32,24 @@ export const weeklyGoalResponse = async (database: Database, accountId: string) 
     distance_meters: string;
     week_starts_on: string;
   }>(
-    `SELECT goal.active_minutes_goal, goal.distance_meters_goal,
-       coalesce(sum(output.active_duration_seconds) FILTER (WHERE submission.processed_at >= date_trunc('week', now())), 0)::text AS active_minutes,
-       coalesce(sum(output.distance_meters) FILTER (WHERE submission.processed_at >= date_trunc('week', now())), 0)::text AS distance_meters,
-       to_char(date_trunc('week', now())::date, 'YYYY-MM-DD') AS week_starts_on
+    `WITH week AS (
+       SELECT local_start,
+         local_start AT TIME ZONE 'Asia/Kolkata' AS starts_at,
+         (local_start + interval '7 days') AT TIME ZONE 'Asia/Kolkata' AS ends_at
+       FROM (SELECT date_trunc('week', $2::timestamptz AT TIME ZONE 'Asia/Kolkata') AS local_start) monday
+     )
+     SELECT goal.active_minutes_goal, goal.distance_meters_goal,
+       coalesce(sum(output.active_duration_seconds) FILTER (WHERE submission.processed_at >= week.starts_at AND submission.processed_at < week.ends_at), 0)::text AS active_minutes,
+       coalesce(sum(output.distance_meters) FILTER (WHERE submission.processed_at >= week.starts_at AND submission.processed_at < week.ends_at), 0)::text AS distance_meters,
+       to_char(week.local_start::date, 'YYYY-MM-DD') AS week_starts_on
      FROM (SELECT $1::uuid AS account_id) account
+     CROSS JOIN week
      LEFT JOIN weekly_activity_goals goal ON goal.account_id = account.account_id
      LEFT JOIN activity_submissions submission ON submission.account_id = account.account_id
        AND submission.status = 'derived' AND submission.deleted_at IS NULL
      LEFT JOIN activity_validation_outputs output ON output.activity_id = submission.id
-     GROUP BY goal.active_minutes_goal, goal.distance_meters_goal`,
-    [accountId]
+     GROUP BY goal.active_minutes_goal, goal.distance_meters_goal, week.local_start`,
+    [accountId, now]
   );
   const row = result.rows[0]!;
   return {

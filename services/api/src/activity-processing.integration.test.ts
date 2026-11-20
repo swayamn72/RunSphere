@@ -11,6 +11,7 @@ import {
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
 import { chunkHash, processActivity } from './activity.js';
+import { weeklyGoalResponse } from './quest-routes.js';
 
 /**
  * B8 and B9 against real PostgreSQL: activity processing is one transaction,
@@ -165,5 +166,39 @@ describePostgis('activity processing (B8, B9)', () => {
 describe('activity processing integration gate', () => {
   it('is open in CI', () => {
     expect(() => requirePostgisInCi()).not.toThrow();
+  });
+});
+
+describePostgis('weekly goal week boundary (B10)', () => {
+  it('counts a run at 00:30 Monday in India toward the new Kolkata week', async () => {
+    const token = await register();
+    const accountId = JSON.parse(Buffer.from(token.split('.')[0]!, 'base64url').toString())
+      .sub as string;
+    // 2026-11-15 is a Sunday. 19:00 UTC is 00:30 IST on Monday 16 November.
+    const processedAt = new Date('2026-11-15T19:00:00.000Z');
+    const run = await db.query<{ id: string }>(
+      `INSERT INTO activity_submissions (account_id, idempotency_key, movement_type, request_fingerprint,
+         status, processed_at, finalized_at)
+       VALUES ($1, $2, 'run', 'fixture', 'derived', $3, $3) RETURNING id`,
+      [accountId, randomUUID(), processedAt]
+    );
+    await db.query(
+      `INSERT INTO activity_validation_outputs (activity_id, active_duration_seconds, distance_meters,
+         accepted_point_count, rejected_point_count, rejected_gap_count, validation_algorithm_version)
+       VALUES ($1, 1200, 3000, 100, 0, 0, 'fixture')`,
+      [run.rows[0]!.id]
+    );
+
+    // An hour later, still Monday in India: the run is this week's.
+    const monday = await weeklyGoalResponse(db, accountId, new Date('2026-11-15T20:00:00.000Z'));
+    expect(monday.weekStartsOn).toBe('2026-11-16');
+    expect(monday.activeMinutes.actual).toBe(20);
+    expect(monday.distanceMeters.actual).toBe(3000);
+
+    // Earlier that Sunday evening in India, the run has not happened yet in
+    // that week's window, and the week is the previous one.
+    const sunday = await weeklyGoalResponse(db, accountId, new Date('2026-11-15T17:00:00.000Z'));
+    expect(sunday.weekStartsOn).toBe('2026-11-09');
+    expect(sunday.activeMinutes.actual).toBe(0);
   });
 });
