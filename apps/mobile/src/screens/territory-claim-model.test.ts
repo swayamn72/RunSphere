@@ -7,8 +7,10 @@ import type {
   TerritoryEvent,
   TerritoryLeaderboardResponse
 } from '@runsphere/contracts';
+import { ApiFailure } from '../api-client';
 import {
   OWNER_PALETTE,
+  claimFailureNotice,
   ZONE_FILTERS,
   filterClaims,
   zoneFilterSummary,
@@ -645,5 +647,15 @@ describe('map legend (UX.11)', () => {
     expect(yours!.colour).toBe(colourOf({ owner: { ...claim().owner, isSelf: true } }));
     expect(rivals!.colour).toBe(colourOf({ owner: { ...claim().owner, isSelf: false } }));
     expect(contested!.colour).toBe(colourOf({ status: 'contested' }));
+  });
+});
+
+describe('claimFailureNotice (R5)', () => {
+  it('asks the runner to wait on the claim rate limit, without saying the claim was refused', () => {
+    expect(claimFailureNotice(new ApiFailure(429, 'Too many requests'))).toMatch(/Wait a minute/);
+  });
+
+  it('keeps every other failure retryable and says the run is safe', () => {
+    expect(claimFailureNotice(new Error('offline'))).toMatch(/run is safe/);
   });
 });

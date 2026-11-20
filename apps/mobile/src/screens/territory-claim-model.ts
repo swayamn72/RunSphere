@@ -13,6 +13,7 @@ import type {
 } from '@runsphere/contracts';
 import { darkTokens, ownerPalette } from '@runsphere/ui';
 import { crewCharacters, type CrewCharacter } from '../crew';
+import { ApiFailure } from '../api-client';
 
 /**
  * The turf map as the app draws it (Phase 5, milestone 5.1; ADR-0011).
@@ -550,3 +551,13 @@ export const TURF_LEGEND: readonly { readonly label: string; readonly colour: st
   { label: 'Rival ground', colour: darkTokens.zone.rival },
   { label: 'Contested', colour: darkTokens.zone.neutral }
 ];
+
+/**
+ * What the claim button says when the request itself fails. A 429 is the claim
+ * rate limit (R5): nothing is wrong with the run, so say to wait rather than
+ * imply the claim was refused. Every other failure keeps the run claimable.
+ */
+export const claimFailureNotice = (error: unknown): string =>
+  error instanceof ApiFailure && error.status === 429
+    ? 'Lots of claims just now. Wait a minute, then try again.'
+    : "Couldn't claim right now. Your run is safe; try again.";

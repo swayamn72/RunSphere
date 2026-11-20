@@ -32,6 +32,7 @@ import { registerEmailWebhookRoutes } from './email-webhook-routes.js';
 import { registerRouteSuggestionRoutes } from './route-suggestion-routes.js';
 import { registerQuestRecommendationRoutes } from './quest-recommendation-routes.js';
 import { createMlScorer, readMlScorerConfig } from './ml-scoring.js';
+import { registerRateLimits } from './rate-limit.js';
 
 type RuntimeApiConfig = Pick<ApiConfig, 'allowedOrigins' | 'staffReviewAccountIds'> & {
   metricsCollectorToken: string | undefined;
@@ -56,6 +57,12 @@ export interface BuildAppOptions {
   db?: Database;
   authSecret?: string;
   allowInsecureAuthSecret?: boolean;
+  /**
+   * Request rate limits (R5). On by default; off when `NODE_ENV=test`, because
+   * the integration suites deliberately make dozens of claims per account.
+   * Tests of the limiter itself pass `true`.
+   */
+  rateLimits?: boolean;
 }
 
 /**
@@ -88,7 +95,8 @@ export const buildApp = ({
   loggerInstance,
   db,
   authSecret = process.env.AUTH_TOKEN_SECRET ?? 'development-secret-not-for-production',
-  allowInsecureAuthSecret = process.env.NODE_ENV === 'test'
+  allowInsecureAuthSecret = process.env.NODE_ENV === 'test',
+  rateLimits = process.env.NODE_ENV !== 'test'
 }: BuildAppOptions = {}) => {
   assertAuthSecret(authSecret, allowInsecureAuthSecret);
   const config = configuredApiConfig(apiConfig);
@@ -104,6 +112,7 @@ export const buildApp = ({
           redact: { paths: [...pinoRedactionPaths], censor: '[REDACTED]' }
         }
       });
+  if (rateLimits) registerRateLimits(app, authSecret);
   app.addHook('onResponse', async (_request, reply) => {
     metrics.recordResponse(reply.statusCode);
   });

@@ -88,7 +88,8 @@ import {
   filterClaims,
   zoneFilterSummary,
   type CaptureCelebration,
-  type ZoneFilter
+  type ZoneFilter,
+  claimFailureNotice
 } from './territory-claim-model';
 import { gameWorld } from '../theme/game-world';
 
@@ -1363,8 +1364,8 @@ export function TurfScreen({
                         await loadMine();
                         if (lastBounds.current) await loadClaims(lastBounds.current);
                       }
-                    } catch {
-                      if (mounted.current) setNotice('That claim could not be made. Try again.');
+                    } catch (error) {
+                      if (mounted.current) setNotice(claimFailureNotice(error));
                     } finally {
                       if (mounted.current) setClaiming(false);
                     }
