@@ -899,7 +899,7 @@ export function ActivityDetail({
     <View style={styles.recordCard}>
       <Text style={styles.eyebrow}>
         {presentation.state === 'validated'
-          ? 'VALIDATED ACTIVITY'
+          ? 'RUN COUNTED'
           : terminalRejected
             ? 'SAVED PRIVATELY'
             : terminalDeleted
@@ -908,7 +908,7 @@ export function ActivityDetail({
       </Text>
       <Text style={styles.recordTitle}>
         {presentation.state === 'validated'
-          ? 'Activity validated.'
+          ? 'Your run counts.'
           : terminalRejected
             ? 'Activity saved privately.'
             : terminalDeleted
@@ -920,12 +920,12 @@ export function ActivityDetail({
       {guidance.cue && <LoopCallout cue={guidance.cue} onDismiss={guidance.dismiss} />}
       <Text style={styles.lead}>
         {presentation.state === 'validated'
-          ? 'Validated totals are ready. Your route remains private and uses the server-trimmed result only.'
+          ? 'Your totals are in. Your route stays private, trimmed around your privacy zones.'
           : terminalRejected
             ? (presentation.detail?.rejectionReason ??
-              'This activity was saved privately but is not eligible for validated totals.')
+              "Your run is saved privately, but it doesn't count toward your totals.")
             : terminalDeleted
-              ? 'This activity was deleted on RunSphere and is no longer available for validation.'
+              ? 'This run was deleted from your account.'
               : current.state === 'failed'
                 ? 'Sync paused. Refresh to try again.'
                 : VERIFYING_RUN_COPY}
@@ -955,9 +955,9 @@ export function ActivityDetail({
             </Text>
             <Text style={styles.noticeCopy}>
               {terminalDeleted
-                ? 'This activity is no longer available for validation.'
+                ? 'This run was deleted from your account.'
                 : (presentation.detail?.validationErrors?.join(' ') ??
-                  'This activity is not eligible for validated totals.')}
+                  "This run doesn't count toward your totals.")}
             </Text>
           </View>
         </View>
@@ -966,11 +966,11 @@ export function ActivityDetail({
         <View style={styles.notice} accessibilityLiveRegion="polite">
           <Text style={styles.noticeIcon}>✓</Text>
           <View style={styles.flexCopy}>
-            <Text style={styles.noticeTitle}>Validated by RunSphere</Text>
+            <Text style={styles.noticeTitle}>Run counted</Text>
             <Text style={styles.noticeCopy}>
               {presentation.detail.summary!.privacyTrimmed
                 ? 'Start, finish, and route fragments inside saved privacy zones were removed.'
-                : 'The validated route is shown only when RunSphere returned safe route geometry.'}
+                : "Your route shows here once it's ready to share safely."}
             </Text>
           </View>
         </View>
@@ -984,7 +984,7 @@ export function ActivityDetail({
       {canRefresh && (
         <Pressable accessibilityRole="button" onPress={() => void updateFromServer(current)}>
           <Text style={styles.textButton}>
-            {current.remoteStatus === 'derived' ? 'Refresh validated result' : 'Refresh validation'}
+            {current.remoteStatus === 'derived' ? 'Refresh result' : 'Check again'}
           </Text>
         </Pressable>
       )}
@@ -1062,7 +1062,7 @@ export function ActivityHistory({
       }));
       setItems(refreshedItems);
     } catch {
-      setError('Your local history is still safe. Connect to refresh validation results.');
+      setError('Your local history is still safe. Go online to refresh your results.');
     } finally {
       refreshInFlight.current = false;
       setLoading(false);
@@ -1164,7 +1164,7 @@ function ActivityDetailMap({
       <MapSurface
         localLayers={activeRoute}
         accessibilityLabel={
-          isDerived ? 'Server-derived private activity route.' : 'Locally recorded activity route.'
+          isDerived ? 'Your checked private run route.' : 'Locally recorded activity route.'
         }
         initialCenter={activeCenter as LngLat}
         recenterEnabled={false}

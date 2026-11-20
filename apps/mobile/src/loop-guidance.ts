@@ -47,7 +47,7 @@ export const loopGuidance: Readonly<Record<LoopGuidanceCue, LoopGuidanceCopy>> =
     character: 'rho',
     speaker: 'Rho',
     message:
-      'RunSphere is still checking this activity. Your totals appear here once the server answers, and nothing is shared while it waits.',
+      'Your run is saved. Totals show up here once it has been checked, and nothing is shared while you wait.',
     maxPerDay: 2,
     dismissalDays: 1
   },

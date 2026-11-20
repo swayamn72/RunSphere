@@ -92,8 +92,8 @@ export function AchievementsScreen({
       <Text style={styles.eyebrow}>COSMETIC ONLY</Text>
       <Text style={styles.homeTitle}>Achievements</Text>
       <Text style={styles.lead}>
-        Awarded by RunSphere from validated activity. They change nothing about eligibility,
-        validation, or how anyone is ranked — and none of them depend on pace.
+        Earned from runs that count. They never change how anyone is ranked, and none of them depend
+        on pace.
       </Text>
 
       {notice !== '' && (

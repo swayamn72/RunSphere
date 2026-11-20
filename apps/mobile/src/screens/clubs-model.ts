@@ -469,7 +469,7 @@ export const canOpenClubChallenge = (role: ClubRole): boolean => canManageClubCh
  * appear in it.
  */
 export const CLUB_CHALLENGE_EXPLANATION =
-  'A club challenge ranks the members who joined it over one fixed window. It counts the same validated active minutes as the rest of RunSphere — pace, distance, and where you moved play no part.';
+  'A club challenge ranks the members who joined it over one fixed window. It counts the same active minutes as the rest of RunSphere — pace, distance, and where you moved play no part.';
 
 /**
  * Said before joining, because joining is retroactive within the window: it is

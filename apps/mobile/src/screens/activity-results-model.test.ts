@@ -80,14 +80,12 @@ describe('activity Results presentation', () => {
     });
     expect(activityHistoryMetric(session, derived)).toEqual({
       distanceMeters: 1_000,
-      detail: 'Validated distance'
+      detail: 'Counted distance'
     });
   });
 
   it('labels rejection non-punitively and lifecycle metadata as not-yet-fetched truth', () => {
-    expect(activityHistoryLabel('rejected')).toBe(
-      'Saved privately — not eligible for validated totals'
-    );
-    expect(activityHistoryLabel('derived')).toBe('Validated totals refresh when connected');
+    expect(activityHistoryLabel('rejected')).toBe('Saved, but not counted');
+    expect(activityHistoryLabel('derived')).toBe("Counted. Totals refresh when you're online");
   });
 });

@@ -34,7 +34,7 @@ export const activityHistoryMetric = (
   fetchedDetail: ActivityResultDetail | undefined
 ): { readonly distanceMeters: number; readonly detail: string } => {
   if (fetchedDetail?.status === 'derived' && fetchedDetail.summary)
-    return { distanceMeters: fetchedDetail.summary.distanceMeters, detail: 'Validated distance' };
+    return { distanceMeters: fetchedDetail.summary.distanceMeters, detail: 'Counted distance' };
   return { distanceMeters: session.distanceMeters, detail: 'Recorded distance' };
 };
 
@@ -130,8 +130,8 @@ export const calculatedPace = (
 };
 
 export const activityHistoryLabel = (remoteStatus: ActivityLifecycleStatus | undefined): string => {
-  if (remoteStatus === 'derived') return 'Validated totals refresh when connected';
-  if (remoteStatus === 'rejected') return 'Saved privately — not eligible for validated totals';
+  if (remoteStatus === 'derived') return "Counted. Totals refresh when you're online";
+  if (remoteStatus === 'rejected') return 'Saved, but not counted';
   if (remoteStatus === 'deleted') return 'Deleted on RunSphere';
   return 'Waiting for run check';
 };

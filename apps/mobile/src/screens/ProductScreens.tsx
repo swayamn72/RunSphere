@@ -645,7 +645,7 @@ function GoalsScreen({ api, onBack }: { api: MobileApiClient; onBack: () => void
       <BackHeader label="WEEKLY GOALS" onBack={onBack} />
       <Text style={styles.homeTitle}>Progress at your pace</Text>
       <Text style={styles.lead}>
-        Only validated activity counts. There are no speed or calorie rewards.
+        Only checked runs count. There are no speed or calorie rewards.
       </Text>
       {state === 'loading' && <Text style={styles.privateNote}>Loading weekly progress…</Text>}
       {state === 'error' && <ErrorState copy="We couldn't load your goal." onRetry={load} />}

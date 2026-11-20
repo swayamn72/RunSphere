@@ -293,9 +293,9 @@ export function Onboarding({
             <Text style={styles.eyebrow}>YOU’RE IN CONTROL</Text>
             <Text style={styles.onboardingTitle}>Set up your activity map.</Text>
             <Text style={styles.lead}>
-              Precise location records your activity. GPS samples are encrypted on this device, then
-              uploaded for server validation when you choose to sync. Raw submitted GPS is retained
-              for up to 30 days; eligible maps are trimmed around saved privacy zones.
+              Precise location records your run. GPS points are encrypted on this device, then
+              uploaded to RunSphere to check the run when you choose to sync. Uploaded raw GPS is
+              kept for up to 30 days, and route maps are trimmed around your saved privacy zones.
             </Text>
             <PermissionCard
               icon="⌖"
