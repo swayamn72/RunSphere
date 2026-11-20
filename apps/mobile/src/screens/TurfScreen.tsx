@@ -26,6 +26,7 @@ import { resolveMapRenderPlan } from '../maps/map-config';
 import { CrewMascot } from '../components/CrewMascot';
 import { TerritoryDetailScreen } from './TerritoryDetailScreen';
 import { GhostRaceSheet } from './GhostRaceSheet';
+import { dashboardPreviewEnabled, previewClaims } from './dashboard-preview';
 import type { GhostRun } from './ghost-race-model';
 import { CLAIM_PUBLISHES_NOTICE, FIRST_CLAIM_PRIVACY_PROMPT } from '@runsphere/domain';
 import {
@@ -96,11 +97,15 @@ export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: Tu
   const renderPlan = useMemo(() => resolveMapRenderPlan(), []);
   const cameraRef = useRef<CameraRef>(null);
 
-  const [claims, setClaims] = useState<readonly TerritoryClaim[]>([]);
+  const [claims, setClaims] = useState<readonly TerritoryClaim[]>(
+    dashboardPreviewEnabled ? previewClaims : []
+  );
   const [truncated, setTruncated] = useState(false);
-  const [summary, setSummary] = useState<TerritoryClaimSummary>();
+  const [summary, setSummary] = useState<TerritoryClaimSummary | undefined>(
+    dashboardPreviewEnabled ? { claimCount: 7, totalAreaSqm: 84_000, lostCount: 1 } : undefined
+  );
   const [feed, setFeed] = useState<readonly TerritoryClaimActivityItem[]>([]);
-  const [mapNote, setMapNote] = useState('');
+  const [mapNote, setMapNote] = useState(dashboardPreviewEnabled ? 'Sample territories' : '');
   const [zoom, setZoom] = useState(INITIAL_ZOOM);
   const [notice, setNotice] = useState('');
   const [selected, setSelected] = useState<string>();
@@ -179,7 +184,7 @@ export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: Tu
   }, [api]);
 
   useEffect(() => {
-    void loadMine();
+    if (!dashboardPreviewEnabled) void loadMine();
   }, [loadMine]);
 
   const loadClusters = useCallback(
@@ -213,6 +218,7 @@ export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: Tu
   const onRegionChanged = (event: { nativeEvent: ViewStateChangeEvent }) => {
     const { bounds, zoom: nextZoom } = event.nativeEvent;
     setZoom(nextZoom);
+    if (dashboardPreviewEnabled) return;
     const next = boundsFrom(bounds);
     if (!worthRefetching(lastBounds.current, next)) return;
     lastBounds.current = next;
@@ -228,7 +234,7 @@ export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: Tu
   };
 
   const tier = detailTierFor(zoom);
-  const clustered = showsClusters(tier);
+  const clustered = !dashboardPreviewEnabled && showsClusters(tier);
   /**
    * The bar narrows what is drawn, not what was loaded: the summary line below
    * still counts everything in the viewport, so a filter that hides every zone
@@ -255,7 +261,7 @@ export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: Tu
   // A territory's story is fetched only when somebody opens it. Loading it for
   // every claim on screen would be hundreds of requests to draw one card.
   useEffect(() => {
-    if (!selected) {
+    if (!selected || dashboardPreviewEnabled) {
       setHistory(undefined);
       return;
     }
@@ -309,7 +315,7 @@ export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: Tu
         claim={chosen}
         history={history}
         onBack={() => setShowDetail(false)}
-        {...(onGhostRace && !chosen.owner.isSelf
+        {...(!dashboardPreviewEnabled && onGhostRace && !chosen.owner.isSelf
           ? { onGhostRace: () => setGhostClaimId(chosen.id) }
           : {})}
         {...(onOpenRun ? { onRunHere: onOpenRun } : {})}
@@ -576,7 +582,7 @@ export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: Tu
             {!chosen.owner.isSelf && (
               <>
                 <Text style={styles.helper}>{targetPaceLabel(chosen.speedMps)}</Text>
-                {onGhostRace && (
+                {!dashboardPreviewEnabled && onGhostRace && (
                   <Pressable
                     accessibilityRole="button"
                     onPress={() => setGhostClaimId(chosen.id)}

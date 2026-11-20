@@ -161,12 +161,19 @@ export const dashboardTiles = (
 
 export const tacticalDashboardTiles = (
   goal: WeeklyGoalResponse | undefined,
-  progression: ProgressionSummary | undefined
+  progression: ProgressionSummary | undefined,
+  zonesCarved?: number
 ) => ({
   progression: dashboardTiles(undefined, progression),
   metrics: [
     ...dashboardTiles(goal, undefined),
-    { key: 'carved', glyph: '+', hue: 'amber', label: 'ZONES CARVED', value: '—' }
+    {
+      key: 'carved',
+      glyph: '+',
+      hue: 'amber',
+      label: 'ZONES CARVED',
+      value: zonesCarved?.toString() ?? '—'
+    }
   ] satisfies DashboardTile[]
 });
 

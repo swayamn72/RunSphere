@@ -14,6 +14,7 @@ import { LoopMascot } from '../components/Mascot';
 import { useAppStyles } from '../components/styles';
 import { useLoopGuidance } from '../components/useLoopGuidance';
 import type { LoopGuidanceCue } from '../loop-guidance';
+import { dashboardPreviewEnabled } from './dashboard-preview';
 import { useAppTheme } from '../theme/theme';
 import {
   ActiveDaysCard,
@@ -62,6 +63,58 @@ interface HomeRemoteData {
   readonly reloadQuests: () => void;
   readonly reloadProgression: () => void;
 }
+
+const homePreview = {
+  unreadCount: 2,
+  goal: {
+    weekStartsOn: '2026-11-16',
+    activeMinutes: { goal: 120, actual: 78 },
+    distanceMeters: { goal: 15_000, actual: 9_400 }
+  },
+  goalState: 'ready',
+  progression: {
+    totalXp: 1240,
+    questsCompleted: 6,
+    achievements: [],
+    weeklyConsistency: {
+      periodStart: '2026-11-16',
+      activeDays: 3,
+      cappedActiveMinutes: 78,
+      goalActiveDays: 5,
+      current: true
+    },
+    level: { level: 4, xpInLevel: 90, nextLevelAt: 1400 }
+  },
+  progressionState: 'ready',
+  turf: { claimCount: 7, totalAreaSqm: 84_000, lostCount: 1 },
+  profile: {
+    id: '00000000-0000-4000-8000-000000000001',
+    displayName: 'Maya Chen',
+    cosmetic: { avatarKey: 'loop-1', tier: 'Trailkeeper' },
+    activityVisibility: 'private'
+  },
+  quests: [
+    {
+      id: 'preview-carter-road',
+      title: 'Carter Road Promenade',
+      distanceMeters: 2400,
+      estimatedActiveMinutes: 18,
+      accessibility: 'step-free',
+      openHours: { timezone: 'Asia/Kolkata', schedule: 'Daily', status: 'open' },
+      checkpointCount: 3
+    },
+    {
+      id: 'preview-bandra-fort',
+      title: 'Bandra Fort Loop',
+      distanceMeters: 3200,
+      estimatedActiveMinutes: 25,
+      accessibility: 'mixed',
+      openHours: { timezone: 'Asia/Kolkata', schedule: 'Daylight hours', status: 'open' },
+      checkpointCount: 4
+    }
+  ],
+  questState: 'ready'
+} satisfies Omit<HomeRemoteData, 'reloadGoals' | 'reloadQuests' | 'reloadProgression'>;
 
 const useHomeRemoteData = (api: MobileApiClient, onSessionExpired: () => void): HomeRemoteData => {
   const [goal, setGoal] = useState<WeeklyGoalResponse>();
@@ -184,6 +237,7 @@ const useHomeRemoteData = (api: MobileApiClient, onSessionExpired: () => void): 
   }, [api, onSessionExpired]);
 
   useEffect(() => {
+    if (dashboardPreviewEnabled) return;
     mounted.current = true;
     sessionExpirationHandled.current = false;
     loadGoals();
@@ -197,7 +251,7 @@ const useHomeRemoteData = (api: MobileApiClient, onSessionExpired: () => void): 
     };
   }, [loadGoals, loadProgression, loadQuests]);
 
-  return {
+  const data = {
     unreadCount,
     goal,
     goalState,
@@ -206,7 +260,11 @@ const useHomeRemoteData = (api: MobileApiClient, onSessionExpired: () => void): 
     progression,
     progressionState,
     turf,
-    profile,
+    profile
+  };
+
+  return {
+    ...(dashboardPreviewEnabled ? homePreview : data),
     reloadGoals: loadGoals,
     reloadQuests: loadQuests,
     reloadProgression: loadProgression
@@ -262,7 +320,11 @@ export function HomeScreen({
   const greeting = greetingPresentation(profile, new Date().getHours());
   const activeDays = activeDaysPresentation(progression);
   const unreadLabel = unreadBadgeLabel(unreadCount);
-  const tiles = tacticalDashboardTiles(goal, progression);
+  const tiles = tacticalDashboardTiles(
+    goal,
+    progression,
+    dashboardPreviewEnabled ? turf?.claimCount : undefined
+  );
   const statusMessage = homeStatusMessage(
     goalState,
     questState,
@@ -288,6 +350,8 @@ export function HomeScreen({
         season={seasonCountdown(new Date())}
         {...(onOpenSettings ? { onOpenSettings } : {})}
       />
+
+      {dashboardPreviewEnabled && <Text style={styles.muted}>Sample dashboard data</Text>}
 
       <View style={styles.recordCard}>
         <Text style={[styles.eyebrow, { color: tokens.zone.owned }]}>TURF CONTROLLED</Text>
