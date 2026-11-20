@@ -38,6 +38,7 @@ import {
   leaderboardRows,
   TRUNCATED_NOTE,
   boundsFrom,
+  TURF_LEGEND,
   captureCelebration,
   claimableRunId as pickClaimableRun,
   claimFeatures,
@@ -540,6 +541,18 @@ export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: Tu
           {zoneFilterSummary(zoneFilter, visibleClaims.length, claims.length, search)}
         </Text>
         <Text style={styles.helper}>{summaryLine(summary)}</Text>
+        <View
+          accessible
+          accessibilityLabel={`Map colours: ${TURF_LEGEND.map((entry) => entry.label).join(', ')}`}
+          style={styles.legend}
+        >
+          {TURF_LEGEND.map((entry) => (
+            <View key={entry.label} style={styles.legendItem}>
+              <View style={[styles.legendSwatch, { backgroundColor: entry.colour }]} />
+              <Text style={styles.helper}>{entry.label}</Text>
+            </View>
+          ))}
+        </View>
         {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
         {celebration ? (
@@ -795,6 +808,9 @@ export function TurfScreen({ api, onOpenRun, onGhostRace, onSessionExpired }: Tu
 const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
   StyleSheet.create({
     root: { backgroundColor: tokens.background.canvas, flex: 1 },
+    legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 6 },
+    legendItem: { alignItems: 'center', flexDirection: 'row', gap: 6 },
+    legendSwatch: { borderRadius: 3, height: 12, width: 12 },
     mapWrap: { backgroundColor: tokens.background.surfaceInset, flex: 3, minHeight: 260 },
     fallback: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 24 },
     fallbackTitle: {

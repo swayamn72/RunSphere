@@ -509,3 +509,13 @@ export const claimableRunId = (
   }>
 ): string | undefined =>
   runs.find((run) => run.status === 'derived' && run.territoryClaimed !== true)?.id;
+
+/**
+ * What the map's colours mean (UX.11), built from the same tokens the map
+ * paints with (`turfColour`), so the legend can't drift from the map.
+ */
+export const TURF_LEGEND: readonly { readonly label: string; readonly colour: string }[] = [
+  { label: 'Your ground', colour: SELF_COLOUR },
+  { label: 'Rival ground', colour: darkTokens.zone.rival },
+  { label: 'Contested', colour: darkTokens.zone.neutral }
+];

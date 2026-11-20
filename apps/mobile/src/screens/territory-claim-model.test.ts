@@ -13,6 +13,7 @@ import {
   filterClaims,
   zoneFilterSummary,
   TIER_HINT,
+  TURF_LEGEND,
   captureCelebration,
   claimableRunId,
   clusterMarkers,
@@ -632,5 +633,17 @@ describe('rival target pace', () => {
   it('formats the confirmed pace per kilometre and omits an invalid target', () => {
     expect(targetPaceLabel(2)).toBe('Target pace: 8:20/km');
     expect(targetPaceLabel(0)).toBeUndefined();
+  });
+});
+
+describe('map legend (UX.11)', () => {
+  it('uses exactly the colours the map paints claims with', () => {
+    const colourOf = (overrides: Partial<TerritoryClaim>) =>
+      claimFeatures([claim(overrides)]).features[0]!.properties.colour;
+    const [yours, rivals, contested] = TURF_LEGEND;
+
+    expect(yours!.colour).toBe(colourOf({ owner: { ...claim().owner, isSelf: true } }));
+    expect(rivals!.colour).toBe(colourOf({ owner: { ...claim().owner, isSelf: false } }));
+    expect(contested!.colour).toBe(colourOf({ status: 'contested' }));
   });
 });
