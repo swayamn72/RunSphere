@@ -92,4 +92,8 @@ jobs:
       # and `RUN_POSTGIS_INTEGRATION` above are what open that gate, and
       # `requirePostgisInCi` fails the run if they ever stop doing so.
       - name: Test
-        run: pnpm test
+        # One package at a time: the API and worker PostGIS suites share this
+        # database, and the worker's season jobs (ranks, geo tags, warnings)
+        # process every claim in the current season, so API claim tests
+        # running in parallel leaked into their counts.
+        run: pnpm turbo run test --continue --concurrency=1
