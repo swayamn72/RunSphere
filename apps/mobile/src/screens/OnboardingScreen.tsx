@@ -23,8 +23,8 @@ import { canSubmitAccount } from '../onboarding';
 import type { initialOnboardingState, onboardingReducer } from '../onboarding';
 import { PermissionCard, PrimaryButton, StepHeader } from '../components/primitives';
 import { useAppStyles } from '../components/styles';
+import appLogo from '../../assets/logo.png';
 
-const appLogo = require('../../assets/logo.png');
 
 type AuthStatus = 'idle' | 'loading' | 'error';
 

@@ -1,15 +1,27 @@
 import { useMemo } from 'react';
-import { Image, Platform, Pressable, StyleSheet, View } from 'react-native';
+import {
+  Image,
+  Platform,
+  Pressable,
+  StyleSheet,
+  View,
+  type ImageSourcePropType
+} from 'react-native';
+import homeIcon from '../../assets/tabs/home.png';
+import mapIcon from '../../assets/tabs/map.png';
+import profileIcon from '../../assets/tabs/profile.png';
+import runIcon from '../../assets/tabs/run.png';
+import socialIcon from '../../assets/tabs/social.png';
 import { useAppTheme } from '../theme/theme';
 import { tabEmphasis } from './tab-style';
 import { tabs, type Tab } from './types';
 
-const tabIconAssets: Record<Tab, any> = {
-  Home: require('../../assets/tabs/home.png'),
-  Map: require('../../assets/tabs/map.png'),
-  Run: require('../../assets/tabs/run.png'),
-  Social: require('../../assets/tabs/social.png'),
-  Profile: require('../../assets/tabs/profile.png')
+const tabIconAssets: Record<Tab, ImageSourcePropType> = {
+  Home: homeIcon,
+  Map: mapIcon,
+  Run: runIcon,
+  Social: socialIcon,
+  Profile: profileIcon
 };
 
 export function TabBar({ activeTab, onChange }: { activeTab: Tab; onChange: (tab: Tab) => void }) {

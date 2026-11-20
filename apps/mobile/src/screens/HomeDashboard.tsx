@@ -1,5 +1,8 @@
-import { Image, Pressable, Text, View } from 'react-native';
+import { Image, Pressable, Text, View, type ImageSourcePropType } from 'react-native';
 import type { SemanticTokens } from '@runsphere/ui';
+import mapIcon from '../../assets/tabs/map.png';
+import runIcon from '../../assets/tabs/run.png';
+import socialIcon from '../../assets/tabs/social.png';
 import { useAppStyles } from '../components/styles';
 import { useAppTheme } from '../theme/theme';
 import type {
@@ -10,10 +13,10 @@ import type {
 } from './home-dashboard-model';
 import { QUICK_ACTIONS } from './home-dashboard-model';
 
-const quickActionIcons: Record<QuickAction['key'], any> = {
-  run: require('../../assets/tabs/run.png'),
-  map: require('../../assets/tabs/map.png'),
-  social: require('../../assets/tabs/social.png')
+const quickActionIcons: Record<QuickAction['key'], ImageSourcePropType> = {
+  run: runIcon,
+  map: mapIcon,
+  social: socialIcon
 };
 
 /**

@@ -11,15 +11,32 @@ import { createActivitySyncCoordinator } from './src/activity-sync';
 import { MobileApiClient } from './src/api-client';
 import { authStorage } from './src/auth-storage.native';
 
-let BackgroundFetch: typeof import('expo-background-fetch') | null = null;
-let TaskManager: typeof import('expo-task-manager') | null = null;
-try {
-  BackgroundFetch = require('expo-background-fetch');
-  TaskManager = require('expo-task-manager');
-} catch {
-  BackgroundFetch = null;
-  TaskManager = null;
-}
+import type * as BackgroundFetchModule from 'expo-background-fetch';
+import type * as TaskManagerModule from 'expo-task-manager';
+
+/**
+ * Background sync's native modules, loaded defensively. A build without them
+ * must still start (sync then happens only in the foreground) rather than
+ * crash at module load, and `TaskManager.defineTask` has to run synchronously
+ * at module scope, so neither a static import nor `import()` fits. The types
+ * come from the type-only imports above.
+ */
+const loadBackgroundModules = (): {
+  BackgroundFetch: typeof BackgroundFetchModule | null;
+  TaskManager: typeof TaskManagerModule | null;
+} => {
+  try {
+    return {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- optional native module, see above
+      BackgroundFetch: require('expo-background-fetch') as typeof BackgroundFetchModule,
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- optional native module, see above
+      TaskManager: require('expo-task-manager') as typeof TaskManagerModule
+    };
+  } catch {
+    return { BackgroundFetch: null, TaskManager: null };
+  }
+};
+const { BackgroundFetch, TaskManager } = loadBackgroundModules();
 
 import { FocusedFlexShell, FocusedScrollShell, TabScrollShell } from './src/components/ScreenShell';
 import { PrimaryButton } from './src/components/primitives';

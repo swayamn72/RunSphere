@@ -1,9 +1,4 @@
-let LocalAuthentication: typeof import('expo-local-authentication') | null = null;
-try {
-  LocalAuthentication = require('expo-local-authentication');
-} catch {
-  LocalAuthentication = null;
-}
+import type * as LocalAuthenticationModule from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 import { randomUUID } from 'expo-crypto';
 import {
@@ -13,6 +8,22 @@ import {
   type DeviceAuthenticationResult,
   type DeviceSecurityLevel
 } from './run-verification';
+
+/**
+ * Loaded defensively rather than imported: a dev client or build without the
+ * native module must still start and treat the device as having no lock
+ * (the gate's "unenrolled" path), not crash at module load. `require` keeps
+ * the load synchronous; the type comes from the type-only import above.
+ */
+const loadLocalAuthentication = (): typeof LocalAuthenticationModule | null => {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- optional native module, see above
+    return require('expo-local-authentication') as typeof LocalAuthenticationModule;
+  } catch {
+    return null;
+  }
+};
+const LocalAuthentication = loadLocalAuthentication();
 
 /**
  * The native half of the run verification gate.
