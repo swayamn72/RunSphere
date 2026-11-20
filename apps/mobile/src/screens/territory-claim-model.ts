@@ -46,7 +46,12 @@ export const OWNER_PALETTE = [
  * every other "this is yours" marker in the app cannot drift apart — which is
  * exactly what happened when the palette changed and this literal did not.
  */
-export const SELF_COLOUR = darkTokens.action.primary;
+export const SELF_COLOUR = darkTokens.zone.owned;
+
+const turfColour = (claim: TerritoryClaim): string => {
+  if (claim.status === 'contested') return darkTokens.zone.neutral;
+  return claim.owner.isSelf ? SELF_COLOUR : darkTokens.zone.rival;
+};
 
 /** FNV-1a, so the same account always lands on the same colour. */
 export const ownerColour = (accountId: string, isSelf = false): string => {
@@ -81,7 +86,7 @@ export const claimFeatures = (
       type: 'Feature' as const,
       properties: {
         claimId: claim.id,
-        colour: ownerColour(claim.owner.id, claim.owner.isSelf),
+        colour: turfColour(claim),
         isSelf: claim.owner.isSelf
       },
       geometry: {
@@ -123,7 +128,7 @@ export const formatArea = (areaSqm: number): string => {
  */
 export const claimMarkers = (claims: readonly TerritoryClaim[]): ClaimMarker[] =>
   claims.map((claim) => {
-    const colour = ownerColour(claim.owner.id, claim.owner.isSelf);
+    const colour = turfColour(claim);
     const time = formatLoopTime(claim.durationSeconds);
     const area = formatArea(claim.areaSqm);
     return {

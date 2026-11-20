@@ -88,7 +88,7 @@ describe('who is which colour', () => {
     expect(ownerColour(RIVAL, true)).toBe(SELF_COLOUR);
     // Your own ground is marked in the app's accent. Pinned to the token so a
     // palette change cannot leave this literal behind, which it once did.
-    expect(SELF_COLOUR).toBe(darkTokens.action.primary);
+    expect(SELF_COLOUR).toBe(darkTokens.zone.owned);
     // And it must stay distinguishable from every rival hue on the same map.
     expect(OWNER_PALETTE).not.toContain(SELF_COLOUR);
   });
@@ -101,6 +101,14 @@ describe('the claims as a map layer', () => {
 
     expect(ring).toHaveLength(5);
     expect(ring[0]).toEqual(ring[4]);
+  });
+
+  it('uses the rival color for held rival turf and amber when contested', () => {
+    const claims = [claim(), claim({ status: 'contested' })];
+    expect(claimFeatures(claims).features.map((feature) => feature.properties.colour)).toEqual([
+      darkTokens.zone.rival,
+      darkTokens.zone.neutral
+    ]);
   });
 
   it('carries colour and ownership so one paint pass can draw everything', () => {
