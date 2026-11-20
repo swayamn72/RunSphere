@@ -169,101 +169,114 @@ export const expireSanctions = async (db: Database): Promise<number> => {
   return expired.rows.length;
 };
 
-export const processMaintenance = async (db: Database, now: Date = new Date()): Promise<number> => {
-  // Deletion can remove the same traces and share records touched by the other jobs.
-  const purgedTraces = await purgeExpiredRawTraces(db);
-  const deletedAccounts = await convergeAccountDeletion(db);
-  const expiredShares = await expireSafetyShares(db);
-  const lapsedInvites = await cancelExpiredChallengeInvites(db);
-  // Enqueue after deletion so a closed window belonging to an erased account is
-  // never queued for scoring.
-  const dueChallenges = await enqueueDueChallenges(db);
-  // Relay totals are a recompute, so running them last means they already
-  // reflect this sweep's deletions and departures.
-  const relays = await processClubRelays(db);
-  // Club challenges are finished after deletion too, so a closed window is
-  // never scored with a participant the same sweep has just erased. Unlike the
-  // 1v1 flow this writes the result directly: the `status = 'active'` claim is
-  // the idempotence, so a failed pass simply retries on the next sweep.
-  const clubChallenges = await processClubChallenges(db);
-  // The global board is a full recompute of two weeks and reads the widest set
-  // of accounts, so it runs last: it then reflects every departure, deletion,
-  // and revoked opt-in this sweep has already settled.
-  const globalBoard = await processGlobalBoards(db);
-  // Competitions are advanced last: the clock decides their states, and by
-  // this point every deletion, withdrawal, and validation this sweep settled
-  // is already reflected in what a closing event will score.
-  const competitions = await processCompetitions(db);
-  // Sanctions are closed out last, after any account erased in this sweep is
-  // already gone: an expired sanction on a deleted account is nothing to
-  // record.
-  const sanctions = await expireSanctions(db);
-  // Territory is wired in but switched off: both calls refuse on
-  // `TERRITORY_CAPTURE_ENABLED` before their first query, so a sweep does no
-  // territory work and costs nothing (milestones 4.2, 4.3). They are called
-  // anyway, rather than left unreferenced until the gate opens, because a job
-  // that has never been on the sweep is a job nobody finds out is missing.
-  // Scoring runs before season upkeep: a week is finalized from the
-  // contributions the same sweep has already accepted.
-  const territory = await processTerritory({ db }, now);
-  const territorySeasons = await processTerritorySeasons({ db }, now);
-  // Turf's own season, which is switched *on*. Order inside these three is the
-  // order a month actually happens in:
-  //
-  //   1. Tag any claim whose place was unknown when it was made, so a snapshot
-  //      taken a moment later puts it on the right city board rather than on
-  //      none.
-  //   2. Take the weekly rank if this Kolkata week has not been recorded,
-  //      because the peak a season is remembered by is built from these.
-  //   3. Warn anybody holding ground that the month is nearly over, using the
-  //      standings the two steps above have just made accurate.
-  //   4. Reset any month that has ended — last, so the final standing it
-  //      freezes already reflects all of the above.
-  //
-  // All four are driven by state rather than by a clock, so a sweep that has
-  // nothing to do costs a handful of indexed reads
-  // (`territory-season-reset-job.ts`).
-  const territoryGeo = await processTerritoryGeoTags({ db }, now);
-  const territoryRanks = await processTerritoryRanks({ db }, now);
-  const territoryEnding = await processTerritorySeasonEnding({ db }, now);
-  const territoryReset = await processTerritorySeasonReset({ db }, now);
-  // Anti-cheat features, before the campaign step because it is the same shape
-  // of work: a bounded batch of rows that nothing else is waiting on. A run's
-  // raw trace is purged after thirty days, so this is the only window in which
-  // its features can be extracted at all (`ml.md`).
-  const mlFeatures = await processMlFeatureExtraction({ db });
-  // And the model proposals, which are state-driven like the season jobs: a
-  // month since the last anti-cheat proposal, a week since the last
-  // recommender one. Both no-op without a training service, which is the state
-  // this deployment is in.
-  const mlTrainer = readMlTrainerConfig(process.env);
-  const mlDeps = { db, ...(mlTrainer ? { trainer: mlTrainer } : {}) };
-  await processAnticheatRetrain(mlDeps, now);
-  await processQuestRecommendRetrain(mlDeps, now);
-  // Campaign sends resolve their audience last, so consent revoked anywhere in
-  // this sweep — including by an unsubscribe — is already reflected in who the
-  // send will reach.
-  const campaigns = await processCampaigns(db);
-  return (
-    purgedTraces +
-    deletedAccounts +
-    expiredShares +
-    lapsedInvites +
-    dueChallenges +
-    relays +
-    clubChallenges +
-    globalBoard +
-    competitions +
-    sanctions +
-    territory.contributionsWritten +
-    territorySeasons.weeksFinalized +
-    territoryGeo.tagged +
-    territoryRanks.rowsWritten +
-    (territoryEnding?.notificationsQueued ?? 0) +
-    territoryReset.claimsArchived +
-    mlFeatures.extracted +
-    campaigns
-  );
+/**
+ * One maintenance job: a name for the logs and a function returning how much
+ * it did. Order in `maintenanceJobs` is the order a sweep runs them in.
+ */
+export interface MaintenanceJob {
+  readonly name: string;
+  readonly run: (db: Database, now: Date) => Promise<number>;
+}
+
+/**
+ * The scheduled jobs, in sweep order. The order still matters and is unchanged:
+ *
+ * - Deletion settles before challenge windows are queued, so an erased
+ *   participant is never scored.
+ * - Relays, club challenges, the global board and competitions recompute after
+ *   deletions and departures, so they reflect them.
+ * - Sanctions close after erasure; an expired sanction on a deleted account is
+ *   nothing to record.
+ * - Territory (H3 seasons) is wired in but refuses on
+ *   `TERRITORY_CAPTURE_ENABLED` before its first query.
+ * - Turf runs in the order a month happens: geo-tag, weekly rank, ending
+ *   warning, reset. All four are state-driven, so an idle sweep is a handful of
+ *   indexed reads.
+ * - ML feature extraction runs while raw traces still exist (30 days); the
+ *   retrain proposals no-op without a training service.
+ * - Campaigns resolve their audience last, so consent revoked anywhere in the
+ *   sweep is already reflected.
+ */
+export const maintenanceJobs: readonly MaintenanceJob[] = [
+  { name: 'raw_trace_purge', run: (db) => purgeExpiredRawTraces(db) },
+  { name: 'account_deletion', run: (db) => convergeAccountDeletion(db) },
+  { name: 'safety_share_expiry', run: (db) => expireSafetyShares(db) },
+  { name: 'challenge_invite_expiry', run: (db) => cancelExpiredChallengeInvites(db) },
+  { name: 'challenge_enqueue', run: (db) => enqueueDueChallenges(db) },
+  { name: 'club_relays', run: (db) => processClubRelays(db) },
+  { name: 'club_challenges', run: (db) => processClubChallenges(db) },
+  { name: 'global_boards', run: (db) => processGlobalBoards(db) },
+  { name: 'competitions', run: (db) => processCompetitions(db) },
+  { name: 'sanction_expiry', run: (db) => expireSanctions(db) },
+  {
+    name: 'territory_scoring',
+    run: async (db, now) => (await processTerritory({ db }, now)).contributionsWritten
+  },
+  {
+    name: 'territory_seasons',
+    run: async (db, now) => (await processTerritorySeasons({ db }, now)).weeksFinalized
+  },
+  {
+    name: 'turf_geo_tags',
+    run: async (db, now) => (await processTerritoryGeoTags({ db }, now)).tagged
+  },
+  {
+    name: 'turf_weekly_ranks',
+    run: async (db, now) => (await processTerritoryRanks({ db }, now)).rowsWritten
+  },
+  {
+    name: 'turf_season_ending',
+    run: async (db, now) =>
+      (await processTerritorySeasonEnding({ db }, now))?.notificationsQueued ?? 0
+  },
+  {
+    name: 'turf_season_reset',
+    run: async (db, now) => (await processTerritorySeasonReset({ db }, now)).claimsArchived
+  },
+  {
+    name: 'ml_feature_extraction',
+    run: async (db) => (await processMlFeatureExtraction({ db })).extracted
+  },
+  {
+    name: 'ml_retrain_proposals',
+    run: async (db, now) => {
+      const trainer = readMlTrainerConfig(process.env);
+      const deps = { db, ...(trainer ? { trainer } : {}) };
+      await processAnticheatRetrain(deps, now);
+      await processQuestRecommendRetrain(deps, now);
+      return 0;
+    }
+  },
+  { name: 'campaigns', run: (db) => processCampaigns(db) }
+];
+
+/**
+ * Run every maintenance job once, in order, each in isolation.
+ *
+ * A job that throws is logged and skipped; the rest still run. Previously one
+ * failing job (a geocode, a campaign) aborted the whole sweep and, because the
+ * sweep ran before every activity, stopped all activity processing with it
+ * (B3). Each job is already idempotent and state-driven, so a skipped job
+ * simply catches up on the next sweep.
+ */
+export const processMaintenance = async (
+  db: Database,
+  now: Date = new Date(),
+  logger?: Logger,
+  jobs: readonly MaintenanceJob[] = maintenanceJobs
+): Promise<number> => {
+  let total = 0;
+  for (const job of jobs) {
+    try {
+      total += await job.run(db, now);
+    } catch (error) {
+      logger?.error('worker.maintenance_job_failed', {
+        job: job.name,
+        error: safeWorkerError(error)
+      });
+    }
+  }
+  return total;
 };
 
 /**
@@ -370,6 +383,84 @@ export const startWorker = (logger: Logger = createLogger('worker')): WorkerStar
   logger.info('worker.started', { ...result });
   return result;
 };
+/** How often scheduled maintenance runs. Queues are drained continuously. */
+export const defaultMaintenanceIntervalMs = 30_000;
+/** Queue rounds per cycle, so a flood of work still lets maintenance run. */
+export const drainRoundLimit = 200;
+
+export interface WorkerCycleDeps {
+  db: Database;
+  deliver: DeliveryHandler;
+  logger: Logger;
+  /** Injected for tests; defaults to the real implementations. */
+  maintenance?: (db: Database, now: Date, logger: Logger) => Promise<number>;
+  nextActivity?: (db: Database) => Promise<boolean>;
+  nextChallenge?: (db: Database) => Promise<boolean>;
+  nextDelivery?: (db: Database, deliver: DeliveryHandler) => Promise<boolean>;
+}
+
+export interface WorkerCycleState {
+  /** Epoch ms of the last maintenance sweep; 0 means "never", so the first cycle runs one. */
+  lastMaintenanceAt: number;
+}
+
+/**
+ * Drain the three queues until they are empty (or `drainRoundLimit` rounds),
+ * then run maintenance if its interval has passed.
+ *
+ * Before this, every loop ran the full maintenance sweep and then processed at
+ * most one activity, so a backlog of N runs cost N sweeps of ~20 jobs (B3).
+ * Queue failures are already recorded on their outbox rows by the
+ * `processNext*` functions; a failure of the claim query itself is logged here
+ * and ends this drain rather than the worker.
+ */
+export const runWorkerCycle = async (
+  deps: WorkerCycleDeps,
+  state: WorkerCycleState,
+  now: number = Date.now(),
+  maintenanceIntervalMs: number = defaultMaintenanceIntervalMs
+): Promise<{ processed: number; ranMaintenance: boolean }> => {
+  const nextActivity = deps.nextActivity ?? processNextActivity;
+  const nextChallenge = deps.nextChallenge ?? processNextChallengeFinish;
+  const nextDelivery = deps.nextDelivery ?? processNextDelivery;
+  const maintenance = deps.maintenance ?? processMaintenance;
+
+  let processed = 0;
+  try {
+    for (let round = 0; round < drainRoundLimit; round += 1) {
+      const hadActivity = await nextActivity(deps.db);
+      const hadChallenge = await nextChallenge(deps.db);
+      const hadDelivery = await nextDelivery(deps.db, deps.deliver);
+      const worked = Number(hadActivity) + Number(hadChallenge) + Number(hadDelivery);
+      processed += worked;
+      if (worked === 0) break;
+    }
+  } catch (error) {
+    deps.logger.error('worker.queue_drain_failed', { error: safeWorkerError(error) });
+  }
+
+  let ranMaintenance = false;
+  if (now - state.lastMaintenanceAt >= maintenanceIntervalMs) {
+    state.lastMaintenanceAt = now;
+    ranMaintenance = true;
+    try {
+      await maintenance(deps.db, new Date(now), deps.logger);
+    } catch (error) {
+      // processMaintenance isolates its own jobs; this only catches an
+      // injected implementation that does not.
+      deps.logger.error('worker.maintenance_failed', { error: safeWorkerError(error) });
+    }
+  }
+  return { processed, ranMaintenance };
+};
+
+const maintenanceIntervalFrom = (environment: NodeJS.ProcessEnv): number => {
+  const configured = Number(environment.WORKER_MAINTENANCE_INTERVAL_MS);
+  return Number.isFinite(configured) && configured >= 1_000
+    ? configured
+    : defaultMaintenanceIntervalMs;
+};
+
 export const runWorker = async (): Promise<void> => {
   const db = createDatabase(defaultDatabaseUrl(process.env));
   const logger = createLogger('worker');
@@ -381,18 +472,17 @@ export const runWorker = async (): Promise<void> => {
   // are actually configured is logged at startup by `createConfiguredDelivery`.
   const deliver = createConfiguredDelivery(db, logger);
   const once = process.env.WORKER_ONCE === 'true';
+  const interval = maintenanceIntervalFrom(process.env);
+  const state: WorkerCycleState = { lastMaintenanceAt: 0 };
   try {
     do {
-      try {
-        await processMaintenance(db);
-        const hadActivity = await processNextActivity(db);
-        const hadChallenge = await processNextChallengeFinish(db);
-        const hadDelivery = await processNextDelivery(db, deliver);
-        if (!hadActivity && !hadChallenge && !hadDelivery) await sleep(pollMilliseconds);
-      } catch (error) {
-        logger.error('worker.iteration_failed', { error: safeWorkerError(error) });
-        if (!once) await sleep(pollMilliseconds);
-      }
+      const { processed } = await runWorkerCycle(
+        { db, deliver, logger },
+        state,
+        Date.now(),
+        interval
+      );
+      if (!once && processed === 0) await sleep(pollMilliseconds);
     } while (!once);
   } finally {
     await db.end();

@@ -8,7 +8,9 @@ import {
   processNextChallengeFinish,
   processNextDelivery,
   purgeExpiredRawTraces,
-  startWorker
+  runWorkerCycle,
+  startWorker,
+  type MaintenanceJob
 } from './worker.js';
 
 type MockQuery = (sql: string, values?: readonly unknown[]) => Promise<{ rows: { id: string }[] }>;
@@ -366,5 +368,107 @@ describe('expiring sanctions', () => {
     // The account was free from the moment the sanction expired, not from
     // whenever the worker happened to notice.
     expect(query.mock.calls[0]![0]).toContain('revoked_at = expires_at');
+  });
+});
+
+/**
+ * B3. One failing job used to abort the whole sweep, and the sweep ran before
+ * every activity, so a broken geocode or campaign stopped all run processing.
+ */
+describe('worker loop isolation (B3)', () => {
+  const quietLogger = () => {
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    return logger as unknown as Logger & typeof logger;
+  };
+
+  it('keeps running later maintenance jobs when one throws, and logs which failed', async () => {
+    const ran: string[] = [];
+    const jobs: MaintenanceJob[] = [
+      { name: 'first', run: async () => (ran.push('first'), 1) },
+      {
+        name: 'broken',
+        run: async () => {
+          throw new Error('geocoder password=hunter2 unavailable');
+        }
+      },
+      { name: 'last', run: async () => (ran.push('last'), 2) }
+    ];
+    const logger = quietLogger();
+
+    await expect(processMaintenance({} as Database, new Date(), logger, jobs)).resolves.toBe(3);
+
+    expect(ran).toEqual(['first', 'last']);
+    expect(logger.error).toHaveBeenCalledWith('worker.maintenance_job_failed', {
+      job: 'broken',
+      error: 'geocoder password=[REDACTED] unavailable'
+    });
+  });
+
+  it('drains a backlog of activities with a single maintenance sweep', async () => {
+    let backlog = 100;
+    const maintenance = vi.fn(async () => 0);
+    const state = { lastMaintenanceAt: 0 };
+
+    const result = await runWorkerCycle(
+      {
+        db: {} as Database,
+        deliver: async () => undefined,
+        logger: quietLogger(),
+        maintenance,
+        nextActivity: async () => (backlog > 0 ? ((backlog -= 1), true) : false),
+        nextChallenge: async () => false,
+        nextDelivery: async () => false
+      },
+      state,
+      60_000
+    );
+
+    expect(backlog).toBe(0);
+    expect(result.processed).toBe(100);
+    expect(maintenance).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs maintenance only once its interval has passed', async () => {
+    const maintenance = vi.fn(async () => 0);
+    const deps = {
+      db: {} as Database,
+      deliver: async () => undefined,
+      logger: quietLogger(),
+      maintenance,
+      nextActivity: async () => false,
+      nextChallenge: async () => false,
+      nextDelivery: async () => false
+    };
+    const state = { lastMaintenanceAt: 0 };
+
+    await runWorkerCycle(deps, state, 100_000, 30_000);
+    await runWorkerCycle(deps, state, 110_000, 30_000);
+    await runWorkerCycle(deps, state, 131_000, 30_000);
+
+    expect(maintenance).toHaveBeenCalledTimes(2);
+  });
+
+  it('still runs maintenance when the queue claim itself fails', async () => {
+    const maintenance = vi.fn(async () => 0);
+    const logger = quietLogger();
+
+    await runWorkerCycle(
+      {
+        db: {} as Database,
+        deliver: async () => undefined,
+        logger,
+        maintenance,
+        nextActivity: async () => {
+          throw new Error('connection reset');
+        }
+      },
+      { lastMaintenanceAt: 0 },
+      60_000
+    );
+
+    expect(logger.error).toHaveBeenCalledWith('worker.queue_drain_failed', {
+      error: 'connection reset'
+    });
+    expect(maintenance).toHaveBeenCalledTimes(1);
   });
 });
