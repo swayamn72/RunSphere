@@ -96,6 +96,8 @@ APK exists and `aapt` isn't on PATH. Run `vitest run` directly to test only the 
   (`season_month` `YYYY-MM`).
 - Tests sit beside source as `*.test.ts(x)`. PostGIS suites use `describePostgis` and are gated by
   `RUN_POSTGIS_INTEGRATION` (`packages/db`). CI fails if the gate is closed.
+- User-facing copy follows `docs/voice.md` (short, second person, runner words, no system jargon,
+  never shaming pace). Check new strings against its checklist.
 - Formatting: Prettier (`prettier.config.mjs`). LF line endings (`.gitattributes`).
 - Comments in this codebase are long and cite docs and ADRs. Match the surrounding style, but keep new
   comments to the _why_.
