@@ -5,6 +5,8 @@ import type { Database } from '@runsphere/db';
 const accessLifetimeSeconds = 15 * 60;
 const refreshLifetimeDays = 30;
 const selectorBytes = 18;
+/** How long after first use a refresh token may be replayed without revoking its family (M1.2). */
+export const refreshReuseGraceSeconds = 30;
 
 interface AccessClaims {
   sub: string;
@@ -116,8 +118,20 @@ export const rotateSession = async (db: Database, refreshToken: string, secret: 
     [current.id]
   );
   if (!used.rows[0]) {
-    await revokeFamily(db, current.family_id);
-    return undefined;
+    // Reuse of a spent refresh token normally means theft, so the whole family
+    // is revoked. The exception (M1.2) is a repeat within a few seconds of the
+    // first use: that is a client whose refresh response was lost on a flaky
+    // connection retrying, and revoking would sign a runner out for having bad
+    // signal. Outside the window the theft rule applies unchanged.
+    const retried = await db.query<{ id: string }>(
+      `SELECT id FROM refresh_tokens
+       WHERE id = $1 AND used_at > now() - $2::interval`,
+      [current.id, `${refreshReuseGraceSeconds} seconds`]
+    );
+    if (!retried.rows[0]) {
+      await revokeFamily(db, current.family_id);
+      return undefined;
+    }
   }
   const next = await insertRefreshToken(db, current.family_id);
   await db.query('UPDATE refresh_token_families SET rotated_at = now() WHERE id = $1', [
