@@ -111,17 +111,18 @@ Severity: **S1** blocks launch or loses data/security · **S2** a core feature i
 - `ml-retrain-job.ts` POSTs `{ML_TRAINER_URL}/train`. `services/ml` exposes only `/health`, `/score`
   and `/recommend`; training is `python train.py`.
 
-### B13 — The Android permission verifier fails on Windows (S4, Confirmed)
+### B13 — ✅ FIXED 2026-11-20 — The Android permission verifier failed on Windows (S4)
 
-- `apps/mobile/src/verify-android-permissions.mjs` passes `URL.pathname` (`/C:/...`) to `aapt` and
-  needs `aapt` on PATH when a debug APK exists. As a result `pnpm test` fails locally. Use `fileURLToPath`.
+- `apps/mobile/src/verify-android-permissions.mjs` passed `URL.pathname` (`/C:/...`) to `aapt` and
+  crashed when a debug APK existed without `aapt` on PATH. It now uses `fileURLToPath`, looks for
+  `aapt.exe`, and reports and skips the APK check when `aapt` is missing
+  (`REQUIRE_APK_PERMISSION_CHECK=1` makes it fatal).
 
-### B14 — Lint is red, so CI is red (S3, Confirmed)
+### B14 — ✅ FIXED 2026-11-20 — Lint and formatting kept CI red (S3)
 
-- 92 ESLint errors: unused imports in `services/api/src/app.ts` left over from the route split,
-  `require()` / `any` in `App.tsx` and the background-fetch code, and an unused const in domain. CI
-  runs lint before typecheck, build and test, so **nothing after lint runs in CI**, including the
-  PostGIS integration suites.
+- 92 ESLint errors (dead imports in `services/api/src/app.ts`, `require()`/`any` in mobile, one unused
+  domain const) and 32 genuinely unformatted files (CI's first step is `format:check`). Both are now
+  clean, so CI reaches typecheck, build, migrate and the PostGIS suites.
 
 ### B15 — The production mobile build has no API URL (S1 for release, Likely)
 
@@ -133,23 +134,27 @@ Severity: **S1** blocks launch or loses data/security · **S2** a core feature i
 - See PROJECT_ARCHITECTURE.md §9. Landing tab ✅ resolved 2026-11-20: **Home** (docs updated to
   match the code). Other drift remains.
 
-### B17 — Activity detail never returns run verification (S3, Confirmed by PostGIS test)
+### B17 — ✅ FIXED 2026-11-20 — Activity detail never returned run verification (S3)
 
-- `GET /v1/activities/:activityId` (`activity-routes.ts`) does not select `${activityVerificationColumns}`,
-  so `verificationResponse()` always sees nulls. 4 tests in `services/api/src/integration.test.ts`
-  ("run verification") fail against real PostGIS. This is an existing bug from commit `74ea01a`.
+- `GET /v1/activities/:activityId` didn't select the verification columns, so a verified run came
+  back with no `verification`. It now selects them via `qualifiedVerificationColumns('submission')`.
+- Correction to the first report: only **1** of the 4 failing "run verification" tests was this bug.
+  The other 3 were a test-harness issue. The suite registers more than 10 accounts a minute from one
+  inject address, and the (correct) registration rate limit answered 429. Each test account now uses
+  its own `remoteAddress`.
 
-### B18 — Weekly rank job doesn't carry the season peak forward (S3, Confirmed by PostGIS test)
+### B18 — ✅ FIXED 2026-11-20 — Weekly-peak test expired with the calendar (S4, not a product bug)
 
-- `services/worker/src/territory-claim-season.integration.test.ts` › "carries a peak forward when
-  ground is later lost" fails against real PostGIS. Root cause not yet investigated (likely in
-  `territory-rank-job.ts`).
+- Correction to the first report: `territory-rank-job.ts` was correct. The test inserted claims into
+  the _current_ season but ran the job with hardcoded September 2026 dates, so it has failed every
+  day since 1 October. It now uses the 8th and 15th of the current season.
 
-### Integration run (2026-11-20, fresh `runsphere_test` database)
+### Integration run (2026-11-20, isolated `runsphere_test` database, `CI=true`)
 
-All migrations apply cleanly. API PostGIS suites: territory-claim, friend-standings, ML and
-route-suggestion 98/98 pass; `integration.test.ts` has 4 failures (B17). Worker: email-delivery
-passes; territory-claim-season has 1 failure (B18); the new account-deletion suite passes.
+All migrations apply cleanly. **Every PostGIS suite passes with nothing skipped**: API 568/568,
+worker 195/195 (including the new account-deletion suite). A mobile test (`api-config`) was also
+made independent of an exported `EXPO_PUBLIC_API_BASE_URL`, which had made it fail in shells that
+load `.env`.
 
 ## 2. Security risks
 
@@ -200,17 +205,17 @@ reads; privacy-zone trimming on the server; safety-share reads gated on verified
 
 ## 4. Test coverage gaps
 
-| Gap                                                                                                   | Why it matters                                                          |
-| ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| PostGIS integration suites (139 tests) don't run locally, and CI never reaches them while lint is red | The only tests that exercise real SQL, migrations and PostGIS functions |
-| No test for concurrent refresh (B1)                                                                   | A production-visible logout bug                                         |
-| No worker-loop test for "a maintenance failure blocks activity processing"                            | B3                                                                      |
-| No test that a derived activity produces XP                                                           | B2                                                                      |
-| No uniqueness test for claiming the same activity twice                                               | B4                                                                      |
-| No test for zero-point activity processing                                                            | B8                                                                      |
-| Weekly-goal timezone boundary not tested                                                              | B10                                                                     |
-| `services/ml` (Python) has zero tests                                                                 | Anti-cheat scoring contract is untested                                 |
-| No E2E or device test of record → upload → derive → claim                                             | The core loop has never been verified automatically end to end          |
-| Admin: 2 test files for a 1.2k-line shell                                                             | Staff actions are largely untested                                      |
-| No load or perf test of the claim pipeline (synchronous H3 + PostGIS)                                 | Cost and latency budget (₹3,000/month)                                  |
-| Dockerfiles never built in CI                                                                         | Deploy breakage is undetected                                           |
+| Gap                                                                                                                                       | Why it matters                                                 |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| ✅ Closed 2026-11-20: PostGIS suites now run and pass locally against `runsphere_test`, and CI reaches them now that lint and format pass | —                                                              |
+| No test for concurrent refresh (B1)                                                                                                       | A production-visible logout bug                                |
+| No worker-loop test for "a maintenance failure blocks activity processing"                                                                | B3                                                             |
+| No test that a derived activity produces XP                                                                                               | B2                                                             |
+| No uniqueness test for claiming the same activity twice                                                                                   | B4                                                             |
+| No test for zero-point activity processing                                                                                                | B8                                                             |
+| Weekly-goal timezone boundary not tested                                                                                                  | B10                                                            |
+| `services/ml` (Python) has zero tests                                                                                                     | Anti-cheat scoring contract is untested                        |
+| No E2E or device test of record → upload → derive → claim                                                                                 | The core loop has never been verified automatically end to end |
+| Admin: 2 test files for a 1.2k-line shell                                                                                                 | Staff actions are largely untested                             |
+| No load or perf test of the claim pipeline (synchronous H3 + PostGIS)                                                                     | Cost and latency budget (₹3,000/month)                         |
+| Dockerfiles never built in CI                                                                                                             | Deploy breakage is undetected                                  |

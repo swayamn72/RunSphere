@@ -76,16 +76,16 @@ Legend: ✅ Implemented · 🟡 Partial (works, with gaps) · 🔴 Missing or br
 | `test-claim.ts` (root, tracked), `scratch/`                         | Debug scripts with synthetic coordinates                                                        | Clutter                                            |
 | `infra/compose.yaml` `martin`, `valhalla`, replica                  | Documented placeholders                                                                         | Not production services                            |
 
-## 3. Test coverage snapshot (local run, 2026-11-20)
+## 3. Test coverage snapshot (2026-11-20, after Milestone 0, PostGIS gate open)
 
-| Package                                 | Files | Passed | Skipped | Notes                                                                                              |
-| --------------------------------------- | ----- | ------ | ------- | -------------------------------------------------------------------------------------------------- |
-| domain                                  | 28    | 549    | 0       | Strongest coverage: territory claim, carving, ghost race, integrity, progression                   |
-| mobile                                  | 67    | 715    | 0       | Model and render tests (`react-test-renderer`). The permission verifier fails locally (no `aapt`). |
-| api                                     | 27    | 455    | 104     | 5 PostGIS integration files skipped. Most route tests use fakes.                                   |
-| worker                                  | 15    | 157    | 35      | 2 integration files skipped                                                                        |
-| admin                                   | 2     | 30     | 0       |                                                                                                    |
-| contracts / config / observability / db | 6     | 20     | 0       | `db` has 1 test                                                                                    |
-| services/ml (Python)                    | 0     | —      | —       | **No tests**                                                                                       |
+| Package                                 | Files | Passed | Skipped | Notes                                                                            |
+| --------------------------------------- | ----- | ------ | ------- | -------------------------------------------------------------------------------- |
+| domain                                  | 28    | 549    | 0       | Strongest coverage: territory claim, carving, ghost race, integrity, progression |
+| mobile                                  | 68    | 720    | 0       | Model and render tests (`react-test-renderer`)                                   |
+| api                                     | 28    | 568    | 0       | 5 PostGIS integration files, all passing. Most route tests use fakes.            |
+| worker                                  | 16    | 195    | 0       | 3 PostGIS integration files, all passing                                         |
+| admin                                   | 2     | 30     | 0       |                                                                                  |
+| contracts / config / observability / db | 6     | 20     | 0       | `db` has 1 test                                                                  |
+| services/ml (Python)                    | 0     | —      | —       | **No tests**                                                                     |
 
 See BUGS_AND_RISKS.md §4 for coverage gaps.

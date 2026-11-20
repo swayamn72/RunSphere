@@ -30,10 +30,11 @@ is: record a run offline (SQLCipher) → chunked checksummed upload → worker v
 ```sh
 pnpm install --frozen-lockfile
 pnpm typecheck                 # all packages (passes)
-pnpm lint                      # currently FAILS (92 errors), see roadmap M0
+pnpm lint                      # passes; keep it at 0 errors
 pnpm test                      # unit tests; PostGIS suites skip without the gate
 pnpm build
-pnpm format:check              # noisy on this Windows checkout (CRLF working tree)
+pnpm format:check              # noisy on a CRLF Windows checkout; use the line below there
+npx prettier --check --end-of-line auto .   # what CI's format check sees
 
 # single package / single file
 pnpm --filter @runsphere/api test
@@ -42,8 +43,13 @@ pnpm --filter @runsphere/mobile exec vitest run src/api-client.test.ts
 
 # local database + integration tests
 make infra-up                                  # needs .env with POSTGRES_PASSWORD (Make + Docker)
-pnpm build && pnpm migrate
-RUN_POSTGIS_INTEGRATION=1 pnpm test            # or: pnpm test:integration
+# Use a separate test database, never the dev one (tests create and delete accounts/claims):
+#   docker exec runsphere-postgres-1 psql -U <user> -d postgres -c "CREATE DATABASE runsphere_test"
+#   then CREATE EXTENSION postgis, pgcrypto, "uuid-ossp" in runsphere_test
+DATABASE_URL=postgresql://<user>:<pw>@127.0.0.1:<port>/runsphere_test RUN_POSTGIS_INTEGRATION=1 \
+  sh -c 'pnpm build && pnpm migrate && pnpm test'   # 2,082 tests, 0 skipped
+# Don't source the root .env into a test shell without unsetting EXPO_PUBLIC_* if you touch
+# mobile env-dependent tests.
 
 # run services
 pnpm dev:api                                   # tsx watch, loads ../../.env, port 3001

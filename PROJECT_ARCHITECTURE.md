@@ -158,16 +158,16 @@ fallback surface.
 
 ## 6. Build, test and CI
 
+_Updated 2026-11-20 after Milestone 0._
+
 - `pnpm typecheck`: passes (17/17 tasks).
-- `pnpm lint`: **fails** with 92 errors (api 74, mobile 17, domain 1). Mostly unused imports left in
-  `services/api/src/app.ts` after the route split, plus `require()` in `App.tsx`.
-- `pnpm test`: 1,926 pass, 139 skipped. The skips are the PostGIS integration suites, gated on
-  `RUN_POSTGIS_INTEGRATION`. Mobile's `test` script also runs `verify-android-permissions.mjs`, which
-  fails locally (no `aapt`, and a Windows path bug when a debug APK exists).
+- `pnpm lint`: passes (0 errors).
+- `pnpm test`: 2,082 pass with the PostGIS gate open and 0 skipped. Without the gate, 139 integration
+  tests skip. Run them against an isolated `runsphere_test` database (see `CLAUDE.md`).
 - CI (`.github/workflows/ci.yml`): format check → infra config test → PostGIS check → MapLibre check
-  → static migration check → **lint** → typecheck → build → migrate → test (PostGIS integration enforced
-  via `requirePostgisInCi`). With lint failing, CI on `main` is expected to be red. This was not checked
-  against GitHub because `gh` isn't installed.
+  → static migration check → lint → typecheck → build → migrate → test (PostGIS integration enforced
+  via `requirePostgisInCi`). Every step passes locally with `CI=true`. The first GitHub run of this
+  is the M0 PR.
 - Local `format:check` reports 348 files only because this Windows checkout has CRLF working-tree files
   (blobs are LF, `.gitattributes` pins `eol=lf`). CI on Linux is unaffected.
 
