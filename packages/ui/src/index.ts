@@ -19,6 +19,13 @@ export interface SemanticTokens {
     readonly disabled: string;
     readonly tertiary: string;
     readonly onAccent: string;
+    /**
+     * Rose for *text* (errors, destructive labels, rival headings). The brand
+     * rose `#F43F5E` stays for zones, lines and fills, but as text it is
+     * 4.34:1 on raised cards, just under AA; this shade passes on every
+     * surface.
+     */
+    readonly danger: string;
   };
   readonly border: { readonly subtle: string; readonly strong: string; readonly focus: string };
   readonly action: {
@@ -86,7 +93,8 @@ export const darkTokens: SemanticTokens = {
     inverse: '#090D16',
     disabled: '#64748B',
     tertiary: '#94A3B8',
-    onAccent: '#090D16'
+    onAccent: '#090D16',
+    danger: '#F54B67'
   },
   border: { subtle: '#1E293B', strong: '#475569', focus: '#00E5FF' },
   action: {
@@ -135,6 +143,24 @@ export const darkTokens: SemanticTokens = {
 };
 
 export const semanticTokens = { dark: darkTokens } as const;
+
+/**
+ * One colour per *other* holder, used where several past owners appear
+ * together (a claim's ownership history). Deterministic per account so a rival
+ * is the same colour on every screen. Kept here, not in a screen, so every
+ * colour the app draws comes from this package. Your own ground always uses
+ * `zone.owned`, which is deliberately not in this list.
+ */
+export const ownerPalette = [
+  '#A855F7',
+  '#EC4899',
+  '#EF4444',
+  '#F59E0B',
+  '#14B8A6',
+  '#3B82F6',
+  '#8B5CF6',
+  '#10B981'
+] as const;
 
 /** Named AA-critical foreground/background pairs for automated contrast checks. */
 export const contrastPairs = {

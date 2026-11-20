@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { contrastPairs, darkTokens } from '@runsphere/ui';
 import { resolveColorScheme } from './theme-state.js';
@@ -56,5 +57,76 @@ describe('single-appearance theme', () => {
   it('meets named critical contrast-pair minimums', () => {
     for (const pair of Object.values(contrastPairs))
       expect(contrast(pair.foreground, pair.background)).toBeGreaterThanOrEqual(pair.minimum);
+  });
+
+  /**
+   * UX.1 (Milestone 2.5): every colour a screen may set as *text* meets WCAG
+   * 2.2 AA (4.5:1) on every surface it can sit on, and every colour used for
+   * map zones, lines and glyphs meets the 3:1 non-text minimum. Disabled text
+   * is exempt under WCAG. `action.danger` is a button fill, not a text colour,
+   * so it is covered by the white-on-danger pair above instead.
+   */
+  const surfaces = Object.entries(darkTokens.background);
+  const textRoles = {
+    'text.primary': darkTokens.text.primary,
+    'text.secondary': darkTokens.text.secondary,
+    'text.tertiary': darkTokens.text.tertiary,
+    'text.danger': darkTokens.text.danger,
+    'action.primary': darkTokens.action.primary,
+    'status.info': darkTokens.status.info,
+    'status.success': darkTokens.status.success,
+    'status.warning': darkTokens.status.warning,
+    'accent.violet': darkTokens.accent.violet,
+    'accent.gold': darkTokens.accent.gold,
+    'zone.owned': darkTokens.zone.owned,
+    'zone.neutral': darkTokens.zone.neutral
+  };
+  const graphicRoles = {
+    'zone.owned': darkTokens.zone.owned,
+    'zone.rival': darkTokens.zone.rival,
+    'zone.neutral': darkTokens.zone.neutral,
+    'status.error': darkTokens.status.error,
+    'route.line': darkTokens.route.line,
+    'border.focus': darkTokens.border.focus
+  };
+
+  it.each(Object.entries(textRoles))('%s is AA text on every surface', (_role, colour) => {
+    for (const [, surface] of surfaces)
+      expect(contrast(colour, surface)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it.each(Object.entries(graphicRoles))(
+    '%s meets 3:1 as a graphic on every surface',
+    (_role, colour) => {
+      for (const [, surface] of surfaces)
+        expect(contrast(colour, surface)).toBeGreaterThanOrEqual(3);
+    }
+  );
+
+  // UX.2: every colour comes from `@runsphere/ui`, so a palette change can't
+  // leave a stray literal behind (which has happened twice in this codebase).
+  it('has no hex colour literal outside the theme', () => {
+    const offenders: string[] = [];
+    const walk = (directory: string) => {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        const path = join(directory, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name !== 'theme') walk(path);
+        } else if (/\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name)) {
+          if (/['"`]#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?['"`]/.test(readFileSync(path, 'utf8')))
+            offenders.push(path);
+        }
+      }
+    };
+    walk('src');
+    if (/['"`]#[0-9a-fA-F]{6}/.test(readFileSync('App.tsx', 'utf8'))) offenders.push('App.tsx');
+    expect(offenders).toEqual([]);
+  });
+
+  it('keeps the brand rose for zones and a lighter rose only for text', () => {
+    expect(darkTokens.zone.rival).toBe('#F43F5E');
+    expect(darkTokens.text.danger).toBe('#F54B67');
+    // The reason the text shade exists: brand rose on a raised card is under AA.
+    expect(contrast(darkTokens.zone.rival, darkTokens.background.surfaceRaised)).toBeLessThan(4.5);
   });
 });

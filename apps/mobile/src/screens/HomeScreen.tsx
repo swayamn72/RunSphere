@@ -444,7 +444,7 @@ export function HomeScreen({
       />
 
       <Pressable accessibilityRole="button" style={styles.recordCard} onPress={onOpenMap}>
-        <Text style={[styles.eyebrow, { color: tokens.zone.rival }]}>GHOST RACES</Text>
+        <Text style={[styles.eyebrow, { color: tokens.text.danger }]}>GHOST RACES</Text>
         <Text style={styles.cardTitle}>Scout for a nearby rival</Text>
         <Text style={styles.rowDetail}>Open Map to find a rival loop and check for a ghost.</Text>
       </Pressable>

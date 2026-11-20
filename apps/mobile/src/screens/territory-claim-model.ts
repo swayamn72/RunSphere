@@ -11,7 +11,7 @@ import type {
   TerritoryLeaderboardResponse,
   TerritoryRecommendation
 } from '@runsphere/contracts';
-import { darkTokens } from '@runsphere/ui';
+import { darkTokens, ownerPalette } from '@runsphere/ui';
 import { crewCharacters, type CrewCharacter } from '../crew';
 
 /**
@@ -28,16 +28,7 @@ import { crewCharacters, type CrewCharacter } from '../crew';
  * sessions is unreadable, and colour is the only thing distinguishing two
  * adjacent claims at a glance.
  */
-export const OWNER_PALETTE = [
-  '#A855F7',
-  '#EC4899',
-  '#EF4444',
-  '#F59E0B',
-  '#14B8A6',
-  '#3B82F6',
-  '#8B5CF6',
-  '#10B981'
-] as const;
+export const OWNER_PALETTE = ownerPalette;
 
 /**
  * The reader's own ground, always this colour whatever their id hashes to.

@@ -32,7 +32,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       marginBottom: 14
     },
     errorText: {
-      color: t.status.error,
+      color: t.text.danger,
       fontSize: 14,
       fontWeight: '700',
       lineHeight: 20,
@@ -307,7 +307,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       alignSelf: 'flex-start',
       backgroundColor: t.background.surfaceRaised,
       borderRadius: 999,
-      color: t.status.error,
+      color: t.text.danger,
       fontSize: 10,
       fontWeight: '900',
       letterSpacing: 0.7,
@@ -845,7 +845,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       paddingTop: 7
     },
     settingStack: { padding: 15 },
-    destructive: { color: t.status.error },
+    destructive: { color: t.text.danger },
 
     /* ---------------------------------------------------------------- *
      * Activity: preparation, live, results
