@@ -123,7 +123,13 @@ export function ActiveDaysCard({ card }: { card: ActiveDaysPresentation }) {
   );
 }
 
-export function DashboardGrid({ tiles }: { tiles: readonly DashboardTile[] }) {
+export function DashboardGrid({
+  tiles,
+  compact = false
+}: {
+  tiles: readonly DashboardTile[];
+  compact?: boolean;
+}) {
   const styles = useAppStyles();
   const { tokens } = useAppTheme();
   if (!tiles.length) return null;
@@ -132,11 +138,16 @@ export function DashboardGrid({ tiles }: { tiles: readonly DashboardTile[] }) {
       {tiles.map((tile) => {
         const hue = HUE[tile.hue](tokens);
         return (
-          <View key={tile.key} style={styles.statTile}>
+          <View
+            key={tile.key}
+            style={[styles.statTile, compact && { flexBasis: '29%', padding: 10 }]}
+          >
             <View style={styles.statTileHead}>
-              <View style={[styles.iconChipSmall, { backgroundColor: hue + '26' }]}>
-                <Text style={[styles.iconChipSmallGlyph, { color: hue }]}>{tile.glyph}</Text>
-              </View>
+              {!compact && (
+                <View style={[styles.iconChipSmall, { backgroundColor: hue + '26' }]}>
+                  <Text style={[styles.iconChipSmallGlyph, { color: hue }]}>{tile.glyph}</Text>
+                </View>
+              )}
               <Text style={styles.statTileLabel}>{tile.label}</Text>
             </View>
             <Text style={styles.statTileValue}>

@@ -159,6 +159,17 @@ export const dashboardTiles = (
   return tiles;
 };
 
+export const tacticalDashboardTiles = (
+  goal: WeeklyGoalResponse | undefined,
+  progression: ProgressionSummary | undefined
+) => ({
+  progression: dashboardTiles(undefined, progression),
+  metrics: [
+    ...dashboardTiles(goal, undefined),
+    { key: 'carved', glyph: '+', hue: 'amber', label: 'ZONES CARVED', value: '—' }
+  ] satisfies DashboardTile[]
+});
+
 export interface QuickAction {
   readonly key: 'run' | 'map' | 'social';
   readonly label: string;

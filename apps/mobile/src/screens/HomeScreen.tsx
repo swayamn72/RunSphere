@@ -8,6 +8,7 @@ import type {
   WeeklyGoalResponse
 } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
+import { CrewMascot } from '../components/CrewMascot';
 import { LoopCallout } from '../components/LoopCallout';
 import { LoopMascot } from '../components/Mascot';
 import { useAppStyles } from '../components/styles';
@@ -23,7 +24,7 @@ import {
 } from './HomeDashboard';
 import {
   activeDaysPresentation,
-  dashboardTiles,
+  tacticalDashboardTiles,
   greetingPresentation
 } from './home-dashboard-model';
 import {
@@ -261,7 +262,7 @@ export function HomeScreen({
   const greeting = greetingPresentation(profile, new Date().getHours());
   const activeDays = activeDaysPresentation(progression);
   const unreadLabel = unreadBadgeLabel(unreadCount);
-  const tiles = dashboardTiles(goal, progression);
+  const tiles = tacticalDashboardTiles(goal, progression);
   const statusMessage = homeStatusMessage(
     goalState,
     questState,
@@ -290,27 +291,14 @@ export function HomeScreen({
 
       <View style={styles.recordCard}>
         <Text style={[styles.eyebrow, { color: tokens.zone.owned }]}>TURF CONTROLLED</Text>
-        <Text style={styles.recordTitle}>{turfAreaLabel(turf?.totalAreaSqm)}</Text>
+        <Text style={[styles.recordTitle, local.turfKpi]}>{turfAreaLabel(turf?.totalAreaSqm)}</Text>
+        <DashboardGrid tiles={tiles.progression} />
+        {activeDays && <ActiveDaysCard card={activeDays} />}
       </View>
 
       {guidance.cue && <LoopCallout cue={guidance.cue} onDismiss={guidance.dismiss} />}
 
-      {/* The active-days meter stands in for the streak the design shows: the
-          server reports a weekly count, and there is no consecutive-day figure
-          anywhere in the API to count a streak from. */}
-      {activeDays ? (
-        <ActiveDaysCard card={activeDays} />
-      ) : (
-        progressionState === 'loading' && <View style={[local.skeleton, local.skeletonCard]} />
-      )}
-
-      <DashboardGrid tiles={tiles} />
-      {goalState === 'loading' && !tiles.length && (
-        <View style={styles.statGrid}>
-          <View style={[local.skeleton, local.skeletonTile]} />
-          <View style={[local.skeleton, local.skeletonTile]} />
-        </View>
-      )}
+      <DashboardGrid tiles={tiles.metrics} compact />
 
       {/* The design's "Today's Challenge". Titled for what the number actually
           is - a weekly goal the server is tracking - because Home has no
@@ -375,9 +363,12 @@ export function HomeScreen({
         />
       )}
 
-      <View style={styles.recordCard}>
-        <Text style={[styles.eyebrow, { color: tokens.zone.owned }]}>RHO FIELD COACH</Text>
-        <Text style={styles.lead}>{RHO_TURF_TIP}</Text>
+      <View style={[styles.recordCard, styles.cardRow, local.coachCard]}>
+        <CrewMascot character="rho" accessibility={{ mode: 'decorative' }} size={44} />
+        <View style={styles.flexCopy}>
+          <Text style={[styles.eyebrow, { color: tokens.zone.owned }]}>RHO FIELD COACH</Text>
+          <Text style={styles.lead}>{RHO_TURF_TIP}</Text>
+        </View>
       </View>
 
       <QuickActions
@@ -541,8 +532,8 @@ function Unavailable({
 const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
   StyleSheet.create({
     skeleton: { backgroundColor: t.background.surfaceInset, borderRadius: 18 },
-    skeletonCard: { height: 116, marginBottom: 12 },
-    skeletonTile: { flexBasis: '46%', flexGrow: 1, height: 86 },
+    coachCard: { borderLeftColor: t.zone.owned, borderLeftWidth: 3, gap: 12 },
+    turfKpi: { fontSize: 42, letterSpacing: -0.5 },
     chooseRoute: {
       color: t.action.primary,
       fontSize: 14,
