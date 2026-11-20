@@ -1541,19 +1541,6 @@ export const registerTerritoryClaimRoutes = ({
           'This run cannot be shown as a ghost. Its loop was too short to trim safely, or it was claimed before ghost races existed.'
         );
 
-      const views = await database.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM territory_claim_ghost_views
-         WHERE account_id = $1 AND created_at > now() - interval '1 hour'`,
-        [accountId]
-      );
-      const used = Number(views.rows[0]?.count ?? 0);
-      if (used >= GHOST_VIEWS_PER_HOUR)
-        return unavailable(
-          429,
-          'rate_limited',
-          `Ghost races are limited to ${GHOST_VIEWS_PER_HOUR} an hour. Try again shortly.`
-        );
-
       const coordinates = lineFromGeoJson(row.path);
       const elapsed = row.elapsed_seconds;
       // The `043` constraint makes this impossible, so it is a guard against a
@@ -1561,7 +1548,21 @@ export const registerTerritoryClaimRoutes = ({
       if (coordinates.length !== elapsed.length)
         return unavailable(404, 'no_trace', 'This run cannot be shown as a ghost.');
 
-      await withTransaction(database, async (client) => {
+      // The hourly limit is counted and spent atomically (B11). It used to be
+      // read before the transaction, so parallel requests all saw the same
+      // count and every one of them was let through. A per-account lock makes
+      // the count and the insert one step; it is released at commit.
+      const used = await withTransaction(database, async (client) => {
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+          `ghost-views:${accountId}`
+        ]);
+        const views = await client.query<{ count: string }>(
+          `SELECT count(*)::text AS count FROM territory_claim_ghost_views
+           WHERE account_id = $1 AND created_at > now() - interval '1 hour'`,
+          [accountId]
+        );
+        const count = Number(views.rows[0]?.count ?? 0);
+        if (count >= GHOST_VIEWS_PER_HOUR) return undefined;
         await client.query(
           'INSERT INTO territory_claim_ghost_views (account_id, claim_id) VALUES ($1, $2)',
           [accountId, row.id]
@@ -1592,7 +1593,14 @@ export const registerTerritoryClaimRoutes = ({
             ];
           })()
         );
+        return count;
       });
+      if (used === undefined)
+        return unavailable(
+          429,
+          'rate_limited',
+          `Ghost races are limited to ${GHOST_VIEWS_PER_HOUR} an hour. Try again shortly.`
+        );
 
       const response: GhostTraceResponse = {
         claimId: row.id,

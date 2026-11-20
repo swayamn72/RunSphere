@@ -956,6 +956,21 @@ describePostgis('territory claims on real PostGIS', () => {
         expect(refused.json().reason).toBe('rate_limited');
       });
 
+      // B11: the count and the spend are one step, so parallel requests can't
+      // all read "0 used" and all get through.
+      it('holds the hourly limit under five simultaneous requests', async () => {
+        await clearViews();
+        const claimId = await heldWithGhost(33);
+        if (!claimId) return;
+
+        const statuses = (
+          await Promise.all(Array.from({ length: 5 }, () => ghost(rival, claimId)))
+        ).map((response) => response.statusCode);
+
+        expect(statuses.filter((status) => status === 200)).toHaveLength(3);
+        expect(statuses.filter((status) => status === 429)).toHaveLength(2);
+      });
+
       it('spends no view on a request it was going to refuse anyway', async () => {
         await clearViews();
         const mine = await heldWithGhost(30);
