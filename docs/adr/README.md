@@ -14,3 +14,4 @@ ADRs record durable decisions. A new ADR is required when a change affects priva
 - [ADR-0010: Cost governance — soft target with approval bands](0010-cost-governance-approval-bands.md)
 - [ADR-0011: Enclosure territory claims — named holders and pace-based takeovers](0011-enclosure-territory-claims.md) — **reverses ADR-0005 and ADR-0008 for that mechanic only**
 - [ADR-0012: Account deletion — prompt, verified, complete erasure](0012-account-deletion-policy.md)
+- [ADR-0013: Launch with deterministic rules only; defer ML](0013-defer-ml-at-launch.md)

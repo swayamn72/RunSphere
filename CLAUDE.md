@@ -47,7 +47,7 @@ make infra-up                                  # needs .env with POSTGRES_PASSWO
 #   docker exec runsphere-postgres-1 psql -U <user> -d postgres -c "CREATE DATABASE runsphere_test"
 #   then CREATE EXTENSION postgis, pgcrypto, "uuid-ossp" in runsphere_test
 DATABASE_URL=postgresql://<user>:<pw>@127.0.0.1:<port>/runsphere_test RUN_POSTGIS_INTEGRATION=1 \
-  sh -c 'pnpm build && pnpm migrate && pnpm test'   # 2,082 tests, 0 skipped
+  sh -c 'pnpm build && pnpm migrate && pnpm turbo run test --concurrency=1'   # serial, as CI
 # Don't source the root .env into a test shell without unsetting EXPO_PUBLIC_* if you touch
 # mobile env-dependent tests.
 
@@ -78,7 +78,7 @@ APK exists and `aapt` isn't on PATH. Run `vitest run` directly to test only the 
 - Multi-statement writes go through `withTransaction` from `@runsphere/db`.
 - Async side effects go through `outbox_events` (claimed with `FOR UPDATE SKIP LOCKED`, `attempts`,
   `failed_at`) and are processed by the worker. Make consumers idempotent (dedupe keys or `ON CONFLICT`).
-- Migrations: add a new `infra/postgres/migrations/NNN_*.sql` (next is `047`). Never edit an applied
+- Migrations: add a new `infra/postgres/migrations/NNN_*.sql` (next is `049`). Never edit an applied
   migration. Use `IF NOT EXISTS`; there are no down-migrations, so document rollback in the file header.
   Run `pnpm verify:migrations`.
 - Domain logic belongs in `packages/domain` (pure, unit-tested). Only `h3-indexer.ts` may import `h3-js`.
@@ -120,5 +120,7 @@ APK exists and `aapt` isn't on PATH. Run `vitest run` directly to test only the 
   (see `apps/mobile/DEVELOPMENT.md`). Don't run prebuild without reapplying them.
 - The H3 cell-season engine is intentionally off (`TERRITORY_CAPTURE_ENABLED = false`). Don't enable it
   without the gates in `docs/release-plan.md`.
-- ML is advisory only. It must never refuse a run or claim; only `run-integrity.ts` can.
+- ML is advisory only. It must never refuse a run or claim; only `run-integrity.ts` can. It is
+  **deferred at launch** (ADR-0013): keep `ML_SCORER_URL`/`ML_TRAINER_URL` unset and don't spend
+  effort on `services/ml` unless asked.
 - Before changing product rules, check `docs/adr/`. Supersede an ADR rather than contradict it.
