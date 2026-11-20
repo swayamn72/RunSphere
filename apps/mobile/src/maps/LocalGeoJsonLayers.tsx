@@ -3,6 +3,7 @@ import type { FeatureCollection, GeoJsonProperties, Geometry, Position } from 'g
 import { GeoJSONSource, Layer } from '@maplibre/maplibre-react-native';
 import type { SemanticTokens } from '@runsphere/ui';
 import { decimateCoordinates } from './map-model';
+import { gameWorld } from '../theme/game-world';
 
 export interface LocalGeoJsonLayer {
   readonly id: string;
@@ -95,7 +96,8 @@ export function LocalGeoJsonLayers({
               id={`${layer.id}-layer`}
               type="line"
               paint={{
-                'line-color': layer.kind === 'loop-ready' ? '#53ffab' : '#f8c969',
+                'line-color':
+                  layer.kind === 'loop-ready' ? gameWorld.loop.ready : gameWorld.loop.returning,
                 'line-width': 4,
                 'line-dasharray': [1.2, 1.8],
                 'line-opacity': layer.opacity ?? 1,

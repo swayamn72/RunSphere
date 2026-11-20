@@ -16,6 +16,7 @@ import socialIcon from '../../assets/tabs/social.png';
 import { useAppTheme } from '../theme/theme';
 import { tabEmphasis } from './tab-style';
 import { tabs, type Tab } from './types';
+import { gameWorld } from '../theme/game-world';
 
 const tabIconAssets: Record<Tab, ImageSourcePropType> = {
   Home: homeIcon,
@@ -70,7 +71,7 @@ export function TabBar({
                   styles.tabIconImage,
                   {
                     tintColor: startRun
-                      ? '#063022'
+                      ? gameWorld.orb.ink
                       : selected
                         ? tokens.action.selected
                         : quiet
@@ -122,22 +123,22 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       right: 0,
       bottom: 0,
       top: 18,
-      backgroundColor: '#0b1426ee',
-      borderColor: '#355275',
+      backgroundColor: gameWorld.hud.glass,
+      borderColor: gameWorld.hud.edge,
       borderTopWidth: 1
     },
     turfNavItem: { paddingTop: 18 },
     runOrb: {
-      backgroundColor: '#6fffc6',
-      borderColor: '#c5ffe8',
+      backgroundColor: gameWorld.orb.fill,
+      borderColor: gameWorld.orb.rim,
       borderWidth: 2,
       height: 64,
       width: 64,
       borderRadius: 32,
       elevation: 12,
-      shadowColor: '#47ffbf'
+      shadowColor: gameWorld.orb.glow
     },
-    runLabel: { color: '#063022', fontSize: 8, fontWeight: '900' },
+    runLabel: { color: gameWorld.orb.ink, fontSize: 8, fontWeight: '900' },
     iconWell: {
       alignItems: 'center',
       borderRadius: 999,

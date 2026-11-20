@@ -662,7 +662,10 @@ export function ActivityRecording({
         {loop && (
           <Text
             accessibilityLiveRegion="polite"
-            style={[styles.rowDetail, { color: loop.ready ? '#53ffab' : '#f8c969' }]}
+            style={[
+              styles.rowDetail,
+              { color: loop.ready ? tokens.status.success : tokens.status.warning }
+            ]}
           >
             {loop.ready ? 'Loop ready to close' : `Back to start · ${Math.round(loop.gap)} m`}
           </Text>

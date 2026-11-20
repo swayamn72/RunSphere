@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { contrastPairs, darkTokens } from '@runsphere/ui';
 import { resolveColorScheme } from './theme-state.js';
+import { gameWorld } from './game-world.js';
 
 const luminance = (hex: string): number => {
   const channels = [0, 2, 4].map(
@@ -121,6 +122,26 @@ describe('single-appearance theme', () => {
     walk('src');
     if (/['"`]#[0-9a-fA-F]{6}/.test(readFileSync('App.tsx', 'utf8'))) offenders.push('App.tsx');
     expect(offenders).toEqual([]);
+  });
+
+  it('keeps the Turf HUD text readable on its glass and sheets (AA)', () => {
+    // The glass is ~93% opaque over a near-black basemap, so its own RGB is
+    // the background a reader actually sees.
+    const { hud, quest, badge, action, orb } = gameWorld;
+    const pairs: [string, string, string][] = [
+      ['hud text on glass', hud.text, hud.glass],
+      ['hud detail on glass', hud.detail, hud.glass],
+      ['status on glass', hud.status, hud.glass],
+      ['sheet text', hud.text, hud.sheet],
+      ['sheet helper', hud.textSoft, hud.sheet],
+      ['quest glyph', quest.rim, quest.core],
+      ['badge text on shield', badge.text, badge.shield],
+      ['badge text on revenge', badge.text, badge.revenge],
+      ['ghost action', action.ghostText, action.ghost],
+      ['run orb label', orb.ink, orb.fill]
+    ];
+    for (const [name, foreground, background] of pairs)
+      expect(contrast(foreground, background), name).toBeGreaterThanOrEqual(4.5);
   });
 
   it('keeps the brand rose for zones and a lighter rose only for text', () => {

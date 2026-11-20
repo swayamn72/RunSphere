@@ -90,6 +90,7 @@ import {
   type CaptureCelebration,
   type ZoneFilter
 } from './territory-claim-model';
+import { gameWorld } from '../theme/game-world';
 
 /**
  * Turf — the territory map (Phase 5, milestone 5.1; ADR-0011).
@@ -598,7 +599,11 @@ export function TurfScreen({
                 <Layer
                   id="turf-private-fog-fill"
                   type="fill"
-                  paint={{ 'fill-color': '#040917', 'fill-opacity': 0.32, 'fill-antialias': false }}
+                  paint={{
+                    'fill-color': gameWorld.map.fog,
+                    'fill-opacity': 0.32,
+                    'fill-antialias': false
+                  }}
                 />
               </GeoJSONSource>
             )}
@@ -793,9 +798,9 @@ export function TurfScreen({
                     id={`turf-${layer.id}-points`}
                     type="circle"
                     paint={{
-                      'circle-color': '#ffe38c',
+                      'circle-color': gameWorld.quest.marker,
                       'circle-radius': 5,
-                      'circle-stroke-color': '#362717',
+                      'circle-stroke-color': gameWorld.quest.markerEdge,
                       'circle-stroke-width': 2
                     }}
                   />
@@ -803,7 +808,11 @@ export function TurfScreen({
                   <Layer
                     id={`turf-${layer.id}-trail`}
                     type="line"
-                    paint={{ 'line-color': '#ffe38c', 'line-width': 4, 'line-dasharray': [1, 1.8] }}
+                    paint={{
+                      'line-color': gameWorld.quest.marker,
+                      'line-width': 4,
+                      'line-dasharray': [1, 1.8]
+                    }}
                   />
                 )}
               </GeoJSONSource>
@@ -1447,14 +1456,14 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
     },
     pinAnchor: { alignItems: 'center', justifyContent: 'center', width: 88, height: 72 },
     pinStem: { borderRadius: 2, height: 7, width: 2 },
-    crownBadge: { position: 'absolute', top: 2, fontSize: 21, color: '#ffdb78' },
+    crownBadge: { position: 'absolute', top: 2, fontSize: 21, color: gameWorld.badge.crown },
     defenseBadge: {
       position: 'absolute',
       right: 0,
       bottom: 10,
       borderRadius: 12,
-      backgroundColor: '#27233e',
-      borderColor: '#ffbf58',
+      backgroundColor: gameWorld.badge.shield,
+      borderColor: gameWorld.badge.shieldRim,
       borderWidth: 1,
       paddingHorizontal: 5
     },
@@ -1462,15 +1471,15 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       position: 'absolute',
       top: 0,
       borderRadius: 12,
-      backgroundColor: '#9d1d46',
-      borderColor: '#ff6387',
+      backgroundColor: gameWorld.badge.revenge,
+      borderColor: gameWorld.badge.revengeRim,
       borderWidth: 1,
       paddingHorizontal: 6,
       paddingVertical: 2
     },
     revengeDim: { opacity: 0.64 },
     revengeBeacon: { position: 'relative', minHeight: 30, justifyContent: 'center' },
-    badgeText: { color: '#fff5f8', fontSize: 9, fontWeight: '900' },
+    badgeText: { color: gameWorld.badge.text, fontSize: 9, fontWeight: '900' },
     bubble: {
       alignItems: 'center',
       backgroundColor: tokens.background.surface,
@@ -1514,8 +1523,8 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       gap: 8,
       paddingVertical: 7,
       paddingHorizontal: 9,
-      backgroundColor: '#0b1426ee',
-      borderColor: '#3d587a',
+      backgroundColor: gameWorld.hud.glass,
+      borderColor: gameWorld.hud.edgeSoft,
       borderWidth: 1,
       borderRadius: 22
     },
@@ -1527,34 +1536,34 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       height: 39,
       borderRadius: 20,
       borderWidth: 2,
-      borderColor: '#74eac6',
-      backgroundColor: '#14253b'
+      borderColor: gameWorld.hud.progress,
+      backgroundColor: gameWorld.hud.avatar
     },
     seasonPill: {
       alignItems: 'center',
-      backgroundColor: '#0b1426ee',
+      backgroundColor: gameWorld.hud.glass,
       borderWidth: 1,
-      borderColor: '#3d587a',
+      borderColor: gameWorld.hud.edgeSoft,
       borderRadius: 18,
       paddingHorizontal: 12,
       paddingVertical: 7
     },
-    hudLabel: { color: '#f0f7ff', fontSize: 14, fontWeight: '900' },
-    hudDetail: { color: '#a8c4e8', fontSize: 10, fontWeight: '800' },
+    hudLabel: { color: gameWorld.hud.text, fontSize: 14, fontWeight: '900' },
+    hudDetail: { color: gameWorld.hud.detail, fontSize: 10, fontWeight: '800' },
     xpTrack: {
       height: 3,
       marginTop: 3,
-      backgroundColor: '#304967',
+      backgroundColor: gameWorld.hud.track,
       borderRadius: 3,
       overflow: 'hidden'
     },
-    xpFill: { height: '100%', backgroundColor: '#74eac6' },
-    toolText: { color: '#e5f1ff', fontSize: 20, fontWeight: '800' },
+    xpFill: { height: '100%', backgroundColor: gameWorld.hud.progress },
+    toolText: { color: gameWorld.hud.tool, fontSize: 20, fontWeight: '800' },
     filterStatus: {
       alignSelf: 'flex-start',
       borderRadius: 12,
-      backgroundColor: '#0b1426ee',
-      color: '#d3e5fb',
+      backgroundColor: gameWorld.hud.glass,
+      color: gameWorld.hud.status,
       paddingHorizontal: 9,
       paddingVertical: 5,
       fontSize: 12
@@ -1563,22 +1572,22 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
     playerBeacon: { alignItems: 'center', height: 72, justifyContent: 'center', width: 72 },
     radar: {
       ...StyleSheet.absoluteFill,
-      backgroundColor: '#31eaff24',
-      borderColor: '#66f1ff',
+      backgroundColor: gameWorld.player.radar,
+      borderColor: gameWorld.player.radarRing,
       borderRadius: 36,
       borderWidth: 2
     },
     playerCore: {
       alignItems: 'center',
-      backgroundColor: '#0b203d',
-      borderColor: '#b9faff',
+      backgroundColor: gameWorld.player.core,
+      borderColor: gameWorld.player.coreRing,
       borderRadius: 16,
       borderWidth: 2,
       height: 32,
       justifyContent: 'center',
       width: 32
     },
-    playerArrow: { color: '#62efff', fontSize: 18, fontWeight: '900' },
+    playerArrow: { color: gameWorld.player.arrow, fontSize: 18, fontWeight: '900' },
     /** Search field and zone chips, floated over the top of the map. */
     zoneBar: { gap: 10, left: 12, position: 'absolute', right: 12, top: 12 },
     searchField: {
@@ -1632,8 +1641,8 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
     },
     bannerText: { color: tokens.map.controlText, fontSize: 13, fontWeight: '700' },
     sheet: {
-      backgroundColor: '#101a2df5',
-      borderColor: '#355275',
+      backgroundColor: gameWorld.hud.sheet,
+      borderColor: gameWorld.hud.edge,
       borderWidth: 1,
       borderRadius: 22,
       position: 'absolute',
@@ -1645,13 +1654,13 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
     infoSheet: { maxHeight: '56%' },
     sheetScroll: { flexGrow: 0 },
     sheetContent: { gap: 8, padding: 12 },
-    title: { color: '#f0f7ff', fontSize: 20, fontWeight: '900' },
-    subtitle: { color: '#f0f7ff', fontSize: 15, fontWeight: '800', marginTop: 8 },
-    body: { color: '#f0f7ff', fontSize: 14, lineHeight: 20 },
-    helper: { color: '#bfd1e8', fontSize: 13, lineHeight: 18 },
-    notice: { color: '#bfd1e8', fontSize: 13, lineHeight: 18 },
-    feedLine: { color: '#bfd1e8', fontSize: 14, lineHeight: 20 },
-    link: { color: '#bfd1e8', fontSize: 13, fontWeight: '800', marginTop: 6 },
+    title: { color: gameWorld.hud.text, fontSize: 20, fontWeight: '900' },
+    subtitle: { color: gameWorld.hud.text, fontSize: 15, fontWeight: '800', marginTop: 8 },
+    body: { color: gameWorld.hud.text, fontSize: 14, lineHeight: 20 },
+    helper: { color: gameWorld.hud.textSoft, fontSize: 13, lineHeight: 18 },
+    notice: { color: gameWorld.hud.textSoft, fontSize: 13, lineHeight: 18 },
+    feedLine: { color: gameWorld.hud.textSoft, fontSize: 14, lineHeight: 20 },
+    link: { color: gameWorld.hud.textSoft, fontSize: 13, fontWeight: '800', marginTop: 6 },
     card: {
       gap: 4,
       padding: 2
@@ -1667,7 +1676,7 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       width: 46,
       height: 46,
       borderRadius: 23,
-      backgroundColor: '#ffca5833',
+      backgroundColor: gameWorld.quest.halo,
       alignItems: 'center',
       justifyContent: 'center'
     },
@@ -1676,17 +1685,22 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       height: 31,
       borderRadius: 16,
       borderWidth: 2,
-      borderColor: '#ffe596',
-      backgroundColor: '#4b351b',
+      borderColor: gameWorld.quest.rim,
+      backgroundColor: gameWorld.quest.core,
       alignItems: 'center',
       justifyContent: 'center'
     },
-    questGlyph: { color: '#ffe596', fontSize: 19, fontWeight: '900' },
-    questAccent: { color: '#ffe596', fontSize: 11, fontWeight: '900' },
+    questGlyph: { color: gameWorld.quest.rim, fontSize: 19, fontWeight: '900' },
+    questAccent: { color: gameWorld.quest.rim, fontSize: 11, fontWeight: '900' },
     smallButton: { minWidth: 44, minHeight: 44, justifyContent: 'center', alignItems: 'center' },
-    ghostAction: { flex: 1, backgroundColor: '#e94977' },
-    ghostActionText: { color: '#140b1d', fontSize: 15, fontWeight: '900' },
-    lineageAction: { flex: 1, backgroundColor: '#213454', borderColor: '#55779d', borderWidth: 1 },
+    ghostAction: { flex: 1, backgroundColor: gameWorld.action.ghost },
+    ghostActionText: { color: gameWorld.action.ghostText, fontSize: 15, fontWeight: '900' },
+    lineageAction: {
+      flex: 1,
+      backgroundColor: gameWorld.action.lineage,
+      borderColor: gameWorld.action.lineageRim,
+      borderWidth: 1
+    },
     primary: {
       alignItems: 'center',
       backgroundColor: tokens.action.primary,
