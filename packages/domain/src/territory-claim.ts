@@ -747,3 +747,40 @@ export const CLAIM_REFUSAL_MESSAGE: Readonly<Record<ClaimRefusal, string>> = {
     'This loop passes through one of your private areas. Claiming it would put that area on a public map, so it was not claimed. The run itself is saved as normal.',
   already_claimed: 'This run has already claimed its ground. Run a new loop to claim more.'
 };
+
+/**
+ * Advisory-lock keys for the ground a loop could claim (B5).
+ *
+ * Two claims on empty ground have no existing claim row to lock, so both used
+ * to see an empty map and both claimed the same cells. Locking coarse tiles
+ * (~1.1 km at 0.01°) covering the loop's bounding box serialises any two
+ * claims whose areas could overlap, while claims in different neighbourhoods
+ * never wait on each other. Keys are sorted, so two transactions always take
+ * shared tiles in the same order and cannot deadlock. A loop spanning more
+ * than `maxTiles` tiles (far beyond the 5 km² cap) falls back to one global
+ * key, which is still correct, only slower.
+ */
+export const claimLockKeys = (
+  ring: ReadonlyArray<readonly [number, number] | readonly number[]>,
+  tileDegrees = 0.01,
+  maxTiles = 400
+): string[] => {
+  if (ring.length === 0) return [];
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const point of ring) {
+    const x = Math.floor(Number(point[0]) / tileDegrees);
+    const y = Math.floor(Number(point[1]) / tileDegrees);
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+  }
+  if ((maxX - minX + 1) * (maxY - minY + 1) > maxTiles) return ['territory-tile:all'];
+  const keys: string[] = [];
+  for (let x = minX; x <= maxX; x += 1)
+    for (let y = minY; y <= maxY; y += 1) keys.push(`territory-tile:${x}:${y}`);
+  return keys.sort();
+};

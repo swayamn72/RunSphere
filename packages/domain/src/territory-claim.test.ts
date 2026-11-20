@@ -27,7 +27,8 @@ import {
   type ClaimPoint,
   type ClaimRing,
   type H3Indexer,
-  type HeldClaim
+  type HeldClaim,
+  claimLockKeys
 } from './territory-claim.js';
 
 /**
@@ -791,5 +792,36 @@ describe('a loop through a private area', () => {
     // publication, so there is no way to publish part of it.
     expect(CLAIM_REFUSAL_MESSAGE.privacy_zone).toContain('private areas');
     expect(CLAIM_REFUSAL_MESSAGE.privacy_zone).toContain('run itself is saved');
+  });
+});
+
+describe('claimLockKeys (B5)', () => {
+  const square = (lng: number, lat: number, size: number): [number, number][] => [
+    [lng, lat],
+    [lng + size, lat],
+    [lng + size, lat + size],
+    [lng, lat + size]
+  ];
+
+  it('gives two overlapping loops at least one shared key', () => {
+    const a = claimLockKeys(square(72.8777, 19.076, 0.004));
+    const b = claimLockKeys(square(72.8797, 19.077, 0.004));
+    expect(a.some((key) => b.includes(key))).toBe(true);
+  });
+
+  it('gives loops in different neighbourhoods no shared key', () => {
+    const a = claimLockKeys(square(72.8777, 19.076, 0.004));
+    const b = claimLockKeys(square(72.95, 19.2, 0.004));
+    expect(a.some((key) => b.includes(key))).toBe(false);
+  });
+
+  it('returns keys sorted, so concurrent claims lock in the same order', () => {
+    const keys = claimLockKeys(square(72.8777, 19.076, 0.03));
+    expect(keys).toEqual([...keys].sort());
+    expect(keys.length).toBeGreaterThan(1);
+  });
+
+  it('falls back to one global key for an implausibly large span', () => {
+    expect(claimLockKeys(square(72, 19, 1))).toEqual(['territory-tile:all']);
   });
 });

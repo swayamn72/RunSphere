@@ -58,7 +58,7 @@ Severity: **S1** blocks launch or loses data/security · **S2** a core feature i
   leaderboards and history.
 - Fix: unique partial index on `(activity_id)`, plus an idempotent "already claimed" result.
 
-### B5 — Two simultaneous claims on empty ground both succeed (S3, Likely)
+### B5 — ✅ FIXED 2026-11-21 (tile advisory locks; PostGIS test fails 4/5 on the old code) — Two simultaneous claims on empty ground both succeed (S3, Likely)
 
 > **Still open.** M2's per-run lock serialises two submissions of the _same_ run; two _different_
 > runs on the same empty ground can still both claim.

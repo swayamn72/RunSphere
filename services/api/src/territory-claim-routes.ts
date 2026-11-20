@@ -31,6 +31,7 @@ import {
 import { withTransaction, type Database } from '@runsphere/db';
 import {
   CLAIM_REFUSAL_MESSAGE,
+  claimLockKeys,
   DEFAULT_CLAIM_RULE,
   H3_VERSION,
   RECOMMENDATION_NOTE,
@@ -850,6 +851,15 @@ export const registerTerritoryClaimRoutes = ({
           [request.body.activityId]
         );
         if (claimedMeanwhile.rows[0]) return alreadyClaimed();
+
+        // The ground itself (B5). The FOR UPDATE below only locks claims that
+        // already exist, so two runs on *empty* ground used to both see nothing
+        // and both claim the same cells. Locking the coarse tiles under this
+        // loop serialises any two claims that could overlap; the second then
+        // sees the first's claim and contests it like any other. Sorted keys,
+        // so shared tiles are always taken in the same order (no deadlock).
+        for (const key of claimLockKeys(boundary))
+          await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [key]);
 
         // Lock every claim this loop could contest before deciding anything, so
         // two runners finishing together cannot both be told they won.

@@ -556,6 +556,28 @@ describePostgis('territory claims on real PostGIS', () => {
       expect(await claimsFrom(activity)).toBe(1);
     });
 
+    // B5: two different runs on the same empty ground at the same moment must
+    // not both end up holding the same cells.
+    it('never lets two simultaneous claims on empty ground overlap', async () => {
+      const mine = await runWithLoop(account, 300, 700, 39);
+      const theirs = await runWithLoop(rival, 300, 700, 39);
+
+      const answers = (await Promise.all([claim(account, mine), claim(rival, theirs)])).map(
+        (response) => response.json() as { claimed: boolean }
+      );
+      expect(answers.some((answer) => answer.claimed)).toBe(true);
+
+      const overlaps = await db.query<{ count: string }>(
+        `SELECT count(*)::text AS count
+         FROM territory_claims a JOIN territory_claims b ON a.id < b.id
+         WHERE a.activity_id = ANY($1::uuid[]) AND b.activity_id = ANY($1::uuid[])
+           AND a.released_at IS NULL AND b.released_at IS NULL
+           AND a.h3_cell_set && b.h3_cell_set`,
+        [[mine, theirs]]
+      );
+      expect(Number(overlaps.rows[0]!.count)).toBe(0);
+    });
+
     it('marks a claimed run in the activity list so the app stops offering it', async () => {
       const activity = await runWithLoop(account, 300, 700, 7.5);
       await claim(account, activity);
