@@ -14,8 +14,6 @@ import { kolkataDate, kolkataDateStart, kolkataCalendarDate, pad2, KOLKATA_OFFSE
  * rules can be reviewed at the Territory gate rather than after it.
  */
 
-const MILLIS_PER_DAY = 86_400_000;
-
 /**
  * Whether the Kolkata week beginning `weekStartsOn` has completely ended.
  * (Now modified to act as a Monthly boundary based on product requirements)

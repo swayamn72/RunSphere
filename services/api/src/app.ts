@@ -1,76 +1,11 @@
-import { randomBytes } from 'node:crypto';
 import cors from '@fastify/cors';
 import swagger from '@fastify/swagger';
 import type { ApiConfig } from '@runsphere/config';
+import { pinoRedactionPaths } from '@runsphere/config';
 import { createMetrics } from '@runsphere/observability';
-import {
-  ActivityAuthorizationHeadersSchema,
-  ActivityChunkHeadersSchema,
-  ActivityChunkRequestSchema,
-  ActivityChunkResponseSchema,
-  ActivityCreateHeadersSchema,
-  ActivityCreateRequestSchema,
-  ActivityCreateResponseSchema,
-  ActivityDeleteResponseSchema,
-  ActivityDetailResponseSchema,
-  ActivityFinalizeRequestSchema,
-  ActivityFinalizeResponseSchema,
-  ActivityListResponseSchema,
-  ActivityParamsSchema,
-  ActivitySyncQuerySchema,
-  ActivitySyncStatusResponseSchema,
-  activityFinalizeChecksumInput,
-  AuthResponseSchema,
-  ErrorResponseSchema,
-  HealthResponseSchema,
-  ReadinessResponseSchema,
-  EmailVerificationCompleteRequestSchema,
-  LoginRequestSchema,
-  AccountDeletionResponseSchema,
-  AccountExportResponseSchema,
-  PrivacyZoneRequestSchema,
-  PrivacyZoneResponseSchema,
-  EmailVerificationRequestResponseSchema,
-  SafetyContactAcceptResponseSchema,
-  SafetyContactListResponseSchema,
-  SafetyContactRequestSchema,
-  SafetyContactResponseSchema,
-  SafetyContactParamsSchema,
-  SafetyShareParamsSchema,
-  SafetyShareReadResponseSchema,
-  SafetyShareRequestSchema,
-  SafetyShareResponseSchema,
-  SafetyShareUpdateRequestSchema,
-  VisibilityRequestSchema,
-  VisibilityResponseSchema,
-  QuestDetailSchema,
-  QuestListResponseSchema,
-  QuestNotFoundResponseSchema,
-  QuestParamsSchema,
-  WeeklyGoalRequestSchema,
-  WeeklyGoalResponseSchema,
-  RefreshRequestSchema,
-  RegisterRequestSchema,
-  StaffReviewAuthorizationHeadersSchema,
-  StaffReviewQueueResponseSchema,
-  type ActivityChunkRequest,
-  type ActivityCreateRequest,
-  type ActivityFinalizeRequest,
-  type EmailVerificationCompleteRequest,
-  type LoginRequest,
-  type PrivacyZoneRequest,
-  type SafetyContactRequest,
-  type SafetyShareRequest,
-  type SafetyShareUpdateRequest,
-  type QuestParams,
-  type WeeklyGoalRequest,
-  type VisibilityRequest,
-  type RegisterRequest,
-  type RefreshRequest
-} from '@runsphere/contracts';
-import { sha256, withTransaction, type Database } from '@runsphere/db';
-import Fastify, { type FastifyBaseLogger, type FastifyRequest } from 'fastify';
-import { chunkHash } from './activity.js';
+import { HealthResponseSchema, ReadinessResponseSchema } from '@runsphere/contracts';
+import type { Database } from '@runsphere/db';
+import Fastify, { type FastifyBaseLogger } from 'fastify';
 import { registerAuthRoutes } from './auth-routes.js';
 import { registerSafetyRoutes } from './safety-routes.js';
 import { registerActivityRoutes } from './activity-routes.js';
@@ -97,15 +32,6 @@ import { registerEmailWebhookRoutes } from './email-webhook-routes.js';
 import { registerRouteSuggestionRoutes } from './route-suggestion-routes.js';
 import { registerQuestRecommendationRoutes } from './quest-recommendation-routes.js';
 import { createMlScorer, readMlScorerConfig } from './ml-scoring.js';
-import { loadRestrictions } from './sanction-guard.js';
-import {
-  hashPassword,
-  issueSession,
-  revokeSession,
-  rotateSession,
-  verifyAccessToken,
-  verifyPassword
-} from './auth.js';
 
 type RuntimeApiConfig = Pick<ApiConfig, 'allowedOrigins' | 'staffReviewAccountIds'> & {
   metricsCollectorToken: string | undefined;
@@ -120,8 +46,6 @@ const configuredApiConfig = (config: BuildAppOptions['config']): RuntimeApiConfi
   staffReviewAccountIds: config?.staffReviewAccountIds ?? defaultApiConfig.staffReviewAccountIds,
   metricsCollectorToken: config?.metricsCollectorToken ?? defaultApiConfig.metricsCollectorToken
 });
-const genericAuthError = { message: 'Invalid email or password' };
-import { pinoRedactionPaths } from '@runsphere/config';
 export { pinoRedactionPaths };
 
 export interface BuildAppOptions {
