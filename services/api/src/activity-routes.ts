@@ -53,6 +53,17 @@ export type ActivityRow = {
 export const activityVerificationColumns =
   'verification_method, verified_at, verification_device_id, client_started_at';
 
+/**
+ * The same columns, qualified by a table alias, for queries that join another
+ * table. The detail read joins `activity_derivations`, and leaving these out
+ * of it is how a verified run used to come back with no `verification` at all.
+ */
+export const qualifiedVerificationColumns = (alias: string): string =>
+  activityVerificationColumns
+    .split(', ')
+    .map((column) => `${alias}.${column}`)
+    .join(', ');
+
 export const validationErrors = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
 
@@ -463,6 +474,7 @@ export const registerActivityRoutes = ({ routes, database, authSecret }: Activit
       >(
         `SELECT submission.id, submission.status, submission.summary, submission.rejection_reason,
            submission.validation_errors, submission.expected_chunk_count, submission.movement_type, submission.created_at,
+           ${qualifiedVerificationColumns('submission')},
            ST_AsGeoJSON(derivation.shareable_route)::jsonb AS route, derivation.policy_version,
            derivation.algorithm_version, derivation.removed_point_count, derivation.outcome
          FROM activity_submissions submission LEFT JOIN activity_derivations derivation ON derivation.activity_id = submission.id

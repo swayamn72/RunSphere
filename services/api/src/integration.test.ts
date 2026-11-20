@@ -527,10 +527,16 @@ describePostgis('M1 PostGIS activity flow', () => {
 });
 
 describePostgis('run verification', () => {
+  let nextClient = 0;
   const account = async () => {
     const register = await app.inject({
       method: 'POST',
       url: '/v1/auth/register',
+      // Registration is limited to 10 a minute per client address, and this
+      // file registers more accounts than that within one run. Each test
+      // account gets its own documentation-range address so the suite
+      // exercises verification rather than the (correct) rate limit.
+      remoteAddress: `198.51.100.${(nextClient += 1)}`,
       payload: {
         email: `verify-${randomUUID()}-${Date.now()}@example.test`,
         password: 'a-safe-pilot-password',
