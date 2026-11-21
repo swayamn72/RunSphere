@@ -21,7 +21,7 @@
     "test": "turbo run test --continue",
     "migrate": "node scripts/migrate.mjs",
     "seed:admin": "node scripts/seed-admin.mjs",
-    "test:integration": "pnpm --filter @runsphere/api exec vitest run src/integration.test.ts src/auth-refresh.integration.test.ts src/activity-processing.integration.test.ts src/territory-claim.integration.test.ts src/friend-standings.integration.test.ts src/ml.integration.test.ts src/route-suggestion.integration.test.ts src/privacy-zones.integration.test.ts src/social-identity.integration.test.ts && pnpm --filter @runsphere/worker exec vitest run src/territory-claim-season.integration.test.ts src/email-delivery.integration.test.ts src/account-deletion.integration.test.ts src/progression-week-close.integration.test.ts src/achievement-sync.integration.test.ts",
+    "test:integration": "pnpm --filter @runsphere/api exec vitest run src/integration.test.ts src/auth-refresh.integration.test.ts src/activity-processing.integration.test.ts src/territory-claim.integration.test.ts src/friend-standings.integration.test.ts src/ml.integration.test.ts src/route-suggestion.integration.test.ts src/privacy-zones.integration.test.ts src/social-identity.integration.test.ts src/session-check.integration.test.ts && pnpm --filter @runsphere/worker exec vitest run src/territory-claim-season.integration.test.ts src/email-delivery.integration.test.ts src/account-deletion.integration.test.ts src/progression-week-close.integration.test.ts src/achievement-sync.integration.test.ts",
     "typecheck": "turbo run typecheck --continue"
   },
   "devDependencies": {

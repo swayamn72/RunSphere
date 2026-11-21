@@ -33,6 +33,7 @@ import { registerRouteSuggestionRoutes } from './route-suggestion-routes.js';
 import { registerQuestRecommendationRoutes } from './quest-recommendation-routes.js';
 import { createMlScorer, readMlScorerConfig } from './ml-scoring.js';
 import { registerRateLimits } from './rate-limit.js';
+import { registerSessionCheck } from './session-check.js';
 import { registerSocialIdentityRoutes } from './social-identity-routes.js';
 
 type RuntimeApiConfig = Pick<ApiConfig, 'allowedOrigins' | 'staffReviewAccountIds'> & {
@@ -64,6 +65,12 @@ export interface BuildAppOptions {
    * Tests of the limiter itself pass `true`.
    */
   rateLimits?: boolean;
+  /**
+   * End access tokens as soon as their session or account ends (R3). On by
+   * default; off under `NODE_ENV=test`, where unit tests use fake databases
+   * with no account rows. Its own integration test passes `true`.
+   */
+  sessionChecks?: boolean;
 }
 
 /**
@@ -97,7 +104,8 @@ export const buildApp = ({
   db,
   authSecret = process.env.AUTH_TOKEN_SECRET ?? 'development-secret-not-for-production',
   allowInsecureAuthSecret = process.env.NODE_ENV === 'test',
-  rateLimits = process.env.NODE_ENV !== 'test'
+  rateLimits = process.env.NODE_ENV !== 'test',
+  sessionChecks = process.env.NODE_ENV !== 'test'
 }: BuildAppOptions = {}) => {
   assertAuthSecret(authSecret, allowInsecureAuthSecret);
   const config = configuredApiConfig(apiConfig);
@@ -114,6 +122,7 @@ export const buildApp = ({
         }
       });
   if (rateLimits) registerRateLimits(app, authSecret);
+  if (sessionChecks && database) registerSessionCheck(app, database, authSecret);
   app.addHook('onResponse', async (_request, reply) => {
     metrics.recordResponse(reply.statusCode);
   });

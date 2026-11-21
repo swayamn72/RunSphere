@@ -11,6 +11,12 @@ export const refreshReuseGraceSeconds = 30;
 interface AccessClaims {
   sub: string;
   exp: number;
+  /**
+   * The session (refresh-token family) this token belongs to (R3). Signing
+   * out or a revoked session ends the token at once, not when it expires.
+   * Absent on tokens minted outside a session (tests, scripts).
+   */
+  sid?: string;
 }
 interface RefreshTokenRecord {
   id: string;
@@ -33,16 +39,28 @@ const newRefreshToken = () => {
   return { token: `${selector}.${verifier}`, selector };
 };
 
-export const createAccessToken = (accountId: string, secret: string): string => {
+export const createAccessToken = (
+  accountId: string,
+  secret: string,
+  sessionId?: string
+): string => {
   const claims: AccessClaims = {
     sub: accountId,
-    exp: Math.floor(Date.now() / 1000) + accessLifetimeSeconds
+    exp: Math.floor(Date.now() / 1000) + accessLifetimeSeconds,
+    ...(sessionId ? { sid: sessionId } : {})
   };
   const payload = encode(JSON.stringify(claims));
   return `${payload}.${sign(payload, secret)}`;
 };
 
-export const verifyAccessToken = (token: string, secret: string): string | undefined => {
+export const verifyAccessToken = (token: string, secret: string): string | undefined =>
+  verifyAccessClaims(token, secret)?.sub;
+
+/** The verified claims, for the session check; undefined when invalid or expired. */
+export const verifyAccessClaims = (
+  token: string,
+  secret: string
+): { sub: string; sid?: string } | undefined => {
   const [payload, signature] = token.split('.');
   if (!payload || !signature) return undefined;
   const expected = sign(payload, secret);
@@ -53,9 +71,11 @@ export const verifyAccessToken = (token: string, secret: string): string | undef
     return undefined;
   try {
     const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as AccessClaims;
-    return typeof claims.sub === 'string' && claims.exp > Math.floor(Date.now() / 1000)
-      ? claims.sub
-      : undefined;
+    if (typeof claims.sub !== 'string' || !(claims.exp > Math.floor(Date.now() / 1000)))
+      return undefined;
+    return typeof claims.sid === 'string'
+      ? { sub: claims.sub, sid: claims.sid }
+      : { sub: claims.sub };
   } catch {
     return undefined;
   }
@@ -86,7 +106,7 @@ export const issueSession = async (db: Database, accountId: string, secret: stri
   );
   const refreshToken = await insertRefreshToken(db, family.rows[0]!.id);
   return {
-    accessToken: createAccessToken(accountId, secret),
+    accessToken: createAccessToken(accountId, secret, family.rows[0]!.id),
     refreshToken,
     expiresInSeconds: accessLifetimeSeconds
   };
@@ -138,7 +158,7 @@ export const rotateSession = async (db: Database, refreshToken: string, secret: 
     current.family_id
   ]);
   return {
-    accessToken: createAccessToken(current.account_id, secret),
+    accessToken: createAccessToken(current.account_id, secret, current.family_id),
     refreshToken: next,
     expiresInSeconds: accessLifetimeSeconds
   };
