@@ -46,6 +46,7 @@ import { fogFeatures } from '../maps/turf-exploration';
 import { CrewMascot } from '../components/CrewMascot';
 import { TerritoryDetailScreen } from './TerritoryDetailScreen';
 import { GhostRaceSheet } from './GhostRaceSheet';
+import { RunnerProfileSheet } from './RunnerProfileSheet';
 import { seasonDaysLeft } from './home-progression-model';
 import { selectedCheckpointLayers } from './explore-model';
 import {
@@ -175,6 +176,9 @@ export function TurfScreen({
   const [zoom, setZoom] = useState(INITIAL_ZOOM);
   const [notice, setNotice] = useState('');
   const [selected, setSelected] = useState<string>();
+  /** A holder's profile opened from the claim card (SI.6). */
+  const [holderProfile, setHolderProfile] = useState<string>();
+  useEffect(() => setHolderProfile(undefined), [selected]);
   /** The zone bar: which ground is drawn, and the name being looked for. */
   const [zoneFilter, setZoneFilter] = useState<ZoneFilter>('all');
   const [search, setSearch] = useState('');
@@ -1308,6 +1312,22 @@ export function TurfScreen({
                 <Text style={styles.helper}>
                   Held by {chosen.owner.isSelf ? 'you' : chosen.owner.displayName}
                 </Text>
+                {!chosen.owner.isSelf && chosen.owner.username ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open @${chosen.owner.username}'s profile`}
+                    onPress={() => setHolderProfile(chosen.owner.username)}
+                  >
+                    <Text style={styles.link}>{`View @${chosen.owner.username}`}</Text>
+                  </Pressable>
+                ) : null}
+                {holderProfile ? (
+                  <RunnerProfileSheet
+                    api={api}
+                    username={holderProfile}
+                    onClose={() => setHolderProfile(undefined)}
+                  />
+                ) : null}
                 {chosen.owner.isSelf ? (
                   <Text style={styles.helper}>
                     Somebody who runs this loop faster than you takes it.

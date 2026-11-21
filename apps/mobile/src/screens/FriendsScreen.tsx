@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { RunnerSearch } from './RunnerSearch';
+import { RunnerProfileSheet } from './RunnerProfileSheet';
 import type { BlockedAccount, FriendRequest, Profile, ReportReason } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { BackHeader, PrimaryButton, SettingsGroup } from '../components/primitives';
@@ -177,6 +178,8 @@ export function FriendsScreen({
   const [email, setEmail] = useState('');
   /** Email is the fallback now (ADR-0014); username search comes first. */
   const [byEmail, setByEmail] = useState(false);
+  /** The runner whose profile is open, from search (SI.6). */
+  const [openProfile, setOpenProfile] = useState<string>();
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   /** The account a reason is being chosen for, or none. */
@@ -327,7 +330,14 @@ export function FriendsScreen({
       {guidance.cue && <LoopCallout cue={guidance.cue} onDismiss={guidance.dismiss} />}
 
       <SettingsGroup title="Add a friend">
-        <RunnerSearch api={api} />
+        {openProfile ? (
+          <RunnerProfileSheet
+            api={api}
+            username={openProfile}
+            onClose={() => setOpenProfile(undefined)}
+          />
+        ) : null}
+        <RunnerSearch api={api} onOpenProfile={setOpenProfile} />
         <View style={styles.settingStack}>
           <Pressable
             accessibilityRole="button"
