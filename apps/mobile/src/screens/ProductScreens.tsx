@@ -139,7 +139,7 @@ export function ProfileScreen({
    * Opens straight onto one of the sub-screens. The dashboard's bell arrives
    * here on `notifications`, so the inbox is one tap away rather than three.
    */
-  initialScreen?: 'profile' | 'notifications' | 'settings';
+  initialScreen?: 'profile' | 'notifications' | 'settings' | 'privacy';
 }) {
   const styles = useAppStyles();
   const { tokens } = useAppTheme();

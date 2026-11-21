@@ -20,7 +20,9 @@ import { useAppTheme } from '../theme/theme';
 import type { MobileApiClient } from '../api-client';
 import { AuthFailure } from '../auth-failure';
 import { getLocationPermissionState } from '../location-permission';
-import { canSubmitAccount } from '../onboarding';
+import { accountProblem, canSubmitAccount, dateOfBirthFrom } from '../onboarding';
+import { OnboardingSocialStep } from './OnboardingSocialStep';
+import { usernameHint } from './privacy-settings-model';
 import type { initialOnboardingState, onboardingReducer } from '../onboarding';
 import { PermissionCard, PrimaryButton, StepHeader } from '../components/primitives';
 import { useAppStyles } from '../components/styles';
@@ -56,10 +58,15 @@ export function Onboarding({
           : await api.register({
               email: state.email.trim(),
               password: state.password,
-              ageAssertion: true,
+              dateOfBirth: dateOfBirthFrom(state)!,
+              username: state.username.trim().replace(/^@/, '').toLowerCase(),
               policyVersion: 'm1-private-pilot'
             });
       onAuthenticated(session);
+      // The name typed at sign-up becomes the display name. Best effort: the
+      // username already stands in until it's saved.
+      if (state.accountMode === 'register' && state.name.trim())
+        await api.updateProfile({ displayName: state.name.trim() }).catch(() => undefined);
       dispatch({ type: 'authenticationSucceeded' });
     } catch (error) {
       setAuthError(
@@ -198,6 +205,60 @@ export function Onboarding({
                   placeholderTextColor={tokens.text.secondary}
                   style={styles.input}
                 />
+                <Text style={styles.fieldLabel}>USERNAME</Text>
+                <TextInput
+                  accessibilityLabel="Username"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  value={state.username}
+                  onChangeText={(username) => dispatch({ type: 'updateAccount', username })}
+                  placeholder="@username"
+                  placeholderTextColor={tokens.text.secondary}
+                  style={styles.input}
+                />
+                {usernameHint(state.username) ? (
+                  <Text style={styles.rowDetail}>{usernameHint(state.username)}</Text>
+                ) : (
+                  <Text style={styles.rowDetail}>
+                    How friends find you. You can change it later.
+                  </Text>
+                )}
+                <Text style={styles.fieldLabel}>DATE OF BIRTH</Text>
+                <View style={styles.filterRow}>
+                  <TextInput
+                    accessibilityLabel="Day of birth"
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    value={state.birthDay}
+                    onChangeText={(birthDay) => dispatch({ type: 'updateAccount', birthDay })}
+                    placeholder="DD"
+                    placeholderTextColor={tokens.text.secondary}
+                    style={[styles.input, styles.flexCopy]}
+                  />
+                  <TextInput
+                    accessibilityLabel="Month of birth"
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    value={state.birthMonth}
+                    onChangeText={(birthMonth) => dispatch({ type: 'updateAccount', birthMonth })}
+                    placeholder="MM"
+                    placeholderTextColor={tokens.text.secondary}
+                    style={[styles.input, styles.flexCopy]}
+                  />
+                  <TextInput
+                    accessibilityLabel="Year of birth"
+                    keyboardType="number-pad"
+                    maxLength={4}
+                    value={state.birthYear}
+                    onChangeText={(birthYear) => dispatch({ type: 'updateAccount', birthYear })}
+                    placeholder="YYYY"
+                    placeholderTextColor={tokens.text.secondary}
+                    style={[styles.input, styles.flexCopy]}
+                  />
+                </View>
+                <Text style={styles.rowDetail}>
+                  Only to check you're 18 or older. Never shown to anyone.
+                </Text>
               </>
             )}
             <Text style={styles.fieldLabel}>EMAIL</Text>
@@ -224,20 +285,9 @@ export function Onboarding({
               placeholderTextColor={tokens.text.secondary}
               style={styles.input}
             />
-            {state.accountMode === 'register' && (
-              <Pressable
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: state.isAdult }}
-                accessibilityLabel="I confirm that I am 18 or older"
-                onPress={() => dispatch({ type: 'updateAccount', isAdult: !state.isAdult })}
-                style={styles.checkRow}
-              >
-                <View style={[styles.checkbox, state.isAdult && styles.checkboxChecked]}>
-                  {state.isAdult && <Text style={styles.checkMark}>✓</Text>}
-                </View>
-                <Text style={styles.checkCopy}>I confirm that I am 18 or older.</Text>
-              </Pressable>
-            )}
+            {!authError && accountProblem(state) && (state.email || state.password) ? (
+              <Text style={styles.rowDetail}>{accountProblem(state)}</Text>
+            ) : null}
             {authError && (
               <Text accessibilityLiveRegion="polite" style={styles.errorText}>
                 {authError}
@@ -288,9 +338,26 @@ export function Onboarding({
             </Pressable>
           </>
         )}
+        {state.step === 'social' && (
+          <OnboardingSocialStep
+            api={api}
+            captureLocation={async () => {
+              const permission = await Location.requestForegroundPermissionsAsync();
+              if (!permission.granted) return undefined;
+              const position = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.Balanced
+              });
+              return { latitude: position.coords.latitude, longitude: position.coords.longitude };
+            }}
+            onDone={() => dispatch({ type: 'socialDone' })}
+          />
+        )}
         {state.step === 'privacy' && (
           <>
-            <StepHeader step="STEP 2 OF 3" onBack={() => dispatch({ type: 'back' })} />
+            <StepHeader
+              step={state.accountMode === 'login' ? 'STEP 2 OF 2' : 'STEP 3 OF 3'}
+              onBack={() => dispatch({ type: 'back' })}
+            />
             <View accessible={false} style={styles.miniMap}>
               <Text style={styles.mapRoute}>⌁</Text>
               <Text style={styles.mapShield}>✓</Text>

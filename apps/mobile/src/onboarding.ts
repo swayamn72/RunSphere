@@ -1,8 +1,15 @@
+import { isAdult, kolkataDate, normalizeUsername, usernameProblem } from '@runsphere/domain';
+
 export type LocationStatus = 'idle' | 'granted' | 'denied' | 'blocked';
 export type MotionStatus = 'idle' | 'granted' | 'denied' | 'skipped';
 export type AccountMode = 'register' | 'login';
 
-export type OnboardingStep = 'welcome' | 'account' | 'privacy' | 'location-denied' | 'complete';
+/**
+ * `social` follows sign-up only (ADR-0014): profile visibility, home area and
+ * the privacy-zone prompt. Signing in goes straight to `privacy` (location).
+ */
+export type OnboardingStep =
+  'welcome' | 'account' | 'social' | 'privacy' | 'location-denied' | 'complete';
 
 export interface OnboardingState {
   step: OnboardingStep;
@@ -10,7 +17,11 @@ export interface OnboardingState {
   name: string;
   email: string;
   password: string;
-  isAdult: boolean;
+  username: string;
+  /** Date of birth as typed, day / month / year (ADR-0014: the 18+ check). */
+  birthDay: string;
+  birthMonth: string;
+  birthYear: string;
   hideStartFinish: boolean;
   visibility: 'private';
   location: LocationStatus;
@@ -23,7 +34,10 @@ export const initialOnboardingState: OnboardingState = {
   name: '',
   email: '',
   password: '',
-  isAdult: false,
+  username: '',
+  birthDay: '',
+  birthMonth: '',
+  birthYear: '',
   hideStartFinish: true,
   visibility: 'private',
   location: 'idle',
@@ -32,7 +46,17 @@ export const initialOnboardingState: OnboardingState = {
 
 export type OnboardingAction =
   | { type: 'startAccount'; mode: AccountMode }
-  | { type: 'updateAccount'; name?: string; email?: string; password?: string; isAdult?: boolean }
+  | {
+      type: 'updateAccount';
+      name?: string;
+      email?: string;
+      password?: string;
+      username?: string;
+      birthDay?: string;
+      birthMonth?: string;
+      birthYear?: string;
+    }
+  | { type: 'socialDone' }
   | { type: 'authenticationSucceeded' }
   | { type: 'restoreSession' }
   | { type: 'setHideStartFinish'; value: boolean }
@@ -47,10 +71,40 @@ export type OnboardingAction =
 const hasValidEmail = (email: string): boolean => /^\S+@\S+\.\S+$/.test(email.trim());
 const hasValidPassword = (password: string): boolean => password.length >= 12;
 
-export const canSubmitAccount = (state: OnboardingState): boolean =>
-  hasValidEmail(state.email) &&
-  hasValidPassword(state.password) &&
-  (state.accountMode === 'login' || (state.isAdult && state.name.trim().length > 0));
+/** `YYYY-MM-DD` from the three fields, or undefined while incomplete. */
+export const dateOfBirthFrom = (state: OnboardingState): string | undefined => {
+  const day = state.birthDay.trim();
+  const month = state.birthMonth.trim();
+  const year = state.birthYear.trim();
+  if (!/^\d{1,2}$/.test(day) || !/^\d{1,2}$/.test(month) || !/^\d{4}$/.test(year)) return undefined;
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+};
+
+/**
+ * The one thing stopping sign-up, in plain words, or undefined when it can
+ * go. Shown under the form so a disabled button is never a mystery.
+ */
+export const accountProblem = (
+  state: OnboardingState,
+  today: string = kolkataDate(new Date())
+): string | undefined => {
+  if (state.accountMode === 'register') {
+    if (state.name.trim().length === 0) return 'Add a display name.';
+    const username = normalizeUsername(state.username);
+    if (username.length === 0) return 'Pick a username.';
+    if (usernameProblem(username))
+      return 'Usernames are 3–20 letters, numbers or _, starting with a letter.';
+    const dob = dateOfBirthFrom(state);
+    if (!dob) return 'Add your date of birth.';
+    if (!isAdult(dob, today)) return 'You need to be 18 or older to use RunSphere.';
+  }
+  if (!hasValidEmail(state.email)) return 'Add your email.';
+  if (!hasValidPassword(state.password)) return 'Passwords need at least 12 characters.';
+  return undefined;
+};
+
+export const canSubmitAccount = (state: OnboardingState, today?: string): boolean =>
+  accountProblem(state, today) === undefined;
 
 export const onboardingReducer = (
   state: OnboardingState,
@@ -65,9 +119,14 @@ export const onboardingReducer = (
         ...(action.name !== undefined ? { name: action.name } : {}),
         ...(action.email !== undefined ? { email: action.email } : {}),
         ...(action.password !== undefined ? { password: action.password } : {}),
-        ...(action.isAdult !== undefined ? { isAdult: action.isAdult } : {})
+        ...(action.username !== undefined ? { username: action.username } : {}),
+        ...(action.birthDay !== undefined ? { birthDay: action.birthDay } : {}),
+        ...(action.birthMonth !== undefined ? { birthMonth: action.birthMonth } : {}),
+        ...(action.birthYear !== undefined ? { birthYear: action.birthYear } : {})
       };
     case 'authenticationSucceeded':
+      return { ...state, step: state.accountMode === 'register' ? 'social' : 'privacy' };
+    case 'socialDone':
       return { ...state, step: 'privacy' };
     case 'restoreSession':
       return { ...state, step: 'complete' };
@@ -89,7 +148,10 @@ export const onboardingReducer = (
       return initialOnboardingState;
     case 'back':
       if (state.step === 'account') return { ...state, step: 'welcome' };
-      if (state.step === 'privacy') return { ...state, step: 'account' };
+      // The account exists once past `account`, so back never returns there
+      // after sign-up; it stops at the social step instead.
+      if (state.step === 'privacy')
+        return { ...state, step: state.accountMode === 'register' ? 'social' : 'account' };
       if (state.step === 'location-denied') return { ...state, step: 'privacy' };
       return state;
   }

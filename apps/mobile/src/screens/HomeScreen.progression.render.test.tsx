@@ -80,6 +80,7 @@ const stubApi = (overrides: {
 }): MobileApiClient =>
   ({
     getWeeklyGoal: overrides.goal ?? (() => Promise.resolve(goal)),
+    getPrivacySettings: () => Promise.resolve({ reviewed: true }),
     listQuests: () => Promise.resolve([]),
     getTerritoryClaimSummary: () =>
       Promise.resolve({ claimCount: 2, totalAreaSqm: 12000, lostCount: 0 }),

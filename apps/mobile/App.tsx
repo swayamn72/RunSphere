@@ -161,9 +161,9 @@ function RunSphereApp() {
    * Which Profile sub-screen to land on. The dashboard's bell opens the inbox
    * directly; every other route into Profile starts at the profile itself.
    */
-  const [profileEntry, setProfileEntry] = useState<'profile' | 'notifications' | 'settings'>(
-    'profile'
-  );
+  const [profileEntry, setProfileEntry] = useState<
+    'profile' | 'notifications' | 'settings' | 'privacy'
+  >('profile');
   const [storageAttempt, retryStorage] = useReducer((attempt: number) => attempt + 1, 0);
 
   /**
@@ -444,6 +444,10 @@ function RunSphereApp() {
         }}
         onOpenSettings={() => {
           setProfileEntry('settings');
+          setActiveTab('Profile');
+        }}
+        onOpenPrivacy={() => {
+          setProfileEntry('privacy');
           setActiveTab('Profile');
         }}
         onOpenProfile={() => {

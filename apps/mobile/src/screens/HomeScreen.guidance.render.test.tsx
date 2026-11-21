@@ -59,6 +59,7 @@ const profile: Profile = {
 const stubApi = (): MobileApiClient =>
   ({
     getWeeklyGoal: () => Promise.resolve(goal),
+    getPrivacySettings: () => Promise.resolve({ reviewed: true }),
     listQuests: () => Promise.resolve([]),
     getProgressionSummary: () => Promise.resolve(summary),
     getProfile: () => Promise.resolve(profile),

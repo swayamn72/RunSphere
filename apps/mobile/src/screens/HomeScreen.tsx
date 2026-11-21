@@ -283,6 +283,7 @@ export function HomeScreen({
   onOpenNotifications,
   onOpenProfile,
   onOpenSettings,
+  onOpenPrivacy,
   onSessionExpired
 }: {
   api: MobileApiClient;
@@ -296,8 +297,25 @@ export function HomeScreen({
   onOpenNotifications: () => void;
   onOpenProfile: () => void;
   onOpenSettings?: () => void;
+  /** Opens Privacy & visibility, for the one-time review prompt (ADR-0014). */
+  onOpenPrivacy?: () => void;
   onSessionExpired: () => void;
 }) {
+  // Accounts from before usernames haven't seen their privacy settings yet.
+  // Until they save them once, Home asks them to look (ADR-0014, SI.5).
+  const [privacyUnreviewed, setPrivacyUnreviewed] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void api
+      .getPrivacySettings()
+      .then((settings) => {
+        if (active) setPrivacyUnreviewed(!settings.reviewed);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [api]);
   const styles = useAppStyles();
   const { tokens } = useAppTheme();
   const local = useMemo(() => createStyles(tokens), [tokens]);
@@ -427,6 +445,21 @@ export function HomeScreen({
           onAction={reloadProgression}
         />
       )}
+
+      {privacyUnreviewed && onOpenPrivacy ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Review who can see you"
+          onPress={onOpenPrivacy}
+          style={[styles.recordCard, local.coachCard]}
+        >
+          <Text style={styles.eyebrow}>NEW: USERNAMES AND PROFILES</Text>
+          <Text style={styles.rowTitle}>Review who can see you</Text>
+          <Text style={styles.rowDetail}>
+            Friends can now find you by username. Your account starts private; choose what to share.
+          </Text>
+        </Pressable>
+      ) : null}
 
       <View style={[styles.recordCard, styles.cardRow, local.coachCard]}>
         <CrewMascot character="rho" accessibility={{ mode: 'decorative' }} size={44} />

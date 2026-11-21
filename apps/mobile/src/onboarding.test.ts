@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { canSubmitAccount, initialOnboardingState, onboardingReducer } from './onboarding.js';
+import {
+  accountProblem,
+  canSubmitAccount,
+  dateOfBirthFrom,
+  initialOnboardingState,
+  onboardingReducer
+} from './onboarding.js';
 
 describe('onboarding state machine', () => {
-  it('requires a valid password, adult assertion, and account details for registration', () => {
+  it('requires a valid password, an adult date of birth, a username and a name to register', () => {
     expect(canSubmitAccount(initialOnboardingState)).toBe(false);
 
     const account = {
@@ -11,9 +17,37 @@ describe('onboarding state machine', () => {
       name: 'Maya',
       email: 'maya@example.com',
       password: 'long-enough-password',
-      isAdult: true
+      username: '@Maya_Runs',
+      birthDay: '5',
+      birthMonth: '3',
+      birthYear: '1996'
     };
-    expect(canSubmitAccount(account)).toBe(true);
+    expect(canSubmitAccount(account, '2026-11-21')).toBe(true);
+    expect(dateOfBirthFrom(account)).toBe('1996-03-05');
+
+    // Under 18 on the day, said plainly rather than as a dead button.
+    const minor = { ...account, birthYear: '2010' };
+    expect(accountProblem(minor, '2026-11-21')).toMatch(/18 or older/);
+    expect(accountProblem({ ...account, username: '9lives' }, '2026-11-21')).toMatch(/Usernames/);
+    expect(accountProblem({ ...account, birthDay: '' }, '2026-11-21')).toMatch(/date of birth/);
+  });
+
+  it('adds the Who can see you step after sign-up, but not after sign-in', () => {
+    const registered = onboardingReducer(
+      { ...initialOnboardingState, accountMode: 'register', step: 'account' },
+      { type: 'authenticationSucceeded' }
+    );
+    expect(registered.step).toBe('social');
+    expect(onboardingReducer(registered, { type: 'socialDone' }).step).toBe('privacy');
+    expect(onboardingReducer({ ...registered, step: 'privacy' }, { type: 'back' }).step).toBe(
+      'social'
+    );
+
+    const signedIn = onboardingReducer(
+      { ...initialOnboardingState, accountMode: 'login', step: 'account' },
+      { type: 'authenticationSucceeded' }
+    );
+    expect(signedIn.step).toBe('privacy');
   });
 
   it('permits password-based login without registration-only fields', () => {
