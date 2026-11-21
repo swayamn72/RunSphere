@@ -8,6 +8,7 @@ import {
 import { createLogger, type Logger } from '@runsphere/observability';
 import { processActivity } from '@runsphere/api/activity';
 import { syncAchievementsForActivity } from '@runsphere/api/achievements';
+import { completeQuestsForActivity } from '@runsphere/api/quests';
 import {
   CHALLENGE_FINISHED_TOPIC,
   cancelExpiredChallengeInvites,
@@ -331,6 +332,14 @@ const awardAchievements: AfterActivityProcessed = async (db, activityId) => {
     await syncAchievementsForActivity(db, activityId);
   } catch (error) {
     createLogger('worker').error('worker.achievement_sync_failed', {
+      error: safeWorkerError(error)
+    });
+  }
+  // Quests (M6.3) on the same terms: best effort, idempotent, never fails the run.
+  try {
+    await completeQuestsForActivity(db, activityId);
+  } catch (error) {
+    createLogger('worker').error('worker.quest_completion_failed', {
       error: safeWorkerError(error)
     });
   }

@@ -104,6 +104,26 @@ export const QuestParamsSchema = Type.Object(
   { questId: Type.String({ minLength: 1 }) },
   { $id: 'QuestParams' }
 );
+/** The reader's own quests (M6.3): taken on, and when finished. */
+export const QuestStatusSchema = Type.Union([Type.Literal('accepted'), Type.Literal('completed')]);
+export const QuestAcceptResponseSchema = Type.Object(
+  { status: QuestStatusSchema, acceptedAt: Type.String({ format: 'date-time' }) },
+  { $id: 'QuestAcceptResponse' }
+);
+export const MyQuestSchema = Type.Object(
+  {
+    questId: Type.String({ minLength: 1 }),
+    title: Type.String(),
+    status: QuestStatusSchema,
+    acceptedAt: Type.String({ format: 'date-time' }),
+    completedAt: Type.Optional(Type.String({ format: 'date-time' }))
+  },
+  { $id: 'MyQuest' }
+);
+export const MyQuestListResponseSchema = Type.Object(
+  { data: Type.Array(MyQuestSchema, { maxItems: 100 }) },
+  { $id: 'MyQuestListResponse' }
+);
 export const QuestNotFoundResponseSchema = Type.Object(
   { message: Type.Literal('Quest not found') },
   { $id: 'QuestNotFoundResponse' }
@@ -587,6 +607,9 @@ export type RefreshRequest = Static<typeof RefreshRequestSchema>;
 export type PrivacyZoneRequest = Static<typeof PrivacyZoneRequestSchema>;
 export type PrivacyZoneResponse = Static<typeof PrivacyZoneResponseSchema>;
 export type PrivacyZoneListResponse = Static<typeof PrivacyZoneListResponseSchema>;
+export type QuestAcceptResponse = Static<typeof QuestAcceptResponseSchema>;
+export type MyQuest = Static<typeof MyQuestSchema>;
+export type MyQuestListResponse = Static<typeof MyQuestListResponseSchema>;
 export type SafetyShareReceived = Static<typeof SafetyShareReceivedSchema>;
 export type SafetyShareReceivedListResponse = Static<typeof SafetyShareReceivedListResponseSchema>;
 export type VisibilityRequest = Static<typeof VisibilityRequestSchema>;

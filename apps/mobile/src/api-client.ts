@@ -60,7 +60,10 @@ import type {
   PrivacySettings,
   PrivacySettingsUpdate,
   ProfileSearchResponse,
+  MyQuest,
+  MyQuestListResponse,
   PublicProfile,
+  QuestAcceptResponse,
   SafetyShareReceived,
   SafetyShareReceivedListResponse,
   UsernameAvailability,
@@ -258,6 +261,25 @@ export class MobileApiClient {
     if (!response.ok)
       throw new ApiFailure(response.status, `Unable to load quests (${response.status}).`);
     return (await jsonBody<{ data: QuestSummary[] }>(response, '/v1/quests')).data;
+  }
+  /**
+   * Quests you've taken on (M6.3). Completion is never sent: the server checks
+   * each run you finish against the quest's checkpoints and records it.
+   */
+  async listMyQuests(): Promise<readonly MyQuest[]> {
+    return (await this.request<MyQuestListResponse>('/v1/quests/mine', { method: 'GET' })).data;
+  }
+  async acceptQuest(id: string): Promise<QuestAcceptResponse> {
+    return this.request(`/v1/quests/${encodeURIComponent(id)}/accept`, {
+      method: 'POST',
+      body: {}
+    });
+  }
+  async dropQuest(id: string): Promise<void> {
+    await this.request(`/v1/quests/${encodeURIComponent(id)}/accept`, {
+      method: 'DELETE',
+      empty: true
+    });
   }
   async getQuest(id: string): Promise<QuestDetail> {
     return this.request<QuestDetail>(

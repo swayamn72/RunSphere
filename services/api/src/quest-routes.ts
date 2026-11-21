@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import {
   ActivityAuthorizationHeadersSchema,
   ErrorResponseSchema,
+  MyQuestListResponseSchema,
+  QuestAcceptResponseSchema,
   QuestDetailSchema,
   QuestListResponseSchema,
   QuestNotFoundResponseSchema,
@@ -13,6 +15,7 @@ import {
 } from '@runsphere/contracts';
 import type { Database } from '@runsphere/db';
 import { requireAccount } from './auth-routes.js';
+import { abandonQuest, acceptQuest, myQuests } from './quest-core.js';
 
 /**
  * The weekly goal's progress for the Asia/Kolkata week containing `now`
@@ -72,6 +75,84 @@ export interface QuestRouteDeps {
 }
 
 export const registerQuestRoutes = ({ routes, database, authSecret }: QuestRouteDeps) => {
+  /** The reader's quests: taken on, and finished (M6.3). */
+  routes.get(
+    '/v1/quests/mine',
+    {
+      schema: {
+        tags: ['quests'],
+        headers: ActivityAuthorizationHeadersSchema,
+        response: {
+          200: MyQuestListResponseSchema,
+          401: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+      return { data: await myQuests(database, accountId) };
+    }
+  );
+
+  /**
+   * Take a quest on. Completion is never asked for: the worker checks each
+   * run you finish against the quest's checkpoints (`quest-core.ts`).
+   */
+  routes.post<{ Params: QuestParams }>(
+    '/v1/quests/:questId/accept',
+    {
+      schema: {
+        tags: ['quests'],
+        params: QuestParamsSchema,
+        headers: ActivityAuthorizationHeadersSchema,
+        response: {
+          200: QuestAcceptResponseSchema,
+          401: ErrorResponseSchema,
+          404: QuestNotFoundResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+      if (!/^[0-9a-f-]{36}$/i.test(request.params.questId))
+        return reply.code(404).send({ message: 'Quest not found' });
+      const accepted = await acceptQuest(database, accountId, request.params.questId);
+      if (!accepted) return reply.code(404).send({ message: 'Quest not found' });
+      return { status: accepted.status, acceptedAt: accepted.acceptedAt.toISOString() };
+    }
+  );
+
+  routes.delete<{ Params: QuestParams }>(
+    '/v1/quests/:questId/accept',
+    {
+      schema: {
+        tags: ['quests'],
+        params: QuestParamsSchema,
+        headers: ActivityAuthorizationHeadersSchema,
+        response: {
+          204: { type: 'null' },
+          401: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+      const dropped = await abandonQuest(database, accountId, request.params.questId);
+      if (!dropped) return reply.code(404).send({ message: 'No open quest to drop' });
+      return reply.code(204).send();
+    }
+  );
+
   routes.get(
     '/v1/quests',
     {

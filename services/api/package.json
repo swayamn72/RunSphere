@@ -16,6 +16,10 @@
       "types": "./dist/progression-core.d.ts",
       "default": "./dist/progression-core.js"
     },
+    "./quests": {
+      "types": "./dist/quest-core.d.ts",
+      "default": "./dist/quest-core.js"
+    },
     "./achievements": {
       "types": "./dist/achievement-core.d.ts",
       "default": "./dist/achievement-core.js"

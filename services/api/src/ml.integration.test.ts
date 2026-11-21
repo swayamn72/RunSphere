@@ -303,14 +303,21 @@ describePostgis('quest interactions', () => {
     ]);
   });
 
-  it('is empty, because nothing writes one yet', async () => {
-    // Stated as a test rather than a comment: the day something does start
-    // writing, this fails and somebody re-reads `045`.
-    const counted = await db.query<{ count: string }>(
-      'SELECT count(*)::text AS count FROM quest_interactions'
+  it('reads only from the lifecycle tables the quest routes now write (M6.3)', async () => {
+    // This used to assert the view was empty because nothing wrote to it, and
+    // said it would fail the day something did. That day was M6.3: accepting
+    // and completing quests (`quest-core.ts`) now writes both tables. What
+    // stays true is that the view carries no location, only ids and weights.
+    const columns = await db.query<{ column_name: string }>(
+      `SELECT column_name FROM information_schema.columns WHERE table_name = 'quest_interactions'
+       ORDER BY column_name`
     );
-
-    expect(Number(counted.rows[0]!.count)).toBe(0);
+    expect(columns.rows.map((row) => row.column_name)).toEqual([
+      'account_id',
+      'interacted_at',
+      'quest_version_id',
+      'weight'
+    ]);
   });
 
   it('weights a completion above an acceptance, and an abandonment at zero', async () => {

@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { QuestDetail, QuestSummary } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { PrimaryButton, Stat } from '../components/primitives';
+import { QuestProgressCard } from './QuestProgressCard';
 import { MapSurface } from '../maps/MapSurface';
 import { useAppTheme } from '../theme/theme';
 import {
@@ -64,8 +65,8 @@ export function QuestDetailScreen({
         {quest.title}
       </Text>
       <Text style={[styles.copy, { color: tokens.text.secondary }]}>
-        Checkpoint details are display-only. There is no prescribed order, arrival check, route, or
-        completion action here.
+        Pass every stop on one run, in any order. RunSphere checks your run when it's uploaded;
+        there's nothing to tap at each stop.
       </Text>
       <View style={[styles.stats, { backgroundColor: tokens.background.surface }]}>
         <Stat
@@ -90,7 +91,8 @@ export function QuestDetailScreen({
         />
       </View>
       <DetailContent quest={quest} detail={detail} state={state} />
-      <PrimaryButton label="Start a free activity" onPress={onStart} />
+      <QuestProgressCard api={api} questId={quest.id} />
+      <PrimaryButton label="Start a run" onPress={onStart} />
     </View>
   );
 }

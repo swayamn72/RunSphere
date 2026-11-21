@@ -11,6 +11,7 @@ import {
 } from '@runsphere/contracts';
 import type { Database } from '@runsphere/db';
 import { weeklyPeriodStart, xpLevel } from '@runsphere/domain';
+import { questsCompletedCount } from './quest-core.js';
 import { verifyAccessToken } from './auth.js';
 import {
   currentWeek,
@@ -114,7 +115,7 @@ export const registerProgressionRoutes = ({
 
       const summary: ProgressionSummary = {
         totalXp,
-        questsCompleted: 0,
+        questsCompleted: await questsCompletedCount(database, accountId),
         achievements: awardsFrom(awards.rows),
         ...(consistency ? { weeklyConsistency: consistency } : {})
       };
