@@ -87,3 +87,22 @@ export const decimateCoordinates = <T>(coordinates: readonly T[], maximum = 500)
     sampled.push(finalCoordinate);
   return sampled;
 };
+
+/** Mumbai, the launch city: where a map opens before it knows where you are. */
+export const LAUNCH_CITY_CENTRE: readonly [number, number] = [72.8777, 19.076];
+const CITY_ZOOM = 11;
+
+/**
+ * Where a map opens. Your own position when one is known, otherwise the
+ * launch city at city zoom, never the whole world: a run that starts before
+ * the first GPS fix used to open on every continent at zoom 1.
+ */
+export const startingView = (
+  initialCenter: readonly [number, number] | undefined,
+  liveCenter: readonly [number, number] | undefined
+): { center: [number, number]; zoom: number } => {
+  const known = initialCenter ?? liveCenter;
+  return known
+    ? { center: [known[0], known[1]], zoom: initialMapCameraState.zoom }
+    : { center: [LAUNCH_CITY_CENTRE[0], LAUNCH_CITY_CENTRE[1]], zoom: CITY_ZOOM };
+};

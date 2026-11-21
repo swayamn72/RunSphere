@@ -25,6 +25,7 @@ import { OnboardingSocialStep } from './OnboardingSocialStep';
 import { usernameHint } from './privacy-settings-model';
 import type { initialOnboardingState, onboardingReducer } from '../onboarding';
 import { PermissionCard, PrimaryButton, StepHeader } from '../components/primitives';
+import { KeyboardSafe } from '../components/ScreenShell';
 import { useAppStyles } from '../components/styles';
 import appLogo from '../../assets/logo.png';
 
@@ -124,343 +125,348 @@ export function Onboarding({
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar style={colorScheme === 'dark' ? 'dark' : 'light'} />
-      <ScrollView
-        contentContainerStyle={styles.onboardingContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        {state.step === 'welcome' && (
-          <>
-            {/*
+      <KeyboardSafe>
+        <ScrollView
+          contentContainerStyle={styles.onboardingContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {state.step === 'welcome' && (
+            <>
+              {/*
               The wordmark sits inside the hero rather than under it, so the
               first screen is one image with a name on it. Geometry rather than
               a photograph: the app ships no bitmap hero, and a stock runner
               would be the one thing on this screen that is not RunSphere's.
             */}
-            <View accessible={false} style={styles.splashHero}>
-              <View style={styles.orbitOne} />
-              <View style={styles.orbitTwo} />
+              <View accessible={false} style={styles.splashHero}>
+                <View style={styles.orbitOne} />
+                <View style={styles.orbitTwo} />
+                <Image
+                  source={appLogo}
+                  style={styles.splashLogo}
+                  resizeMode="contain"
+                  accessibilityRole="image"
+                  accessibilityLabel="RunSphere logo"
+                />
+                <View style={styles.splashMark}>
+                  <Text accessibilityRole="header" style={styles.wordmark}>
+                    Run<Text style={styles.teal}>Sphere</Text>
+                  </Text>
+                  <Text style={styles.splashTagline}>More than a run.{'\n'}A bigger world.</Text>
+                </View>
+              </View>
+              <PrimaryButton
+                label="Get started"
+                onPress={() => dispatch({ type: 'startAccount', mode: 'register' })}
+              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="I already have an account"
+                onPress={() => dispatch({ type: 'startAccount', mode: 'login' })}
+              >
+                <Text style={styles.textButton}>I already have an account</Text>
+              </Pressable>
+              {/* The three verbs the product is built on, as the design closes
+                the screen with. */}
+              <Text style={styles.splashFooter}>Run · Capture · Connect</Text>
+            </>
+          )}
+          {state.step === 'account' && (
+            <>
+              <StepHeader
+                step={state.accountMode === 'login' ? 'SIGN IN' : 'STEP 1 OF 3'}
+                onBack={() => dispatch({ type: 'back' })}
+              />
               <Image
                 source={appLogo}
-                style={styles.splashLogo}
+                style={styles.accountLogo}
                 resizeMode="contain"
                 accessibilityRole="image"
                 accessibilityLabel="RunSphere logo"
               />
-              <View style={styles.splashMark}>
-                <Text accessibilityRole="header" style={styles.wordmark}>
-                  Run<Text style={styles.teal}>Sphere</Text>
-                </Text>
-                <Text style={styles.splashTagline}>More than a run.{'\n'}A bigger world.</Text>
-              </View>
-            </View>
-            <PrimaryButton
-              label="Get started"
-              onPress={() => dispatch({ type: 'startAccount', mode: 'register' })}
-            />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="I already have an account"
-              onPress={() => dispatch({ type: 'startAccount', mode: 'login' })}
-            >
-              <Text style={styles.textButton}>I already have an account</Text>
-            </Pressable>
-            {/* The three verbs the product is built on, as the design closes
-                the screen with. */}
-            <Text style={styles.splashFooter}>Run · Capture · Connect</Text>
-          </>
-        )}
-        {state.step === 'account' && (
-          <>
-            <StepHeader
-              step={state.accountMode === 'login' ? 'SIGN IN' : 'STEP 1 OF 3'}
-              onBack={() => dispatch({ type: 'back' })}
-            />
-            <Image
-              source={appLogo}
-              style={styles.accountLogo}
-              resizeMode="contain"
-              accessibilityRole="image"
-              accessibilityLabel="RunSphere logo"
-            />
-            <Text style={styles.eyebrow}>
-              {state.accountMode === 'login' ? 'WELCOME BACK' : 'MAKE IT YOURS'}
-            </Text>
-            <Text style={styles.onboardingTitle}>
-              {state.accountMode === 'login' ? 'Sign in securely.' : 'A few details first.'}
-            </Text>
-            <Text style={styles.lead}>
-              {state.accountMode === 'login'
-                ? 'Use your email and password to restore your private RunSphere account.'
-                : 'We use your email and password to create your private RunSphere account.'}
-            </Text>
-            {state.accountMode === 'register' && (
-              <>
-                <Text style={styles.fieldLabel}>DISPLAY NAME</Text>
-                <TextInput
-                  accessibilityLabel="Display name"
-                  autoCapitalize="words"
-                  value={state.name}
-                  onChangeText={(name) => dispatch({ type: 'updateAccount', name })}
-                  placeholder="How should we call you?"
-                  placeholderTextColor={tokens.text.secondary}
-                  style={styles.input}
-                />
-                <Text style={styles.fieldLabel}>USERNAME</Text>
-                <TextInput
-                  accessibilityLabel="Username"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  value={state.username}
-                  onChangeText={(username) => dispatch({ type: 'updateAccount', username })}
-                  placeholder="@username"
-                  placeholderTextColor={tokens.text.secondary}
-                  style={styles.input}
-                />
-                {usernameHint(state.username) ? (
-                  <Text style={styles.rowDetail}>{usernameHint(state.username)}</Text>
-                ) : (
-                  <Text style={styles.rowDetail}>
-                    How friends find you. You can change it later.
-                  </Text>
-                )}
-                <Text style={styles.fieldLabel}>DATE OF BIRTH</Text>
-                <View style={styles.filterRow}>
-                  <TextInput
-                    accessibilityLabel="Day of birth"
-                    keyboardType="number-pad"
-                    maxLength={2}
-                    value={state.birthDay}
-                    onChangeText={(birthDay) => dispatch({ type: 'updateAccount', birthDay })}
-                    placeholder="DD"
-                    placeholderTextColor={tokens.text.secondary}
-                    style={[styles.input, styles.flexCopy]}
-                  />
-                  <TextInput
-                    accessibilityLabel="Month of birth"
-                    keyboardType="number-pad"
-                    maxLength={2}
-                    value={state.birthMonth}
-                    onChangeText={(birthMonth) => dispatch({ type: 'updateAccount', birthMonth })}
-                    placeholder="MM"
-                    placeholderTextColor={tokens.text.secondary}
-                    style={[styles.input, styles.flexCopy]}
-                  />
-                  <TextInput
-                    accessibilityLabel="Year of birth"
-                    keyboardType="number-pad"
-                    maxLength={4}
-                    value={state.birthYear}
-                    onChangeText={(birthYear) => dispatch({ type: 'updateAccount', birthYear })}
-                    placeholder="YYYY"
-                    placeholderTextColor={tokens.text.secondary}
-                    style={[styles.input, styles.flexCopy]}
-                  />
-                </View>
-                <Text style={styles.rowDetail}>
-                  Only to check you're 18 or older. Never shown to anyone.
-                </Text>
-              </>
-            )}
-            <Text style={styles.fieldLabel}>EMAIL</Text>
-            <TextInput
-              accessibilityLabel="Email address"
-              autoCapitalize="none"
-              autoComplete="email"
-              keyboardType="email-address"
-              value={state.email}
-              onChangeText={(email) => dispatch({ type: 'updateAccount', email })}
-              placeholder="you@example.com"
-              placeholderTextColor={tokens.text.secondary}
-              style={styles.input}
-            />
-            <Text style={styles.fieldLabel}>PASSWORD</Text>
-            <TextInput
-              accessibilityLabel="Password"
-              autoCapitalize="none"
-              autoComplete={state.accountMode === 'login' ? 'current-password' : 'new-password'}
-              secureTextEntry
-              value={state.password}
-              onChangeText={(password) => dispatch({ type: 'updateAccount', password })}
-              placeholder="At least 12 characters"
-              placeholderTextColor={tokens.text.secondary}
-              style={styles.input}
-            />
-            {!authError && accountProblem(state) && (state.email || state.password) ? (
-              <Text style={styles.rowDetail}>{accountProblem(state)}</Text>
-            ) : null}
-            {authError && (
-              <Text accessibilityLiveRegion="polite" style={styles.errorText}>
-                {authError}
+              <Text style={styles.eyebrow}>
+                {state.accountMode === 'login' ? 'WELCOME BACK' : 'MAKE IT YOURS'}
               </Text>
-            )}
-            {authFailureKind === 'account-exists' && (
+              <Text style={styles.onboardingTitle}>
+                {state.accountMode === 'login' ? 'Sign in securely.' : 'A few details first.'}
+              </Text>
+              <Text style={styles.lead}>
+                {state.accountMode === 'login'
+                  ? 'Use your email and password to restore your private RunSphere account.'
+                  : 'We use your email and password to create your private RunSphere account.'}
+              </Text>
+              {state.accountMode === 'register' && (
+                <>
+                  <Text style={styles.fieldLabel}>DISPLAY NAME</Text>
+                  <TextInput
+                    accessibilityLabel="Display name"
+                    autoCapitalize="words"
+                    value={state.name}
+                    onChangeText={(name) => dispatch({ type: 'updateAccount', name })}
+                    placeholder="How should we call you?"
+                    placeholderTextColor={tokens.text.secondary}
+                    style={styles.input}
+                  />
+                  <Text style={styles.fieldLabel}>USERNAME</Text>
+                  <TextInput
+                    accessibilityLabel="Username"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    value={state.username}
+                    onChangeText={(username) => dispatch({ type: 'updateAccount', username })}
+                    placeholder="@username"
+                    placeholderTextColor={tokens.text.secondary}
+                    style={styles.input}
+                  />
+                  {usernameHint(state.username) ? (
+                    <Text style={styles.rowDetail}>{usernameHint(state.username)}</Text>
+                  ) : (
+                    <Text style={styles.rowDetail}>
+                      How friends find you. You can change it later.
+                    </Text>
+                  )}
+                  <Text style={styles.fieldLabel}>DATE OF BIRTH</Text>
+                  <View style={styles.filterRow}>
+                    <TextInput
+                      accessibilityLabel="Day of birth"
+                      keyboardType="number-pad"
+                      maxLength={2}
+                      value={state.birthDay}
+                      onChangeText={(birthDay) => dispatch({ type: 'updateAccount', birthDay })}
+                      placeholder="DD"
+                      placeholderTextColor={tokens.text.secondary}
+                      style={[styles.input, styles.flexCopy]}
+                    />
+                    <TextInput
+                      accessibilityLabel="Month of birth"
+                      keyboardType="number-pad"
+                      maxLength={2}
+                      value={state.birthMonth}
+                      onChangeText={(birthMonth) => dispatch({ type: 'updateAccount', birthMonth })}
+                      placeholder="MM"
+                      placeholderTextColor={tokens.text.secondary}
+                      style={[styles.input, styles.flexCopy]}
+                    />
+                    <TextInput
+                      accessibilityLabel="Year of birth"
+                      keyboardType="number-pad"
+                      maxLength={4}
+                      value={state.birthYear}
+                      onChangeText={(birthYear) => dispatch({ type: 'updateAccount', birthYear })}
+                      placeholder="YYYY"
+                      placeholderTextColor={tokens.text.secondary}
+                      style={[styles.input, styles.flexCopy]}
+                    />
+                  </View>
+                  <Text style={styles.rowDetail}>
+                    Only to check you're 18 or older. Never shown to anyone.
+                  </Text>
+                </>
+              )}
+              <Text style={styles.fieldLabel}>EMAIL</Text>
+              <TextInput
+                accessibilityLabel="Email address"
+                autoCapitalize="none"
+                autoComplete="email"
+                keyboardType="email-address"
+                value={state.email}
+                onChangeText={(email) => dispatch({ type: 'updateAccount', email })}
+                placeholder="you@example.com"
+                placeholderTextColor={tokens.text.secondary}
+                style={styles.input}
+              />
+              <Text style={styles.fieldLabel}>PASSWORD</Text>
+              <TextInput
+                accessibilityLabel="Password"
+                autoCapitalize="none"
+                autoComplete={state.accountMode === 'login' ? 'current-password' : 'new-password'}
+                secureTextEntry
+                value={state.password}
+                onChangeText={(password) => dispatch({ type: 'updateAccount', password })}
+                placeholder="At least 12 characters"
+                placeholderTextColor={tokens.text.secondary}
+                style={styles.input}
+              />
+              {!authError && accountProblem(state) && (state.email || state.password) ? (
+                <Text style={styles.rowDetail}>{accountProblem(state)}</Text>
+              ) : null}
+              {authError && (
+                <Text accessibilityLiveRegion="polite" style={styles.errorText}>
+                  {authError}
+                </Text>
+              )}
+              {authFailureKind === 'account-exists' && (
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={authStatus === 'loading'}
+                  onPress={() => {
+                    setAuthError(undefined);
+                    setAuthFailureKind(undefined);
+                    setAuthStatus('idle');
+                    dispatch({ type: 'startAccount', mode: 'login' });
+                  }}
+                >
+                  <Text style={styles.textButton}>Sign in with this email</Text>
+                </Pressable>
+              )}
+              <PrimaryButton
+                label={
+                  authStatus === 'loading'
+                    ? 'Please wait…'
+                    : authStatus === 'error'
+                      ? 'Try again'
+                      : state.accountMode === 'login'
+                        ? 'Sign in'
+                        : 'Create account'
+                }
+                disabled={!canSubmitAccount(state) || authStatus === 'loading'}
+                onPress={() => void authenticate()}
+              />
               <Pressable
                 accessibilityRole="button"
                 disabled={authStatus === 'loading'}
-                onPress={() => {
-                  setAuthError(undefined);
-                  setAuthFailureKind(undefined);
-                  setAuthStatus('idle');
-                  dispatch({ type: 'startAccount', mode: 'login' });
-                }}
+                onPress={() =>
+                  dispatch({
+                    type: 'startAccount',
+                    mode: state.accountMode === 'login' ? 'register' : 'login'
+                  })
+                }
               >
-                <Text style={styles.textButton}>Sign in with this email</Text>
-              </Pressable>
-            )}
-            <PrimaryButton
-              label={
-                authStatus === 'loading'
-                  ? 'Please wait…'
-                  : authStatus === 'error'
-                    ? 'Try again'
-                    : state.accountMode === 'login'
-                      ? 'Sign in'
-                      : 'Create account'
-              }
-              disabled={!canSubmitAccount(state) || authStatus === 'loading'}
-              onPress={() => void authenticate()}
-            />
-            <Pressable
-              accessibilityRole="button"
-              disabled={authStatus === 'loading'}
-              onPress={() =>
-                dispatch({
-                  type: 'startAccount',
-                  mode: state.accountMode === 'login' ? 'register' : 'login'
-                })
-              }
-            >
-              <Text style={styles.textButton}>
-                {state.accountMode === 'login'
-                  ? 'Need an account? Create one'
-                  : 'Already have an account? Sign in'}
-              </Text>
-            </Pressable>
-          </>
-        )}
-        {state.step === 'social' && (
-          <OnboardingSocialStep
-            api={api}
-            captureLocation={async () => {
-              const permission = await Location.requestForegroundPermissionsAsync();
-              if (!permission.granted) return undefined;
-              const position = await Location.getCurrentPositionAsync({
-                accuracy: Location.Accuracy.Balanced
-              });
-              return { latitude: position.coords.latitude, longitude: position.coords.longitude };
-            }}
-            onDone={() => dispatch({ type: 'socialDone' })}
-          />
-        )}
-        {state.step === 'privacy' && (
-          <>
-            <StepHeader
-              step={state.accountMode === 'login' ? 'STEP 2 OF 2' : 'STEP 3 OF 3'}
-              onBack={() => dispatch({ type: 'back' })}
-            />
-            <View accessible={false} style={styles.miniMap}>
-              <Text style={styles.mapRoute}>⌁</Text>
-              <Text style={styles.mapShield}>✓</Text>
-            </View>
-            <Text style={styles.eyebrow}>YOU’RE IN CONTROL</Text>
-            <Text style={styles.onboardingTitle}>Set up your activity map.</Text>
-            <Text style={styles.lead}>
-              Precise location records your run. GPS points are encrypted on this device, then
-              uploaded to RunSphere to check the run when you choose to sync. Uploaded raw GPS is
-              kept for up to 30 days, and route maps are trimmed around your saved privacy zones.
-            </Text>
-            <PermissionCard
-              icon="⌖"
-              title="Precise location"
-              detail="While recording; encrypted locally and uploaded only to validate a saved activity"
-              badge="Required"
-            />
-            <PermissionCard
-              icon="⌁"
-              title="Background location"
-              detail="Optional; only requested if you choose screen-lock recording before an activity"
-              badge="Optional"
-            />
-            <PermissionCard
-              icon="◉"
-              title="Motion & fitness"
-              detail="Optional; improves future estimates"
-              badge="Optional"
-            />
-            <View style={styles.privacyRow}>
-              <View style={styles.flexCopy}>
-                <Text style={styles.rowTitle}>Trim saved places</Text>
-                <Text style={styles.rowDetail}>
-                  Saved privacy zones remove start, finish, and route fragments within 200 m before
-                  a map can be shared
+                <Text style={styles.textButton}>
+                  {state.accountMode === 'login'
+                    ? 'Need an account? Create one'
+                    : 'Already have an account? Sign in'}
                 </Text>
-              </View>
-              <Switch
-                accessibilityLabel="Hide activity start and finish preference"
-                value={state.hideStartFinish}
-                onValueChange={(value) => dispatch({ type: 'setHideStartFinish', value })}
-                trackColor={{ false: tokens.border.subtle, true: tokens.status.success }}
-              />
-            </View>
-            <Text style={styles.privateNote}>
-              Activities stay private by default. Declining location still lets you browse
-              RunSphere, but activity recording and nearby quests remain unavailable.
-            </Text>
-            {state.location !== 'granted' ? (
-              <PrimaryButton label="Allow location" onPress={() => void requestLocation()} />
-            ) : (
-              <>
-                {state.motion === 'idle' && (
-                  <Pressable accessibilityRole="button" onPress={() => void requestMotion()}>
-                    <Text style={styles.textButton}>Allow motion & fitness (optional)</Text>
-                  </Pressable>
-                )}
-                {state.motion !== 'idle' && (
-                  <Text accessibilityLiveRegion="polite" style={styles.privateNote}>
-                    Motion & fitness is {state.motion === 'granted' ? 'allowed' : 'not allowed'}.
-                    This optional choice does not block RunSphere.
-                  </Text>
-                )}
-                <PrimaryButton
-                  label="Continue to RunSphere"
-                  onPress={() => dispatch({ type: 'finish' })}
-                />
-              </>
-            )}
-            {state.location !== 'granted' && (
-              <Pressable accessibilityRole="button" onPress={() => dispatch({ type: 'finish' })}>
-                <Text style={styles.textButton}>Continue without location</Text>
               </Pressable>
-            )}
-          </>
-        )}
-        {state.step === 'location-denied' && (
-          <>
-            <StepHeader step="LOCATION NEEDED" onBack={() => dispatch({ type: 'back' })} />
-            <Text style={styles.eyebrow}>LOCATION IS OFF</Text>
-            <Text style={styles.onboardingTitle}>You can keep browsing.</Text>
-            <Text style={styles.lead}>
-              Without location, activity recording and nearby quests are unavailable. Background
-              location is optional and only requested when you choose screen-lock recording.
-            </Text>
-            {state.location === 'blocked' && (
-              <Text style={styles.privateNote}>
-                Location is disabled for RunSphere. Enable it in Android Settings, then return here.
-              </Text>
-            )}
-            <PrimaryButton
-              label={state.location === 'blocked' ? 'Open location settings' : 'Try location again'}
-              onPress={() => void requestLocation()}
+            </>
+          )}
+          {state.step === 'social' && (
+            <OnboardingSocialStep
+              api={api}
+              captureLocation={async () => {
+                const permission = await Location.requestForegroundPermissionsAsync();
+                if (!permission.granted) return undefined;
+                const position = await Location.getCurrentPositionAsync({
+                  accuracy: Location.Accuracy.Balanced
+                });
+                return { latitude: position.coords.latitude, longitude: position.coords.longitude };
+              }}
+              onDone={() => dispatch({ type: 'socialDone' })}
             />
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => dispatch({ type: 'continueWithoutLocation' })}
-            >
-              <Text style={styles.textButton}>Continue without activity mapping</Text>
-            </Pressable>
-          </>
-        )}
-      </ScrollView>
+          )}
+          {state.step === 'privacy' && (
+            <>
+              <StepHeader
+                step={state.accountMode === 'login' ? 'STEP 2 OF 2' : 'STEP 3 OF 3'}
+                onBack={() => dispatch({ type: 'back' })}
+              />
+              <View accessible={false} style={styles.miniMap}>
+                <Text style={styles.mapRoute}>⌁</Text>
+                <Text style={styles.mapShield}>✓</Text>
+              </View>
+              <Text style={styles.eyebrow}>YOU’RE IN CONTROL</Text>
+              <Text style={styles.onboardingTitle}>Set up your activity map.</Text>
+              <Text style={styles.lead}>
+                Precise location records your run. GPS points are encrypted on this device, then
+                uploaded to RunSphere to check the run when you choose to sync. Uploaded raw GPS is
+                kept for up to 30 days, and route maps are trimmed around your saved privacy zones.
+              </Text>
+              <PermissionCard
+                icon="⌖"
+                title="Precise location"
+                detail="While recording; encrypted locally and uploaded only to validate a saved activity"
+                badge="Required"
+              />
+              <PermissionCard
+                icon="⌁"
+                title="Background location"
+                detail="Optional; only requested if you choose screen-lock recording before an activity"
+                badge="Optional"
+              />
+              <PermissionCard
+                icon="◉"
+                title="Motion & fitness"
+                detail="Optional; improves future estimates"
+                badge="Optional"
+              />
+              <View style={styles.privacyRow}>
+                <View style={styles.flexCopy}>
+                  <Text style={styles.rowTitle}>Trim saved places</Text>
+                  <Text style={styles.rowDetail}>
+                    Saved privacy zones remove start, finish, and route fragments within 200 m
+                    before a map can be shared
+                  </Text>
+                </View>
+                <Switch
+                  accessibilityLabel="Hide activity start and finish preference"
+                  value={state.hideStartFinish}
+                  onValueChange={(value) => dispatch({ type: 'setHideStartFinish', value })}
+                  trackColor={{ false: tokens.border.subtle, true: tokens.status.success }}
+                />
+              </View>
+              <Text style={styles.privateNote}>
+                Activities stay private by default. Declining location still lets you browse
+                RunSphere, but activity recording and nearby quests remain unavailable.
+              </Text>
+              {state.location !== 'granted' ? (
+                <PrimaryButton label="Allow location" onPress={() => void requestLocation()} />
+              ) : (
+                <>
+                  {state.motion === 'idle' && (
+                    <Pressable accessibilityRole="button" onPress={() => void requestMotion()}>
+                      <Text style={styles.textButton}>Allow motion & fitness (optional)</Text>
+                    </Pressable>
+                  )}
+                  {state.motion !== 'idle' && (
+                    <Text accessibilityLiveRegion="polite" style={styles.privateNote}>
+                      Motion & fitness is {state.motion === 'granted' ? 'allowed' : 'not allowed'}.
+                      This optional choice does not block RunSphere.
+                    </Text>
+                  )}
+                  <PrimaryButton
+                    label="Continue to RunSphere"
+                    onPress={() => dispatch({ type: 'finish' })}
+                  />
+                </>
+              )}
+              {state.location !== 'granted' && (
+                <Pressable accessibilityRole="button" onPress={() => dispatch({ type: 'finish' })}>
+                  <Text style={styles.textButton}>Continue without location</Text>
+                </Pressable>
+              )}
+            </>
+          )}
+          {state.step === 'location-denied' && (
+            <>
+              <StepHeader step="LOCATION NEEDED" onBack={() => dispatch({ type: 'back' })} />
+              <Text style={styles.eyebrow}>LOCATION IS OFF</Text>
+              <Text style={styles.onboardingTitle}>You can keep browsing.</Text>
+              <Text style={styles.lead}>
+                Without location, activity recording and nearby quests are unavailable. Background
+                location is optional and only requested when you choose screen-lock recording.
+              </Text>
+              {state.location === 'blocked' && (
+                <Text style={styles.privateNote}>
+                  Location is disabled for RunSphere. Enable it in Android Settings, then return
+                  here.
+                </Text>
+              )}
+              <PrimaryButton
+                label={
+                  state.location === 'blocked' ? 'Open location settings' : 'Try location again'
+                }
+                onPress={() => void requestLocation()}
+              />
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => dispatch({ type: 'continueWithoutLocation' })}
+              >
+                <Text style={styles.textButton}>Continue without activity mapping</Text>
+              </Pressable>
+            </>
+          )}
+        </ScrollView>
+      </KeyboardSafe>
     </SafeAreaView>
   );
 }

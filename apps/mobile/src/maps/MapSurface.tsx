@@ -18,6 +18,7 @@ import {
   initialMapCameraState,
   recenterMap,
   resetCompass,
+  startingView,
   transitionMapLifecycle,
   type MapCameraState,
   type MapLifecycleState
@@ -174,8 +175,10 @@ export function MapSurface({
 
   // Local live centers never enter provider configuration. They only update the native
   // camera while this renderer is already in follow mode.
+  // Re-runs when the map finishes loading too: a fix that arrives while the
+  // style is still loading has no camera to move yet.
   useEffect(() => {
-    if (!liveCenter || camera.mode !== 'follow') return;
+    if (!liveCenter || camera.mode !== 'follow' || !isProviderMap) return;
     if (reduceMotion)
       cameraRef.current?.jumpTo({ center: liveCenter, zoom: camera.zoom, bearing: camera.bearing });
     else
@@ -185,15 +188,13 @@ export function MapSurface({
         bearing: camera.bearing,
         duration: 250
       });
-  }, [camera, liveCenter, reduceMotion]);
+  }, [camera, liveCenter, reduceMotion, isProviderMap, mapInstance]);
 
   const fallbackMessage =
     fallbackState === 'offline' || lifecycle === 'offline'
       ? mapProductCopy('offline')
       : mapProductCopy('unavailable');
-  const initialViewState = initialCenter
-    ? { center: initialCenter, zoom: initialMapCameraState.zoom }
-    : { zoom: 1 };
+  const initialViewState = startingView(initialCenter, liveCenter);
 
   return (
     <View style={[styles.root, { backgroundColor: tokens.background.surfaceInset }]}>

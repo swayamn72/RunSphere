@@ -5,6 +5,7 @@ import {
   assertAttributionFontSize,
   decimateCoordinates,
   initialMapCameraState,
+  startingView,
   recenterMap,
   resetCompass,
   shouldAnimateCamera,
@@ -71,5 +72,18 @@ describe('map interaction models', () => {
     expect(rendered.length).toBeLessThanOrEqual(101);
     expect(rendered.at(-1)).toBe(1000);
     expect(trace).toHaveLength(1001);
+  });
+});
+
+describe('where a map opens', () => {
+  it('opens on the runner when their position is known', () => {
+    expect(startingView(undefined, [72.83, 19.05])).toEqual({ center: [72.83, 19.05], zoom: 12 });
+    expect(startingView([72.9, 19.1], [72.83, 19.05]).center).toEqual([72.9, 19.1]);
+  });
+
+  it('opens on the launch city, not the whole world, before the first fix', () => {
+    const view = startingView(undefined, undefined);
+    expect(view.center).toEqual([72.8777, 19.076]);
+    expect(view.zoom).toBeGreaterThanOrEqual(10);
   });
 });
