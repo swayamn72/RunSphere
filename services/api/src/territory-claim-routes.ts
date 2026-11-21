@@ -26,7 +26,8 @@ import {
   type TerritoryClaimHistoryResponse,
   type TerritoryClaimSummary,
   type TerritoryClusterListResponse,
-  type TerritoryRecommendationResponse
+  type TerritoryRecommendationResponse,
+  type RunMode
 } from '@runsphere/contracts';
 import { withTransaction, type Database } from '@runsphere/db';
 import {
@@ -311,6 +312,13 @@ const avatarKeyFrom = (cosmetic: unknown): string => {
  * default migration 050 gave existing accounts.
  */
 export const ANONYMOUS_HOLDER = 'Runner';
+
+/** Why a run in this mode can't claim ground, or nothing if it can (M9 9.4). */
+export const claimModeRefusal = (mode: RunMode | null): string | undefined => {
+  if (mode === 'free') return 'Free runs don’t claim ground. Start a Turf run to claim a loop.';
+  if (mode === 'quest') return 'Quest runs don’t claim ground. Start a Turf run to claim a loop.';
+  return undefined;
+};
 
 /** The reader's friends, loaded once per request so names can be shown to them. */
 const friendIdsOf = async (database: Database, readerId: string): Promise<ReadonlySet<string>> =>
@@ -755,14 +763,18 @@ export const registerTerritoryClaimRoutes = ({
       // publishing act and a sharing suspension stops it.
       if (!(await requireSharingAllowed(database, reply, accountId))) return;
 
-      const owned = await database.query<{ id: string }>(
-        `SELECT id FROM activity_submissions
+      const owned = await database.query<{ id: string; run_mode: RunMode | null }>(
+        `SELECT id, run_mode FROM activity_submissions
          WHERE id = $1 AND account_id = $2 AND deleted_at IS NULL
            AND status = 'derived' AND raw_trace_purged_at IS NULL`,
         [request.body.activityId, accountId]
       );
       if (!owned.rows[0])
         return reply.code(404).send({ message: 'That run is not available to claim from' });
+      // Modes are independent (M9 9.4): only Turf and Ghost Race runs claim
+      // ground. Runs from before modes existed (no mode) still can.
+      const refusal = claimModeRefusal(owned.rows[0].run_mode);
+      if (refusal) return reply.code(403).send({ message: refusal });
 
       // A run claims at most once (B4, migration 048). Answered before any
       // work so a repeat tap costs one indexed read and changes nothing.

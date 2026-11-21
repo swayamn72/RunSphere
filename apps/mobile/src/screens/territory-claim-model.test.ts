@@ -621,6 +621,17 @@ describe('claimableRunId (B4)', () => {
     ).toBe('fresh');
   });
 
+  it('skips Free and Quest runs, which the server won’t let claim (M9 9.4)', () => {
+    expect(
+      claimableRunId([
+        { id: 'free', status: 'derived', runMode: 'free' },
+        { id: 'quest', status: 'derived', runMode: 'quest' },
+        { id: 'ghost', status: 'derived', runMode: 'ghost' },
+        { id: 'turf', status: 'derived', runMode: 'turf' }
+      ])
+    ).toBe('ghost');
+  });
+
   it('offers nothing when every derived run has already claimed', () => {
     expect(
       claimableRunId([

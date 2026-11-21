@@ -199,6 +199,38 @@ describePostgis('quest lifecycle (M6.3)', () => {
     expect(await completeQuestsForActivity(db, early)).toEqual([]);
   });
 
+  it('counts a quest run only for its own quest, and other modes for none (M9 9.4)', async () => {
+    const questId = await publishedQuest();
+    const otherQuest = await publishedQuest();
+    const me = await runner();
+    for (const id of [questId, otherQuest])
+      await app.inject({ method: 'POST', url: `/v1/quests/${id}/accept`, headers: as(me.token) });
+    const whole = () => run(me.id, AREA_LNG - 0.0002, ROUTE_TO + 0.0001, Date.now() + 60_000);
+    const withMode = async (mode: string, quest: string | null) => {
+      const id = await whole();
+      await db.query(
+        'UPDATE activity_submissions SET run_mode = $2, quest_version_id = $3 WHERE id = $1',
+        [id, mode, quest]
+      );
+      return id;
+    };
+
+    // The same route in Free, Turf and Ghost Race mode completes nothing.
+    for (const mode of ['free', 'turf', 'ghost'])
+      expect(await completeQuestsForActivity(db, await withMode(mode, null))).toEqual([]);
+
+    // A quest run started for one quest completes that quest and not the other,
+    // although the route passes both (they share checkpoints' geometry).
+    expect(await completeQuestsForActivity(db, await withMode('quest', questId))).toEqual([
+      questId
+    ]);
+    const done = await db.query(
+      'SELECT quest_version_id FROM quest_completions WHERE account_id = $1',
+      [me.id]
+    );
+    expect(done.rows.map((row) => row.quest_version_id)).toEqual([questId]);
+  });
+
   it('lets you drop a quest, and a dropped quest is not completed', async () => {
     const questId = await publishedQuest();
     const me = await runner();

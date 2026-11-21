@@ -5,6 +5,17 @@
 > suites against `runsphere_test` when DB code changes), fast-forward merge, push, and tick the task
 > here and in `IMPLEMENTATION_ROADMAP.md` (M9) in the same commit. Read `CLAUDE.md` first.
 
+## Handoff (end of session, 2026-11-22)
+
+- **Done:** 9.0–9.4. Runs store their mode; the server checks it at start (quest accepted, ghost
+  claim raceable) and enforces it (only Turf/Ghost/pre-mode runs claim; a quest run completes only
+  its quest).
+- **Next up: 9.5** (mobile flow: replace with and send on create), then **9.6** (mode picker) and **9.7** (per-mode HUD/result). Until
+  9.5 lands the app sends no mode, so every new run is a pre-mode run and behaves as before.
+- **Known, pre-existing:** fails
+  against the local database on too (rank and season-warning cases see
+  leftover data). See B19. Exclude it locally until fixed; CI uses a fresh database.
+
 ## 0. How the app works today (verified in code, 2026-11-22)
 
 - **One recorder for everything.** Every run starts through `start-free` (`apps/mobile/src/activity-flow.ts`)
@@ -76,7 +87,7 @@
 | 9.1 | ✅ DONE 2026-11-22 (migration 054; columns are `run_mode`, `quest_version_id`, `ghost_claim_id`): Migration 054: `activity_submissions.run_mode text CHECK (run_mode IN ('free','turf','quest','ghost'))`, nullable for old runs, plus `quest_id uuid` and `ghost_claim_id uuid` (FKs, `ON DELETE SET NULL`); document rollback | `infra/postgres/migrations/054_*.sql`                                                                        | `pnpm verify:migrations` passes                                             |
 | 9.2 | ✅ DONE 2026-11-22: Contracts: `runMode`, `questId`, `ghostClaimId` on `ActivityCreateRequestSchema` with rules (quest needs questId, ghost needs ghostClaimId, others neither) and on status/detail responses                                                                                                                  | `packages/contracts/src/index.ts`                                                                            | Contract tests                                                              |
 | 9.3 | ✅ DONE 2026-11-22 (checks moved to `ghost-race-access.ts`; `run-modes.integration.test.ts`): API create route stores and validates them (quest must be accepted and open; ghost claim must pass the same checks as the ghost-trace route, extracted into one shared function)                                                  | `activity-routes.ts`, `territory-claim-routes.ts`                                                            | Route + PostGIS tests for each refusal                                      |
-| 9.4 | Server enforcement: the claim route refuses `free` and `quest` runs with a clear message; quest evaluation only considers `quest` runs for **their** quest (and legacy null-mode runs as today)                                                                                                                                 | `territory-claim-routes.ts`, `quest-core.ts`, worker                                                         | PostGIS tests: a free run can't claim; a quest run completes only its quest |
+| 9.4 | ✅ DONE 2026-11-22 (`claimModeRefusal`; Turf screen skips free/quest runs): Server enforcement: the claim route refuses `free` and `quest` runs with a clear message; quest evaluation only considers `quest` runs for **their** quest (and legacy null-mode runs as today)                                                     | `territory-claim-routes.ts`, `quest-core.ts`, worker                                                         | PostGIS tests: a free run can't claim; a quest run completes only its quest |
 | 9.5 | Mobile flow: replace `start-free` with `start-run { mode, questId?, ghostClaimId? }`; the local session stores the mode                                                                                                                                                                                                         | `activity-flow.ts`, `activity-recorder-core.ts` (local schema migration), `App.tsx`                          | Flow + recorder unit tests                                                  |
 | 9.6 | Run tab mode picker: four large cards (Free run · Turf · Quest · Ghost Race), each one line on what it does; Quest opens the accepted/available quests; Ghost Race opens the map with a hint "Tap a rival's ground to race it" (and a clear empty state if none nearby or limit reached)                                        | new `RunModePicker.tsx` + `run-mode-model.ts`                                                                | Render tests; voice-copy test passes                                        |
 | 9.7 | Mode-specific live HUD and result: Free = stats only; Turf = loop guide + "Close the loop" distance + claim on finish; Quest = checkpoint list ticking off locally as you pass within 30 m (server still decides) + result; Ghost = existing ghost card + claim on finish                                                       | `ActivityScreens.tsx` (split by mode into components), models                                                | Render tests per mode                                                       |

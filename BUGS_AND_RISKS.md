@@ -163,6 +163,15 @@ Was:
   the _current_ season but ran the job with hardcoded September 2026 dates, so it has failed every
   day since 1 October. It now uses the 8th and 15th of the current season.
 
+### B19 — Worker season tests fail on a reused local test database (S4, Confirmed, open)
+
+- : the weekly rank and three-day
+  season-warning cases fail against a that earlier suites have written to (the rank
+  job sees 21 rows where the test expects 3). Reproduced on before M9 9.4, so not caused by it.
+- Likely the suite assumes it owns the current season's claims, or depends on the date (B18-style).
+  Fix: scope the job under test to the suite's own accounts/cities, or clean its season data first.
+  CI starts from a fresh database, so it may not show there.
+
 ### Integration run (2026-11-20, isolated `runsphere_test` database, `CI=true`)
 
 All migrations apply cleanly. **Every PostGIS suite passes with nothing skipped**: API 568/568,

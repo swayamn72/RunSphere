@@ -538,9 +538,17 @@ export const claimableRunId = (
     readonly id: string;
     readonly status: string;
     readonly territoryClaimed?: boolean;
+    readonly runMode?: 'free' | 'turf' | 'quest' | 'ghost';
   }>
 ): string | undefined =>
-  runs.find((run) => run.status === 'derived' && run.territoryClaimed !== true)?.id;
+  runs.find(
+    (run) =>
+      run.status === 'derived' &&
+      run.territoryClaimed !== true &&
+      // M9 9.4: the server refuses claims from Free and Quest runs.
+      run.runMode !== 'free' &&
+      run.runMode !== 'quest'
+  )?.id;
 
 /**
  * What the map's colours mean (UX.11), built from the same tokens the map

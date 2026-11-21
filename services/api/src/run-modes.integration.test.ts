@@ -169,6 +169,38 @@ describePostgis('run modes are stored and checked when a run starts (M9)', () =>
     expect(race.json()).toMatchObject({ runMode: 'ghost', ghostClaimId: theirs });
   });
 
+  it('lets only Turf, Ghost Race and pre-mode runs claim ground (M9 9.4)', async () => {
+    const me = await runner();
+    const derived = async (mode: string | null) => {
+      const row = await db.query<{ id: string }>(
+        `INSERT INTO activity_submissions (account_id, idempotency_key, movement_type,
+           request_fingerprint, status, processed_at, finalized_at, run_mode)
+         VALUES ($1, $2, 'run', 'fixture', 'derived', now(), now(), $3) RETURNING id`,
+        [me.id, randomUUID(), mode]
+      );
+      return row.rows[0]!.id;
+    };
+    const claim = (activityId: string) =>
+      app.inject({
+        method: 'POST',
+        url: '/v1/territory/claims',
+        headers: { authorization: `Bearer ${me.token}` },
+        payload: { activityId }
+      });
+
+    for (const mode of ['free', 'quest']) {
+      const refused = await claim(await derived(mode));
+      expect(refused.statusCode).toBe(403);
+      expect((refused.json() as { message: string }).message).toMatch(/don’t claim ground/);
+    }
+    // These get past the mode check; with no trace they then fail for that
+    // reason, never with the mode refusal.
+    for (const mode of ['turf', 'ghost', null]) {
+      const allowed = await claim(await derived(mode));
+      expect(JSON.stringify(allowed.json())).not.toMatch(/don’t claim ground/);
+    }
+  });
+
   it('replays the same key and body without re-checking the mode', async () => {
     const me = await runner();
     const questId = await publishedQuest();

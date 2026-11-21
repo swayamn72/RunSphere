@@ -161,23 +161,36 @@ export const completeQuestsForActivity = async (
   database: Database,
   activityId: string
 ): Promise<string[]> => {
-  const run = await database.query<{ account_id: string }>(
-    `SELECT account_id FROM activity_submissions
+  const run = await database.query<{
+    account_id: string;
+    run_mode: string | null;
+    quest_version_id: string | null;
+  }>(
+    `SELECT account_id, run_mode, quest_version_id FROM activity_submissions
      WHERE id = $1 AND status = 'derived' AND deleted_at IS NULL`,
     [activityId]
   );
   const accountId = run.rows[0]?.account_id;
   if (!accountId) return [];
+  // Modes are independent (M9 9.4). A quest run counts only for the quest it
+  // was started for; Free, Turf and Ghost Race runs complete nothing. A run
+  // from before modes existed (no mode) is checked against every accepted
+  // quest, as it always was.
+  const mode = run.rows[0]!.run_mode;
+  if (mode !== null && mode !== 'quest') return [];
+  const onlyQuest = mode === 'quest' ? run.rows[0]!.quest_version_id : null;
+  if (mode === 'quest' && !onlyQuest) return [];
 
   const open = await database.query<{ quest_id: string; title: string; accepted_at: Date }>(
     `SELECT acceptance.quest_version_id AS quest_id, quest.title, acceptance.accepted_at
      FROM quest_acceptances acceptance
      JOIN published_quest_versions quest ON quest.id = acceptance.quest_version_id
      WHERE acceptance.account_id = $1 AND acceptance.abandoned_at IS NULL
+       AND ($2::uuid IS NULL OR acceptance.quest_version_id = $2)
        AND NOT EXISTS (SELECT 1 FROM quest_completions completion
          WHERE completion.account_id = $1
            AND completion.quest_version_id = acceptance.quest_version_id)`,
-    [accountId]
+    [accountId, onlyQuest]
   );
   if (open.rows.length === 0) return [];
 
