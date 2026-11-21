@@ -165,9 +165,9 @@ Was:
 
 ### B19 — Worker season tests fail on a reused local test database (S4, Confirmed, open)
 
-- : the weekly rank and three-day
-  season-warning cases fail against a that earlier suites have written to (the rank
-  job sees 21 rows where the test expects 3). Reproduced on before M9 9.4, so not caused by it.
+- `services/worker/src/territory-claim-season.integration.test.ts`: the weekly rank and three-day
+  season-warning cases fail against a `runsphere_test` that earlier suites have written to (the rank
+  job sees 21 rows where the test expects 3). Reproduced on `main` before M9 9.4, so not caused by it.
 - Likely the suite assumes it owns the current season's claims, or depends on the date (B18-style).
   Fix: scope the job under test to the suite's own accounts/cities, or clean its season data first.
   CI starts from a fresh database, so it may not show there.

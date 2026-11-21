@@ -10,10 +10,11 @@
 - **Done:** 9.0–9.4. Runs store their mode; the server checks it at start (quest accepted, ghost
   claim raceable) and enforces it (only Turf/Ghost/pre-mode runs claim; a quest run completes only
   its quest).
-- **Next up: 9.5** (mobile flow: replace with and send on create), then **9.6** (mode picker) and **9.7** (per-mode HUD/result). Until
-  9.5 lands the app sends no mode, so every new run is a pre-mode run and behaves as before.
-- **Known, pre-existing:** fails
-  against the local database on too (rank and season-warning cases see
+- **Next up: 9.5** (mobile flow: replace `start-free` with `start-run { mode, questId?, ghostClaimId? }`
+  and send `runMode` on create), then **9.6** (mode picker) and **9.7** (per-mode HUD and result).
+  Until 9.5 lands the app sends no mode, so every new run is a pre-mode run and behaves as before.
+- **Known, pre-existing:** `services/worker/src/territory-claim-season.integration.test.ts` fails
+  against the local `runsphere_test` database on `main` too (rank and season-warning cases see
   leftover data). See B19. Exclude it locally until fixed; CI uses a fresh database.
 
 ## 0. How the app works today (verified in code, 2026-11-22)
