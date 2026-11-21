@@ -63,6 +63,8 @@ const manifestUrl = new globalThis.URL('android/app/src/main/AndroidManifest.xml
 const apkUrl = new globalThis.URL('android/app/build/outputs/apk/debug/app-debug.apk', mobileRoot);
 const blocked = new Set([
   'android.permission.ACCESS_BACKGROUND_LOCATION',
+  // Nothing reads motion data (M8 C.3); expo-sensors, which declared it, is gone.
+  'android.permission.ACTIVITY_RECOGNITION',
   'android.permission.ACCESS_WIFI_STATE',
   'android.permission.SYSTEM_ALERT_WINDOW',
   'android.permission.READ_EXTERNAL_STORAGE',
@@ -72,7 +74,12 @@ const required = new Set([
   'android.permission.ACCESS_COARSE_LOCATION',
   'android.permission.ACCESS_FINE_LOCATION',
   'android.permission.ACCESS_NETWORK_STATE',
-  'android.permission.ACTIVITY_RECOGNITION',
+  // A location foreground service keeps a run recording with the screen locked.
+  // It starts from the Start tap and ends with the run, which is why it needs no
+  // ACCESS_BACKGROUND_LOCATION (still blocked). Play asks for a declaration and
+  // a demo video for it (docs/play-store-submission.md).
+  'android.permission.FOREGROUND_SERVICE',
+  'android.permission.FOREGROUND_SERVICE_LOCATION',
   'android.permission.INTERNET',
   // Android 13+ runtime grant, added by the expo-notifications plugin and
   // requested in context after sign-in.

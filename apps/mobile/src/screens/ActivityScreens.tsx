@@ -5,7 +5,7 @@ import type { LngLat } from '@maplibre/maplibre-react-native';
 import type { Geometry } from 'geojson';
 import { activityRecorder } from '../activity-recorder.native';
 import { type ActivitySession, type RecordingState } from '../activity-recorder-core';
-import { recordingLocationAdapter } from '../location-adapter';
+import { recordingLocationAdapter, runRecordingLocationAdapter } from '../location-adapter';
 import {
   ACQUISITION_TIMEOUT_MS,
   cancelAcquisition,
@@ -498,7 +498,7 @@ export function ActivityRecording({
     let cancelled = false;
     void refresh();
     if (['active', 'resumed'].includes(current.state)) {
-      void recordingLocationAdapter
+      void runRecordingLocationAdapter
         .subscribe(async (sample) => {
           await activityRecorder.appendSample(current.id, accountId, sample);
           if (!cancelled) await refresh();

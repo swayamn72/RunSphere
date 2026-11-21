@@ -39,7 +39,6 @@ const config: ExpoConfig = {
     permissions: [
       'android.permission.ACCESS_COARSE_LOCATION',
       'android.permission.ACCESS_FINE_LOCATION',
-      'android.permission.ACTIVITY_RECOGNITION',
       'android.permission.INTERNET',
       'android.permission.ACCESS_NETWORK_STATE',
       'android.permission.POST_NOTIFICATIONS',
@@ -62,6 +61,9 @@ const config: ExpoConfig = {
     ...(googleServicesFile ? { googleServicesFile } : {}),
     blockedPermissions: [
       'android.permission.ACCESS_BACKGROUND_LOCATION',
+      // Nothing reads motion data, so asking for it would fail Play's "use only
+      // what you need" review and DPDP minimisation (M8 C.3).
+      'android.permission.ACTIVITY_RECOGNITION',
       'android.permission.ACCESS_WIFI_STATE',
       'android.permission.SYSTEM_ALERT_WINDOW',
       'android.permission.READ_EXTERNAL_STORAGE',
@@ -85,14 +87,11 @@ const config: ExpoConfig = {
       'expo-location',
       {
         locationWhenInUsePermission:
-          'Allow RunSphere to use your location while you record an activity.'
-      }
-    ],
-    [
-      'expo-sensors',
-      {
-        motionPermission:
-          'Allow RunSphere to access motion and fitness data to improve activity estimates.'
+          'Allow RunSphere to use your location while you record an activity.',
+        // A location foreground service keeps a run recording with the screen
+        // locked, started from the Start tap, without ACCESS_BACKGROUND_LOCATION
+        // (still blocked below). Adds FOREGROUND_SERVICE(_LOCATION) (M8 C.3).
+        isAndroidForegroundServiceEnabled: true
       }
     ],
     ['@maplibre/maplibre-react-native', { android: { nativeVariant: 'opengl' } }],

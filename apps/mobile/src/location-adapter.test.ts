@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
-const location = vi.hoisted(() => ({ watchPositionAsync: vi.fn() }));
+const location = vi.hoisted(() => ({
+  watchPositionAsync: vi.fn(),
+  startLocationUpdatesAsync: vi.fn(async () => undefined),
+  stopLocationUpdatesAsync: vi.fn(async () => undefined),
+  hasStartedLocationUpdatesAsync: vi.fn(async () => false)
+}));
 
 vi.hoisted(() => {
   (globalThis as { __DEV__?: boolean }).__DEV__ = false;
@@ -8,10 +13,18 @@ vi.hoisted(() => {
 
 vi.mock('expo-location', () => ({
   Accuracy: { High: 5 },
+  ActivityType: { Fitness: 3 },
   ...location
 }));
 
-import { createSyntheticLocationAdapter, nativeLocationAdapter } from './location-adapter.js';
+import {
+  RUN_LOCATION_TASK,
+  createSyntheticLocationAdapter,
+  markRunLocationTaskReady,
+  nativeLocationAdapter,
+  publishRunLocations,
+  screenOffLocationAdapter
+} from './location-adapter.js';
 import { parseSyntheticNdjson } from './location-adapter-core.js';
 
 describe('foreground location adapter', () => {
@@ -104,5 +117,65 @@ describe('foreground location adapter', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('screen-off run recording (M8 C.3)', () => {
+  const fix = (second: number) => ({
+    timestamp: Date.UTC(2026, 10, 22, 6, 0, second),
+    coords: { latitude: 19.07, longitude: 72.87, accuracy: 6, altitude: 9 }
+  });
+
+  it('records on screen only until the run task exists', async () => {
+    location.watchPositionAsync.mockResolvedValueOnce({ remove: vi.fn() });
+    await screenOffLocationAdapter.subscribe(() => undefined);
+    expect(location.watchPositionAsync).toHaveBeenCalled();
+    expect(location.startLocationUpdatesAsync).not.toHaveBeenCalled();
+  });
+
+  it('stops a service left over from a killed run when nothing is recording', async () => {
+    location.hasStartedLocationUpdatesAsync.mockResolvedValueOnce(true);
+    markRunLocationTaskReady();
+    await vi.waitFor(() =>
+      expect(location.stopLocationUpdatesAsync).toHaveBeenCalledWith(RUN_LOCATION_TASK)
+    );
+  });
+
+  it('runs a location foreground service with a visible notification for the run', async () => {
+    const seen: string[] = [];
+    const subscription = await screenOffLocationAdapter.subscribe((sample) =>
+      seen.push(sample.recordedAt)
+    );
+
+    expect(location.startLocationUpdatesAsync).toHaveBeenCalledWith(
+      RUN_LOCATION_TASK,
+      expect.objectContaining({
+        foregroundService: expect.objectContaining({
+          notificationTitle: 'Recording your run',
+          killServiceOnDestroy: true
+        })
+      })
+    );
+
+    publishRunLocations([fix(1), fix(2)] as never);
+    expect(seen).toEqual([
+      new Date(fix(1).timestamp).toISOString(),
+      new Date(fix(2).timestamp).toISOString()
+    ]);
+
+    location.stopLocationUpdatesAsync.mockClear();
+    location.hasStartedLocationUpdatesAsync.mockResolvedValueOnce(true);
+    subscription.remove();
+    await vi.waitFor(() => expect(location.stopLocationUpdatesAsync).toHaveBeenCalled());
+  });
+
+  it('falls back to on-screen recording when Android refuses the service', async () => {
+    location.startLocationUpdatesAsync.mockRejectedValueOnce(new Error('not allowed'));
+    location.watchPositionAsync.mockClear();
+    location.watchPositionAsync.mockResolvedValueOnce({ remove: vi.fn() });
+
+    await screenOffLocationAdapter.subscribe(() => undefined);
+
+    expect(location.watchPositionAsync).toHaveBeenCalled();
   });
 });

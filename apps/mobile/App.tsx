@@ -40,6 +40,12 @@ const loadBackgroundModules = (): {
 const { BackgroundFetch, TaskManager } = loadBackgroundModules();
 
 import { FocusedFlexShell, FocusedScrollShell, TabScrollShell } from './src/components/ScreenShell';
+import type { LocationObject } from 'expo-location';
+import {
+  RUN_LOCATION_TASK,
+  markRunLocationTaskReady,
+  publishRunLocations
+} from './src/location-adapter';
 import { inviteTokenFromUrl } from './src/invite-link';
 import { InviteAcceptSheet } from './src/screens/InviteAcceptSheet';
 import { PrimaryButton } from './src/components/primitives';
@@ -109,6 +115,24 @@ if (TaskManager && BackgroundFetch) {
     });
   } catch (error) {
     console.warn('Could not register background sync task:', error);
+  }
+}
+
+// Screen-off run recording (M8 C.3). Android delivers the foreground service's
+// locations here, so the task has to be defined at module scope like the one
+// above. Without TaskManager, runs fall back to on-screen recording.
+if (TaskManager) {
+  try {
+    TaskManager.defineTask<{ locations?: LocationObject[] }>(
+      RUN_LOCATION_TASK,
+      async ({ data, error }) => {
+        if (error || !data?.locations) return;
+        publishRunLocations(data.locations);
+      }
+    );
+    markRunLocationTaskReady();
+  } catch (error) {
+    console.warn('Could not register run location task:', error);
   }
 }
 

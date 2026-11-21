@@ -88,11 +88,8 @@ describe('onboarding state machine', () => {
       { ...initialOnboardingState, step: 'location-denied', location: 'denied' },
       { type: 'setLocation', status: 'granted' }
     );
-    expect(recovered).toMatchObject({ step: 'privacy', location: 'granted', motion: 'idle' });
-
-    const declinedMotion = onboardingReducer(recovered, { type: 'setMotion', status: 'denied' });
-    expect(declinedMotion).toMatchObject({ step: 'privacy', motion: 'skipped' });
-    expect(onboardingReducer(declinedMotion, { type: 'finish' }).step).toBe('complete');
+    expect(recovered).toMatchObject({ step: 'privacy', location: 'granted' });
+    expect(onboardingReducer(recovered, { type: 'finish' }).step).toBe('complete');
   });
 
   it('updates only explicit account fields and restores a durable session to home', () => {
@@ -111,8 +108,7 @@ describe('onboarding state machine', () => {
       accountMode: 'login' as const,
       email: 'maya@example.com',
       password: 'do-not-retain-this-password',
-      location: 'granted' as const,
-      motion: 'skipped' as const
+      location: 'granted' as const
     };
 
     expect(onboardingReducer(completed, { type: 'logoutComplete' })).toEqual(

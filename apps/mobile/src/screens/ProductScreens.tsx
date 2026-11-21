@@ -958,11 +958,6 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
           value="While recording only"
           onPress={() => void Linking.openSettings()}
         />
-        <Setting
-          label="Motion & fitness"
-          value="Optional"
-          onPress={() => void Linking.openSettings()}
-        />
       </SettingsGroup>
       <Text style={styles.safetyFooter}>
         RunSphere is not an emergency service. Contact local services if you are in immediate

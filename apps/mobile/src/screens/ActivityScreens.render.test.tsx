@@ -47,7 +47,8 @@ vi.mock('../run-verification.native', () => ({
   verificationDeviceStore: { deviceId: vi.fn().mockResolvedValue('test-device') }
 }));
 vi.mock('../location-adapter', () => ({
-  recordingLocationAdapter: { subscribe: vi.fn().mockResolvedValue({ remove: vi.fn() }) }
+  recordingLocationAdapter: { subscribe: vi.fn().mockResolvedValue({ remove: vi.fn() }) },
+  runRecordingLocationAdapter: { subscribe: vi.fn().mockResolvedValue({ remove: vi.fn() }) }
 }));
 vi.mock('../components/styles', () => ({ useAppStyles: () => new Proxy({}, { get: () => ({}) }) }));
 // The live screen reads one token directly: the ghost comparison card takes a

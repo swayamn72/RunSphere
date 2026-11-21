@@ -1,7 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { failureMessage } from '../failure-copy';
 import * as Location from 'expo-location';
-import { Pedometer } from 'expo-sensors';
 import { useCallback, useEffect, useState } from 'react';
 import type React from 'react';
 import {
@@ -123,11 +122,6 @@ export function Onboarding({
     });
     return () => subscription.remove();
   }, [reconcileLocationPermission, state.step]);
-
-  const requestMotion = async () => {
-    const permission = await Pedometer.requestPermissionsAsync();
-    dispatch({ type: 'setMotion', status: permission.status === 'granted' ? 'granted' : 'denied' });
-  };
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -422,15 +416,9 @@ export function Onboarding({
               />
               <PermissionCard
                 icon="⌁"
-                title="Background location"
-                detail="Optional; only requested if you choose screen-lock recording before an activity"
-                badge="Optional"
-              />
-              <PermissionCard
-                icon="◉"
-                title="Motion & fitness"
-                detail="Optional; improves future estimates"
-                badge="Optional"
+                title="Screen-off recording"
+                detail="During a run, a notification shows while RunSphere records with your screen locked. It stops when you pause or finish."
+                badge="During runs"
               />
               <View style={styles.privacyRow}>
                 <View style={styles.flexCopy}>
@@ -455,17 +443,6 @@ export function Onboarding({
                 <PrimaryButton label="Allow location" onPress={() => void requestLocation()} />
               ) : (
                 <>
-                  {state.motion === 'idle' && (
-                    <Pressable accessibilityRole="button" onPress={() => void requestMotion()}>
-                      <Text style={styles.textButton}>Allow motion & fitness (optional)</Text>
-                    </Pressable>
-                  )}
-                  {state.motion !== 'idle' && (
-                    <Text accessibilityLiveRegion="polite" style={styles.privateNote}>
-                      Motion & fitness is {state.motion === 'granted' ? 'allowed' : 'not allowed'}.
-                      This optional choice does not block RunSphere.
-                    </Text>
-                  )}
                   <PrimaryButton
                     label="Continue to RunSphere"
                     onPress={() => dispatch({ type: 'finish' })}

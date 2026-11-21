@@ -1,7 +1,6 @@
 import { isAdult, kolkataDate, normalizeUsername, usernameProblem } from '@runsphere/domain';
 
 export type LocationStatus = 'idle' | 'granted' | 'denied' | 'blocked';
-export type MotionStatus = 'idle' | 'granted' | 'denied' | 'skipped';
 export type AccountMode = 'register' | 'login';
 
 /**
@@ -25,7 +24,6 @@ export interface OnboardingState {
   hideStartFinish: boolean;
   visibility: 'private';
   location: LocationStatus;
-  motion: MotionStatus;
 }
 
 export const initialOnboardingState: OnboardingState = {
@@ -40,8 +38,7 @@ export const initialOnboardingState: OnboardingState = {
   birthYear: '',
   hideStartFinish: true,
   visibility: 'private',
-  location: 'idle',
-  motion: 'idle'
+  location: 'idle'
 };
 
 export type OnboardingAction =
@@ -61,7 +58,6 @@ export type OnboardingAction =
   | { type: 'restoreSession' }
   | { type: 'setHideStartFinish'; value: boolean }
   | { type: 'setLocation'; status: LocationStatus }
-  | { type: 'setMotion'; status: MotionStatus }
   | { type: 'retryLocation' }
   | { type: 'continueWithoutLocation' }
   | { type: 'finish' }
@@ -137,8 +133,6 @@ export const onboardingReducer = (
         return { ...state, location: action.status, step: 'location-denied' };
       if (action.status === 'granted') return { ...state, location: 'granted', step: 'privacy' };
       return { ...state, location: 'idle' };
-    case 'setMotion':
-      return { ...state, motion: action.status === 'denied' ? 'skipped' : action.status };
     case 'retryLocation':
       return { ...state, location: 'idle', step: 'privacy' };
     case 'continueWithoutLocation':
