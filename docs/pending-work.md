@@ -1,7 +1,8 @@
 # Pending Work
 
 **Last updated:** 2026-09-12 (v6 — Section 1 re-verified against the code; 1.2/1.3/1.4 were stale, 1.5 fixed)
-This document is the single source of truth for what work is not yet done. An agent starting a new task should read this file first and update it as work is completed.
+
+> **Superseded (2026-11-21).** This file is no longer maintained and contains contradictory duplicate sections. What is pending now lives in [`IMPLEMENTATION_ROADMAP.md`](../IMPLEMENTATION_ROADMAP.md), known bugs and risks in [`BUGS_AND_RISKS.md`](../BUGS_AND_RISKS.md), and the state of each feature in [`IMPLEMENTATION_STATUS.md`](../IMPLEMENTATION_STATUS.md). Kept for history only.
 
 > [!IMPORTANT]
 > **What was implemented in the 2026-09-07 pull:** Migrations 036–043 (H3 carving, monthly seasons, geo-tags, running-only, automatic friend board, curated routes, notification catalogue, Ghost Race DB), all domain carving functions, Ghost Race domain + DB, season reset worker, rank worker, geo-backfill worker, notification catalogue (all 12 types), territory-claim-snapshots worker. These are **DONE** and do not need to be re-implemented.
