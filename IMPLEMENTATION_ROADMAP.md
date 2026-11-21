@@ -179,7 +179,7 @@ From the compliance review of 2026-11-22. Legal text is drafted from what the co
 
 ## Milestone 9 — Independent run modes, metrics, run log and detail, guided tour
 
-Detailed plan, decisions and task list (9.0–9.29): [](docs/plans/m9-run-modes-metrics-tutorial.md).
+Detailed plan, decisions and task list (9.0–9.29): [`docs/plans/m9-run-modes-metrics-tutorial.md`](docs/plans/m9-run-modes-metrics-tutorial.md).
 Tick tasks there and here as they land.
 
 | Phase                                                                                       | Tasks     | Status |
