@@ -11,6 +11,20 @@ The committed `android/` directory is the reproducible native path for Android d
 | `android/gradle.properties`                                  | `-Dfile.encoding=UTF-8` in `org.gradle.jvmargs`    | Required on Windows under Java 17; see the comment in that file. Prebuild drops it with the rest of the override.                                                                                                 |
 | `android/app/src/{debug,debugOptimized}/AndroidManifest.xml` | `SYSTEM_ALERT_WINDOW` marked `tools:node="remove"` | `blockedPermissions` in `app.config.ts` only reaches the main manifest, so the debug variants would otherwise re-grant it. `verify-android-permissions.mjs` reads the main manifest only and does not catch this. |
 
+EAS builds take their API address from EAS, not from git: each profile in `eas.json` names an
+EAS environment (`development`, `preview`, `production`). Set the address once per environment,
+using HTTPS for `preview` and `production` (the app refuses plain HTTP outside local
+development):
+
+```sh
+eas env:create --environment production --name EXPO_PUBLIC_API_BASE_URL --value https://api.example.com
+eas env:create --environment preview --name EXPO_PUBLIC_API_BASE_URL --value https://staging-api.example.com
+eas env:create --environment development --name EXPO_PUBLIC_API_BASE_URL --value http://<your-lan-ip>:3001
+```
+
+The map style values (`EXPO_PUBLIC_MAP_STYLE_URL`, `_ORIGINS`, `_ATTRIBUTION`) are set the same way.
+Local `expo start` keeps reading `apps/mobile/.env`.
+
 Friend invite links (`runsphere://invite/<token>`) need `scheme: 'runsphere'` in `app.config.ts`, which prebuild turns into the manifest's `runsphere` intent-filter; nothing to reapply.
 
 No Firebase config is committed (see `app.config.ts`). Without `google-services.json` in this directory, `app.config.ts` omits `googleServicesFile` entirely and the build succeeds with push delivery absent — the durable in-app inbox is unaffected. Do not reintroduce an unconditional `googleServicesFile`: a missing file aborts prebuild _after_ `android/` has been cleared, leaving a half-generated project whose Gradle configuration then fails on unresolvable project paths.

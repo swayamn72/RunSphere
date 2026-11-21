@@ -132,7 +132,13 @@ Severity: **S1** blocks launch or loses data/security · **S2** a core feature i
   domain const) and 32 genuinely unformatted files (CI's first step is `format:check`). Both are now
   clean, so CI reaches typecheck, build, migrate and the PostGIS suites.
 
-### B15 — The production mobile build has no API URL (S1 for release, Likely)
+### B15 — The production mobile build has no API URL (S1 for release) — ✅ Fixed in config (2026-11-21)
+
+- Each `eas.json` profile now names an EAS environment, the committed LAN IP is gone, and
+  `apps/mobile/DEVELOPMENT.md` shows the `eas env:create` commands. The owner still has to set the
+  real HTTPS address once a host exists (M4.3).
+
+Was:
 
 - `eas.json` `production` and `preview` define no `EXPO_PUBLIC_API_BASE_URL`. Unless it's set in the
   EAS dashboard, the app starts in the `configuration` failure state. `development` hardcodes a LAN IP.

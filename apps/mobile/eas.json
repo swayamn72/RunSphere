@@ -6,14 +6,15 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "http://192.168.4.103:3001"
-      }
+      "environment": "development"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "environment": "preview"
     },
-    "production": {}
+    "production": {
+      "environment": "production"
+    }
   },
   "submit": {
     "production": {}
