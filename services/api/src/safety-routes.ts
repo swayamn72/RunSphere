@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import {
   ActivityAuthorizationHeadersSchema,
   ErrorResponseSchema,
+  PrivacyZoneListResponseSchema,
+  PrivacyZoneParamsSchema,
   PrivacyZoneRequestSchema,
   PrivacyZoneResponseSchema,
   SafetyContactAcceptResponseSchema,
@@ -86,6 +88,88 @@ export const registerSafetyRoutes = ({ routes, database, authSecret }: SafetyRou
         radiusMeters: privacyZoneRadiusMeters,
         geometryVersion: result.rows[0]!.geometry_version
       });
+    }
+  );
+
+  /**
+   * The account's own zones (M3.6), so they can be reviewed and removed. The
+   * center is the owner's own data and is already returned on create; it is
+   * never logged.
+   */
+  routes.get(
+    '/v1/privacy-zones',
+    {
+      schema: {
+        headers: ActivityAuthorizationHeadersSchema,
+        response: {
+          200: PrivacyZoneListResponseSchema,
+          401: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+      const zones = await database.query<{
+        id: string;
+        name: string;
+        latitude: number;
+        longitude: number;
+        geometry_version: number;
+      }>(
+        `SELECT id, name, ST_Y(center) AS latitude, ST_X(center) AS longitude, geometry_version
+         FROM privacy_zones WHERE account_id = $1 ORDER BY created_at DESC`,
+        [accountId]
+      );
+      return {
+        data: zones.rows.map((zone) => ({
+          id: zone.id,
+          name: zone.name,
+          center: { latitude: zone.latitude, longitude: zone.longitude },
+          radiusMeters: privacyZoneRadiusMeters,
+          geometryVersion: zone.geometry_version
+        }))
+      };
+    }
+  );
+
+  /**
+   * Remove one zone. Trimming happens when a run is processed, so runs already
+   * processed stay trimmed; only runs processed afterwards are affected.
+   */
+  routes.delete<{ Params: { zoneId: string } }>(
+    '/v1/privacy-zones/:zoneId',
+    {
+      schema: {
+        params: PrivacyZoneParamsSchema,
+        headers: ActivityAuthorizationHeadersSchema,
+        response: {
+          204: { type: 'null' },
+          401: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+      const removed = await database.query<{ id: string }>(
+        'DELETE FROM privacy_zones WHERE id = $1 AND account_id = $2 RETURNING id',
+        [request.params.zoneId, accountId]
+      );
+      if (!removed.rows[0]) return reply.code(404).send({ message: 'Privacy zone not found' });
+      await audit(
+        database,
+        accountId,
+        'privacy_zone.deleted',
+        'privacy_zone',
+        request.params.zoneId
+      );
+      return reply.code(204).send();
     }
   );
 

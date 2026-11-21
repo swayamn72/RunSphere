@@ -52,6 +52,7 @@ import type {
   LoginRequest,
   NotificationPreferences,
   NotificationPreferencesUpdateRequest,
+  PrivacyZoneListResponse,
   PrivacyZoneRequest,
   PrivacyZoneResponse,
   Profile,
@@ -236,6 +237,18 @@ export class MobileApiClient {
   }
   async createPrivacyZone(zone: PrivacyZoneRequest): Promise<PrivacyZoneResponse> {
     return this.request('/v1/privacy-zones', { method: 'POST', body: zone });
+  }
+  /** The account's own privacy zones, newest first (M3.6). */
+  async listPrivacyZones(): Promise<readonly PrivacyZoneResponse[]> {
+    return (await this.request<PrivacyZoneListResponse>('/v1/privacy-zones', { method: 'GET' }))
+      .data;
+  }
+  /** Remove a zone. Runs already processed stay trimmed; later runs are not. */
+  async deletePrivacyZone(id: string): Promise<void> {
+    await this.request(`/v1/privacy-zones/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      empty: true
+    });
   }
   async updateVisibility(visibility: VisibilityRequest): Promise<VisibilityResponse> {
     return this.request('/v1/account/visibility', { method: 'PUT', body: visibility });

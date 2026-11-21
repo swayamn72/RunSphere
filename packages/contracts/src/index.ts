@@ -166,6 +166,15 @@ export const PrivacyZoneResponseSchema = Type.Object(
   },
   { $id: 'PrivacyZoneResponse' }
 );
+/** The account's own zones (M3.6), newest first, so they can be reviewed and removed. */
+export const PrivacyZoneListResponseSchema = Type.Object(
+  { data: Type.Array(PrivacyZoneResponseSchema) },
+  { $id: 'PrivacyZoneListResponse' }
+);
+export const PrivacyZoneParamsSchema = Type.Object(
+  { zoneId: UuidSchema },
+  { ...Strict, $id: 'PrivacyZoneParams' }
+);
 export const WeeklyGoalRequestSchema = Type.Object(
   {
     activeMinutes: Type.Optional(Type.Integer({ minimum: 1, maximum: 10_080 })),
@@ -554,6 +563,7 @@ export type LoginRequest = Static<typeof LoginRequestSchema>;
 export type RefreshRequest = Static<typeof RefreshRequestSchema>;
 export type PrivacyZoneRequest = Static<typeof PrivacyZoneRequestSchema>;
 export type PrivacyZoneResponse = Static<typeof PrivacyZoneResponseSchema>;
+export type PrivacyZoneListResponse = Static<typeof PrivacyZoneListResponseSchema>;
 export type VisibilityRequest = Static<typeof VisibilityRequestSchema>;
 export type VisibilityResponse = Static<typeof VisibilityResponseSchema>;
 export type SafetyContactRequest = Static<typeof SafetyContactRequestSchema>;

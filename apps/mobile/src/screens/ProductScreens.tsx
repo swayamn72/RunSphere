@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { failureMessage } from '../failure-copy';
+import { PrivacyZoneList } from './PrivacyZoneList';
 import {
   Alert,
   Linking,
@@ -16,6 +17,7 @@ import type {
   Profile,
   ProgressionSummary,
   Sanction,
+  PrivacyZoneResponse,
   SafetyContactResponse,
   TerritoryClaimSummary,
   WeeklyGoalResponse
@@ -692,7 +694,9 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
   const { tokens } = useAppTheme();
   const [mapPreview, setMapPreview] = useState(true);
   const [zoneName, setZoneName] = useState('Home');
-  const [zoneStatus, setZoneStatus] = useState('No saved zones this session');
+  const [zoneStatus, setZoneStatus] = useState('');
+  const [zones, setZones] = useState<readonly PrivacyZoneResponse[]>([]);
+  const [activeShareId, setActiveShareId] = useState<string>();
   const [contactEmail, setContactEmail] = useState('');
   const [contacts, setContacts] = useState<readonly SafetyContactResponse[]>([]);
   const [state, setState] = useState<RemoteState>('loading');
@@ -709,6 +713,25 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
   useEffect(() => {
     void loadContacts();
   }, [loadContacts]);
+  const loadZones = useCallback(async () => {
+    try {
+      setZones(await api.listPrivacyZones());
+    } catch (error) {
+      setZoneStatus(failureMessage(error, "Couldn't load your zones. Try again."));
+    }
+  }, [api]);
+  useEffect(() => {
+    void loadZones();
+  }, [loadZones]);
+  const removeZone = async (zone: PrivacyZoneResponse) => {
+    try {
+      await api.deletePrivacyZone(zone.id);
+      setZones((current) => current.filter((candidate) => candidate.id !== zone.id));
+      setZoneStatus(`${zone.name} removed. Runs you record from now on aren't trimmed there.`);
+    } catch (error) {
+      setZoneStatus(failureMessage(error, "Couldn't remove that zone. Try again."));
+    }
+  };
   const saveZone = async () => {
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
@@ -723,6 +746,7 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
         name: zoneName.trim() || 'Saved place',
         center: center.coords
       });
+      setZones((current) => [zone, ...current]);
       setZoneStatus(
         `${zone.name}: fixed ${zone.radiusMeters} m privacy zone saved. Your shared routes skip it.`
       );
@@ -760,6 +784,7 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
         safetyContactId: contact.id,
         durationMinutes: 60
       });
+      setActiveShareId(share.id);
       setShareStatus(
         `Active for 60 min · ${share.delayMinutes} min delay · ${share.tileSizeMeters} m tiles`
       );
@@ -768,6 +793,16 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
         'Share unavailable',
         failureMessage(error, 'An accepted, verified safety contact is required.')
       );
+    }
+  };
+  const stopShare = async () => {
+    if (!activeShareId) return;
+    try {
+      await api.stopSafetyShare(activeShareId);
+      setActiveShareId(undefined);
+      setShareStatus('Sharing stopped');
+    } catch (error) {
+      Alert.alert("Couldn't stop sharing", failureMessage(error, 'Try again in a moment.'));
     }
   };
   return (
@@ -790,9 +825,12 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
             placeholderTextColor={tokens.text.secondary}
           />
           <PrimaryButton label="Save my current center" onPress={() => void saveZone()} />
-          <Text accessibilityLiveRegion="polite" style={styles.privateNote}>
-            {zoneStatus}
-          </Text>
+          {zoneStatus ? (
+            <Text accessibilityLiveRegion="polite" style={styles.privateNote}>
+              {zoneStatus}
+            </Text>
+          ) : null}
+          <PrivacyZoneList zones={zones} onRemove={(zone) => void removeZone(zone)} />
         </View>
         <View style={styles.setting}>
           <View style={styles.flexCopy}>
@@ -857,6 +895,15 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
             </Text>
           </View>
         </View>
+        {activeShareId ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Stop sharing"
+            onPress={() => void stopShare()}
+          >
+            <Text style={[styles.textButton, styles.destructive]}>Stop sharing</Text>
+          </Pressable>
+        ) : null}
       </SettingsGroup>
       <SettingsGroup title="Permissions & data">
         <Setting
