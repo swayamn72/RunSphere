@@ -31,7 +31,12 @@ export const TerritoryClaimOwnerSchema = Type.Object(
     displayName: Type.String({ minLength: 1, maxLength: 40 }),
     avatarKey: Type.String({ minLength: 1, maxLength: 64 }),
     /** So the app can mark the reader's own ground without comparing ids. */
-    isSelf: Type.Boolean()
+    isSelf: Type.Boolean(),
+    /**
+     * For opening the holder's profile. Absent when the holder shows as an
+     * anonymous "Runner" to this reader (ADR-0014, "name on my ground").
+     */
+    username: Type.Optional(Type.String())
   }
   // No `$id`: the leaderboard embeds this twice in one response — the page and
   // the reader's own row — and Fastify refuses a reference that resolves to

@@ -97,6 +97,21 @@ Rules for every task:
 Order: UX.1 → UX.2 → (UX.3, UX.4); UX.5 → (UX.6, UX.7, UX.8); UX.9–UX.11 after UX.1; UX.12 last.
 UX.10 is better after M2.4 (atomic ghost limit), so "races left this hour" is exact.
 
+## Milestone 2.6 — Social identity and privacy controls (ADR-0014)
+
+Usernames, discovery and the privacy controls the runner owns. The server enforces every control.
+
+| #    | Task                                                                                                                                    | Acceptance                                           |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| SI.1 | ✅ Usernames, date of birth (18+), home area, privacy settings, search, profile by username, friend request by username (migration 050) | Integration tests for every visibility rule          |
+| SI.2 | ✅ Enforce Turf controls (anonymous holder, hidden ground, Ghost Race opt-out) and the friend board switch                              | Unit and integration tests                           |
+| SI.3 | Invite links and QR codes (signed, expiring tokens)                                                                                     | Integration tests; a used or expired link is refused |
+| SI.4 | App: onboarding steps (date of birth, username, visibility, home area, privacy zone prompt)                                             | Render tests; copy passes voice-copy.test            |
+| SI.5 | App: Privacy & visibility screen, plus a one-time review prompt for existing accounts                                                   | Render tests                                         |
+| SI.6 | App: search, profile pages, tap a name on Turf or a board to open a profile, QR scan and share                                          | Render tests                                         |
+| SI.7 | Run controls (who sees my runs, route maps, start times) take effect when a run feed exists; stored now                                 | Applies with the feed                                |
+| SI.8 | Operator: privacy policy and terms for public profiles, a named grievance officer, legal review                                         | Owner task, before launch                            |
+
 ## Milestone 3 — Accounts, email and safety actually work
 
 | ID    | Task                                                                                                                                                                                                                                                                        | Done when                                                                      |

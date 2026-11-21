@@ -302,10 +302,59 @@ const avatarKeyFrom = (cosmetic: unknown): string => {
   return typeof key === 'string' && key.length > 0 && key.length <= 64 ? key : 'default';
 };
 
+/**
+ * ADR-0014. A holder who turned "name on my ground" off shows to strangers as
+ * an anonymous Runner with the default avatar; they and their friends still
+ * see the name. Accounts with no settings row read as off, the conservative
+ * default migration 050 gave existing accounts.
+ */
+export const ANONYMOUS_HOLDER = 'Runner';
+
+const settingFor = (column: string, setting: string, fallback: boolean) =>
+  `COALESCE((SELECT s.${setting} FROM privacy_settings s WHERE s.account_id = ${column}), ${fallback})`;
+const usernameFor = (column: string) =>
+  `(SELECT a.username FROM accounts a WHERE a.id = ${column})`;
+
+/** The reader's friends, loaded once per request so names can be shown to them. */
+const friendIdsOf = async (database: Database, readerId: string): Promise<ReadonlySet<string>> =>
+  new Set(
+    (
+      await database.query<{ friend_account_id: string }>(
+        'SELECT friend_account_id FROM friendships WHERE account_id = $1',
+        [readerId]
+      )
+    ).rows.map((row) => row.friend_account_id)
+  );
+
+export const holderView = (
+  holder: {
+    id: string;
+    displayName: string | null;
+    cosmetic: unknown;
+    username: string | null;
+    named: boolean;
+  },
+  readerId: string,
+  friends: ReadonlySet<string>
+) => {
+  const isSelf = holder.id === readerId;
+  const shown = isSelf || holder.named || friends.has(holder.id);
+  return {
+    id: holder.id,
+    displayName: shown ? (holder.displayName ?? 'RunSphere member') : ANONYMOUS_HOLDER,
+    avatarKey: shown ? avatarKeyFrom(holder.cosmetic) : 'default',
+    isSelf,
+    ...(shown && holder.username ? { username: holder.username } : {})
+  };
+};
+
 interface ClaimRow {
   id: string;
   account_id: string;
   display_name: string | null;
+  username?: string | null;
+  name_on_ground?: boolean;
+  draw_ground?: boolean;
   cosmetic: unknown;
   boundary: unknown;
   centroid: unknown;
@@ -336,22 +385,33 @@ const CLAIM_COLUMNS = `claim.id, claim.account_id, profile.display_name, profile
            claim.club_id, club.name AS club_name, claim.season_month,
            claim.city_tag, claim.country_tag, claim.claimed_at,
            EXISTS (SELECT 1 FROM territory_claim_ghost_traces ghost
-                   WHERE ghost.claim_id = claim.id) AS ghost_available`;
+                   WHERE ghost.claim_id = claim.id)
+             AND ${settingFor('claim.account_id', 'ghost_races', true)} AS ghost_available,
+           ${usernameFor('claim.account_id')} AS username,
+           ${settingFor('claim.account_id', 'name_on_ground', false)} AS name_on_ground,
+           ${settingFor('claim.account_id', 'draw_ground', true)} AS draw_ground`;
 
-const claimView = (row: ClaimRow, readerId: string): TerritoryClaim | undefined => {
+const claimView = (
+  row: ClaimRow,
+  readerId: string,
+  friends: ReadonlySet<string> = new Set()
+): TerritoryClaim | undefined => {
   const boundary = ringFromGeoJson(row.boundary);
   const centroid = pointFromGeoJson(row.centroid);
   if (boundary.length < 3 || !centroid) return undefined;
   return {
     id: row.id,
-    owner: {
-      id: row.account_id,
-      // The same fallbacks every other social read uses: a claim on the map
-      // outlives a profile somebody has not filled in.
-      displayName: row.display_name ?? 'RunSphere member',
-      avatarKey: avatarKeyFrom(row.cosmetic),
-      isSelf: row.account_id === readerId
-    },
+    owner: holderView(
+      {
+        id: row.account_id,
+        displayName: row.display_name,
+        cosmetic: row.cosmetic,
+        username: row.username ?? null,
+        named: row.name_on_ground ?? false
+      },
+      readerId,
+      friends
+    ),
     boundary: boundary.slice(0, 256),
     centroid,
     areaSqm: Number(row.area_sqm),
@@ -630,9 +690,12 @@ export const registerTerritoryClaimRoutes = ({
 
       const truncated = found.rows.length > MAP_LIMIT;
       let gridBudget = 3000;
+      const friends = await friendIdsOf(database, accountId);
       const response: TerritoryClaimMapResponse = {
         claims: found.rows.slice(0, MAP_LIMIT).flatMap((row) => {
-          const view = claimView(row, accountId);
+          // ADR-0014 "draw my ground": off hides it from everyone but its holder.
+          if (row.draw_ground === false && row.account_id !== accountId) return [];
+          const view = claimView(row, accountId, friends);
           if (!view) return [];
           const cells = row.h3_cell_set ?? [];
           const polygons = heldCellPolygons(cells);
@@ -1432,6 +1495,8 @@ export const registerTerritoryClaimRoutes = ({
         rival_id: string | null;
         rival_name: string | null;
         rival_cosmetic: unknown;
+        rival_username: string | null;
+        rival_named: boolean;
         previous_duration_seconds: number;
         new_duration_seconds: number;
         created_at: Date;
@@ -1439,6 +1504,8 @@ export const registerTerritoryClaimRoutes = ({
         `SELECT takeover.id, takeover.taken_from_account_id, takeover.taken_by_account_id,
            rival.account_id AS rival_id, rival.display_name AS rival_name,
            rival.cosmetic AS rival_cosmetic,
+           ${usernameFor('rival.account_id')} AS rival_username,
+           ${settingFor('rival.account_id', 'name_on_ground', false)} AS rival_named,
            takeover.previous_duration_seconds, takeover.new_duration_seconds,
            takeover.created_at
          FROM territory_claim_takeovers takeover
@@ -1451,17 +1518,23 @@ export const registerTerritoryClaimRoutes = ({
         [accountId]
       );
 
+      const friends = await friendIdsOf(database, accountId);
       const response: TerritoryClaimActivityResponse = {
         data: events.rows.map((row) => ({
           id: row.id,
           ...(row.rival_id
             ? {
-                rival: {
-                  id: row.rival_id,
-                  displayName: row.rival_name ?? 'RunSphere member',
-                  avatarKey: avatarKeyFrom(row.rival_cosmetic),
-                  isSelf: false
-                }
+                rival: holderView(
+                  {
+                    id: row.rival_id,
+                    displayName: row.rival_name,
+                    cosmetic: row.rival_cosmetic,
+                    username: row.rival_username,
+                    named: row.rival_named
+                  },
+                  accountId,
+                  friends
+                )
               }
             : {}),
           previousDurationSeconds: Number(row.previous_duration_seconds),
@@ -1534,6 +1607,9 @@ export const registerTerritoryClaimRoutes = ({
         claimed_at: Date;
         display_name: string | null;
         cosmetic: unknown;
+        username: string | null;
+        named: boolean;
+        ghost_races: boolean;
         path: unknown;
         elapsed_seconds: number[] | null;
         distance_metres: number | null;
@@ -1542,6 +1618,9 @@ export const registerTerritoryClaimRoutes = ({
       }>(
         `SELECT claim.id, claim.account_id, claim.city_tag, claim.claimed_at,
            profile.display_name, profile.cosmetic,
+           ${usernameFor('claim.account_id')} AS username,
+           ${settingFor('claim.account_id', 'name_on_ground', false)} AS named,
+           ${settingFor('claim.account_id', 'ghost_races', true)} AS ghost_races,
            ST_AsGeoJSON(ghost.path) AS path, ghost.elapsed_seconds,
            ghost.distance_metres, ghost.duration_seconds, ghost.trim_metres
          FROM territory_claims claim
@@ -1569,6 +1648,10 @@ export const registerTerritoryClaimRoutes = ({
       // names the block tells the asker something about the holder's choices.
       if (blocked.rows[0]?.blocked)
         return unavailable(404, 'not_held', 'This ground is not held by anybody right now.');
+      // ADR-0014: the holder turned Ghost Races off. Same answer as a run with
+      // no trace, so the choice itself isn't disclosed.
+      if (!row.ghost_races)
+        return unavailable(404, 'no_trace', 'This run cannot be shown as a ghost.');
 
       if (row.city_tag) {
         const mine = await database.query<{ city_tag: string }>(
@@ -1656,12 +1739,17 @@ export const registerTerritoryClaimRoutes = ({
 
       const response: GhostTraceResponse = {
         claimId: row.id,
-        owner: {
-          id: row.account_id,
-          displayName: row.display_name ?? 'RunSphere member',
-          avatarKey: avatarKeyFrom(row.cosmetic ?? null),
-          isSelf: false
-        },
+        owner: holderView(
+          {
+            id: row.account_id,
+            displayName: row.display_name,
+            cosmetic: row.cosmetic ?? null,
+            username: row.username,
+            named: row.named
+          },
+          accountId,
+          await friendIdsOf(database, accountId)
+        ),
         points: coordinates.map((coordinate, index) => ({
           at: [coordinate[0], coordinate[1]] as Coordinate,
           elapsedSeconds: Number(elapsed[index] ?? 0)
@@ -1720,12 +1808,16 @@ export const registerTerritoryClaimRoutes = ({
         account_id: string;
         display_name: string | null;
         cosmetic: unknown;
+        username: string | null;
+        named: boolean;
         duration_seconds: number;
         area_sqm: number;
         claimed_at: Date;
         released_at: Date | null;
       }>(
         `SELECT claim.id, claim.account_id, profile.display_name, profile.cosmetic,
+           ${usernameFor('claim.account_id')} AS username,
+           ${settingFor('claim.account_id', 'name_on_ground', false)} AS named,
            claim.duration_seconds, claim.area_sqm, claim.claimed_at, claim.released_at
          FROM territory_claims claim
          LEFT JOIN profiles profile ON profile.account_id = claim.account_id
@@ -1741,6 +1833,7 @@ export const registerTerritoryClaimRoutes = ({
       );
       const failedAttempts = Number(battles.rows[0]?.attempts ?? 0);
 
+      const friends = await friendIdsOf(database, accountId);
       const response: TerritoryClaimHistoryResponse = {
         lineageId,
         captureCount: entries.rows.length,
@@ -1758,12 +1851,17 @@ export const registerTerritoryClaimRoutes = ({
           : {}),
         entries: entries.rows.map((row) => ({
           claimId: row.id,
-          owner: {
-            id: row.account_id,
-            displayName: row.display_name ?? 'RunSphere member',
-            avatarKey: avatarKeyFrom(row.cosmetic),
-            isSelf: row.account_id === accountId
-          },
+          owner: holderView(
+            {
+              id: row.account_id,
+              displayName: row.display_name,
+              cosmetic: row.cosmetic,
+              username: row.username,
+              named: row.named
+            },
+            accountId,
+            friends
+          ),
           durationSeconds: Number(row.duration_seconds),
           areaSqm: Number(row.area_sqm),
           claimedAt: row.claimed_at.toISOString(),
@@ -1826,6 +1924,7 @@ export const registerTerritoryClaimRoutes = ({
            AND account.deleted_at IS NULL
            AND ${notSharingSuspended('claim.account_id')}
            AND claim.season_month = $7
+           AND (claim.account_id = $5 OR ${settingFor('claim.account_id', 'draw_ground', true)})
            AND claim.centroid && ST_MakeEnvelope($1, $2, $3, $4, 4326)
          GROUP BY floor(ST_X(claim.centroid) / $6), floor(ST_Y(claim.centroid) / $6)
          ORDER BY count(*) DESC

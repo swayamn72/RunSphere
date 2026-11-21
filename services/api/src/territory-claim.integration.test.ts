@@ -74,6 +74,12 @@ const makeAccount = async (displayName?: string): Promise<string> => {
        ON CONFLICT (account_id) DO UPDATE SET display_name = EXCLUDED.display_name`,
       [id, displayName]
     );
+    // A named test runner shows that name on ground they hold (ADR-0014).
+    await db.query(
+      `INSERT INTO privacy_settings (account_id, name_on_ground) VALUES ($1, true)
+       ON CONFLICT (account_id) DO UPDATE SET name_on_ground = true`,
+      [id]
+    );
   }
   return id;
 };
@@ -845,6 +851,24 @@ describePostgis('territory claims on real PostGIS', () => {
         const body = (await claim(account, activity)).json();
         return body.claimed ? String(body.claim.id) : '';
       };
+
+      it('offers no ghost when the holder turned Ghost Races off (ADR-0014)', async () => {
+        await clearViews();
+        const claimId = await heldWithGhost(21);
+        if (!claimId) return;
+        await db.query('UPDATE privacy_settings SET ghost_races = false WHERE account_id = $1', [
+          account
+        ]);
+        try {
+          const refused = await ghost(rival, claimId);
+          expect(refused.statusCode).toBe(404);
+          expect(refused.json()).toMatchObject({ reason: 'no_trace' });
+        } finally {
+          await db.query('UPDATE privacy_settings SET ghost_races = true WHERE account_id = $1', [
+            account
+          ]);
+        }
+      });
 
       it('serves the holder run, trimmed and timed', async () => {
         await clearViews();

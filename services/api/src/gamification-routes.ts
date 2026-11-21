@@ -926,6 +926,17 @@ export const registerGamificationRoutes = ({
         return response;
       }
 
+      // ADR-0014 control 10: a runner with the friend board off is neither on
+      // it nor shown it, the same symmetry as club boards.
+      const ownSetting = await database.query<{ friend_board: boolean }>(
+        'SELECT friend_board FROM privacy_settings WHERE account_id = $1',
+        [accountId]
+      );
+      if (ownSetting.rows[0]?.friend_board === false) {
+        const response: FriendStandingsResponse = { ...period, entries: [] };
+        return response;
+      }
+
       // Mutual friendship, minus any block in either direction. The account
       // itself is always included: a board it cannot find itself on tells it
       // nothing.
@@ -947,6 +958,8 @@ export const registerGamificationRoutes = ({
                      AND block.blocked_account_id = forward.friend_account_id)
                  OR (block.blocker_account_id = forward.friend_account_id
                      AND block.blocked_account_id = $1)))
+             AND COALESCE((SELECT settings.friend_board FROM privacy_settings settings
+               WHERE settings.account_id = forward.friend_account_id), true)
            UNION
            SELECT $1::uuid
          )

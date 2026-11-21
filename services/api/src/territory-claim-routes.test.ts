@@ -82,6 +82,9 @@ const claimRow = (overrides: Record<string, unknown> = {}) => ({
   id: CLAIM,
   account_id: RIVAL,
   display_name: 'Ravi',
+  // Ravi shows his name on ground he holds (ADR-0014, control 8).
+  name_on_ground: true,
+  username: 'ravi_runs',
   cosmetic: { avatarKey: 'orbit-04' },
   boundary: polygonJson,
   centroid: pointJson,
@@ -119,6 +122,8 @@ const heldRow = (overrides: Record<string, unknown> = {}) => ({
 });
 
 interface Stubs {
+  /** The reader's friends, by account id. */
+  friends?: string[];
   sanctions?: Record<string, unknown>[];
   privacyZones?: Record<string, unknown>[];
   priorClaims?: string;
@@ -139,6 +144,8 @@ let calls: { sql: string; values: readonly unknown[] | undefined }[] = [];
 const respond = (sql: string) => {
   // Matched on the projection, not on 'FROM sanctions': the map query carries
   // a sanctions subquery too, and a looser match would answer the wrong one.
+  if (sql.includes('SELECT friend_account_id FROM friendships'))
+    return { rows: (stubs.friends ?? []).map((id) => ({ friend_account_id: id })) };
   if (sql.includes('SELECT kind, statement')) return { rows: stubs.sanctions ?? [] };
   if (sql.includes('FROM activity_submissions')) return { rows: stubs.activityOwned ?? [] };
   if (sql.includes('FROM activity_chunks')) return { rows: stubs.chunks ?? [] };
@@ -217,11 +224,40 @@ describe('GET /v1/territory/claims', () => {
     expect(body.claims[0].owner).toEqual({
       id: RIVAL,
       displayName: 'Ravi',
+      username: 'ravi_runs',
       avatarKey: 'orbit-04',
       isSelf: false
     });
     expect(body.claims[0].durationSeconds).toBe(600);
     expect(body.claims[0].boundary.length).toBeGreaterThanOrEqual(3);
+  });
+
+  describe("the holder's privacy settings (ADR-0014)", () => {
+    it('shows an anonymous Runner to a stranger when the holder hides their name', async () => {
+      stubs = { mapClaims: [claimRow({ name_on_ground: false })] };
+      expect((await read()).json().claims[0].owner).toEqual({
+        id: RIVAL,
+        displayName: 'Runner',
+        avatarKey: 'default',
+        isSelf: false
+      });
+    });
+
+    it("still shows the name to the holder's friends", async () => {
+      stubs = { mapClaims: [claimRow({ name_on_ground: false })], friends: [RIVAL] };
+      expect((await read()).json().claims[0].owner).toMatchObject({
+        displayName: 'Ravi',
+        username: 'ravi_runs'
+      });
+    });
+
+    it('does not draw hidden ground for anyone but its holder', async () => {
+      stubs = { mapClaims: [claimRow({ draw_ground: false })], friends: [RIVAL] };
+      expect((await read()).json().claims).toEqual([]);
+
+      stubs = { mapClaims: [claimRow({ account_id: ME, draw_ground: false })] };
+      expect((await read()).json().claims).toHaveLength(1);
+    });
   });
 
   it('marks the reader own ground', async () => {
@@ -622,6 +658,8 @@ describe('GET /v1/territory/claims/activity', () => {
           rival_id: RIVAL,
           rival_name: 'Ravi',
           rival_cosmetic: { avatarKey: 'orbit-04' },
+          rival_named: true,
+          rival_username: 'ravi_runs',
           previous_duration_seconds: 900,
           new_duration_seconds: 720,
           created_at: new Date('2026-09-06T06:00:00.000Z')

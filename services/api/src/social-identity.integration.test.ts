@@ -262,3 +262,24 @@ describePostgis('friend requests by username follow "who can send me requests"',
     expect(await pending(closed)).toBe(0);
   });
 });
+
+describePostgis('the friend board switch (ADR-0014, control 10)', () => {
+  const boardIds = async (who: Runner) =>
+    (
+      (
+        await app.inject({ method: 'GET', url: '/v1/friends/standings', headers: as(who) })
+      ).json() as { entries: { profile: { id: string } }[] }
+    ).entries.map((entry) => entry.profile.id);
+
+  it('takes a runner off their friends’ board, and shows them no board, when turned off', async () => {
+    const tag = suffix();
+    const one = await runner(`p${tag}`);
+    const two = await runner(`q${tag}`);
+    await befriend(one, two);
+    expect(await boardIds(one)).toEqual(expect.arrayContaining([one.id, two.id]));
+
+    await settle(two, { friendBoard: false });
+    expect(await boardIds(one)).toEqual([one.id]);
+    expect(await boardIds(two)).toEqual([]);
+  });
+});
