@@ -63,6 +63,39 @@ export const pinoRedactionPaths = [
   'res.body.placeIds'
 ] as const;
 
+/**
+ * Email links carry their one-time token in the query string
+ * (`/reset-password?token=…`), and Fastify logs every request's URL. Path-based
+ * redaction can't reach inside a URL string, so the request serializer runs
+ * URLs through this before they are written.
+ */
+export const redactUrlSecrets = (url: string): string =>
+  url.replace(/([?&]token=)[^&#]*/gi, '$1[REDACTED]');
+
+/** The parts of a Fastify request that its default `req` log line uses. */
+interface LoggedRequest {
+  method: string;
+  url: string;
+  host?: string;
+  ip?: string;
+  headers?: Record<string, string | string[] | undefined>;
+  socket?: { remotePort?: number | undefined } | null;
+}
+
+/** Fastify's default `req` log fields, with secrets taken out of the URL. */
+export const requestLogSerializer = (request: LoggedRequest) => {
+  const version = request.headers?.['accept-version'];
+  const remotePort = request.socket?.remotePort;
+  return {
+    method: request.method,
+    url: redactUrlSecrets(request.url),
+    ...(typeof version === 'string' ? { version } : {}),
+    ...(request.host === undefined ? {} : { host: request.host }),
+    ...(request.ip === undefined ? {} : { remoteAddress: request.ip }),
+    ...(remotePort === undefined ? {} : { remotePort })
+  };
+};
+
 export interface ApiConfig {
   host: string;
   port: number;

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { loadApiConfig, pinoRedactionPaths } from './index.js';
+import {
+  loadApiConfig,
+  pinoRedactionPaths,
+  redactUrlSecrets,
+  requestLogSerializer
+} from './index.js';
 
 describe('API configuration', () => {
   it('uses local development defaults', () => {
@@ -46,5 +51,36 @@ describe('Pino redaction paths', () => {
     );
     expect(pinoRedactionPaths).not.toContain('req.body');
     expect(pinoRedactionPaths).not.toContain('res.body');
+  });
+});
+
+describe('URL secret redaction', () => {
+  it('removes email-link tokens from logged URLs and keeps the rest', () => {
+    expect(redactUrlSecrets('/reset-password?token=abc123')).toBe(
+      '/reset-password?token=[REDACTED]'
+    );
+    expect(redactUrlSecrets('/unsubscribe?utm=x&Token=abc#top')).toBe(
+      '/unsubscribe?utm=x&Token=[REDACTED]#top'
+    );
+    expect(redactUrlSecrets('/v1/activities?tokenish=1')).toBe('/v1/activities?tokenish=1');
+  });
+
+  it('logs the same request fields as Fastify, with the URL redacted', () => {
+    expect(
+      requestLogSerializer({
+        method: 'GET',
+        url: '/verify-email?token=secret-value',
+        host: 'api.example',
+        ip: '203.0.113.7',
+        headers: {},
+        socket: { remotePort: 4000 }
+      })
+    ).toEqual({
+      method: 'GET',
+      url: '/verify-email?token=[REDACTED]',
+      host: 'api.example',
+      remoteAddress: '203.0.113.7',
+      remotePort: 4000
+    });
   });
 });

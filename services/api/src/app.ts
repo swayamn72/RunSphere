@@ -1,7 +1,7 @@
 import cors from '@fastify/cors';
 import swagger from '@fastify/swagger';
 import type { ApiConfig } from '@runsphere/config';
-import { pinoRedactionPaths } from '@runsphere/config';
+import { pinoRedactionPaths, requestLogSerializer } from '@runsphere/config';
 import { createMetrics } from '@runsphere/observability';
 import { HealthResponseSchema, ReadinessResponseSchema } from '@runsphere/contracts';
 import type { Database } from '@runsphere/db';
@@ -118,7 +118,8 @@ export const buildApp = ({
         trustProxy,
         logger: {
           level: process.env.LOG_LEVEL ?? 'info',
-          redact: { paths: [...pinoRedactionPaths], censor: '[REDACTED]' }
+          redact: { paths: [...pinoRedactionPaths], censor: '[REDACTED]' },
+          serializers: { req: requestLogSerializer }
         }
       });
   if (rateLimits) registerRateLimits(app, authSecret);
