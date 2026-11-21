@@ -220,8 +220,6 @@ export function ProfileScreen({
   const [appealDrafts, setAppealDrafts] = useState<Readonly<Record<string, string>>>({});
   const [appealNotice, setAppealNotice] = useState('');
   const [appealBusy, setAppealBusy] = useState(false);
-  const [visibility, setVisibility] = useState<'private' | 'followers'>('private');
-  const [visibilityBusy, setVisibilityBusy] = useState(false);
   const [fairPlayOpen, setFairPlayOpen] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState('Not verified');
   const sendAppeal = async (sanctionId: string) => {
@@ -242,16 +240,6 @@ export function ProfileScreen({
     setAppealBusy(false);
   };
 
-  const updateVisibility = async (next: 'private' | 'followers') => {
-    setVisibilityBusy(true);
-    try {
-      setVisibility((await api.updateVisibility({ activityVisibility: next })).activityVisibility);
-    } catch (error) {
-      Alert.alert('Visibility unchanged', failureMessage(error, 'Try again when connected.'));
-    } finally {
-      setVisibilityBusy(false);
-    }
-  };
   const requestVerification = async () => {
     try {
       await api.requestEmailVerification();
@@ -423,13 +411,9 @@ export function ProfileScreen({
           value={verificationStatus}
           onPress={() => void requestVerification()}
         />
-        <Setting
-          label="Default visibility"
-          value={visibilityBusy ? 'Saving…' : visibility === 'private' ? 'Only me' : 'Followers'}
-          onPress={() => void updateVisibility(visibility === 'private' ? 'followers' : 'private')}
-        />
         <Text style={styles.settingsHint}>
-          Verify your email before choosing followers. Exact routes still stay private.
+          Who can see you and your runs is set under Privacy & visibility below. Exact routes still
+          stay private.
         </Text>
       </SettingsGroup>
       <SettingsGroup title="Privacy & safety">
