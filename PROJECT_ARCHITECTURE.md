@@ -31,7 +31,7 @@ pnpm 10 workspace + Turbo 2. Node 22 (CI: 22.21.0). TypeScript 6, ESM everywhere
 | `packages/ui`                         | `@runsphere/ui`            | Semantic colour tokens only.                                                                                                                                                                                                                                                |                               |
 | `infra/`                              | —                          | `compose.yaml` (PostGIS 18 + optional Martin, Valhalla, pgAdmin placeholders), `postgres/migrations/*.sql` (45 files, 001–046, `006` absent).                                                                                                                               |                               |
 | `scripts/`                            | —                          | `migrate.mjs`, `verify-migrations.mjs` (static CHECK/seed validation), `verify-maplibre-compatibility.mjs`, `data/import-reviewed-quests.mjs`, untracked `seed-admin.mjs`.                                                                                                  |                               |
-| `Dockerfile.api`, `Dockerfile.worker` | —                          | Single-stage images built from the workspace.                                                                                                                                                                                                                               |                               |
+| `Dockerfile.api`, `Dockerfile.worker` | —                          | Two-stage, non-root images; production deps only; built in CI.                                                                                                                                                                                                              |                               |
 | `patches/h3-js@4.1.0.patch`           | —                          | Makes h3-js tolerate missing `TextDecoder` encodings.                                                                                                                                                                                                                       |                               |
 | `docs/`                               | —                          | Extensive product/ADR docs, partly stale (see §9).                                                                                                                                                                                                                          |                               |
 | `test-claim.ts` (root), `scratch/`    | —                          | Debug leftovers. `scratch/` is gitignored; `test-claim.ts` is tracked.                                                                                                                                                                                                      |                               |
@@ -172,9 +172,8 @@ _Updated 2026-11-20 after Milestone 0._
 
 ## 7. Deployment state
 
-- `Dockerfile.api` and `Dockerfile.worker` exist (single-stage, dev deps included, `pnpm install
---frozen-lockfile` with only a subset of workspace packages copied). Neither has been verified to
-  build. There is no compose service, manifest or IaC that runs the API, worker or ML service.
+- `Dockerfile.api` and `Dockerfile.worker` are two-stage builds that run as the `node` user with
+  production dependencies only, under tini. CI builds both (M4.1). There is no compose service, manifest or IaC that runs the API, worker or ML service.
 - The mobile `eas.json` `development` profile hardcodes a LAN API URL. `preview` and `production` set
   no `EXPO_PUBLIC_API_BASE_URL`, so a production build would start in the "configuration" failure
   state unless it's set as an EAS environment variable.

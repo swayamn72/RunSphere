@@ -9,6 +9,34 @@ permissions:
   contents: read
 
 jobs:
+  # M4.1: the images are built on every push so a broken Dockerfile is a red
+  # check, not a surprise at deploy. Nothing is pushed to a registry yet.
+  images:
+    name: Build service images
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [api, worker]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build ${{ matrix.service }} image
+        run: docker build --file Dockerfile.${{ matrix.service }} --tag runsphere-${{ matrix.service }}:ci .
+
+      - name: Image runs as a non-root user
+        run: |
+          uid="$(docker run --rm --entrypoint id runsphere-${{ matrix.service }}:ci -u)"
+          echo "uid=$uid"
+          test "$uid" != "0"
+
+      - name: Image carries no TypeScript sources or dev tooling
+        run: |
+          docker run --rm --entrypoint sh runsphere-${{ matrix.service }}:ci -c '
+            ! find /app -name "*.ts" ! -name "*.d.ts" -not -path "*/node_modules/*" | grep -q . &&
+            ! ls /app/node_modules/.pnpm | grep -qE "^(typescript|vitest|eslint|turbo|tsx)@"'
+
   validate:
     name: Validate and test
     runs-on: ubuntu-latest

@@ -1,22 +1,48 @@
-FROM node:22-bookworm-slim AS base
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
+# syntax=docker/dockerfile:1
+#
+# RunSphere worker image (M4.1, R9). Same shape as Dockerfile.api: a `build`
+# stage that compiles and then keeps production dependencies only, and a
+# `runtime` stage on a clean base running as the unprivileged `node` user.
+#
+# The worker still imports `@runsphere/api` (activity, progression, quests,
+# achievements), so the API's compiled code ships here too until M1.10 moves
+# that logic into a shared package. No port is exposed: the worker only polls
+# Postgres.
+#
+# Build from the repository root:  docker build -f Dockerfile.worker -t runsphere-worker .
 
+ARG NODE_IMAGE=node:22.21.0-bookworm-slim
+
+FROM ${NODE_IMAGE} AS build
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable
 WORKDIR /app
 
-# Copy root configuration, lockfiles, and patches
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json tsconfig*.json ./
-COPY patches/ patches/
 COPY packages/ packages/
 COPY services/api/ services/api/
 COPY services/worker/ services/worker/
 COPY infra/postgres/migrations/ infra/postgres/migrations/
 
-# Install dependencies and build
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --filter "@runsphere/worker..."
+# `tsc -b` follows the project references: packages/*, then the API, then the worker.
 RUN pnpm --filter @runsphere/worker build
 
-ENV NODE_ENV=production
+RUN rm -rf node_modules packages/*/node_modules services/*/node_modules \
+  && pnpm install --frozen-lockfile --prod --filter "@runsphere/worker..." \
+  && rm -rf packages/*/src services/*/src packages/*/tsconfig*.json services/*/tsconfig*.json \
+    tsconfig*.json turbo.json packages/ui \
+  && find packages services -maxdepth 2 \( -name '*.tsbuildinfo' -o -name 'vitest.config.*' \) -delete
 
+FROM ${NODE_IMAGE} AS runtime
+# tini as PID 1 forwards SIGTERM, so `docker stop` ends the process at once.
+RUN apt-get update \
+  && apt-get install --yes --no-install-recommends tini \
+  && rm -rf /var/lib/apt/lists/*
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=build /app /app
+USER node
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["node", "services/worker/dist/index.js"]

@@ -1,0 +1,21 @@
+# The API and worker images need only the workspace manifests, packages/,
+# services/ and the migrations. Everything else stays out of the build context:
+# secrets most of all, and host-built node_modules that would shadow the
+# image's own Linux install.
+**/node_modules
+**/dist
+**/.turbo
+**/*.tsbuildinfo
+**/coverage
+.git
+.github
+.env
+.env.*
+!.env.example
+.npmrc
+**/google-services.json
+apps
+docs
+scratch
+services/ml
+**/*.test.ts

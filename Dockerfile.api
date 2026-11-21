@@ -1,24 +1,56 @@
-FROM node:22-bookworm-slim AS base
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
+# syntax=docker/dockerfile:1
+#
+# RunSphere API image (M4.1, R9). Two stages: `build` installs everything and
+# compiles, then reinstalls production dependencies only; `runtime` copies that
+# result onto a clean base and runs as the unprivileged `node` user. The image
+# carries compiled JavaScript, production node_modules and the SQL migrations,
+# never TypeScript sources, dev tooling or pnpm itself.
+#
+# The workspace layout is kept as-is (/app/packages/*, /app/services/api)
+# because `@runsphere/db` finds migrations at a path relative to its own dist
+# (`../../../infra/postgres/migrations`) and workspace packages are symlinked.
+#
+# Build from the repository root:  docker build -f Dockerfile.api -t runsphere-api .
 
+ARG NODE_IMAGE=node:22.21.0-bookworm-slim
+
+FROM ${NODE_IMAGE} AS build
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable
 WORKDIR /app
 
-# Copy root configuration, lockfiles, and patches
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json tsconfig*.json ./
-COPY patches/ patches/
 COPY packages/ packages/
 COPY services/api/ services/api/
 COPY infra/postgres/migrations/ infra/postgres/migrations/
 
-# Install dependencies and build
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --filter "@runsphere/api..."
+# `tsc -b` follows the project references, so this also builds packages/*.
 RUN pnpm --filter @runsphere/api build
 
-EXPOSE 3001
-ENV PORT=3001
-ENV HOST=0.0.0.0
-ENV NODE_ENV=production
+# Swap in production-only dependencies and drop what the runtime never reads.
+RUN rm -rf node_modules packages/*/node_modules services/*/node_modules \
+  && pnpm install --frozen-lockfile --prod --filter "@runsphere/api..." \
+  && rm -rf packages/*/src services/*/src packages/*/tsconfig*.json services/*/tsconfig*.json \
+    tsconfig*.json turbo.json packages/ui \
+  && find packages services -maxdepth 2 \( -name '*.tsbuildinfo' -o -name 'vitest.config.*' \) -delete
 
+FROM ${NODE_IMAGE} AS runtime
+# tini as PID 1 forwards SIGTERM, so `docker stop` ends the process at once
+# instead of waiting out the kill timeout (Node as PID 1 ignores SIGTERM).
+RUN apt-get update \
+  && apt-get install --yes --no-install-recommends tini \
+  && rm -rf /var/lib/apt/lists/*
+ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=3001
+WORKDIR /app
+# Root-owned and read-only to the service user: the process cannot rewrite its own code.
+COPY --from=build /app /app
+USER node
+EXPOSE 3001
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 3001) + '/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["node", "services/api/dist/server.js"]
