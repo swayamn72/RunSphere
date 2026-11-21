@@ -51,8 +51,13 @@ import {
   type StaffReviewItem,
   type TerritoryConcentrationRow,
   type TerritoryDivisionSize,
-  type TerritoryWeekRow
+  type TerritoryWeekRow,
+  getTradeFlags,
+  getTurfConcentration,
+  reviewTradeFlag
 } from './api.js';
+import { TurfArea } from './turf-area.js';
+import { canModerate, canOperateCompetitions } from '@runsphere/domain';
 import type {
   CampaignSummary,
   CompetitionSummary,
@@ -60,7 +65,9 @@ import type {
   StaffAppeal,
   StaffReport,
   StaffSanction,
-  TerritorySeasonView
+  TerritoryConcentrationReport,
+  TerritorySeasonView,
+  TerritoryTradeFlag
 } from '@runsphere/contracts';
 
 const readableStatus = (status: StaffReviewItem['status']) => status.replace('_', ' ');
@@ -95,6 +102,9 @@ export function AdminShell() {
   const [privacyRequests, setPrivacyRequests] = useState<PrivacyRequest[]>([]);
   const [completedDeletions, setCompletedDeletions] = useState(0);
   const [rules, setRules] = useState<RuleVersion[]>([]);
+  const [turfConcentration, setTurfConcentration] = useState<TerritoryConcentrationReport>();
+  const [tradeFlags, setTradeFlags] = useState<readonly TerritoryTradeFlag[]>();
+  const [tradeFlagNote, setTradeFlagNote] = useState<string>();
 
   const run = async (work: () => Promise<unknown>, success?: string) => {
     setLoading(true);
@@ -133,6 +143,17 @@ export function AdminShell() {
       }
       if (next === 'seasons') setSeasons((await getTerritorySeasons(token)).data);
       if (next === 'data') setRules((await getRuleVersions(token)).data);
+      if (next === 'turf') {
+        // Each part loads only for the role its route admits.
+        setTurfConcentration(
+          canOperateCompetitions(roles) ? await getTurfConcentration(token) : undefined
+        );
+        if (canModerate(roles)) {
+          const queue = await getTradeFlags(token);
+          setTradeFlags(queue.data);
+          setTradeFlagNote(queue.note);
+        } else setTradeFlags(undefined);
+      }
     });
   };
 
@@ -478,6 +499,21 @@ export function AdminShell() {
               loading={loading}
               onChanged={() => openArea('competitions')}
               run={run}
+            />
+          ) : null}
+
+          {area === 'turf' ? (
+            <TurfArea
+              concentration={turfConcentration}
+              flags={tradeFlags}
+              flagNote={tradeFlagNote}
+              loading={loading}
+              onReview={(flagId, outcome, note) =>
+                void run(async () => {
+                  const queue = await reviewTradeFlag(accessToken, flagId, { outcome, note });
+                  setTradeFlags(queue.data);
+                }, 'Review recorded.')
+              }
             />
           ) : null}
 

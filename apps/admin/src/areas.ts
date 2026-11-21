@@ -19,6 +19,7 @@ export type AreaKey =
   | 'review'
   | 'moderation'
   | 'competitions'
+  | 'turf'
   | 'seasons'
   | 'campaigns'
   | 'privacy'
@@ -70,6 +71,17 @@ export const AREAS: readonly AreaDefinition[] = [
     summary: 'Schedule, announce, and cancel time-boxed events.',
     permitted: canOperateCompetitions,
     roleNote: 'season_operator or admin, matching /v1/staff/competitions.'
+  },
+  {
+    key: 'turf',
+    title: 'Turf claims',
+    summary: 'How concentrated held ground is, and back-and-forth trades flagged for review.',
+    // Two routes with two gates: a moderator works the trade flags, a season
+    // operator reads concentration. The area opens for either and shows each
+    // part only to the role its route admits.
+    permitted: (roles) => canModerate(roles) || canOperateCompetitions(roles),
+    roleNote:
+      'Trade flags: moderator or admin (/v1/staff/territory/trade-flags). Concentration: season_operator or admin (/v1/staff/territory/concentration). Events need a map drawing tool and are not here yet.'
   },
   {
     key: 'seasons',

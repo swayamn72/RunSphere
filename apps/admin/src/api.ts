@@ -2,6 +2,9 @@ import type {
   CampaignPreviewResponse,
   CampaignSummary,
   CompetitionSummary,
+  TerritoryConcentrationReport,
+  TerritoryTradeFlagListResponse,
+  TerritoryTradeReviewRequest,
   EmailTemplate,
   StaffAppeal,
   StaffReport,
@@ -330,6 +333,29 @@ export const rollBackTerritoryWeek = (
   json<{ data: TerritoryWeekRow[] }>(
     accessToken,
     `/v1/staff/territory/seasons/${seasonId}/weeks/${weekStartsOn}/rollback`,
+    'POST',
+    body
+  );
+
+/**
+ * Turf claims (the claim-era territory model). Concentration is read-only;
+ * a trade flag is a question for a moderator, never an automatic verdict, so
+ * the review always carries a note.
+ */
+export const getTurfConcentration = (accessToken: string) =>
+  authed<TerritoryConcentrationReport>(accessToken, '/v1/staff/territory/concentration');
+
+export const getTradeFlags = (accessToken: string) =>
+  authed<TerritoryTradeFlagListResponse>(accessToken, '/v1/staff/territory/trade-flags');
+
+export const reviewTradeFlag = (
+  accessToken: string,
+  flagId: string,
+  body: TerritoryTradeReviewRequest
+) =>
+  json<TerritoryTradeFlagListResponse>(
+    accessToken,
+    `/v1/staff/territory/trade-flags/${encodeURIComponent(flagId)}/review`,
     'POST',
     body
   );
