@@ -52,6 +52,8 @@ import {
   type ClubsRemoteState,
   clubShareMessage
 } from './clubs-model';
+import { ReportPanel, type ReportSubject } from '../components/ReportPanel';
+import { REPORT_CONSEQUENCE_HINT } from './moderation-model';
 
 /**
  * Clubs (Phase 3, milestone 3.1), reached from the account settings: the
@@ -399,6 +401,7 @@ function ClubDetail({
   const [notice, setNotice] = useState('');
   const [working, setWorking] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const [reporting, setReporting] = useState<ReportSubject>();
   const mounted = useRef(true);
 
   const load = useCallback(() => {
@@ -873,6 +876,18 @@ function ClubDetail({
                   )}
                 </View>
               )}
+              {row.accountId !== accountId && (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Report ${row.nameLabel}`}
+                  accessibilityHint={REPORT_CONSEQUENCE_HINT}
+                  onPress={() =>
+                    setReporting({ type: 'account', id: row.accountId, nameLabel: row.nameLabel })
+                  }
+                >
+                  <Text style={styles.textButton}>Report</Text>
+                </Pressable>
+              )}
             </View>
           ))}
           <Text style={styles.settingsHint}>
@@ -880,6 +895,18 @@ function ClubDetail({
             count above still counts everyone.
           </Text>
         </SettingsGroup>
+      )}
+
+      {reporting && (
+        <ReportPanel
+          api={api}
+          subject={reporting}
+          onFinished={(next, sent) => {
+            setNotice(next);
+            if (sent) setReporting(undefined);
+          }}
+          onCancel={() => setReporting(undefined)}
+        />
       )}
 
       {(state === 'offline' || state === 'error') && (
@@ -896,6 +923,15 @@ function ClubDetail({
       )}
 
       <SettingsGroup title="Leaving">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Report this club"
+          accessibilityHint={REPORT_CONSEQUENCE_HINT}
+          onPress={() => setReporting({ type: 'club', id: club.id, nameLabel: club.name })}
+          style={styles.setting}
+        >
+          <Text style={styles.rowTitle}>Report club</Text>
+        </Pressable>
         {actions.canLeave ? (
           <Pressable
             accessibilityRole="button"

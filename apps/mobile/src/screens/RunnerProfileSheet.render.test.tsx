@@ -40,7 +40,8 @@ const texts = (renderer: ReactTestRenderer) =>
 const open = async (getRunnerProfile: (u: string) => Promise<PublicProfile>) => {
   const api = {
     getRunnerProfile: vi.fn(getRunnerProfile),
-    sendFriendRequest: vi.fn(async () => ({ status: 'recorded' as const }))
+    sendFriendRequest: vi.fn(async () => ({ status: 'recorded' as const })),
+    fileReport: vi.fn(async () => ({ received: true, message: 'Thanks.' }))
   };
   let renderer!: ReactTestRenderer;
   await act(async () => {
@@ -70,6 +71,30 @@ describe('runner profile sheet (SI.6)', () => {
       throw new ApiFailure(404, 'Runner not found');
     });
     expect(texts(renderer)).toContain("This runner's profile is private.");
+  });
+
+  it('reports a runner from their profile, but not yourself (M8 C.9)', async () => {
+    const { api, renderer } = await open(async () => ravi);
+    const report = renderer.root.find(
+      (node) =>
+        (node.props as { accessibilityLabel?: string }).accessibilityLabel === 'Report @ravi_runs'
+    );
+    await act(async () => (report.props as { onPress: () => void }).onPress());
+    const reason = renderer.root.findAll((node) =>
+      String((node.props as { accessibilityLabel?: string }).accessibilityLabel ?? '').startsWith(
+        'Report for '
+      )
+    )[0]!;
+    await act(async () => (reason.props as { onPress: () => void }).onPress());
+    expect(api.fileReport).toHaveBeenCalledWith('account', ravi.id, expect.any(String));
+
+    const self = await open(async () => ({ ...ravi, relationship: 'self' }));
+    expect(
+      self.renderer.root.findAll(
+        (node) =>
+          (node.props as { accessibilityLabel?: string }).accessibilityLabel === 'Report @ravi_runs'
+      )
+    ).toHaveLength(0);
   });
 
   it('makes initials from up to two words', () => {

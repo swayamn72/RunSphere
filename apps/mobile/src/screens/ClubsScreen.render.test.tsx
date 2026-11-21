@@ -173,7 +173,8 @@ const stubApi = (
     leaveClub: vi.fn(overrides.leave ?? (async () => undefined)),
     removeClubMember: vi.fn(async () => undefined),
     setClubMemberRole: vi.fn(async () => member(RAVI, 'admin', 'Ravi')),
-    archiveClub: vi.fn(async () => club({ archivedAt: '2026-09-04T10:00:00.000Z' }))
+    archiveClub: vi.fn(async () => club({ archivedAt: '2026-09-04T10:00:00.000Z' })),
+    fileReport: vi.fn(async () => ({ received: true, message: 'Thanks.' }))
   }) as unknown as MobileApiClient & Record<string, ReturnType<typeof vi.fn>>;
 
 const render = async (api: MobileApiClient): Promise<ReactTestRenderer> => {
@@ -734,5 +735,38 @@ describe('the club challenge', () => {
     await press(renderer, 'Open challenge');
 
     expect(text(renderer)).toContain('No club challenge rule is published');
+  });
+});
+
+describe('reporting from a club (M8 C.9)', () => {
+  it('reports the club itself with a chosen reason', async () => {
+    const api = stubApi({
+      clubs: [club({ role: 'member' })],
+      members: [member(ME, 'member', 'Maya')]
+    });
+    const renderer = await render(api);
+    await openClub(renderer);
+    await press(renderer, 'Report this club');
+    const reason = byLabel(renderer, (label) => label.startsWith('Report for '))[0]!;
+    await act(async () => (reason.props as { onPress: () => void }).onPress());
+
+    expect(api.fileReport).toHaveBeenCalledWith('club', CLUB, expect.any(String));
+    expect(byLabel(renderer, (label) => label === 'Cancel the report')).toHaveLength(0);
+  });
+
+  it('offers Report on other members but never on your own row', async () => {
+    const api = stubApi({
+      clubs: [club({ role: 'member' })],
+      members: [member(ME, 'member', 'Maya'), member(RAVI, 'owner', 'Ravi')]
+    });
+    const renderer = await render(api);
+    await openClub(renderer);
+
+    expect(byLabel(renderer, (label) => label === 'Report Ravi')).toHaveLength(1);
+    expect(byLabel(renderer, (label) => label === 'Report Maya')).toHaveLength(0);
+    await press(renderer, 'Report Ravi');
+    const reason = byLabel(renderer, (label) => label.startsWith('Report for '))[0]!;
+    await act(async () => (reason.props as { onPress: () => void }).onPress());
+    expect(api.fileReport).toHaveBeenCalledWith('account', RAVI, expect.any(String));
   });
 });

@@ -194,8 +194,8 @@ username, display name, club names and descriptions, challenge names, and how yo
 </ul>
 
 <h2>Report and block</h2>
-<p>Use Report on a runner to tell us about a problem, and Block to stop them seeing or reaching
-you. The other person isn't told you blocked them. We review reports and may
+<p>Use Report on a runner (in Friends, on their profile, or in a club) or on a club to tell us
+about a problem, and Block to stop a runner seeing or reaching you. The other person isn't told you blocked them. We review reports and may
 warn, hide content, or suspend accounts. You can appeal a decision in the app.</p>
 ${contactBlock(contact)}`;
 

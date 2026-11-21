@@ -3,6 +3,8 @@ import { Pressable, Text, View } from 'react-native';
 import type { PublicProfile } from '@runsphere/contracts';
 import { ApiFailure, type MobileApiClient } from '../api-client';
 import { useAppStyles } from '../components/styles';
+import { ReportPanel } from '../components/ReportPanel';
+import { REPORT_CONSEQUENCE_HINT } from './moderation-model';
 import { failureMessage } from '../failure-copy';
 import {
   addFailureMessage,
@@ -35,7 +37,7 @@ export function RunnerProfileSheet({
   username,
   onClose
 }: {
-  api: Pick<MobileApiClient, 'getRunnerProfile' | 'sendFriendRequest'>;
+  api: Pick<MobileApiClient, 'getRunnerProfile' | 'sendFriendRequest' | 'fileReport'>;
   username: string;
   onClose: () => void;
 }) {
@@ -43,6 +45,7 @@ export function RunnerProfileSheet({
   const [profile, setProfile] = useState<PublicProfile>();
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const [reporting, setReporting] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -106,6 +109,27 @@ export function RunnerProfileSheet({
           ) : action ? (
             <Text style={styles.settingValue}>{action.label}</Text>
           ) : null}
+          {profile.relationship !== 'self' &&
+            (reporting ? (
+              <ReportPanel
+                api={api}
+                subject={{ type: 'account', id: profile.id, nameLabel: `@${profile.username}` }}
+                onFinished={(next, sent) => {
+                  setNotice(next);
+                  if (sent) setReporting(false);
+                }}
+                onCancel={() => setReporting(false)}
+              />
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Report @${profile.username}`}
+                accessibilityHint={REPORT_CONSEQUENCE_HINT}
+                onPress={() => setReporting(true)}
+              >
+                <Text style={styles.textButton}>Report</Text>
+              </Pressable>
+            ))}
         </>
       ) : notice === '' ? (
         <Text style={styles.rowDetail}>Loading…</Text>
