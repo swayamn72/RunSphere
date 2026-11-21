@@ -57,9 +57,13 @@ export const FriendRequestSchema = Type.Object(
 );
 
 /** Requests by exact email. The response is deliberately generic to prevent address enumeration. */
-export const FriendRequestCreateRequestSchema = Type.Object(
-  { email: EmailSchema },
-  { ...Strict, $id: 'FriendRequestCreateRequest' }
+/** By username (ADR-0014) or, as a fallback, by the exact email. */
+export const FriendRequestCreateRequestSchema = Type.Union(
+  [
+    Type.Object({ email: EmailSchema }, Strict),
+    Type.Object({ username: Type.String({ minLength: 1, maxLength: 40 }) }, Strict)
+  ],
+  { $id: 'FriendRequestCreateRequest' }
 );
 
 export const FriendRequestCreateResponseSchema = Type.Object(

@@ -39,6 +39,7 @@ import {
   cappedWeeklyActiveMinutes,
   competitionRanking,
   defaultNotificationPreferences,
+  normalizeUsername,
   notificationCategoriesFrom
 } from '@runsphere/domain';
 import { verifyAccessToken } from './auth.js';
@@ -238,7 +239,13 @@ export const registerGamificationRoutes = ({
       // paused account can still *receive* requests and accept them: what is
       // paused is putting yourself in front of other people.
       if (!(await requireSharingAllowed(database, reply, accountId))) return;
-      const email = request.body.email.trim().toLowerCase();
+      // By username (ADR-0014) or by the exact email. Either way the answer
+      // is the same "recorded", so a request never confirms an email address,
+      // and a runner's "who can send me requests" setting is applied silently.
+      const byUsername = 'username' in request.body;
+      const lookup = byUsername
+        ? normalizeUsername((request.body as { username: string }).username)
+        : (request.body as { email: string }).email.trim().toLowerCase();
 
       const target = await database.query<{ id: string; skip: boolean }>(
         `SELECT target.id,
@@ -249,9 +256,18 @@ export const registerGamificationRoutes = ({
                  OR (block.blocker_account_id = target.id AND block.blocked_account_id = $1)))
              OR EXISTS (SELECT 1 FROM friend_requests request WHERE request.status = 'pending'
                AND ((request.requester_account_id = $1 AND request.addressee_account_id = target.id)
-                 OR (request.requester_account_id = target.id AND request.addressee_account_id = $1)))) AS skip
-         FROM accounts target WHERE lower(target.email) = lower($2) AND target.deleted_at IS NULL`,
-        [accountId, email]
+                 OR (request.requester_account_id = target.id AND request.addressee_account_id = $1)))
+             OR COALESCE(settings.friend_requests_from, 'everyone') = 'nobody'
+             OR (settings.friend_requests_from = 'friends_of_friends' AND NOT EXISTS (
+               SELECT 1 FROM friendships mine
+               JOIN friendships theirs ON theirs.account_id = target.id
+                 AND theirs.friend_account_id = mine.friend_account_id
+               WHERE mine.account_id = $1))) AS skip
+         FROM accounts target
+         LEFT JOIN privacy_settings settings ON settings.account_id = target.id
+         WHERE ${byUsername ? 'lower(target.username) = lower($2)' : 'lower(target.email) = lower($2)'}
+           AND target.deleted_at IS NULL`,
+        [accountId, lookup]
       );
       // Deliberately generic: never reveal whether the address exists (ADR-0007,
       // feedback note). The response is identical for "no account" and "recorded".

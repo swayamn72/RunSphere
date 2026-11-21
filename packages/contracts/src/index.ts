@@ -117,7 +117,12 @@ export const RegisterRequestSchema = Type.Object(
   {
     email: Type.String({ format: 'email', maxLength: 320 }),
     password: Type.String({ minLength: 12, maxLength: 256 }),
-    ageAssertion: Type.Literal(true),
+    /** Legacy 18+ checkbox. New clients send `dateOfBirth` instead (ADR-0014). */
+    ageAssertion: Type.Optional(Type.Literal(true)),
+    /** `YYYY-MM-DD`. Used only for the 18+ check; never shown. */
+    dateOfBirth: Type.Optional(Type.String({ format: 'date' })),
+    username: Type.Optional(Type.String({ minLength: 3, maxLength: 21 })),
+    homeArea: Type.Optional(Type.String({ minLength: 1, maxLength: 60 })),
     policyVersion: Type.String({ minLength: 1, maxLength: 64 })
   },
   { ...Strict, $id: 'RegisterRequest' }
@@ -608,3 +613,4 @@ export * from './territory-claim.js';
 export * from './territory-leaderboard.js';
 export * from './route-suggestion.js';
 export * from './quest-recommendation.js';
+export * from './social-identity.js';

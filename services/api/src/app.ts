@@ -33,6 +33,7 @@ import { registerRouteSuggestionRoutes } from './route-suggestion-routes.js';
 import { registerQuestRecommendationRoutes } from './quest-recommendation-routes.js';
 import { createMlScorer, readMlScorerConfig } from './ml-scoring.js';
 import { registerRateLimits } from './rate-limit.js';
+import { registerSocialIdentityRoutes } from './social-identity-routes.js';
 
 type RuntimeApiConfig = Pick<ApiConfig, 'allowedOrigins' | 'staffReviewAccountIds'> & {
   metricsCollectorToken: string | undefined;
@@ -203,6 +204,7 @@ export const buildApp = ({
     registerActivityRoutes({ routes, database, authSecret });
 
     registerGamificationRoutes({ routes, database, authSecret });
+    registerSocialIdentityRoutes({ routes, database, authSecret });
     registerAccountLifecycleRoutes({ routes, database, authSecret });
     registerProgressionRoutes({ routes, database, authSecret });
     registerAchievementRoutes({ routes, database, authSecret });

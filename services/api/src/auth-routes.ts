@@ -14,7 +14,15 @@ import {
   type RefreshRequest,
   type RegisterRequest
 } from '@runsphere/contracts';
-import type { Database } from '@runsphere/db';
+import { withTransaction, type Database } from '@runsphere/db';
+import {
+  isAdult,
+  isHomeArea,
+  kolkataDate,
+  normalizeUsername,
+  usernameProblem,
+  USERNAME_PROBLEM_MESSAGE
+} from '@runsphere/domain';
 import {
   hashPassword,
   issueSession,
@@ -131,23 +139,72 @@ export const registerAuthRoutes = ({ routes, database, authSecret }: AuthRouteDe
       if (!database) return reply.code(503).send({ message: 'Service unavailable' });
       if (!allowAuthAttempt(`register:${request.ip}`))
         return reply.code(429).send({ message: 'Too many attempts' });
+      // ADR-0014: a date of birth is the 18+ check; the old checkbox is
+      // still accepted from clients that predate it. The date is kept only for
+      // this check and never shown.
+      const { dateOfBirth, ageAssertion } = request.body;
+      if (dateOfBirth !== undefined) {
+        if (!isAdult(dateOfBirth, kolkataDate(new Date())))
+          return reply.code(400).send({ message: 'You need to be 18 or older to use RunSphere.' });
+      } else if (ageAssertion !== true) {
+        return reply.code(400).send({ message: 'Add your date of birth to continue.' });
+      }
+      const username =
+        request.body.username === undefined ? undefined : normalizeUsername(request.body.username);
+      if (username !== undefined) {
+        const problem = usernameProblem(username);
+        if (problem) return reply.code(400).send({ message: USERNAME_PROBLEM_MESSAGE[problem] });
+      }
+      const homeArea = request.body.homeArea;
+      if (homeArea !== undefined && !isHomeArea(homeArea))
+        return reply.code(400).send({ message: 'Pick your area from the list.' });
+
+      const passwordHash = await hashPassword(request.body.password);
       try {
-        const account = await database.query<{ id: string }>(
-          'INSERT INTO accounts (email, password_hash, age_asserted_at, age_policy_version) VALUES ($1, $2, now(), $3) RETURNING id',
-          [
-            request.body.email.trim().toLowerCase(),
-            await hashPassword(request.body.password),
-            request.body.policyVersion
-          ]
-        );
-        const id = account.rows[0]!.id;
-        await database.query(
-          'INSERT INTO consent_history (account_id, consent_type, granted, policy_version) VALUES ($1, $2, true, $3)',
-          [id, 'age_assertion', request.body.policyVersion]
-        );
+        const id = await withTransaction(database, async (client) => {
+          const account = await client.query<{ id: string }>(
+            `INSERT INTO accounts (email, password_hash, age_asserted_at, age_policy_version,
+               username, birth_date, home_area)
+             VALUES ($1, $2, now(), $3,
+               COALESCE($4, 'runner_' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 12)),
+               $5::date, $6)
+             RETURNING id`,
+            [
+              request.body.email.trim().toLowerCase(),
+              passwordHash,
+              request.body.policyVersion,
+              username ?? null,
+              dateOfBirth ?? null,
+              homeArea ?? null
+            ]
+          );
+          const created = account.rows[0]!.id;
+          await client.query(
+            'INSERT INTO consent_history (account_id, consent_type, granted, policy_version) VALUES ($1, $2, true, $3)',
+            [created, 'age_assertion', request.body.policyVersion]
+          );
+          // New sign-ups get ADR-0014's defaults; the onboarding screen shows
+          // and saves the choice.
+          await client.query(
+            'INSERT INTO privacy_settings (account_id) VALUES ($1) ON CONFLICT (account_id) DO NOTHING',
+            [created]
+          );
+          // A profile from the start, named after the username until the runner
+          // picks a display name, so lists that join profiles always include them.
+          await client.query(
+            `INSERT INTO profiles (account_id, display_name, cosmetic)
+             SELECT id, username, '{"avatarKey":"default"}'::jsonb FROM accounts WHERE id = $1
+             ON CONFLICT (account_id) DO NOTHING`,
+            [created]
+          );
+          return created;
+        });
         return reply.code(201).send(await issueSession(database, id, authSecret));
       } catch (error) {
-        if ((error as { code?: string }).code === '23505')
+        const failure = error as { code?: string; constraint?: string };
+        if (failure.code === '23505' && failure.constraint === 'accounts_username_unique')
+          return reply.code(409).send({ message: 'That username is taken. Try another.' });
+        if (failure.code === '23505')
           return reply.code(409).send({ message: 'Account could not be created' });
         throw error;
       }

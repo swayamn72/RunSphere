@@ -47,3 +47,4 @@ export * from './run-verification.js';
 export * from './territory-recommendation.js';
 export * from './route-suggestion.js';
 export * from './claim-trading.js';
+export * from './social-identity.js';
