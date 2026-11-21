@@ -17,13 +17,15 @@ is: record a run offline (SQLCipher) → chunked checksummed upload → worker v
 - `apps/mobile`: Expo 57 / RN 0.86. Entry `App.tsx`; code in `src/`. Screens in `src/screens/*.tsx`
   with pure logic in `*-model.ts`. `.native.ts` holds platform implementations.
 - `apps/admin`: Vite + React staff console (`src/shell.tsx`, `src/api.ts`, `src/areas.ts`).
-- `services/api`: Fastify. `src/app.ts` registers `*-routes.ts` modules; `src/server.ts` migrates, then listens.
+- `services/api`: Fastify. `src/app.ts` registers `*-routes.ts` modules; `src/server.ts` prepares the schema, then listens.
 - `services/worker`: `src/worker.ts` main loop (`runWorker`), with one job per file.
 - `services/ml`: Python FastAPI (`anticheat/server.py`, `recommend/server.py`). Not part of the pnpm workspace.
 - `packages/contracts` (TypeBox schemas), `packages/domain` (pure logic), `packages/db` (pg, migrate,
   withTransaction), `packages/config`, `packages/observability`, `packages/ui` (tokens).
 - `infra/postgres/migrations/NNN_name.sql`: forward-only SQL migrations, applied by
-  `packages/db migrate()`. `infra/compose.yaml` runs local PostGIS.
+  `packages/db migrate()`. Local dev migrates on boot; with `NODE_ENV=production` services only
+  check and refuse to start on pending migrations (run `migrate-cli` first, M4.2).
+  `infra/compose.yaml` runs local PostGIS.
 
 ## Commands
 
@@ -107,7 +109,7 @@ APK exists and `aapt` isn't on PATH. Run `vitest run` directly to test only the 
 - Root `.env` (see `.env.example`) is read by the API and worker dev scripts (`--env-file-if-exists=../../.env`).
 - Required outside tests: `AUTH_TOKEN_SECRET` (≥32 chars), and `DATABASE_URL` or `POSTGRES_*`.
 - Optional and gated (unset means a logged no-op): `FCM_*`, `EMAIL_*` + `APP_BASE_URL`, `ML_SCORER_*`,
-  `ML_TRAINER_*`, `METRICS_COLLECTOR_TOKEN`, `STAFF_REVIEW_ACCOUNT_IDS`.
+  `ML_TRAINER_*`, `METRICS_COLLECTOR_TOKEN`, `STAFF_REVIEW_ACCOUNT_IDS`, `MIGRATE_ON_BOOT`.
 - Mobile: `apps/mobile/.env` → `EXPO_PUBLIC_API_BASE_URL` (HTTPS outside local dev),
   `EXPO_PUBLIC_MAP_STYLE_URL|ORIGINS|ATTRIBUTION`, `EXPO_PUBLIC_SYNTHETIC_LOCATION` (dev only).
 

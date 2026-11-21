@@ -10,6 +10,9 @@
 # because `@runsphere/db` finds migrations at a path relative to its own dist
 # (`../../../infra/postgres/migrations`) and workspace packages are symlinked.
 #
+# Schema changes are not applied on start (NODE_ENV=production, M4.2): run the
+# one-shot job first, e.g.  docker run --rm -e DATABASE_URL=... runsphere-api node packages/db/dist/migrate-cli.js
+#
 # Build from the repository root:  docker build -f Dockerfile.api -t runsphere-api .
 
 ARG NODE_IMAGE=node:22.21.0-bookworm-slim

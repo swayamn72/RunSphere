@@ -94,6 +94,61 @@ export const migrate = async (db: Database, directory = migrationDirectory): Pro
   }
 };
 
+/** Migration files in `directory` that the database has not recorded as applied. */
+export const pendingMigrations = async (
+  db: Database,
+  directory = migrationDirectory
+): Promise<string[]> => {
+  const files = (await readdir(directory)).filter((file) => file.endsWith('.sql')).sort();
+  try {
+    const applied = await db.query<{ version: string }>('SELECT version FROM schema_migrations');
+    const done = new Set(applied.rows.map((row) => row.version));
+    return files.filter((file) => !done.has(file));
+  } catch (error) {
+    // 42P01 undefined_table: a database that has never been migrated.
+    if ((error as { code?: string }).code === '42P01') return files;
+    throw error;
+  }
+};
+
+/**
+ * Whether a service applies migrations itself when it starts (M4.2, R10).
+ *
+ * Deployed images (`NODE_ENV=production`) don't: a bad migration applied on
+ * boot takes the API and worker down together, and every replica queues on the
+ * migration lock. There the deploy runs the one-shot `migrate-cli` first and
+ * services only check. Local dev keeps migrating on boot so `pnpm dev:api`
+ * still just works. `MIGRATE_ON_BOOT=true|false` overrides either default.
+ */
+export const migratesOnBoot = (environment: NodeJS.ProcessEnv): boolean => {
+  if (environment.MIGRATE_ON_BOOT === 'true') return true;
+  if (environment.MIGRATE_ON_BOOT === 'false') return false;
+  return environment.NODE_ENV !== 'production';
+};
+
+/**
+ * Get the schema ready for a starting service: migrate when
+ * {@link migratesOnBoot} says so, otherwise refuse to start while any
+ * migration is pending, since this build's queries assume them. A database
+ * *ahead* of the build is accepted, so a rollback to the previous image works.
+ */
+export const prepareSchema = async (
+  db: Database,
+  environment: NodeJS.ProcessEnv,
+  directory = migrationDirectory
+): Promise<void> => {
+  if (migratesOnBoot(environment)) {
+    await migrate(db, directory);
+    return;
+  }
+  const pending = await pendingMigrations(db, directory);
+  if (pending.length > 0)
+    throw new Error(
+      `The database is missing ${pending.length} migration(s), starting with ${pending[0]}. ` +
+        'Run the migrate job (node packages/db/dist/migrate-cli.js) before starting this service.'
+    );
+};
+
 export const withTransaction = async <T>(
   db: Database,
   work: (client: PoolClient) => Promise<T>

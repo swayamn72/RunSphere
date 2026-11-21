@@ -20,7 +20,7 @@ pnpm 10 workspace + Turbo 2. Node 22 (CI: 22.21.0). TypeScript 6, ESM everywhere
 | ------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
 | `apps/mobile`                         | `@runsphere/mobile`        | Expo 57 / RN 0.86 (New Arch) Android client. MapLibre RN, SQLCipher (expo-sqlite), SecureStore, expo-location, biometric run verification, background fetch. Committed `android/` and `ios/` native projects.                                                               | ~110 src files, 67 test files |
 | `apps/admin`                          | `@runsphere/admin`         | Vite + React 19 staff console. Single `shell.tsx` (1.2k lines) + `api.ts`.                                                                                                                                                                                                  | small                         |
-| `services/api`                        | `@runsphere/api`           | Fastify 5 HTTP API, ~125 routes, TypeBox schemas, OpenAPI via `@fastify/swagger`. Runs migrations on boot.                                                                                                                                                                  | ~30 route/logic files         |
+| `services/api`                        | `@runsphere/api`           | Fastify 5 HTTP API, ~125 routes, TypeBox schemas, OpenAPI via `@fastify/swagger`. Migrates on boot in dev only (M4.2).                                                                                                                                                      | ~30 route/logic files         |
 | `services/worker`                     | `@runsphere/worker`        | Single-process polling loop: activity validation, delivery (push/email), scheduled jobs (seasons, boards, competitions, ML features, deletion, retention).                                                                                                                  | ~25 files                     |
 | `services/ml`                         | (Python, not in workspace) | FastAPI anti-cheat (`/score`, Isolation Forest) and quest recommender (`/recommend`). Training is CLI scripts. Not deployed anywhere in-repo.                                                                                                                               | small                         |
 | `packages/contracts`                  | `@runsphere/contracts`     | TypeBox request/response schemas shared by API, mobile and admin. Also `canonicalJson` + checksum helpers.                                                                                                                                                                  |                               |
@@ -47,7 +47,7 @@ pnpm 10 workspace + Turbo 2. Node 22 (CI: 22.21.0). TypeScript 6, ESM everywhere
             │ HTTPS JSON (Bearer access token)
             ▼
  Fastify API  (services/api, port 3001)
-  ├ runs all SQL migrations on boot (advisory-locked)
+  ├ dev: runs SQL migrations on boot · production: refuses to start if any are pending
   ├ ~125 routes, TypeBox-validated
   ├ synchronous territory-claim pipeline (H3 carving in-request)
   └ optional call → ML anti-cheat /score (ML_SCORER_URL)
@@ -140,7 +140,9 @@ map style since 2026-11-21). Without config the app renders an app-owned fallbac
 
 - PostgreSQL 18 + PostGIS 3.6, extensions `postgis`, `pgcrypto`, `uuid-ossp` (`infra/postgres/init`).
 - Migrations: plain SQL, applied in filename order by `packages/db migrate()` inside a transaction per
-  file, under an advisory lock, on **API boot**, **worker boot**, and `pnpm migrate`. No down-migrations.
+  file, under an advisory lock, by `pnpm migrate` / `migrate-cli` (the one-shot deploy job) and, in local dev
+  only, on API and worker boot. Deployed services check and refuse to start on pending migrations. No
+  down-migrations.
   `scripts/verify-migrations.mjs` statically checks seeds against CHECK constraints (passes: 45 files).
 - Main table groups (by migration):
 

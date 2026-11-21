@@ -1,7 +1,7 @@
 import {
   createDatabase,
   defaultDatabaseUrl,
-  migrate,
+  prepareSchema,
   withTransaction,
   type Database
 } from '@runsphere/db';
@@ -503,7 +503,7 @@ const maintenanceIntervalFrom = (environment: NodeJS.ProcessEnv): number => {
 export const runWorker = async (): Promise<void> => {
   const db = createDatabase(defaultDatabaseUrl(process.env));
   const logger = createLogger('worker');
-  await migrate(db);
+  await prepareSchema(db, process.env);
   startWorker(logger);
   // Push and email are both gated on provider credentials. Without them each
   // handler is a logged no-op rather than a failure, so events still drain and
