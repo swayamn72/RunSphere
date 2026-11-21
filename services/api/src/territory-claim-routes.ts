@@ -77,6 +77,8 @@ import {
   type RunIntegrityVerdict
 } from '@runsphere/domain';
 import { verifyAccessToken } from './auth.js';
+import { ghostRaceAccess } from './ghost-race-access.js';
+import { settingFor, usernameFor } from './privacy-sql.js';
 import { adviseOnRun, type MlScorer } from './ml-scoring.js';
 import { notSharingSuspended, requireSharingAllowed } from './sanction-guard.js';
 
@@ -309,11 +311,6 @@ const avatarKeyFrom = (cosmetic: unknown): string => {
  * default migration 050 gave existing accounts.
  */
 export const ANONYMOUS_HOLDER = 'Runner';
-
-const settingFor = (column: string, setting: string, fallback: boolean) =>
-  `COALESCE((SELECT s.${setting} FROM privacy_settings s WHERE s.account_id = ${column}), ${fallback})`;
-const usernameFor = (column: string) =>
-  `(SELECT a.username FROM accounts a WHERE a.id = ${column})`;
 
 /** The reader's friends, loaded once per request so names can be shown to them. */
 const friendIdsOf = async (database: Database, readerId: string): Promise<ReadonlySet<string>> =>
@@ -1600,81 +1597,10 @@ export const registerTerritoryClaimRoutes = ({
         message: string
       ) => reply.code(code).send({ reason, message });
 
-      const claim = await database.query<{
-        id: string;
-        account_id: string;
-        city_tag: string | null;
-        claimed_at: Date;
-        display_name: string | null;
-        cosmetic: unknown;
-        username: string | null;
-        named: boolean;
-        ghost_races: boolean;
-        path: unknown;
-        elapsed_seconds: number[] | null;
-        distance_metres: number | null;
-        duration_seconds: number | null;
-        trim_metres: number | null;
-      }>(
-        `SELECT claim.id, claim.account_id, claim.city_tag, claim.claimed_at,
-           profile.display_name, profile.cosmetic,
-           ${usernameFor('claim.account_id')} AS username,
-           ${settingFor('claim.account_id', 'name_on_ground', false)} AS named,
-           ${settingFor('claim.account_id', 'ghost_races', true)} AS ghost_races,
-           ST_AsGeoJSON(ghost.path) AS path, ghost.elapsed_seconds,
-           ghost.distance_metres, ghost.duration_seconds, ghost.trim_metres
-         FROM territory_claims claim
-         LEFT JOIN profiles profile ON profile.account_id = claim.account_id
-         LEFT JOIN territory_claim_ghost_traces ghost ON ghost.claim_id = claim.id
-         WHERE claim.id = $1 AND claim.released_at IS NULL`,
-        [request.params.claimId]
-      );
-      const row = claim.rows[0];
-      // One answer for "no such claim" and "no longer held", because which of
-      // the two it is is not the asker's business.
-      if (!row)
-        return unavailable(404, 'not_held', 'This ground is not held by anybody right now.');
-
-      if (row.account_id === accountId)
-        return unavailable(403, 'own_claim', 'This is your own ground. There is no ghost to race.');
-
-      const blocked = await database.query<{ blocked: boolean }>(
-        `SELECT EXISTS (SELECT 1 FROM blocks block WHERE block.revoked_at IS NULL
-           AND ((block.blocker_account_id = $1 AND block.blocked_account_id = $2)
-             OR (block.blocker_account_id = $2 AND block.blocked_account_id = $1))) AS blocked`,
-        [accountId, row.account_id]
-      );
-      // Answered as "not held" rather than "you are blocked": a refusal that
-      // names the block tells the asker something about the holder's choices.
-      if (blocked.rows[0]?.blocked)
-        return unavailable(404, 'not_held', 'This ground is not held by anybody right now.');
-      // ADR-0014: the holder turned Ghost Races off. Same answer as a run with
-      // no trace, so the choice itself isn't disclosed.
-      if (!row.ghost_races)
-        return unavailable(404, 'no_trace', 'This run cannot be shown as a ghost.');
-
-      if (row.city_tag) {
-        const mine = await database.query<{ city_tag: string }>(
-          `SELECT DISTINCT city_tag FROM territory_claims
-           WHERE account_id = $1 AND released_at IS NULL AND season_month = $2
-             AND city_tag IS NOT NULL`,
-          [accountId, seasonMonthFor(new Date())]
-        );
-        const cities = mine.rows.map((place) => place.city_tag);
-        if (cities.length > 0 && !cities.includes(row.city_tag))
-          return unavailable(
-            403,
-            'out_of_region',
-            'Ghost races are limited to places you have run in this season.'
-          );
-      }
-
-      if (!row.path || !row.elapsed_seconds || !row.duration_seconds)
-        return unavailable(
-          404,
-          'no_trace',
-          'This run cannot be shown as a ghost. Its loop was too short to trim safely, or it was claimed before ghost races existed.'
-        );
+      // The same checks gate starting a Ghost Race run (`activity-routes.ts`).
+      const access = await ghostRaceAccess(database, accountId, request.params.claimId);
+      if (!access.ok) return unavailable(access.code, access.reason, access.message);
+      const row = access.claim;
 
       const coordinates = lineFromGeoJson(row.path);
       const elapsed = row.elapsed_seconds;

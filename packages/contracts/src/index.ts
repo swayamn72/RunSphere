@@ -415,6 +415,18 @@ export const RunVerificationSchema = Type.Object(
   },
   { ...Strict, $id: 'RunVerification' }
 );
+/**
+ * The four run modes (M9). Chosen before a run starts and enforced by the
+ * server: only `turf` and `ghost` runs may claim ground, and a `quest` run
+ * can complete only the quest it was started for. Optional on create so app
+ * builds that predate modes keep working; their runs have no mode and keep
+ * the old behaviour.
+ */
+export const RunModeSchema = Type.Union(
+  [Type.Literal('free'), Type.Literal('turf'), Type.Literal('quest'), Type.Literal('ghost')],
+  { $id: 'RunMode' }
+);
+
 export const ActivityCreateRequestSchema = Type.Object(
   {
     movementType: Type.Literal('run'),
@@ -428,7 +440,12 @@ export const ActivityCreateRequestSchema = Type.Object(
      * `assessRunVerification`.
      */
     verification: Type.Optional(RunVerificationSchema),
-    startedAt: Type.Optional(Type.String({ format: 'date-time' }))
+    startedAt: Type.Optional(Type.String({ format: 'date-time' })),
+    runMode: Type.Optional(RunModeSchema),
+    /** Required for, and only allowed on, a `quest` run: an accepted quest. */
+    questId: Type.Optional(UuidSchema),
+    /** Required for, and only allowed on, a `ghost` run: a rival claim you may race. */
+    ghostClaimId: Type.Optional(UuidSchema)
   },
   { ...Strict, $id: 'ActivityCreateRequest' }
 );
@@ -561,7 +578,11 @@ export const ActivityStatusResponseSchema = Type.Object(
     validationErrors: Type.Optional(Type.Array(Type.String({ maxLength: 160 }), { maxItems: 20 })),
     missingSequences: Type.Optional(Type.Array(Type.Integer({ minimum: 0 }), { maxItems: 10000 })),
     /** Whether this run has already made its one territory claim (B4). Set on list reads. */
-    territoryClaimed: Type.Optional(Type.Boolean())
+    territoryClaimed: Type.Optional(Type.Boolean()),
+    /** The run's mode (M9); absent for runs recorded before modes existed. */
+    runMode: Type.Optional(RunModeSchema),
+    questId: Type.Optional(UuidSchema),
+    ghostClaimId: Type.Optional(UuidSchema)
   },
   { $id: 'ActivityStatusResponse' }
 );
@@ -578,7 +599,10 @@ export const ActivityDetailResponseSchema = Type.Object(
     validationErrors: Type.Optional(Type.Array(Type.String({ maxLength: 160 }), { maxItems: 20 })),
     missingSequences: Type.Optional(Type.Array(Type.Integer({ minimum: 0 }), { maxItems: 10000 })),
     geometry: Type.Optional(Type.Union([Type.Null(), Type.Unknown()])),
-    provenance: Type.Optional(ActivityProvenanceSchema)
+    provenance: Type.Optional(ActivityProvenanceSchema),
+    runMode: Type.Optional(RunModeSchema),
+    questId: Type.Optional(UuidSchema),
+    ghostClaimId: Type.Optional(UuidSchema)
   },
   { $id: 'ActivityDetailResponse' }
 );
@@ -628,6 +652,7 @@ export type AccountDeletionRequest = Static<typeof AccountDeletionRequestSchema>
 export type AccountDeletionResponse = Static<typeof AccountDeletionResponseSchema>;
 export type RunVerificationMethod = Static<typeof RunVerificationMethodSchema>;
 export type RunVerificationPayload = Static<typeof RunVerificationSchema>;
+export type RunMode = Static<typeof RunModeSchema>;
 export type ActivityCreateRequest = Static<typeof ActivityCreateRequestSchema>;
 export type ActivityCreateHeaders = Static<typeof ActivityCreateHeadersSchema>;
 export type ActivityAuthorizationHeaders = Static<typeof ActivityAuthorizationHeadersSchema>;

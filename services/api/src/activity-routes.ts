@@ -19,7 +19,8 @@ import {
   activityFinalizeChecksumInput,
   type ActivityChunkRequest,
   type ActivityCreateRequest,
-  type ActivityFinalizeRequest
+  type ActivityFinalizeRequest,
+  type RunMode
 } from '@runsphere/contracts';
 import {
   assessRunVerification,
@@ -29,6 +30,7 @@ import {
 import { sha256, withTransaction, type Database } from '@runsphere/db';
 import { requireAccount } from './auth-routes.js';
 import { chunkHash } from './activity.js';
+import { ghostRaceAccess } from './ghost-race-access.js';
 
 const rawTraceRetentionInterval = '30 days';
 
@@ -47,11 +49,26 @@ export type ActivityRow = {
   verified_at?: Date | string | null;
   verification_device_id?: string | null;
   client_started_at?: Date | string | null;
+  run_mode?: RunMode | null;
+  quest_version_id?: string | null;
+  ghost_claim_id?: string | null;
 };
 
 /** The verification columns every projection of an activity row needs, in one place. */
 export const activityVerificationColumns =
   'verification_method, verified_at, verification_device_id, client_started_at';
+
+/** The run's mode and its target (M9), projected with every read of a run. */
+export const activityModeColumns = 'run_mode, quest_version_id, ghost_claim_id';
+
+const projectedColumns = `${activityVerificationColumns}, ${activityModeColumns}`;
+
+/** What a client is told about its own run's mode. Absent for pre-mode runs. */
+export const modeResponse = (row: ActivityRow) => ({
+  ...(row.run_mode ? { runMode: row.run_mode } : {}),
+  ...(row.quest_version_id ? { questId: row.quest_version_id } : {}),
+  ...(row.ghost_claim_id ? { ghostClaimId: row.ghost_claim_id } : {})
+});
 
 /**
  * The same columns, qualified by a table alias, for queries that join another
@@ -59,7 +76,7 @@ export const activityVerificationColumns =
  * of it is how a verified run used to come back with no `verification` at all.
  */
 export const qualifiedVerificationColumns = (alias: string): string =>
-  activityVerificationColumns
+  projectedColumns
     .split(', ')
     .map((column) => `${alias}.${column}`)
     .join(', ');
@@ -118,6 +135,7 @@ export const statusResponse = async (database: Database, row: ActivityRow) => {
     id: row.id,
     status: row.status,
     ...verificationResponse(row),
+    ...modeResponse(row),
     ...(row.movement_type ? { movementType: row.movement_type } : {}),
     ...(row.created_at ? { createdAt: new Date(row.created_at).toISOString() } : {}),
     ...(row.summary ? { summary: row.summary } : {}),
@@ -127,6 +145,45 @@ export const statusResponse = async (database: Database, row: ActivityRow) => {
       : {}),
     ...(missing ? { missingSequences: missing } : {})
   };
+};
+
+/**
+ * Why a new run can't start in the mode it asked for (M9 9.3), or nothing if
+ * it can. Free and Turf runs take no target; a Quest run needs a quest the
+ * runner has accepted and not yet finished; a Ghost Race run needs a rival
+ * claim that passes exactly the checks the ghost-trace route applies.
+ */
+export const runModeRefusal = async (
+  database: Database,
+  accountId: string,
+  body: Pick<ActivityCreateRequest, 'runMode' | 'questId' | 'ghostClaimId'>
+): Promise<{ code: 400 | 403 | 404; message: string } | undefined> => {
+  const { runMode, questId, ghostClaimId } = body;
+  if (questId && runMode !== 'quest')
+    return { code: 400, message: 'Only a quest run can be started for a quest.' };
+  if (ghostClaimId && runMode !== 'ghost')
+    return { code: 400, message: 'Only a Ghost Race can be started for a rival’s ground.' };
+  if (runMode === 'quest') {
+    if (!questId) return { code: 400, message: 'Pick a quest to start a quest run.' };
+    const open = await database.query<{ open: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1 FROM quest_acceptances acceptance
+         WHERE acceptance.account_id = $1 AND acceptance.quest_version_id = $2
+           AND acceptance.abandoned_at IS NULL
+           AND NOT EXISTS (SELECT 1 FROM quest_completions completion
+             WHERE completion.account_id = $1 AND completion.quest_version_id = $2)
+       ) AS open`,
+      [accountId, questId]
+    );
+    if (!open.rows[0]?.open)
+      return { code: 400, message: 'Take this quest on first, then start your run.' };
+  }
+  if (runMode === 'ghost') {
+    if (!ghostClaimId) return { code: 400, message: 'Pick a rival’s ground to race.' };
+    const access = await ghostRaceAccess(database, accountId, ghostClaimId);
+    if (!access.ok) return { code: access.code, message: access.message };
+  }
+  return undefined;
 };
 
 export interface ActivityRouteDeps {
@@ -145,7 +202,10 @@ export const registerActivityRoutes = ({ routes, database, authSecret }: Activit
         response: {
           201: ActivityCreateResponseSchema,
           200: ActivityCreateResponseSchema,
+          400: ErrorResponseSchema,
           401: ErrorResponseSchema,
+          403: ErrorResponseSchema,
+          404: ErrorResponseSchema,
           409: ErrorResponseSchema,
           503: ErrorResponseSchema
         }
@@ -163,18 +223,34 @@ export const registerActivityRoutes = ({ routes, database, authSecret }: Activit
       // The verification joins it because a replay that quietly swapped
       // `unenrolled` for `biometric` under a key already spent is exactly the
       // shape a forged upgrade would take, and the 409 names it.
-      const { verification, startedAt } = request.body;
+      const { verification, startedAt, runMode, questId, ghostClaimId } = request.body;
+      // The mode joins the fingerprint only when present, so a replay from a
+      // build that predates modes still matches the key it was first sent with.
       const fingerprint = sha256(
         JSON.stringify({
           movementType: request.body.movementType,
           ...(verification ? { verification } : {}),
-          ...(startedAt ? { startedAt } : {})
+          ...(startedAt ? { startedAt } : {}),
+          ...(runMode ? { runMode } : {}),
+          ...(questId ? { questId } : {}),
+          ...(ghostClaimId ? { ghostClaimId } : {})
         })
       );
+      // A replay of a key already used skips the mode checks: the quest it was
+      // started for may have been completed by that very run in the meantime.
+      const seen = await database.query<{ id: string }>(
+        'SELECT id FROM activity_submissions WHERE account_id = $1 AND idempotency_key = $2',
+        [accountId, key]
+      );
+      if (!seen.rows[0]) {
+        const refusal = await runModeRefusal(database, accountId, request.body);
+        if (refusal) return reply.code(refusal.code).send({ message: refusal.message });
+      }
       const insert = await database.query<{ id: string; status: 'received' }>(
         `INSERT INTO activity_submissions (account_id, idempotency_key, movement_type, request_fingerprint,
-           verification_method, verified_at, verification_device_id, client_started_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           verification_method, verified_at, verification_device_id, client_started_at,
+           run_mode, quest_version_id, ghost_claim_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          ON CONFLICT (account_id, idempotency_key) DO NOTHING RETURNING id, status`,
         [
           accountId,
@@ -184,7 +260,10 @@ export const registerActivityRoutes = ({ routes, database, authSecret }: Activit
           verification?.method ?? null,
           verification?.verifiedAt ?? null,
           verification?.deviceId ?? null,
-          startedAt ?? null
+          startedAt ?? null,
+          runMode ?? null,
+          questId ?? null,
+          ghostClaimId ?? null
         ]
       );
       // Both paths echo the verification back through the same projection the
@@ -194,14 +273,19 @@ export const registerActivityRoutes = ({ routes, database, authSecret }: Activit
         verification_method: verification?.method ?? null,
         verified_at: verification?.verifiedAt ?? null,
         verification_device_id: verification?.deviceId ?? null,
-        client_started_at: startedAt ?? null
+        client_started_at: startedAt ?? null,
+        run_mode: runMode ?? null,
+        quest_version_id: questId ?? null,
+        ghost_claim_id: ghostClaimId ?? null
       };
       if (insert.rows[0])
-        return reply
-          .code(201)
-          .send({ ...insert.rows[0], ...verificationResponse({ ...echo } as ActivityRow) });
+        return reply.code(201).send({
+          ...insert.rows[0],
+          ...verificationResponse({ ...echo } as ActivityRow),
+          ...modeResponse({ ...echo } as ActivityRow)
+        });
       const current = await database.query<ActivityRow & { request_fingerprint: string }>(
-        `SELECT id, status, request_fingerprint, ${activityVerificationColumns}
+        `SELECT id, status, request_fingerprint, ${projectedColumns}
          FROM activity_submissions WHERE account_id = $1 AND idempotency_key = $2`,
         [accountId, key]
       );
@@ -211,9 +295,12 @@ export const registerActivityRoutes = ({ routes, database, authSecret }: Activit
           .code(409)
           .send({ message: 'Idempotency key was used with a different request' });
       }
-      return reply
-        .code(200)
-        .send({ id: replayed.id, status: replayed.status, ...verificationResponse(replayed) });
+      return reply.code(200).send({
+        id: replayed.id,
+        status: replayed.status,
+        ...verificationResponse(replayed),
+        ...modeResponse(replayed)
+      });
     }
   );
 
@@ -302,7 +389,7 @@ export const registerActivityRoutes = ({ routes, database, authSecret }: Activit
           ActivityRow & { source_checksum: string | null; finalized_checksum: string | null }
         >(
           `SELECT id, status, summary, rejection_reason, validation_errors, expected_chunk_count, source_checksum, finalized_checksum,
-             ${activityVerificationColumns}
+             ${projectedColumns}
            FROM activity_submissions WHERE id = $1 AND account_id = $2 AND deleted_at IS NULL FOR UPDATE`,
           [request.params.activityId, accountId]
         );
@@ -404,7 +491,7 @@ export const registerActivityRoutes = ({ routes, database, authSecret }: Activit
       const accountId = requireAccount(request, reply, authSecret);
       if (!accountId) return;
       const result = await database.query<ActivityRow>(
-        `SELECT id, status, summary, rejection_reason, validation_errors, expected_chunk_count, ${activityVerificationColumns}
+        `SELECT id, status, summary, rejection_reason, validation_errors, expected_chunk_count, ${projectedColumns}
          FROM activity_submissions WHERE id = $1 AND account_id = $2 AND deleted_at IS NULL`,
         [request.params.activityId, accountId]
       );
@@ -436,7 +523,7 @@ export const registerActivityRoutes = ({ routes, database, authSecret }: Activit
       if (!accountId) return;
       const activities = await database.query<ActivityRow & { territory_claimed: boolean }>(
         `SELECT id, status, summary, rejection_reason, validation_errors, expected_chunk_count, movement_type, created_at,
-           ${activityVerificationColumns},
+           ${projectedColumns},
            EXISTS (SELECT 1 FROM territory_claims claim WHERE claim.activity_id = activity_submissions.id)
              AS territory_claimed
          FROM activity_submissions WHERE account_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 100`,
