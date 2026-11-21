@@ -335,7 +335,15 @@ export function ActivityPreparation({
           {`Route guide: ${guide.name}, ${(guide.distanceMetres / 1_000).toFixed(1)} km. ${ROUTE_GUIDE_CAPTION}`}
         </Text>
       )}
-      {guidance.cue && <LoopCallout cue={guidance.cue} onDismiss={guidance.dismiss} />}
+      {/* One cue per screen (docs/voice.md): Rho's warm-up line only when no
+          guidance cue is showing. */}
+      {guidance.cue ? (
+        <LoopCallout cue={guidance.cue} onDismiss={guidance.dismiss} />
+      ) : (
+        <Text
+          style={styles.privateNote}
+        >{`Rho: ${rhoCue({ moment: 'pre-run', holdsGround: false })?.message ?? ''}`}</Text>
+      )}
       {verificationCopy && (
         <View
           style={[styles.notice, isVerificationWarning(gate) && styles.warningNotice]}
@@ -961,6 +969,11 @@ export function ActivityDetail({
             </Text>
           </View>
         </View>
+      )}
+      {presentation.state === 'validated' && (
+        <Text
+          style={styles.privateNote}
+        >{`Rho: ${rhoCue({ moment: 'post-run', status: 'counted' })?.message ?? ''}`}</Text>
       )}
       {presentation.state === 'validated' && (
         <View style={styles.notice} accessibilityLiveRegion="polite">
