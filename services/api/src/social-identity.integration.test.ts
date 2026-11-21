@@ -117,6 +117,15 @@ describePostgis('sign-up with date of birth and username (ADR-0014)', () => {
     expect(identity.json()).toEqual({ username: adult.username, hasDateOfBirth: true });
   });
 
+  it('checks the date of birth and then keeps only the fact it was given (migration 052)', async () => {
+    const adult = await runner('dob');
+    const stored = await db.query<{ birth_date: string | null; by_dob: boolean }>(
+      'SELECT birth_date, age_checked_by_birth_date AS by_dob FROM accounts WHERE id = $1',
+      [adult.id]
+    );
+    expect(stored.rows[0]).toEqual({ birth_date: null, by_dob: true });
+  });
+
   it('says a taken username is taken, and refuses bad names and unknown areas', async () => {
     const first = await runner('taken');
     const again = await signUp({

@@ -160,6 +160,21 @@ Usernames, discovery and the privacy controls the runner owns. The server enforc
 | M6.5 | ⏸ DEFERRED (ADR-0013, no ML at launch): ML: add auth to `services/ml` (R2), a `/train` endpoint or change the worker to a job runner (B12), Python tests, deployment decision                                                                                       | pytest suite; token-checked endpoints                    |
 | M6.6 | 🟡 Refresh-token handling done (57fe528, R11); the support area waits on a privacy review: Admin: refresh-token handling or a re-login prompt; support area                                                                                                         | Admin tests                                              |
 
+## Milestone 8 — Launch compliance (Play Store, DPDP, IT Rules)
+
+From the compliance review of 2026-11-22. Legal text is drafted from what the code actually does and
+**must be reviewed by a lawyer** before launch (SI.8).
+
+| ID  | Task                                                                                                                                 | Done when                                                                        |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| C.1 | ✅ DONE 2026-11-22: Stop storing dates of birth after the 18+ check (DPDP data minimisation, migration 052)                          | No `birth_date` is written; existing dates erased                                |
+| C.2 | Privacy notice, terms and community guidelines pages served by the API; linked at sign-up and in settings; grievance officer contact | Pages and links exist; route and render tests                                    |
+| C.3 | Foreground service for run recording so runs continue with the screen locked (no background-location permission)                     | Run records with the screen off on a device; Play FGS declaration video recorded |
+| C.4 | Play submission guide: Data safety answers, health, FGS and precise-location declarations, reviewer login                            | `docs/play-store-submission.md` matches the code                                 |
+| C.5 | Personal-data breach response plan (DPDP: notify the Board and affected users)                                                       | `docs/incident-response.md` reviewed by the owner                                |
+| C.6 | Owner: Play developer account, identity verification, package name, 12-tester closed test                                            | Production access granted                                                        |
+| C.7 | Owner: lawyer review of all legal text; name the grievance officer; processor agreements (host, email, FCM)                          | Signed off                                                                       |
+
 ## Milestone 7 — Housekeeping (any time, low risk)
 
 | ID   | Task                                                                                                                                                                                                                                                                                         | Done when                                 |

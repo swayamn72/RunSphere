@@ -224,7 +224,7 @@ export const registerSocialIdentityRoutes = ({
         home_area: string | null;
         has_dob: boolean;
       }>(
-        `SELECT username, home_area, birth_date IS NOT NULL AS has_dob
+        `SELECT username, home_area, age_checked_by_birth_date AS has_dob
          FROM accounts WHERE id = $1 AND deleted_at IS NULL`,
         [accountId]
       );
@@ -277,7 +277,7 @@ export const registerSocialIdentityRoutes = ({
              home_area = CASE WHEN $3 THEN $4 ELSE home_area END,
              updated_at = now()
            WHERE id = $1 AND deleted_at IS NULL
-           RETURNING username, home_area, birth_date IS NOT NULL AS has_dob`,
+           RETURNING username, home_area, age_checked_by_birth_date AS has_dob`,
           [accountId, username ?? null, homeArea !== undefined, homeArea ?? null]
         );
         const account = updated.rows[0];

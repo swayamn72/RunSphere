@@ -140,8 +140,9 @@ export const registerAuthRoutes = ({ routes, database, authSecret }: AuthRouteDe
       if (!allowAuthAttempt(`register:${request.ip}`))
         return reply.code(429).send({ message: 'Too many attempts' });
       // ADR-0014: a date of birth is the 18+ check; the old checkbox is
-      // still accepted from clients that predate it. The date is kept only for
-      // this check and never shown.
+      // still accepted from clients that predate it. The date is checked here
+      // and then dropped: only the fact that one was given is stored
+      // (migration 052, DPDP data minimisation).
       const { dateOfBirth, ageAssertion } = request.body;
       if (dateOfBirth !== undefined) {
         if (!isAdult(dateOfBirth, kolkataDate(new Date())))
@@ -164,17 +165,17 @@ export const registerAuthRoutes = ({ routes, database, authSecret }: AuthRouteDe
         const id = await withTransaction(database, async (client) => {
           const account = await client.query<{ id: string }>(
             `INSERT INTO accounts (email, password_hash, age_asserted_at, age_policy_version,
-               username, birth_date, home_area)
+               username, age_checked_by_birth_date, home_area)
              VALUES ($1, $2, now(), $3,
                COALESCE($4, 'runner_' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 12)),
-               $5::date, $6)
+               $5, $6)
              RETURNING id`,
             [
               request.body.email.trim().toLowerCase(),
               passwordHash,
               request.body.policyVersion,
               username ?? null,
-              dateOfBirth ?? null,
+              dateOfBirth !== undefined,
               homeArea ?? null
             ]
           );
