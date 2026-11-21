@@ -7,6 +7,7 @@ import {
 } from '@runsphere/db';
 import { createLogger, type Logger } from '@runsphere/observability';
 import { processActivity } from '@runsphere/api/activity';
+import { syncAchievementsForActivity } from '@runsphere/api/achievements';
 import {
   CHALLENGE_FINISHED_TOPIC,
   cancelExpiredChallengeInvites,
@@ -316,7 +317,29 @@ export const processNextChallengeFinish = async (db: Database): Promise<boolean>
   return true;
 };
 
-export const processNextActivity = async (db: Database): Promise<boolean> => {
+/**
+ * What runs once a run has been processed (M1.7): award any achievement the
+ * run unlocked, so awards no longer wait for the Achievements screen. Best
+ * effort by design: the run is already derived and committed, awards are
+ * idempotent, and `POST /v1/achievements/sync` still catches anything missed,
+ * so a failure here is logged and never fails or retries the run.
+ */
+export type AfterActivityProcessed = (db: Database, activityId: string) => Promise<void>;
+
+const awardAchievements: AfterActivityProcessed = async (db, activityId) => {
+  try {
+    await syncAchievementsForActivity(db, activityId);
+  } catch (error) {
+    createLogger('worker').error('worker.achievement_sync_failed', {
+      error: safeWorkerError(error)
+    });
+  }
+};
+
+export const processNextActivity = async (
+  db: Database,
+  afterProcessed: AfterActivityProcessed = awardAchievements
+): Promise<boolean> => {
   const event = await db.query<{ id: string; aggregate_id: string }>(
     `UPDATE outbox_events SET claimed_at = now(), attempts = attempts + 1, last_error = NULL
      WHERE id = (SELECT event.id FROM outbox_events event
@@ -334,6 +357,7 @@ export const processNextActivity = async (db: Database): Promise<boolean> => {
     await db.query('UPDATE outbox_events SET processed_at = now() WHERE id = $1', [
       event.rows[0].id
     ]);
+    await afterProcessed(db, event.rows[0].aggregate_id);
   } catch (error) {
     await db.query(
       'UPDATE outbox_events SET claimed_at = NULL, last_error = $2, failed_at = CASE WHEN attempts >= $3 THEN now() ELSE NULL END WHERE id = $1',

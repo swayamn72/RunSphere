@@ -15,6 +15,10 @@
     "./progression": {
       "types": "./dist/progression-core.d.ts",
       "default": "./dist/progression-core.js"
+    },
+    "./achievements": {
+      "types": "./dist/achievement-core.d.ts",
+      "default": "./dist/achievement-core.js"
     }
   },
   "scripts": {
