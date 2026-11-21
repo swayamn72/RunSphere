@@ -506,3 +506,7 @@ export const clubChallengeFailureNotice = (error: unknown): string => {
 /** What cancelling does, said before it is done. */
 export const CLUB_CHALLENGE_CANCEL_CONSEQUENCE =
   'Cancelling ends the challenge for everyone in it. Nothing is scored and no result is kept, so nobody is ranked in it.';
+
+/** The message the share sheet sends for a club invite code. */
+export const clubShareMessage = (clubName: string, inviteCode: string): string =>
+  `Join ${clubName} on RunSphere. Open Social > Clubs > Join and enter ${inviteCode}.`;

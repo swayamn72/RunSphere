@@ -42,7 +42,8 @@ import {
   relayFailureNotice,
   relayRows,
   validateClubName,
-  validateRelayTarget
+  validateRelayTarget,
+  clubShareMessage
 } from './clubs-model';
 
 const ME = '00000000-0000-4000-8000-00000000000a';
@@ -501,5 +502,13 @@ describe('club challenge rows', () => {
     expect(clubChallengeFailureNotice(new ApiFailure(409, 'no'))).toContain('no longer running');
     expect(clubChallengeFailureNotice(new AuthFailure('network'))).toContain('Nothing changed');
     expect(clubChallengeFailureNotice(new Error('boom'))).toContain('Nothing changed');
+  });
+});
+
+describe('sharing a club code', () => {
+  it('names the club, says where to enter the code, and includes it', () => {
+    expect(clubShareMessage('Bandra Dawn Runners', 'K7PX2M')).toBe(
+      'Join Bandra Dawn Runners on RunSphere. Open Social > Clubs > Join and enter K7PX2M.'
+    );
   });
 });

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, Share, Text, TextInput, View } from 'react-native';
 import type {
   Club,
   ClubBoardResponse,
@@ -49,7 +49,8 @@ import {
   relayRows,
   validateClubName,
   validateRelayTarget,
-  type ClubsRemoteState
+  type ClubsRemoteState,
+  clubShareMessage
 } from './clubs-model';
 
 /**
@@ -583,6 +584,17 @@ function ClubDetail({
             Share this with people you want in the club. Anyone who has it can join, so treat it
             like a key.
           </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Share the invite code"
+            onPress={() =>
+              void Share.share({ message: clubShareMessage(club.name, club.inviteCode) }).catch(
+                () => undefined
+              )
+            }
+          >
+            <Text style={styles.link}>Share code</Text>
+          </Pressable>
         </View>
       </SettingsGroup>
 
