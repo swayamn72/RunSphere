@@ -562,6 +562,11 @@ export function TurfScreen({
       <View style={styles.mapWrap}>
         {renderPlan.kind === 'provider' ? (
           <Map
+            // Remount when the dark Turf world style replaces the provider's
+            // URL style. Swapping the style on a live map reloads it and drops
+            // the GeoJSON layers already added, so held ground, fog and event
+            // areas vanished while the marker views (badges, beacons) stayed.
+            key={worldStyle ? 'turf-world' : 'provider'}
             ref={mapRef}
             accessibilityLabel="Territory map. Areas people hold, with their names."
             style={StyleSheet.absoluteFill}
