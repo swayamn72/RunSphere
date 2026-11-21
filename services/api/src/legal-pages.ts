@@ -108,8 +108,9 @@ that no longer identify you.</li>
 <ul>
 <li><strong>See and download your data:</strong> Profile → Settings → Data → Export your data.</li>
 <li><strong>Correct it:</strong> edit your profile, username and settings in the app.</li>
-<li><strong>Delete it:</strong> delete your account in the app (Profile → Settings → Data → Delete account) or at
-<a href="/account/delete">/account/delete</a>. This erases your runs too.</li>
+<li><strong>Delete it:</strong> open a run and tap Delete activity to delete that run, or delete
+your whole account in the app (Profile → Settings → Data → Delete account) or at
+<a href="/account/delete">/account/delete</a>, which erases all your runs too.</li>
 <li><strong>Withdraw consent:</strong> turn off location for RunSphere in Android settings (you can
 still browse), turn off leaderboards, safety sharing and news emails in the app, or delete your
 account. Withdrawing doesn't undo what was done before.</li>
