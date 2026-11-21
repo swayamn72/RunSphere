@@ -102,7 +102,30 @@ export interface ApiConfig {
   allowedOrigins: readonly string[];
   staffReviewAccountIds: readonly string[];
   metricsCollectorToken?: string;
+  /**
+   * Who runs RunSphere and who handles complaints, shown on the legal pages
+   * (IT Rules 2021 grievance officer; DPDP contact). Unset values show as "to be
+   * named", which is only acceptable while the pages carry the draft banner.
+   */
+  legalContact?: LegalContact;
 }
+
+export interface LegalContact {
+  operatorName?: string;
+  grievanceOfficerName?: string;
+  grievanceOfficerEmail?: string;
+}
+
+const legalContactFrom = (environment: NodeJS.ProcessEnv): LegalContact | undefined => {
+  const contact: LegalContact = {};
+  const operatorName = environment.LEGAL_OPERATOR_NAME?.trim();
+  const grievanceOfficerName = environment.GRIEVANCE_OFFICER_NAME?.trim();
+  const grievanceOfficerEmail = environment.GRIEVANCE_OFFICER_EMAIL?.trim();
+  if (operatorName) contact.operatorName = operatorName;
+  if (grievanceOfficerName) contact.grievanceOfficerName = grievanceOfficerName;
+  if (grievanceOfficerEmail) contact.grievanceOfficerEmail = grievanceOfficerEmail;
+  return Object.keys(contact).length > 0 ? contact : undefined;
+};
 
 export const loadApiConfig = (environment: NodeJS.ProcessEnv): ApiConfig => {
   const port = Number(environment.PORT ?? 3001);
@@ -124,13 +147,15 @@ export const loadApiConfig = (environment: NodeJS.ProcessEnv): ApiConfig => {
     .map((accountId) => accountId.trim())
     .filter(Boolean);
   const metricsCollectorToken = environment.METRICS_COLLECTOR_TOKEN?.trim() || undefined;
+  const legalContact = legalContactFrom(environment);
 
   return {
     host: environment.HOST ?? '0.0.0.0',
     port,
     allowedOrigins,
     staffReviewAccountIds,
-    ...(metricsCollectorToken ? { metricsCollectorToken } : {})
+    ...(metricsCollectorToken ? { metricsCollectorToken } : {}),
+    ...(legalContact ? { legalContact } : {})
   };
 };
 

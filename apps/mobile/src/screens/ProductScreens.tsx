@@ -3,6 +3,7 @@ import { failureMessage } from '../failure-copy';
 import { PrivacyZoneList } from './PrivacyZoneList';
 import { SharedWithYou } from './SharedWithYou';
 import { PrivacySettingsScreen } from './PrivacySettingsScreen';
+import { legalLinks } from './legal-model';
 import { AccountRecoveryScreen } from './AccountRecoveryScreen';
 import {
   Alert,
@@ -162,6 +163,7 @@ export function ProfileScreen({
   // without one is invisible to friends: a 404 here is a normal "unset" state.
   const [profile, setProfile] = useState<Profile>();
   const [handle, setHandle] = useState<string>();
+  const legal = legalLinks((page) => api.legalPageUrl(page));
   useEffect(() => {
     let active = true;
     void api
@@ -506,6 +508,18 @@ export function ProfileScreen({
           onPress={() => setScreen('delete-account')}
         />
       </SettingsGroup>
+      {legal.length > 0 && (
+        <SettingsGroup title="Legal">
+          {legal.map((link) => (
+            <Setting
+              key={link.page}
+              label={link.label}
+              value={link.value}
+              onPress={() => void Linking.openURL(link.url)}
+            />
+          ))}
+        </SettingsGroup>
+      )}
     </>
   );
 

@@ -24,6 +24,8 @@ import { accountProblem, canSubmitAccount, dateOfBirthFrom } from '../onboarding
 import { OnboardingSocialStep } from './OnboardingSocialStep';
 import { AccountRecoveryScreen } from './AccountRecoveryScreen';
 import { usernameHint } from './privacy-settings-model';
+import { SIGN_UP_AGREEMENT, legalLinks } from './legal-model';
+import { LEGAL_POLICY_VERSION } from '@runsphere/domain';
 import type { initialOnboardingState, onboardingReducer } from '../onboarding';
 import { PermissionCard, PrimaryButton, StepHeader } from '../components/primitives';
 import { KeyboardSafe } from '../components/ScreenShell';
@@ -50,6 +52,7 @@ export function Onboarding({
   const [authFailureKind, setAuthFailureKind] = useState<AuthFailure['kind']>();
   /** Forgot password replaces the sign-in form until it's done or backed out of. */
   const [recovering, setRecovering] = useState(false);
+  const legal = legalLinks((page) => api.legalPageUrl(page));
   const [authNotice, setAuthNotice] = useState<string>();
   const authenticate = async () => {
     if (!canSubmitAccount(state)) return;
@@ -65,7 +68,7 @@ export function Onboarding({
               password: state.password,
               dateOfBirth: dateOfBirthFrom(state)!,
               username: state.username.trim().replace(/^@/, '').toLowerCase(),
-              policyVersion: 'm1-private-pilot'
+              policyVersion: LEGAL_POLICY_VERSION
             });
       onAuthenticated(session);
       // The name typed at sign-up becomes the display name. Best effort: the
@@ -348,6 +351,20 @@ export function Onboarding({
                 disabled={!canSubmitAccount(state) || authStatus === 'loading'}
                 onPress={() => void authenticate()}
               />
+              {state.accountMode === 'register' && legal.length >= 2 && (
+                <>
+                  <Text style={styles.rowDetail}>{SIGN_UP_AGREEMENT}</Text>
+                  {legal.map((link) => (
+                    <Pressable
+                      key={link.page}
+                      accessibilityRole="link"
+                      onPress={() => void Linking.openURL(link.url)}
+                    >
+                      <Text style={styles.textButton}>{link.label}</Text>
+                    </Pressable>
+                  ))}
+                </>
+              )}
               <Pressable
                 accessibilityRole="button"
                 disabled={authStatus === 'loading'}

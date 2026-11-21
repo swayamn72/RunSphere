@@ -29,6 +29,9 @@ export const page = (title: string, body: string, script: string): string => `<!
   button.danger { background: #b3261e; }
   button[disabled] { opacity: 0.6; cursor: default; }
   .note { color: #44544c; font-size: 0.95rem; }
+  .draft { padding: 0.6rem 0.8rem; border-radius: 6px; background: #fff4d6; color: #4a3500; }
+  h2 { font-size: 1.15rem; margin-top: 1.8rem; }
+  li { margin: 0.35rem 0; }
   [role="status"] { margin-top: 1rem; font-weight: 600; }
 </style>
 </head>

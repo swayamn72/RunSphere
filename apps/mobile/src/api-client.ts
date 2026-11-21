@@ -1,3 +1,4 @@
+import { legalPageUrl as buildLegalPageUrl, type LegalPage } from '@runsphere/domain';
 import type {
   AccountDeletionResponse,
   AccountExportResponse,
@@ -181,6 +182,11 @@ export class MobileApiClient {
     private readonly fetcher: typeof fetch = fetch,
     private readonly auth?: AuthStorage
   ) {}
+
+  /** Where a legal page lives (M8 C.2), or nothing when the app has no API address. */
+  legalPageUrl(page: LegalPage): string | undefined {
+    return this.baseUrl ? buildLegalPageUrl(this.baseUrl, page) : undefined;
+  }
 
   async register(account: RegisterRequest): Promise<AuthSession> {
     return this.saveSession(await this.authRequest('/v1/auth/register', account, 'register'));

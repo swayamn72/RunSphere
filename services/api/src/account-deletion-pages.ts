@@ -37,7 +37,7 @@ const requestPage = page(
   `<p>Enter the email address of your RunSphere account. If an account exists, we will email a link
 to confirm the deletion. The link works for 24 hours.</p>
 ${erasureSummary}
-<p class="note">You can also delete your account in the app: Profile → Account and data → Delete my
+<p class="note">You can also delete your account in the app: Profile → Settings → Data → Delete
 account.</p>
 <form id="form">
   <label for="email">Email address</label>

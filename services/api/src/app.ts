@@ -1,6 +1,6 @@
 import cors from '@fastify/cors';
 import swagger from '@fastify/swagger';
-import type { ApiConfig } from '@runsphere/config';
+import type { ApiConfig, LegalContact } from '@runsphere/config';
 import { pinoRedactionPaths, requestLogSerializer } from '@runsphere/config';
 import { createMetrics } from '@runsphere/observability';
 import { HealthResponseSchema, ReadinessResponseSchema } from '@runsphere/contracts';
@@ -13,6 +13,7 @@ import { registerQuestRoutes } from './quest-routes.js';
 import { registerAccountPrivacyRoutes } from './account-privacy-routes.js';
 import { registerAccountDeletionPages } from './account-deletion-pages.js';
 import { registerEmailLinkPages } from './email-link-pages.js';
+import { registerLegalPages } from './legal-pages.js';
 import { registerStaffRoutes } from './staff-routes.js';
 import { registerGamificationRoutes } from './gamification-routes.js';
 import { registerAccountLifecycleRoutes } from './account-routes.js';
@@ -39,22 +40,28 @@ import { registerSocialIdentityRoutes } from './social-identity-routes.js';
 
 type RuntimeApiConfig = Pick<ApiConfig, 'allowedOrigins' | 'staffReviewAccountIds'> & {
   metricsCollectorToken: string | undefined;
+  legalContact: LegalContact;
 };
 const defaultApiConfig: RuntimeApiConfig = {
   allowedOrigins: ['http://localhost:4173'],
   staffReviewAccountIds: [],
-  metricsCollectorToken: undefined
+  metricsCollectorToken: undefined,
+  legalContact: {}
 };
 const configuredApiConfig = (config: BuildAppOptions['config']): RuntimeApiConfig => ({
   allowedOrigins: config?.allowedOrigins ?? defaultApiConfig.allowedOrigins,
   staffReviewAccountIds: config?.staffReviewAccountIds ?? defaultApiConfig.staffReviewAccountIds,
-  metricsCollectorToken: config?.metricsCollectorToken ?? defaultApiConfig.metricsCollectorToken
+  metricsCollectorToken: config?.metricsCollectorToken ?? defaultApiConfig.metricsCollectorToken,
+  legalContact: config?.legalContact ?? defaultApiConfig.legalContact
 });
 export { pinoRedactionPaths };
 
 export interface BuildAppOptions {
   config?: Partial<
-    Pick<ApiConfig, 'allowedOrigins' | 'staffReviewAccountIds' | 'metricsCollectorToken'>
+    Pick<
+      ApiConfig,
+      'allowedOrigins' | 'staffReviewAccountIds' | 'metricsCollectorToken' | 'legalContact'
+    >
   >;
   loggerInstance?: FastifyBaseLogger;
   db?: Database;
@@ -188,6 +195,7 @@ export const buildApp = ({
     registerAccountPrivacyRoutes({ routes, database, authSecret });
     registerAccountDeletionPages({ routes });
     registerEmailLinkPages({ routes, database });
+    registerLegalPages({ routes, contact: config.legalContact });
     registerSafetyRoutes({ routes, database, authSecret });
     registerActivityRoutes({ routes, database, authSecret });
 

@@ -432,3 +432,15 @@ describe('mobile API non-JSON answers', () => {
     await expect(client.stopSafetyShare('share-1')).resolves.toBeUndefined();
   });
 });
+
+describe('legal page links (M8 C.2)', () => {
+  it('points at the pages the API serves', () => {
+    const client = new MobileApiClient('https://api.runsphere.test/', fetch);
+    expect(client.legalPageUrl('privacy')).toBe('https://api.runsphere.test/privacy');
+    expect(client.legalPageUrl('terms')).toBe('https://api.runsphere.test/terms');
+  });
+
+  it('offers no link when the app has no API address', () => {
+    expect(new MobileApiClient('', fetch).legalPageUrl('privacy')).toBeUndefined();
+  });
+});

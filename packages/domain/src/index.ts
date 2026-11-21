@@ -25,6 +25,7 @@ export * from './progression.js';
 export * from './achievement.js';
 export * from './challenge.js';
 export * from './notification-delivery.js';
+export * from './legal.js';
 export * from './notification-catalogue.js';
 export * from './club.js';
 export * from './global-board.js';
