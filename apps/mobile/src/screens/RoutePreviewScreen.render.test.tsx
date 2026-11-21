@@ -254,7 +254,7 @@ describe('the route preview screen', () => {
 
     const renderer = await render();
 
-    expect(texts(renderer).some((text) => text.includes('could not be loaded'))).toBe(true);
+    expect(texts(renderer).some((text) => text.includes("didn't load"))).toBe(true);
     await press(renderer, 'Start without a route');
     expect(startedWithout).toBe(1);
   });

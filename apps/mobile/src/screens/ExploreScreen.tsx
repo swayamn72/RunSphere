@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FAILURE_COPY } from '../failure-copy';
 import * as Location from 'expo-location';
 import { AppState, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { LngLat } from '@maplibre/maplibre-react-native';
@@ -342,9 +343,9 @@ function QuestCatalog({
     return (
       <>
         <SheetState
-          title="No verified quests yet"
-          copy="Start a private free activity while the catalog is empty."
-          action="Start a free activity"
+          title="No quests here yet"
+          copy={FAILURE_COPY.noQuests}
+          action="Start a free run"
           onPress={onStart}
         />
         {guidance.cue && <LoopCallout cue={guidance.cue} onDismiss={guidance.dismiss} />}

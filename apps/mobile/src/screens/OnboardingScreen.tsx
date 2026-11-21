@@ -1,4 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
+import { failureMessage } from '../failure-copy';
 import * as Location from 'expo-location';
 import { Pedometer } from 'expo-sensors';
 import { useCallback, useEffect, useState } from 'react';
@@ -61,7 +62,11 @@ export function Onboarding({
       onAuthenticated(session);
       dispatch({ type: 'authenticationSucceeded' });
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : 'Unable to complete authentication.');
+      setAuthError(
+        error instanceof AuthFailure
+          ? error.message
+          : failureMessage(error, "Couldn't sign in. Try again.")
+      );
       setAuthFailureKind(error instanceof AuthFailure ? error.kind : 'unknown');
       setAuthStatus('error');
       return;

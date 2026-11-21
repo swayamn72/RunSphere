@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { failureMessage } from '../failure-copy';
 import {
   Alert,
   Linking,
@@ -229,10 +230,7 @@ export function ProfileScreen({
     try {
       setVisibility((await api.updateVisibility({ activityVisibility: next })).activityVisibility);
     } catch (error) {
-      Alert.alert(
-        'Visibility unchanged',
-        error instanceof Error ? error.message : 'Try again when connected.'
-      );
+      Alert.alert('Visibility unchanged', failureMessage(error, 'Try again when connected.'));
     } finally {
       setVisibilityBusy(false);
     }
@@ -244,10 +242,7 @@ export function ProfileScreen({
         'Email sent — verify it, then return to enable followers and safety contacts'
       );
     } catch (error) {
-      Alert.alert(
-        'Verification unavailable',
-        error instanceof Error ? error.message : 'Try again when connected.'
-      );
+      Alert.alert('Verification unavailable', failureMessage(error, 'Try again when connected.'));
     }
   };
   const confirmLogout = () =>
@@ -282,10 +277,7 @@ export function ProfileScreen({
         `Generated ${new Date(exportResult.generatedAt).toLocaleString()}. Raw traces are ${exportResult.rawTraceAvailability.replaceAll('-', ' ')}.`
       );
     } catch (error) {
-      Alert.alert(
-        'Export unavailable',
-        error instanceof Error ? error.message : 'Try again when connected.'
-      );
+      Alert.alert('Export unavailable', failureMessage(error, 'Try again when connected.'));
     }
   };
   if (screen === 'delete-account')
@@ -632,10 +624,7 @@ function GoalsScreen({ api, onBack }: { api: MobileApiClient; onBack: () => void
       );
       setState('ready');
     } catch (error) {
-      Alert.alert(
-        'Goal not saved',
-        error instanceof Error ? error.message : 'Try again when connected.'
-      );
+      Alert.alert('Goal not saved', failureMessage(error, 'Try again when connected.'));
     } finally {
       setSaving(false);
     }
@@ -738,7 +727,7 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
         `${zone.name}: fixed ${zone.radiusMeters} m privacy zone saved. Your shared routes skip it.`
       );
     } catch (error) {
-      setZoneStatus(error instanceof Error ? error.message : 'Could not save the privacy zone.');
+      setZoneStatus(failureMessage(error, 'Could not save the privacy zone.'));
     }
   };
   const invite = async () => {
@@ -750,7 +739,7 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
     } catch (error) {
       Alert.alert(
         'Invitation unavailable',
-        error instanceof Error ? error.message : 'Both accounts must be verified and trusted.'
+        failureMessage(error, 'Both accounts must be verified and trusted.')
       );
     }
   };
@@ -761,9 +750,7 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
     } catch (error) {
       Alert.alert(
         'Acceptance unavailable',
-        error instanceof Error
-          ? error.message
-          : 'Open the invitation while signed in to the invited account.'
+        failureMessage(error, 'Open the invitation while signed in to the invited account.')
       );
     }
   };
@@ -779,7 +766,7 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
     } catch (error) {
       Alert.alert(
         'Share unavailable',
-        error instanceof Error ? error.message : 'An accepted, verified safety contact is required.'
+        failureMessage(error, 'An accepted, verified safety contact is required.')
       );
     }
   };

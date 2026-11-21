@@ -124,7 +124,7 @@ export const classifyLiveGps = ({
   if (state === 'paused')
     return {
       state: 'paused',
-      message: 'Activity paused. Resume when you are ready to record again.'
+      message: "Run paused. Resume when you're ready."
     };
 
   const latest = samples.at(-1);
@@ -132,7 +132,7 @@ export const classifyLiveGps = ({
   if (!lastUsable)
     return {
       state: 'acquiring',
-      message: 'Looking for a clear GPS fix. Provisional distance starts after a usable fix.'
+      message: 'Finding GPS. Distance starts once the signal is clear.'
     };
 
   const elapsed = Math.max(0, now - Date.parse(lastUsable.recordedAt));
@@ -140,21 +140,19 @@ export const classifyLiveGps = ({
     return {
       state: 'gap',
       lastUsableAt: lastUsable.recordedAt,
-      message:
-        'GPS has been unavailable for over a minute. Route and distance contribution are paused until it recovers.'
+      message: 'GPS lost. Keep running; distance resumes when signal is back.'
     };
   if (latest && !usable(latest))
     return {
       state: 'weak',
       lastUsableAt: lastUsable.recordedAt,
-      message:
-        'GPS is weak. This observation is saved privately but is not adding to provisional distance.'
+      message: "GPS is weak. Keep going; this stretch won't add distance."
     };
   if (latest?.disposition === 'gap-anchor')
     return {
       state: 'recovered',
       lastUsableAt: latest.recordedAt,
-      message: 'GPS recovered. A new private route segment has started without filling the gap.'
+      message: 'GPS is back. Your route picks up from here.'
     };
   return { state: 'strong', lastUsableAt: lastUsable.recordedAt, message: 'GPS is clear.' };
 };

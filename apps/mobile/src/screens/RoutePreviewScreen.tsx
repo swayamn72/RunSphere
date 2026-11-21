@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FAILURE_COPY } from '../failure-copy';
 import * as Location from 'expo-location';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import type { MobileApiClient } from '../api-client';
@@ -220,11 +221,11 @@ export function RoutePreviewScreen({
         </View>
       ) : state === 'offline' || state === 'error' || state === 'configuration' ? (
         <View style={styles.centeredState}>
-          <Text style={styles.sectionTitle}>Route ideas are unavailable</Text>
+          <Text style={styles.sectionTitle}>Route ideas aren't here right now</Text>
           <Text style={styles.lead}>
             {state === 'offline'
-              ? 'RunSphere could not reach the service. Your run does not need it — start whenever you like.'
-              : 'Route ideas could not be loaded. Your run does not need them.'}
+              ? FAILURE_COPY.offlineRun
+              : "Route ideas didn't load. You don't need one to run."}
           </Text>
           <PrimaryButton label="Try again" onPress={() => void load()} />
           <Pressable
