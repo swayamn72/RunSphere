@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { failureMessage } from '../failure-copy';
 import { PrivacyZoneList } from './PrivacyZoneList';
+import { SharedWithYou } from './SharedWithYou';
 import { PrivacySettingsScreen } from './PrivacySettingsScreen';
 import { AccountRecoveryScreen } from './AccountRecoveryScreen';
 import {
@@ -877,6 +878,7 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
         </View>
       </SettingsGroup>
       <SettingsGroup title="Verified safety contact">
+        <SharedWithYou api={api} />
         <Text style={styles.settingsHint}>
           Safety invitations require verified, trusted accounts. A contact never receives exact
           coordinates, exact route, or access to past activities.

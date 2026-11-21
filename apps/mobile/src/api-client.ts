@@ -61,6 +61,8 @@ import type {
   PrivacySettingsUpdate,
   ProfileSearchResponse,
   PublicProfile,
+  SafetyShareReceived,
+  SafetyShareReceivedListResponse,
   UsernameAvailability,
   PrivacyZoneListResponse,
   PrivacyZoneRequest,
@@ -315,6 +317,14 @@ export class MobileApiClient {
       method: 'DELETE',
       empty: true
     });
+  }
+  /** Active shares other runners are sending you, without any location (M3.6). */
+  async listReceivedSafetyShares(): Promise<readonly SafetyShareReceived[]> {
+    return (
+      await this.request<SafetyShareReceivedListResponse>('/v1/safety-shares/received', {
+        method: 'GET'
+      })
+    ).data;
   }
   async readDelayedSafetyShare(id: string): Promise<SafetyShareReadResponse> {
     return this.request(`/v1/safety-shares/${encodeURIComponent(id)}/updates`, { method: 'GET' });

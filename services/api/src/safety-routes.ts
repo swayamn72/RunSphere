@@ -12,6 +12,7 @@ import {
   SafetyContactRequestSchema,
   SafetyContactResponseSchema,
   SafetyShareParamsSchema,
+  SafetyShareReceivedListResponseSchema,
   SafetyShareReadResponseSchema,
   SafetyShareRequestSchema,
   SafetyShareResponseSchema,
@@ -447,6 +448,62 @@ export const registerSafetyRoutes = ({ routes, database, authSecret }: SafetyRou
       return saved.rows[0]
         ? reply.code(204).send()
         : reply.code(404).send({ message: 'Active safety share not found' });
+    }
+  );
+
+  /**
+   * Active shares where the reader is the accepted contact (M3.6). The gate
+   * is the same as reading one share's updates: the contact email is the
+   * reader's, the invitation was accepted, and the reader is verified and
+   * trusted. A revoked, expired or deleted sharer drops out.
+   */
+  routes.get(
+    '/v1/safety-shares/received',
+    {
+      schema: {
+        headers: ActivityAuthorizationHeadersSchema,
+        response: {
+          200: SafetyShareReceivedListResponseSchema,
+          401: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+      const shares = await database.query<{
+        id: string;
+        display_name: string | null;
+        username: string;
+        created_at: Date;
+        expires_at: Date;
+      }>(
+        `SELECT session.id, profile.display_name, sharer.username, session.created_at,
+           session.expires_at
+         FROM safety_share_sessions session
+         JOIN safety_contacts contact ON contact.id = session.safety_contact_id
+         JOIN accounts recipient ON lower(recipient.email) = lower(contact.email)
+         JOIN accounts sharer ON sharer.id = session.account_id
+         LEFT JOIN profiles profile ON profile.account_id = sharer.id
+         WHERE recipient.id = $1 AND contact.status = 'accepted'
+           AND recipient.email_verified_at IS NOT NULL AND recipient.trust_established_at IS NOT NULL
+           AND recipient.deleted_at IS NULL AND sharer.deleted_at IS NULL
+           AND session.status = 'active' AND session.expires_at > now()
+         ORDER BY session.created_at DESC
+         LIMIT 50`,
+        [accountId]
+      );
+      return {
+        data: shares.rows.map((row) => ({
+          id: row.id,
+          sharerDisplayName: row.display_name ?? row.username,
+          sharerUsername: row.username,
+          startedAt: row.created_at.toISOString(),
+          expiresAt: row.expires_at.toISOString()
+        }))
+      };
     }
   );
 

@@ -262,6 +262,24 @@ export const SafetyShareResponseSchema = Type.Object(
   },
   { $id: 'SafetyShareResponse' }
 );
+/**
+ * Shares other runners are sending you (M3.6). Who and until when, never a
+ * location: the delayed, coarse tiles are read per share from its updates.
+ */
+export const SafetyShareReceivedSchema = Type.Object(
+  {
+    id: UuidSchema,
+    sharerDisplayName: Type.String(),
+    sharerUsername: Type.String(),
+    startedAt: Type.String({ format: 'date-time' }),
+    expiresAt: Type.String({ format: 'date-time' })
+  },
+  { $id: 'SafetyShareReceived' }
+);
+export const SafetyShareReceivedListResponseSchema = Type.Object(
+  { data: Type.Array(SafetyShareReceivedSchema, { maxItems: 50 }) },
+  { $id: 'SafetyShareReceivedListResponse' }
+);
 export const SafetyShareParamsSchema = Type.Object(
   { shareId: UuidSchema },
   { ...Strict, $id: 'SafetyShareParams' }
@@ -569,6 +587,8 @@ export type RefreshRequest = Static<typeof RefreshRequestSchema>;
 export type PrivacyZoneRequest = Static<typeof PrivacyZoneRequestSchema>;
 export type PrivacyZoneResponse = Static<typeof PrivacyZoneResponseSchema>;
 export type PrivacyZoneListResponse = Static<typeof PrivacyZoneListResponseSchema>;
+export type SafetyShareReceived = Static<typeof SafetyShareReceivedSchema>;
+export type SafetyShareReceivedListResponse = Static<typeof SafetyShareReceivedListResponseSchema>;
 export type VisibilityRequest = Static<typeof VisibilityRequestSchema>;
 export type VisibilityResponse = Static<typeof VisibilityResponseSchema>;
 export type SafetyContactRequest = Static<typeof SafetyContactRequestSchema>;
