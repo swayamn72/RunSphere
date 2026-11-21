@@ -22,6 +22,7 @@ import { LoopCallout } from '../components/LoopCallout';
 import { LoopMascot } from '../components/Mascot';
 import { BackHeader, PrimaryButton } from '../components/primitives';
 import { TerritoryPanel } from './TerritoryPanel';
+import { SeasonHistory } from './SeasonHistory';
 import { useLoopGuidance } from '../components/useLoopGuidance';
 import type { LoopGuidanceCue } from '../loop-guidance';
 import { useAppTheme } from '../theme/theme';
@@ -974,6 +975,7 @@ export function PlayScreen({
           onAction={reload}
         />
       )}
+      <SeasonHistory api={api} styles={styles} />
     </>
   );
 

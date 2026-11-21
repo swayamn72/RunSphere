@@ -244,6 +244,11 @@ const stubApi = (overrides: {
     ),
     listCompetitions: () => Promise.resolve(overrides.competitions ?? []),
     getTerritorySeason: () => Promise.resolve(overrides.territory ?? noSeason),
+    // Season history loads on its own and a failure just hides it, so these
+    // tests answer with a failure rather than inventing data.
+    getTerritorySeasonRecap: () => Promise.reject(new Error('not under test')),
+    getTerritoryHallOfFame: () => Promise.reject(new Error('not under test')),
+    getTerritorySeasons: () => Promise.reject(new Error('not under test')),
     getTerritoryLadder: () => Promise.resolve(overrides.territoryLadder ?? emptyLadder),
     getTerritoryMap: () => Promise.resolve(overrides.territoryMap ?? emptyMap),
     setTerritoryEnrollment: vi.fn(
