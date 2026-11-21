@@ -27,6 +27,8 @@ const googleServicesFile = resolveGoogleServicesFile();
 const config: ExpoConfig = {
   name: 'RunSphere',
   slug: 'runsphere',
+  // Friend invite links open the app: runsphere://invite/<token> (ADR-0014).
+  scheme: 'runsphere',
   version: '0.1.0',
   orientation: 'portrait',
   userInterfaceStyle: 'dark',

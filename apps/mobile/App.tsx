@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useReducer, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Linking, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { activityQueue } from './src/activity-queue.native';
 import { accountScopeFor, legacyAccountScopesFor } from './src/account-scope';
@@ -40,6 +40,8 @@ const loadBackgroundModules = (): {
 const { BackgroundFetch, TaskManager } = loadBackgroundModules();
 
 import { FocusedFlexShell, FocusedScrollShell, TabScrollShell } from './src/components/ScreenShell';
+import { inviteTokenFromUrl } from './src/invite-link';
+import { InviteAcceptSheet } from './src/screens/InviteAcceptSheet';
 import { PrimaryButton } from './src/components/primitives';
 import { useAppStyles } from './src/components/styles';
 import { coordinateLogout } from './src/logout-coordinator';
@@ -165,6 +167,22 @@ function RunSphereApp() {
     'profile' | 'notifications' | 'settings' | 'privacy'
   >('profile');
   const [storageAttempt, retryStorage] = useReducer((attempt: number) => attempt + 1, 0);
+  /**
+   * A friend's invite link, opened from outside the app. Kept until the reader
+   * is signed in, so a link opened before sign-up still works afterwards.
+   */
+  const [pendingInvite, setPendingInvite] = useState<string>();
+  useEffect(() => {
+    const take = (url: string | null) => {
+      const token = inviteTokenFromUrl(url);
+      if (token) setPendingInvite(token);
+    };
+    void Linking.getInitialURL()
+      .then(take)
+      .catch(() => undefined);
+    const subscription = Linking.addEventListener('url', (event) => take(event.url));
+    return () => subscription.remove();
+  }, []);
 
   /**
    * Register this device for push once an account is known.
@@ -284,6 +302,18 @@ function RunSphereApp() {
           </Text>
           <PrimaryButton label="Try again" onPress={retryStorage} />
         </View>
+      </SafeAreaView>
+    );
+  if (onboarding.step === 'complete' && pendingInvite && accountId)
+    return (
+      <SafeAreaView style={styles.screen}>
+        <FocusedScrollShell>
+          <InviteAcceptSheet
+            api={apiClient}
+            token={pendingInvite}
+            onClose={() => setPendingInvite(undefined)}
+          />
+        </FocusedScrollShell>
       </SafeAreaView>
     );
   if (onboarding.step !== 'complete')
