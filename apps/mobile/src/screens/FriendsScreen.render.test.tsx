@@ -22,6 +22,7 @@ vi.mock('react-native', async () => {
   return {
     Image: native('Image'),
     Pressable: native('Pressable'),
+    Share: { share: async () => ({ action: 'sharedAction' }) },
     StyleSheet: { create: <T,>(styles: T) => styles },
     Text: native('Text'),
     TextInput: native('TextInput'),
@@ -118,6 +119,19 @@ const text = (renderer: ReactTestRenderer): string =>
     .flatMap((node) => node.children.filter((child): child is string => typeof child === 'string'))
     .join(' | ');
 
+/** Email is the fallback behind a button now; open it and return its field. */
+const emailField = async (renderer: ReactTestRenderer) => {
+  const open = renderer.root.find(
+    (node) =>
+      (node.props as { accessibilityLabel?: string }).accessibilityLabel === 'Add by email instead'
+  );
+  await act(async () => (open.props as { onPress: () => void }).onPress());
+  return renderer.root.find(
+    (node) =>
+      (node.props as { accessibilityLabel?: string }).accessibilityLabel === 'Friend email address'
+  );
+};
+
 const byLabel = (renderer: ReactTestRenderer, predicate: (label: string) => boolean) =>
   renderer.root.findAll(
     (node) =>
@@ -156,7 +170,7 @@ describe('Friends screen', () => {
   it('confirms an invite without claiming it reached anyone', async () => {
     const api = stubApi();
     const renderer = await render(api);
-    const field = renderer.root.findByType('TextInput' as React.ElementType);
+    const field = await emailField(renderer);
 
     await act(async () =>
       (field.props as { onChangeText: (v: string) => void }).onChangeText('  Ravi@Example.com ')
@@ -171,7 +185,7 @@ describe('Friends screen', () => {
   it('rejects an unusable address without spending a request', async () => {
     const api = stubApi();
     const renderer = await render(api);
-    const field = renderer.root.findByType('TextInput' as React.ElementType);
+    const field = await emailField(renderer);
 
     await act(async () =>
       (field.props as { onChangeText: (v: string) => void }).onChangeText('ravi')
@@ -190,7 +204,7 @@ describe('Friends screen', () => {
       }
     });
     const renderer = await render(api);
-    const field = renderer.root.findByType('TextInput' as React.ElementType);
+    const field = await emailField(renderer);
 
     await act(async () =>
       (field.props as { onChangeText: (v: string) => void }).onChangeText('ravi@example.com')
@@ -199,9 +213,7 @@ describe('Friends screen', () => {
     await act(async () => (send.props as { onPress: () => void }).onPress());
 
     expect(text(renderer)).toContain('Try again in a minute');
-    expect(renderer.root.findByType('TextInput' as React.ElementType).props.value).toBe(
-      'ravi@example.com'
-    );
+    expect((field.props as { value: string }).value).toBe('ravi@example.com');
   });
 
   it('warns what a block does before it is pressed', async () => {

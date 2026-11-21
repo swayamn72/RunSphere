@@ -52,6 +52,16 @@ import type {
   LoginRequest,
   NotificationPreferences,
   NotificationPreferencesUpdateRequest,
+  FriendInvite,
+  FriendInviteAcceptResponse,
+  FriendInvitePreview,
+  IdentityResponse,
+  IdentityUpdate,
+  PrivacySettings,
+  PrivacySettingsUpdate,
+  ProfileSearchResponse,
+  PublicProfile,
+  UsernameAvailability,
   PrivacyZoneListResponse,
   PrivacyZoneRequest,
   PrivacyZoneResponse,
@@ -404,6 +414,53 @@ export class MobileApiClient {
     invitation: FriendRequestCreateRequest
   ): Promise<FriendRequestCreateResponse> {
     return this.request('/v1/friends/requests', { method: 'POST', body: invitation });
+  }
+  /**
+   * Social identity (ADR-0014). Search, profiles and invites: the server
+   * applies every runner's privacy settings before answering, so whatever
+   * comes back may be shown as is.
+   */
+  async searchRunners(query: string): Promise<readonly PublicProfile[]> {
+    return (
+      await this.request<ProfileSearchResponse>(
+        `/v1/profiles/search?q=${encodeURIComponent(query)}`,
+        { method: 'GET' }
+      )
+    ).data;
+  }
+  async getRunnerProfile(username: string): Promise<PublicProfile> {
+    return this.request(`/v1/profiles/by-username/${encodeURIComponent(username)}`, {
+      method: 'GET'
+    });
+  }
+  async checkUsername(username: string): Promise<UsernameAvailability> {
+    return this.request(`/v1/usernames/${encodeURIComponent(username)}/availability`, {
+      method: 'GET'
+    });
+  }
+  async getIdentity(): Promise<IdentityResponse> {
+    return this.request('/v1/account/identity', { method: 'GET' });
+  }
+  async saveIdentity(update: IdentityUpdate): Promise<IdentityResponse> {
+    return this.request('/v1/account/identity', { method: 'PUT', body: update });
+  }
+  async getPrivacySettings(): Promise<PrivacySettings> {
+    return this.request('/v1/privacy-settings', { method: 'GET' });
+  }
+  async savePrivacySettings(update: PrivacySettingsUpdate): Promise<PrivacySettings> {
+    return this.request('/v1/privacy-settings', { method: 'PUT', body: update });
+  }
+  async createFriendInvite(): Promise<FriendInvite> {
+    return this.request('/v1/invites', { method: 'POST', body: {} });
+  }
+  async previewFriendInvite(token: string): Promise<FriendInvitePreview> {
+    return this.request(`/v1/invites/${encodeURIComponent(token)}`, { method: 'GET' });
+  }
+  async acceptFriendInvite(token: string): Promise<FriendInviteAcceptResponse> {
+    return this.request(`/v1/invites/${encodeURIComponent(token)}/accept`, {
+      method: 'POST',
+      body: {}
+    });
   }
   /** Incoming pending requests only; the server never returns counterpart emails. */
   async listFriendRequests(): Promise<readonly FriendRequest[]> {

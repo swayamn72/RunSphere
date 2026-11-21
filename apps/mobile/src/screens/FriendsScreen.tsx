@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
+import { RunnerSearch } from './RunnerSearch';
 import type { BlockedAccount, FriendRequest, Profile, ReportReason } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { BackHeader, PrimaryButton, SettingsGroup } from '../components/primitives';
@@ -174,6 +175,8 @@ export function FriendsScreen({
   const { friends, requests, blocks, state, reload, invite, answer, block, unblock } =
     useFriendsData(api, onSessionExpired);
   const [email, setEmail] = useState('');
+  /** Email is the fallback now (ADR-0014); username search comes first. */
+  const [byEmail, setByEmail] = useState(false);
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   /** The account a reason is being chosen for, or none. */
@@ -316,7 +319,7 @@ export function FriendsScreen({
         ))}
         {!friendList.length && state !== 'loading' && (
           <Text style={styles.settingsHint}>
-            No friends yet. Add someone below with the exact email they signed up with.
+            No friends yet. Find a runner by username below, or share an invite link.
           </Text>
         )}
       </SettingsGroup>
@@ -324,32 +327,45 @@ export function FriendsScreen({
       {guidance.cue && <LoopCallout cue={guidance.cue} onDismiss={guidance.dismiss} />}
 
       <SettingsGroup title="Add a friend">
-        <View style={styles.settingStack}>
-          <Text style={styles.fieldLabel}>THEIR EMAIL ADDRESS</Text>
-          <TextInput
-            accessibilityLabel="Friend email address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            onChangeText={setEmail}
-            placeholder="name@example.com"
-            placeholderTextColor={tokens.text.secondary}
-            style={styles.input}
-            value={email}
-          />
-          <PrimaryButton
-            accessibilityLabel="Send friend request"
-            label={busy ? 'Working…' : 'Send friend request'}
-            disabled={busy}
-            onPress={() => void submitInvite()}
-          />
-          <Text style={styles.rowDetail}>
-            RunSphere answers the same way whether or not that address has an account, so nobody can
-            use this to find out who is registered. You will see them in your friends list only if
-            they accept.
-          </Text>
-        </View>
+        <RunnerSearch api={api} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={byEmail ? 'Hide adding by email' : 'Add by email instead'}
+          onPress={() => setByEmail((open) => !open)}
+        >
+          <Text style={styles.textButton}>{byEmail ? 'Hide email' : 'Add by email instead'}</Text>
+        </Pressable>
       </SettingsGroup>
+
+      {byEmail && (
+        <SettingsGroup title="Add by email">
+          <View style={styles.settingStack}>
+            <Text style={styles.fieldLabel}>THEIR EMAIL ADDRESS</Text>
+            <TextInput
+              accessibilityLabel="Friend email address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              onChangeText={setEmail}
+              placeholder="name@example.com"
+              placeholderTextColor={tokens.text.secondary}
+              style={styles.input}
+              value={email}
+            />
+            <PrimaryButton
+              accessibilityLabel="Send friend request"
+              label={busy ? 'Working…' : 'Send friend request'}
+              disabled={busy}
+              onPress={() => void submitInvite()}
+            />
+            <Text style={styles.rowDetail}>
+              RunSphere answers the same way whether or not that address has an account, so nobody
+              can use this to find out who is registered. You will see them in your friends list
+              only if they accept.
+            </Text>
+          </View>
+        </SettingsGroup>
+      )}
 
       {reporting && (
         <SettingsGroup title={`Report ${reporting.nameLabel}`}>
