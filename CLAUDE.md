@@ -1,9 +1,9 @@
 # CLAUDE.md — RunSphere
 
-Guidance for Claude Code in this repository. Verified against the code on 2026-11-20 (commit `92bbee6`).
+Guidance for Claude Code in this repository. Verified against the code on 2026-11-21 (commit `2a93032`).
 Deeper references: `PROJECT_ARCHITECTURE.md`, `IMPLEMENTATION_STATUS.md`, `BUGS_AND_RISKS.md`,
-`IMPLEMENTATION_ROADMAP.md`. **Trust the code over `docs/`**: several docs are stale (see
-PROJECT_ARCHITECTURE.md §9). In particular, `docs/pending-work.md` contains contradictory duplicate sections.
+`IMPLEMENTATION_ROADMAP.md` (✅ done / 🟡 partial / unmarked = open; start here to pick work). **Trust the code over `docs/`**: several docs are stale (see
+PROJECT_ARCHITECTURE.md §9). In particular, `docs/pending-work.md` is superseded and contradicts itself; ignore it.
 
 ## What this is
 
@@ -111,6 +111,36 @@ APK exists and `aapt` isn't on PATH. Run `vitest run` directly to test only the 
 - Mobile: `apps/mobile/.env` → `EXPO_PUBLIC_API_BASE_URL` (HTTPS outside local dev),
   `EXPO_PUBLIC_MAP_STYLE_URL|ORIGINS|ATTRIBUTION`, `EXPO_PUBLIC_SYNTHETIC_LOCATION` (dev only).
 
+## Where shared rules live (read these before adding similar code)
+
+- **Rate limits:** `services/api/src/rate-limit.ts`, registered in `app.ts`. Off under `NODE_ENV=test`
+  (`buildApp({ rateLimits: true })` to test it).
+- **Achievements:** `services/api/src/achievement-core.ts` (`syncAchievements`), shared by the sync route
+  and the worker (`processNextActivity` calls it after each run). Exported as `@runsphere/api/achievements`.
+- **Progression and week close:** `services/api/src/progression-core.ts` (`@runsphere/api/progression`),
+  run by the worker job `progression_week_close`.
+- **Claims:** `territory-claim-routes.ts`: one claim per run (migration 048), per-run and per-tile
+  advisory locks (`claimLockKeys` in `packages/domain`), and the Ghost Race hourly limit.
+- **Mobile copy:** `docs/voice.md`. `apps/mobile/src/voice-copy.test.ts` fails on banned system words
+  (server, configured, validated, eligible, …) in any screen string. Show errors with
+  `failureMessage(error, fallback)` from `src/failure-copy.ts`, never `error.message` (a test enforces this).
+  Rho's lines live in `src/rho-coach.ts` (tone test included).
+- **Colours:** core tokens in `packages/ui`; the Turf map/HUD palette in
+  `apps/mobile/src/theme/game-world.ts`. `theme.test.ts` fails on any hex literal elsewhere and checks
+  AA contrast.
+- **Admin areas:** `apps/admin/src/areas.ts` gates each area with the API's own role predicates; new
+  areas get their own component file (e.g. `turf-area.tsx`) with a `renderToStaticMarkup` test.
+
+## Local pitfalls (Windows checkout)
+
+- Working-tree files are CRLF. `prettier --write <dir>` rewrites line endings of untouched files: stage
+  only real changes (`git add $(git diff --ignore-cr-at-eol --name-only)`) and `git checkout` the rest.
+- Bash heredocs piped to `node -` lose backslashes, which breaks regexes. Write scripts to a file first.
+- PostGIS tests need Docker Desktop running and container `runsphere-postgres-1` started.
+- Integration test helpers: give each registration its own `remoteAddress`, or the register rate
+  limit answers 429. Add new integration files to the root `test:integration` script.
+- The full serial suite takes about 10 minutes; run single files while iterating.
+
 ## Guardrails for agents
 
 - Do not commit `.env`, `google-services.json`, or the untracked `.npmrc` (it's Windows-specific).
@@ -126,3 +156,8 @@ APK exists and `aapt` isn't on PATH. Run `vitest run` directly to test only the 
   **deferred at launch** (ADR-0013): keep `ML_SCORER_URL`/`ML_TRAINER_URL` unset and don't spend
   effort on `services/ml` unless asked.
 - Before changing product rules, check `docs/adr/`. Supersede an ADR rather than contradict it.
+- Workflow the owner expects: branch from `main`, keep commits small and logical, run lint,
+  typecheck and the affected tests (PostGIS suites against `runsphere_test` when DB code changes),
+  then fast-forward merge to `main` and push. Update the roadmap/BUGS markers in the same commit.
+  Keep the Android emulator off unless asked. Ask before deleting remote branches or changing
+  who can access staff areas.
