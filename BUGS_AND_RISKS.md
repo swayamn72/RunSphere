@@ -80,7 +80,7 @@ Severity: **S1** blocks launch or loses data/security · **S2** a core feature i
 - Fix: decide the policy (product and legal), add `deletion_scheduled_for`, cancel on sign-in, and
   require a password or recent auth.
 
-### B7 — Email action links lead nowhere (S1, Confirmed)
+### B7 — ✅ FIXED in code 2026-11-21 (M3.4): the API serves a page for every email link, plus RFC 8058 one-click unsubscribe; still to confirm with a real staging email — Email action links lead nowhere (S1, Confirmed)
 
 - `services/worker/src/email-delivery.ts` builds links to `/verify-email`, `/reset-password`,
   `/confirm-email-change` and `/confirm-deletion` under `APP_BASE_URL`. No web app, admin route or

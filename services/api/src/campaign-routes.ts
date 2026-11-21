@@ -155,6 +155,45 @@ export const audienceMatchCount = async (
   return Number(result.rows[0]?.count ?? 0);
 };
 
+/**
+ * Switch campaign email off for whoever holds this unsubscribe token, and say
+ * the same thing whatever the token was. Shared by the JSON route below and
+ * the RFC 8058 one-click POST in `email-link-pages.ts`.
+ */
+export const unsubscribeByToken = async (
+  database: Database,
+  token: string
+): Promise<UnsubscribeResponse> => {
+  const tokenHash = createHash('sha256').update(token).digest('hex');
+  const matched = await database.query<{ account_id: string }>(
+    `UPDATE email_unsubscribe_tokens SET last_used_at = now()
+     WHERE token_hash = $1 RETURNING account_id`,
+    [tokenHash]
+  );
+  const accountId = matched.rows[0]?.account_id;
+  if (accountId) {
+    await withTransaction(database, async (client) => {
+      await client.query(
+        `UPDATE notification_preferences
+         SET marketing_consent = false,
+           categories = jsonb_set(categories, '{marketing}', 'false'::jsonb),
+           channels = jsonb_set(channels, '{email}', 'false'::jsonb),
+           updated_at = now()
+         WHERE account_id = $1`,
+        [accountId]
+      );
+      // Withdrawal is recorded exactly where consent was granted, so the
+      // history reads as one story rather than two.
+      await client.query(
+        `INSERT INTO consent_history (account_id, consent_type, granted, policy_version)
+         VALUES ($1, 'marketing_email', false, 'unsubscribe_link')`,
+        [accountId]
+      );
+    });
+  }
+  return { message: UNSUBSCRIBE_ANSWER };
+};
+
 export const registerCampaignRoutes = ({
   routes,
   database,
@@ -180,35 +219,7 @@ export const registerCampaignRoutes = ({
     },
     async (request, reply) => {
       if (!database) return reply.code(503).send({ message: 'Service unavailable' });
-      const tokenHash = createHash('sha256').update(request.body.token).digest('hex');
-      const matched = await database.query<{ account_id: string }>(
-        `UPDATE email_unsubscribe_tokens SET last_used_at = now()
-         WHERE token_hash = $1 RETURNING account_id`,
-        [tokenHash]
-      );
-      const accountId = matched.rows[0]?.account_id;
-      if (accountId) {
-        await withTransaction(database, async (client) => {
-          await client.query(
-            `UPDATE notification_preferences
-             SET marketing_consent = false,
-               categories = jsonb_set(categories, '{marketing}', 'false'::jsonb),
-               channels = jsonb_set(channels, '{email}', 'false'::jsonb),
-               updated_at = now()
-             WHERE account_id = $1`,
-            [accountId]
-          );
-          // Withdrawal is recorded exactly where consent was granted, so the
-          // history reads as one story rather than two.
-          await client.query(
-            `INSERT INTO consent_history (account_id, consent_type, granted, policy_version)
-             VALUES ($1, 'marketing_email', false, 'unsubscribe_link')`,
-            [accountId]
-          );
-        });
-      }
-      const response: UnsubscribeResponse = { message: UNSUBSCRIBE_ANSWER };
-      return response;
+      return unsubscribeByToken(database, request.body.token);
     }
   );
 

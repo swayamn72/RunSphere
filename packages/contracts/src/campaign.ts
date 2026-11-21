@@ -117,6 +117,16 @@ export const UnsubscribeRequestSchema = Type.Object(
   { ...Strict, $id: 'UnsubscribeRequest' }
 );
 
+/**
+ * The same token on the RFC 8058 one-click POST, which carries it in the
+ * emailed URL rather than a body. Not strict: a provider's click tracking may
+ * add parameters of its own.
+ */
+export const OneClickUnsubscribeQuerySchema = Type.Object(
+  { token: Type.String({ minLength: 16, maxLength: 128 }) },
+  { $id: 'OneClickUnsubscribeQuery' }
+);
+
 export const UnsubscribeResponseSchema = Type.Object(
   { message: Type.String({ minLength: 1, maxLength: 300 }) },
   { $id: 'UnsubscribeResponse' }
@@ -134,6 +144,7 @@ export type CampaignScheduleRequest = Static<typeof CampaignScheduleRequestSchem
 export type CampaignPreviewResponse = Static<typeof CampaignPreviewResponseSchema>;
 export type UnsubscribeRequest = Static<typeof UnsubscribeRequestSchema>;
 export type UnsubscribeResponse = Static<typeof UnsubscribeResponseSchema>;
+export type OneClickUnsubscribeQuery = Static<typeof OneClickUnsubscribeQuerySchema>;
 export type CampaignParams = Static<typeof CampaignParamsSchema>;
 
 /**
