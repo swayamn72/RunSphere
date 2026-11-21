@@ -133,9 +133,8 @@ and appeals, campaigns (staff, consented email).
 ### 4.6 Map
 
 `maps/map-config.ts` accepts a style URL only when its origin is in an allow-list (HTTPS, or local HTTP
-in dev). The API exposes `GET /satellite.json`, a MapLibre style pointing at **Esri World Imagery**
-tiles. `apps/mobile/.env.example` points the app at it. Without config the app renders an app-owned
-fallback surface.
+in dev). The app uses the free **OpenFreeMap** style, set in `apps/mobile/.env` (the API serves no
+map style since 2026-11-21). Without config the app renders an app-owned fallback surface.
 
 ## 5. Database
 

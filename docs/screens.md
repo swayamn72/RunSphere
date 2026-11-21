@@ -124,7 +124,7 @@ Bottom-right (stacked vertically):
               [−]  zoom out
               [◎]  relocate  ← centres map on GPS position
 
-Top-right:    [⋮]  overflow (report a claim, toggle satellite basemap)
+Top-right:    [⋮]  overflow (report a claim)
 ```
 
 **Bottom sheet (swipe up):** Leaderboard + takeover feed.
