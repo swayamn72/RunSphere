@@ -15,3 +15,4 @@ ADRs record durable decisions. A new ADR is required when a change affects priva
 - [ADR-0011: Enclosure territory claims — named holders and pace-based takeovers](0011-enclosure-territory-claims.md) — **reverses ADR-0005 and ADR-0008 for that mechanic only**
 - [ADR-0012: Account deletion — prompt, verified, complete erasure](0012-account-deletion-policy.md)
 - [ADR-0013: Launch with deterministic rules only; defer ML](0013-defer-ml-at-launch.md)
+- [ADR-0014: Social identity, discovery and privacy controls](0014-social-identity-and-privacy-controls.md) — **amends ADR-0007** (discovery, friend board)
