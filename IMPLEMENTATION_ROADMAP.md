@@ -105,7 +105,7 @@ Usernames, discovery and the privacy controls the runner owns. The server enforc
 | ---- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
 | SI.1 | ✅ Usernames, date of birth (18+), home area, privacy settings, search, profile by username, friend request by username (migration 050) | Integration tests for every visibility rule          |
 | SI.2 | ✅ Enforce Turf controls (anonymous holder, hidden ground, Ghost Race opt-out) and the friend board switch                              | Unit and integration tests                           |
-| SI.3 | Invite links and QR codes (signed, expiring tokens)                                                                                     | Integration tests; a used or expired link is refused |
+| SI.3 | ✅ Invite links and QR codes (hashed, 7-day tokens; migration 051; the app needs the `runsphere://` scheme, see SI.6)                   | Integration tests; a used or expired link is refused |
 | SI.4 | App: onboarding steps (date of birth, username, visibility, home area, privacy zone prompt)                                             | Render tests; copy passes voice-copy.test            |
 | SI.5 | App: Privacy & visibility screen, plus a one-time review prompt for existing accounts                                                   | Render tests                                         |
 | SI.6 | App: search, profile pages, tap a name on Turf or a board to open a profile, QR scan and share                                          | Render tests                                         |

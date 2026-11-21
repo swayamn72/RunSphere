@@ -1,7 +1,12 @@
+import { createHash, randomBytes } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import {
   ActivityAuthorizationHeadersSchema,
   ErrorResponseSchema,
+  FriendInviteAcceptResponseSchema,
+  FriendInviteParamsSchema,
+  FriendInvitePreviewSchema,
+  FriendInviteSchema,
   IdentityResponseSchema,
   IdentityUpdateSchema,
   PrivacySettingsSchema,
@@ -16,7 +21,7 @@ import {
   type PrivacySettingsUpdate,
   type PublicProfile
 } from '@runsphere/contracts';
-import type { Database } from '@runsphere/db';
+import { withTransaction, type Database } from '@runsphere/db';
 import {
   isHomeArea,
   normalizeUsername,
@@ -24,6 +29,11 @@ import {
   USERNAME_PROBLEM_MESSAGE
 } from '@runsphere/domain';
 import { audit, requireAccount } from './auth-routes.js';
+import { requireSharingAllowed } from './sanction-guard.js';
+
+const INVITE_DAYS = 7;
+const inviteHash = (token: string) => createHash('sha256').update(token).digest('hex');
+const inviteLink = (token: string) => `runsphere://invite/${token}`;
 
 /**
  * Social identity and privacy controls (ADR-0014).
@@ -411,6 +421,166 @@ export const registerSocialIdentityRoutes = ({
       // Hidden and missing read the same, so a private runner can't be confirmed.
       if (!row || !canSeeProfile(row)) return reply.code(404).send({ message: 'Runner not found' });
       return publicProfile(row);
+    }
+  );
+  /**
+   * Friend invites (SI.3). Sharing a link is the inviter's consent, so it
+   * works whatever their profile visibility; only a block stands in the way.
+   * One live link per runner: a new one revokes the last.
+   */
+  routes.post(
+    '/v1/invites',
+    {
+      schema: {
+        headers: ActivityAuthorizationHeadersSchema,
+        response: {
+          201: FriendInviteSchema,
+          401: ErrorResponseSchema,
+          403: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+      if (!(await requireSharingAllowed(database, reply, accountId))) return;
+      const token = randomBytes(24).toString('base64url');
+      const created = await withTransaction(database, async (client) => {
+        await client.query(
+          'UPDATE friend_invites SET revoked_at = now() WHERE account_id = $1 AND revoked_at IS NULL',
+          [accountId]
+        );
+        const row = await client.query<{ expires_at: Date }>(
+          `INSERT INTO friend_invites (account_id, token_hash, expires_at)
+           VALUES ($1, $2, now() + make_interval(days => $3)) RETURNING expires_at`,
+          [accountId, inviteHash(token), INVITE_DAYS]
+        );
+        return row.rows[0]!;
+      });
+      await audit(database, accountId, 'friend_invite.created', 'account', accountId);
+      return reply.code(201).send({
+        token,
+        link: inviteLink(token),
+        expiresAt: created.expires_at.toISOString()
+      });
+    }
+  );
+
+  /** The live invite's inviter, as the reader may see them, or undefined. */
+  const openInvite = async (db: Database, readerId: string, token: string) => {
+    const invite = await db.query<{ id: string; account_id: string; expires_at: Date }>(
+      `SELECT id, account_id, expires_at FROM friend_invites
+       WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > now()`,
+      [inviteHash(token)]
+    );
+    const found = invite.rows[0];
+    if (!found) return undefined;
+    const inviter = await db.query<ProfileRow>(`${PROFILE_SELECT} AND target.id = $2`, [
+      readerId,
+      found.account_id
+    ]);
+    const row = inviter.rows[0];
+    // A block either way reads as an invite that doesn't exist.
+    if (!row || row.blocked) return undefined;
+    return { invite: found, inviter: row };
+  };
+
+  routes.get<{ Params: { token: string } }>(
+    '/v1/invites/:token',
+    {
+      schema: {
+        headers: ActivityAuthorizationHeadersSchema,
+        params: FriendInviteParamsSchema,
+        response: {
+          200: FriendInvitePreviewSchema,
+          401: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+      const opened = await openInvite(database, accountId, request.params.token);
+      if (!opened)
+        return reply
+          .code(404)
+          .send({ message: 'This invite has expired. Ask your friend for a new one.' });
+      return {
+        inviter: { ...publicProfile(opened.inviter), canSendRequest: false },
+        expiresAt: opened.invite.expires_at.toISOString()
+      };
+    }
+  );
+
+  routes.post<{ Params: { token: string } }>(
+    '/v1/invites/:token/accept',
+    {
+      schema: {
+        headers: ActivityAuthorizationHeadersSchema,
+        params: FriendInviteParamsSchema,
+        response: {
+          200: FriendInviteAcceptResponseSchema,
+          401: ErrorResponseSchema,
+          403: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          409: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+      if (!(await requireSharingAllowed(database, reply, accountId))) return;
+      const opened = await openInvite(database, accountId, request.params.token);
+      if (!opened)
+        return reply
+          .code(404)
+          .send({ message: 'This invite has expired. Ask your friend for a new one.' });
+      const inviterId = opened.inviter.id;
+      if (inviterId === accountId)
+        return reply.code(409).send({ message: "That's your own invite. Share it with a friend." });
+      const already = opened.inviter.relationship === 'friend';
+      if (!already) {
+        await withTransaction(database, async (client) => {
+          await client.query(
+            `INSERT INTO friendships (account_id, friend_account_id) VALUES ($1, $2), ($2, $1)
+             ON CONFLICT DO NOTHING`,
+            [accountId, inviterId]
+          );
+          // Any request already pending between them is settled by the invite.
+          await client.query(
+            `UPDATE friend_requests SET status = 'accepted', responded_at = now()
+             WHERE status = 'pending'
+               AND ((requester_account_id = $1 AND addressee_account_id = $2)
+                 OR (requester_account_id = $2 AND addressee_account_id = $1))`,
+            [accountId, inviterId]
+          );
+          await client.query(
+            'UPDATE friend_invites SET accepted_count = accepted_count + 1 WHERE id = $1',
+            [opened.invite.id]
+          );
+          await client.query(
+            `INSERT INTO notification_inbox (account_id, kind, title, body)
+             VALUES ($1, 'friend_request', 'New friend', 'A runner added you with your invite link.')`,
+            [inviterId]
+          );
+        });
+        await audit(database, accountId, 'friend_invite.accepted', 'account', inviterId);
+      }
+      return {
+        status: already ? ('already_friends' as const) : ('friends' as const),
+        friend: {
+          ...publicProfile({ ...opened.inviter, relationship: 'friend' }),
+          canSendRequest: false
+        }
+      };
     }
   );
 };

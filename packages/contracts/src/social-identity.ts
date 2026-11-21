@@ -131,3 +131,40 @@ export type IdentityResponse = Static<typeof IdentityResponseSchema>;
 export type UsernameAvailability = Static<typeof UsernameAvailabilitySchema>;
 export type PublicProfile = Static<typeof PublicProfileSchema>;
 export type ProfileSearchResponse = Static<typeof ProfileSearchResponseSchema>;
+
+/** A friend invite (ADR-0014, SI.3). The token is shown once, at creation. */
+export const FriendInviteSchema = Type.Object(
+  {
+    token: Type.String({ minLength: 20, maxLength: 64 }),
+    /** Deep link for the share sheet and the QR code. */
+    link: Type.String(),
+    expiresAt: Type.String({ format: 'date-time' })
+  },
+  { $id: 'FriendInvite' }
+);
+
+export const FriendInviteParamsSchema = Type.Object(
+  { token: Type.String({ minLength: 20, maxLength: 64 }) },
+  { ...Strict, $id: 'FriendInviteParams' }
+);
+
+/** What opening someone's invite shows before accepting. */
+export const FriendInvitePreviewSchema = Type.Object(
+  {
+    inviter: PublicProfileSchema,
+    expiresAt: Type.String({ format: 'date-time' })
+  },
+  { $id: 'FriendInvitePreview' }
+);
+
+export const FriendInviteAcceptResponseSchema = Type.Object(
+  {
+    status: Type.Union([Type.Literal('friends'), Type.Literal('already_friends')]),
+    friend: PublicProfileSchema
+  },
+  { $id: 'FriendInviteAcceptResponse' }
+);
+
+export type FriendInvite = Static<typeof FriendInviteSchema>;
+export type FriendInvitePreview = Static<typeof FriendInvitePreviewSchema>;
+export type FriendInviteAcceptResponse = Static<typeof FriendInviteAcceptResponseSchema>;

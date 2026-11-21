@@ -283,3 +283,68 @@ describePostgis('the friend board switch (ADR-0014, control 10)', () => {
     expect(await boardIds(two)).toEqual([]);
   });
 });
+
+describePostgis('friend invite links and QR codes (SI.3)', () => {
+  const createInvite = async (who: Runner) =>
+    (await app.inject({ method: 'POST', url: '/v1/invites', headers: as(who) })).json() as {
+      token: string;
+      link: string;
+    };
+  const accept = (who: Runner, token: string) =>
+    app.inject({ method: 'POST', url: `/v1/invites/${token}/accept`, headers: as(who) });
+
+  it('makes the opener a friend, even of an only-me profile, and only once', async () => {
+    const tag = suffix();
+    const inviter = await runner(`i${tag}`);
+    const guest = await runner(`g${tag}`);
+    await settle(inviter, { profileVisibility: 'only_me' });
+
+    const invite = await createInvite(inviter);
+    expect(invite.link).toBe(`runsphere://invite/${invite.token}`);
+
+    const preview = await app.inject({
+      method: 'GET',
+      url: `/v1/invites/${invite.token}`,
+      headers: as(guest)
+    });
+    expect(preview.statusCode).toBe(200);
+    expect((preview.json() as { inviter: { username: string } }).inviter.username).toBe(
+      inviter.username
+    );
+
+    const first = await accept(guest, invite.token);
+    expect(first.json()).toMatchObject({ status: 'friends' });
+    expect((await accept(guest, invite.token)).json()).toMatchObject({ status: 'already_friends' });
+    // Now friends, the only-me profile is still not shown on search or by link.
+    expect(await profileStatus(guest, inviter.username)).toBe(404);
+    const friends = await app.inject({ method: 'GET', url: '/v1/friends', headers: as(guest) });
+    expect(friends.body).toContain(inviter.id);
+
+    expect((await accept(inviter, invite.token)).statusCode).toBe(409);
+  });
+
+  it('refuses an old link after a new one, an expired link, and a blocked pair', async () => {
+    const tag = suffix();
+    const inviter = await runner(`j${tag}`);
+    const guest = await runner(`k${tag}`);
+    const old = await createInvite(inviter);
+    const fresh = await createInvite(inviter);
+    expect((await accept(guest, old.token)).statusCode).toBe(404);
+
+    await db.query(
+      `UPDATE friend_invites SET expires_at = now() - interval '1 minute'
+       WHERE account_id = $1 AND revoked_at IS NULL`,
+      [inviter.id]
+    );
+    expect((await accept(guest, fresh.token)).statusCode).toBe(404);
+
+    const third = await createInvite(inviter);
+    await app.inject({
+      method: 'POST',
+      url: '/v1/blocks',
+      headers: as(inviter),
+      payload: { accountId: guest.id }
+    });
+    expect((await accept(guest, third.token)).statusCode).toBe(404);
+  });
+});
