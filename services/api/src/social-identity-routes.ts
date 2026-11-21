@@ -56,6 +56,7 @@ interface SettingsRow {
   runs_visibility: PrivacySettings['runsVisibility'];
   show_route_maps: boolean;
   show_start_times: boolean;
+  trim_start_finish: boolean;
   name_on_ground: boolean;
   draw_ground: boolean;
   friend_board: boolean;
@@ -70,6 +71,7 @@ const settingsFrom = (row: SettingsRow): PrivacySettings => ({
   runsVisibility: row.runs_visibility,
   showRouteMaps: row.show_route_maps,
   showStartTimes: row.show_start_times,
+  trimStartFinish: row.trim_start_finish,
   nameOnGround: row.name_on_ground,
   drawGround: row.draw_ground,
   friendBoard: row.friend_board,
@@ -84,6 +86,7 @@ const COLUMN: Readonly<Record<keyof PrivacySettingsUpdate, string>> = {
   runsVisibility: 'runs_visibility',
   showRouteMaps: 'show_route_maps',
   showStartTimes: 'show_start_times',
+  trimStartFinish: 'trim_start_finish',
   nameOnGround: 'name_on_ground',
   drawGround: 'draw_ground',
   friendBoard: 'friend_board',

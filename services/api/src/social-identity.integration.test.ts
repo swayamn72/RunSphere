@@ -176,10 +176,23 @@ describePostgis('sign-up with date of birth and username (ADR-0014)', () => {
       searchable: true,
       runsVisibility: 'friends',
       showStartTimes: false,
+      trimStartFinish: true,
       reviewed: false
     });
     const saved = await settle(fresh, { ghostRaces: false });
     expect(saved.json()).toMatchObject({ ghostRaces: false, reviewed: true });
+  });
+
+  it('stores the start/finish switch, which used to stay on the phone (M9 9.0)', async () => {
+    const who = await runner('trim');
+    const off = await settle(who, { trimStartFinish: false });
+    expect(off.json()).toMatchObject({ trimStartFinish: false });
+    const reread = await app.inject({
+      method: 'GET',
+      url: '/v1/privacy-settings',
+      headers: as(who)
+    });
+    expect(reread.json()).toMatchObject({ trimStartFinish: false });
   });
 });
 

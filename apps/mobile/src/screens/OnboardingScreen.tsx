@@ -52,6 +52,18 @@ export function Onboarding({
   /** Forgot password replaces the sign-in form until it's done or backed out of. */
   const [recovering, setRecovering] = useState(false);
   const legal = legalLinks((page) => api.legalPageUrl(page));
+
+  /**
+   * The start/finish switch used to stay on the phone and do nothing (M9 9.0).
+   * The server already defaults it on, so only turning it off needs saving;
+   * saving otherwise would also mark the privacy settings as reviewed, which
+   * hides the one-time review prompt from an existing account signing in.
+   */
+  const finishOnboarding = () => {
+    if (!state.hideStartFinish)
+      void api.savePrivacySettings({ trimStartFinish: false }).catch(() => undefined);
+    dispatch({ type: 'finish' });
+  };
   const [authNotice, setAuthNotice] = useState<string>();
   const authenticate = async () => {
     if (!canSubmitAccount(state)) return;
@@ -422,14 +434,14 @@ export function Onboarding({
               />
               <View style={styles.privacyRow}>
                 <View style={styles.flexCopy}>
-                  <Text style={styles.rowTitle}>Trim saved places</Text>
+                  <Text style={styles.rowTitle}>Hide start and finish</Text>
                   <Text style={styles.rowDetail}>
-                    Saved privacy zones remove start, finish, and route fragments within 200 m
-                    before a map can be shared
+                    Others see your routes without the first and last 200 m. Your privacy zones are
+                    always trimmed too.
                   </Text>
                 </View>
                 <Switch
-                  accessibilityLabel="Hide activity start and finish preference"
+                  accessibilityLabel="Hide start and finish"
                   value={state.hideStartFinish}
                   onValueChange={(value) => dispatch({ type: 'setHideStartFinish', value })}
                   trackColor={{ false: tokens.border.subtle, true: tokens.status.success }}
@@ -443,14 +455,11 @@ export function Onboarding({
                 <PrimaryButton label="Allow location" onPress={() => void requestLocation()} />
               ) : (
                 <>
-                  <PrimaryButton
-                    label="Continue to RunSphere"
-                    onPress={() => dispatch({ type: 'finish' })}
-                  />
+                  <PrimaryButton label="Continue to RunSphere" onPress={finishOnboarding} />
                 </>
               )}
               {state.location !== 'granted' && (
-                <Pressable accessibilityRole="button" onPress={() => dispatch({ type: 'finish' })}>
+                <Pressable accessibilityRole="button" onPress={finishOnboarding}>
                   <Text style={styles.textButton}>Continue without location</Text>
                 </Pressable>
               )}

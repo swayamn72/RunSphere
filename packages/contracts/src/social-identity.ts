@@ -24,6 +24,8 @@ export const PrivacySettingsSchema = Type.Object(
     runsVisibility: ProfileVisibilitySchema,
     showRouteMaps: Type.Boolean(),
     showStartTimes: Type.Boolean(),
+    /** Others see routes without the first and last 200 m (9.0; applied by the run log). */
+    trimStartFinish: Type.Boolean(),
     nameOnGround: Type.Boolean(),
     drawGround: Type.Boolean(),
     friendBoard: Type.Boolean(),
@@ -42,6 +44,7 @@ export const PrivacySettingsUpdateSchema = Type.Partial(
     runsVisibility: ProfileVisibilitySchema,
     showRouteMaps: Type.Boolean(),
     showStartTimes: Type.Boolean(),
+    trimStartFinish: Type.Boolean(),
     nameOnGround: Type.Boolean(),
     drawGround: Type.Boolean(),
     friendBoard: Type.Boolean(),

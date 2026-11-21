@@ -47,6 +47,7 @@ const loaded: PrivacySettings = {
   runsVisibility: 'friends',
   showRouteMaps: true,
   showStartTimes: false,
+  trimStartFinish: true,
   nameOnGround: true,
   drawGround: true,
   friendBoard: true,

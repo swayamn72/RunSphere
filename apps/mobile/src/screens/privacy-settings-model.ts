@@ -52,6 +52,11 @@ export const TOGGLES: Readonly<
       key: 'showStartTimes',
       label: 'Show start times',
       help: 'Off: runs say "Morning run" instead of the time, so your routine stays yours.'
+    },
+    {
+      key: 'trimStartFinish',
+      label: 'Hide start and finish',
+      help: 'Others see your routes without the first and last 200 m, even away from your privacy zones.'
     }
   ],
   turf: [
