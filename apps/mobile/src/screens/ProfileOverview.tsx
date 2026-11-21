@@ -21,17 +21,20 @@ import {
 export function ProfileIdentityHead({
   name,
   initials,
+  handle,
   onEdit,
   onOpenSettings
 }: {
   name: string;
   initials: string;
+  /** The @username, once loaded (ADR-0014). */
+  handle?: string;
   onEdit: () => void;
   onOpenSettings: () => void;
 }) {
   const styles = useAppStyles();
   return (
-    <View style={styles.header}>
+    <View style={styles.profileHeader}>
       <View style={[styles.profileHead, styles.flexCopy]}>
         <Pressable
           accessibilityRole="button"
@@ -44,6 +47,7 @@ export function ProfileIdentityHead({
         <Text accessibilityRole="header" style={styles.profileName}>
           {name}
         </Text>
+        {handle ? <Text style={styles.profileHandle}>{`@${handle}`}</Text> : null}
       </View>
       <SettingsButton onPress={onOpenSettings} />
     </View>

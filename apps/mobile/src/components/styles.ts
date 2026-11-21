@@ -743,6 +743,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       marginBottom: 18
     },
     profileHead: { alignItems: 'center', marginBottom: 18 },
+    profileHandle: { color: t.text.secondary, fontSize: 14, fontWeight: '700', marginTop: 2 },
     bigAvatar: {
       alignItems: 'center',
       backgroundColor: t.background.surfaceRaised,

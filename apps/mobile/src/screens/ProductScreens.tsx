@@ -158,6 +158,19 @@ export function ProfileScreen({
   // The profile is the only identity a social surface may show, and an account
   // without one is invisible to friends: a 404 here is a normal "unset" state.
   const [profile, setProfile] = useState<Profile>();
+  const [handle, setHandle] = useState<string>();
+  useEffect(() => {
+    let active = true;
+    void api
+      .getIdentity()
+      .then((identity) => {
+        if (active) setHandle(identity.username);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [api, screen]);
   useEffect(() => {
     let active = true;
     void api
@@ -508,10 +521,10 @@ export function ProfileScreen({
       <ProfileIdentityHead
         name={profileNameLabel(profile?.displayName)}
         initials={profileInitials(profile?.displayName)}
+        {...(handle ? { handle } : {})}
         onEdit={() => setScreen('identity')}
         onOpenSettings={() => setScreen('settings')}
       />
-      <Text style={styles.mvpLabel}>LOCAL RUNNER</Text>
       {overview && (
         <LevelCard
           totalXpLabel={overview.totalXpLabel}

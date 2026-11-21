@@ -328,13 +328,15 @@ export function FriendsScreen({
 
       <SettingsGroup title="Add a friend">
         <RunnerSearch api={api} />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={byEmail ? 'Hide adding by email' : 'Add by email instead'}
-          onPress={() => setByEmail((open) => !open)}
-        >
-          <Text style={styles.textButton}>{byEmail ? 'Hide email' : 'Add by email instead'}</Text>
-        </Pressable>
+        <View style={styles.settingStack}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={byEmail ? 'Hide adding by email' : 'Add by email instead'}
+            onPress={() => setByEmail((open) => !open)}
+          >
+            <Text style={styles.textButton}>{byEmail ? 'Hide email' : 'Add by email instead'}</Text>
+          </Pressable>
+        </View>
       </SettingsGroup>
 
       {byEmail && (
