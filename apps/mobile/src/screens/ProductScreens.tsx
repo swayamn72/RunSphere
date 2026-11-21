@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { failureMessage } from '../failure-copy';
 import { PrivacyZoneList } from './PrivacyZoneList';
+import { PrivacySettingsScreen } from './PrivacySettingsScreen';
 import {
   Alert,
   Linking,
@@ -146,6 +147,7 @@ export function ProfileScreen({
     | 'profile'
     | 'settings'
     | 'safety'
+    | 'privacy'
     | 'goals'
     | 'identity'
     | 'notifications'
@@ -302,6 +304,14 @@ export function ProfileScreen({
       />
     );
   if (screen === 'safety') return <SafetyScreen api={api} onBack={() => setScreen('profile')} />;
+  if (screen === 'privacy')
+    return (
+      <PrivacySettingsScreen
+        api={api}
+        onBack={() => setScreen('profile')}
+        onOpenSafety={() => setScreen('safety')}
+      />
+    );
   if (screen === 'goals') return <GoalsScreen api={api} onBack={() => setScreen('profile')} />;
   if (screen === 'identity')
     return (
@@ -410,6 +420,11 @@ export function ProfileScreen({
         </Text>
       </SettingsGroup>
       <SettingsGroup title="Privacy & safety">
+        <Setting
+          label="Privacy & visibility"
+          value="Who sees you"
+          onPress={() => setScreen('privacy')}
+        />
         <Setting
           label="Safety & privacy"
           value="Private by default"
