@@ -180,6 +180,31 @@ export class MobileApiClient {
   async register(account: RegisterRequest): Promise<AuthSession> {
     return this.saveSession(await this.authRequest('/v1/auth/register', account, 'register'));
   }
+  /**
+   * Password reset and email change (M3.5). The server answers a request the
+   * same whether or not the address has an account, so a caller must not infer
+   * one. The token comes from the emailed link, pasted into the app.
+   */
+  async requestPasswordReset(email: string): Promise<void> {
+    await this.request('/v1/account/password-reset', { method: 'POST', body: { email } }, false);
+  }
+  async completePasswordReset(token: string, newPassword: string): Promise<void> {
+    await this.request(
+      '/v1/account/password-reset/complete',
+      { method: 'POST', body: { token, newPassword }, empty: true },
+      false
+    );
+  }
+  async requestEmailChange(newEmail: string): Promise<void> {
+    await this.request('/v1/account/email-change', { method: 'POST', body: { newEmail } });
+  }
+  async completeEmailChange(token: string): Promise<void> {
+    await this.request(
+      '/v1/account/email-change/complete',
+      { method: 'POST', body: { token }, empty: true },
+      false
+    );
+  }
   async login(credentials: LoginRequest): Promise<AuthSession> {
     return this.saveSession(await this.authRequest('/v1/auth/login', credentials, 'login'));
   }

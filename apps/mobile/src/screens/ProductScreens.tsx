@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { failureMessage } from '../failure-copy';
 import { PrivacyZoneList } from './PrivacyZoneList';
 import { PrivacySettingsScreen } from './PrivacySettingsScreen';
+import { AccountRecoveryScreen } from './AccountRecoveryScreen';
 import {
   Alert,
   Linking,
@@ -148,6 +149,7 @@ export function ProfileScreen({
     | 'settings'
     | 'safety'
     | 'privacy'
+    | 'change-email'
     | 'goals'
     | 'identity'
     | 'notifications'
@@ -305,6 +307,18 @@ export function ProfileScreen({
       />
     );
   if (screen === 'safety') return <SafetyScreen api={api} onBack={() => setScreen('profile')} />;
+  if (screen === 'change-email')
+    return (
+      <AccountRecoveryScreen
+        api={api}
+        kind="change-email"
+        onBack={() => setScreen('settings')}
+        onDone={() => {
+          setVerificationStatus('Email changed');
+          setScreen('settings');
+        }}
+      />
+    );
   if (screen === 'privacy')
     return (
       <PrivacySettingsScreen
@@ -406,6 +420,11 @@ export function ProfileScreen({
         </Modal>
       )}
       <SettingsGroup title="Account visibility">
+        <Setting
+          label="Change email"
+          value="Confirm with a link"
+          onPress={() => setScreen('change-email')}
+        />
         <Setting
           label="Email verification"
           value={verificationStatus}

@@ -22,6 +22,7 @@ import { AuthFailure } from '../auth-failure';
 import { getLocationPermissionState } from '../location-permission';
 import { accountProblem, canSubmitAccount, dateOfBirthFrom } from '../onboarding';
 import { OnboardingSocialStep } from './OnboardingSocialStep';
+import { AccountRecoveryScreen } from './AccountRecoveryScreen';
 import { usernameHint } from './privacy-settings-model';
 import type { initialOnboardingState, onboardingReducer } from '../onboarding';
 import { PermissionCard, PrimaryButton, StepHeader } from '../components/primitives';
@@ -47,6 +48,9 @@ export function Onboarding({
   const [authStatus, setAuthStatus] = useState<AuthStatus>('idle');
   const [authError, setAuthError] = useState<string>();
   const [authFailureKind, setAuthFailureKind] = useState<AuthFailure['kind']>();
+  /** Forgot password replaces the sign-in form until it's done or backed out of. */
+  const [recovering, setRecovering] = useState(false);
+  const [authNotice, setAuthNotice] = useState<string>();
   const authenticate = async () => {
     if (!canSubmitAccount(state)) return;
     setAuthStatus('loading');
@@ -171,7 +175,19 @@ export function Onboarding({
               <Text style={styles.splashFooter}>Run · Capture · Connect</Text>
             </>
           )}
-          {state.step === 'account' && (
+          {state.step === 'account' && recovering && (
+            <AccountRecoveryScreen
+              api={api}
+              kind="forgot-password"
+              initialEmail={state.email}
+              onBack={() => setRecovering(false)}
+              onDone={() => {
+                setRecovering(false);
+                setAuthNotice('Password changed. Sign in with your new password.');
+              }}
+            />
+          )}
+          {state.step === 'account' && !recovering && (
             <>
               <StepHeader
                 step={state.accountMode === 'login' ? 'SIGN IN' : 'STEP 1 OF 3'}
@@ -290,6 +306,11 @@ export function Onboarding({
               {!authError && accountProblem(state) && (state.email || state.password) ? (
                 <Text style={styles.rowDetail}>{accountProblem(state)}</Text>
               ) : null}
+              {authNotice && !authError ? (
+                <Text accessibilityLiveRegion="polite" style={styles.rowDetail}>
+                  {authNotice}
+                </Text>
+              ) : null}
               {authError && (
                 <Text accessibilityLiveRegion="polite" style={styles.errorText}>
                   {authError}
@@ -307,6 +328,11 @@ export function Onboarding({
                   }}
                 >
                   <Text style={styles.textButton}>Sign in with this email</Text>
+                </Pressable>
+              )}
+              {state.accountMode === 'login' && (
+                <Pressable accessibilityRole="button" onPress={() => setRecovering(true)}>
+                  <Text style={styles.textButton}>Forgot password?</Text>
                 </Pressable>
               )}
               <PrimaryButton
