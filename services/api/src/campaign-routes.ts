@@ -35,6 +35,7 @@ import {
   scheduleTooSoon
 } from '@runsphere/domain';
 import { verifyAccessToken } from './auth.js';
+import { staffRoles } from './staff-roles.js';
 
 /**
  * Consented campaign email (Phase 3, milestone 3.9).
@@ -68,14 +69,6 @@ const requireAccount = (
     : undefined;
   if (!accountId) void reply.code(401).send({ message: 'Unauthorized' });
   return accountId;
-};
-
-const staffRoles = async (database: Database, accountId: string): Promise<string[]> => {
-  const result = await database.query<{ role: string }>(
-    'SELECT role FROM staff_role_assignments WHERE account_id = $1',
-    [accountId]
-  );
-  return result.rows.map((row) => row.role);
 };
 
 const staffAudit = (

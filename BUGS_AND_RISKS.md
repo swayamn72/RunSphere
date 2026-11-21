@@ -205,8 +205,8 @@ reads; privacy-zone trimming on the server; safety-share reads gated on verified
    that never happens, achievements via a screen visit, claims via a button. There's no
    `activity.derived` fan-out despite the outbox design in `docs/architecture.md`.
 4. **Very large route files** (`territory-claim-routes.ts` 1.9k lines, `club-routes.ts` 1.7k,
-   `territory-board-routes.ts` 1.1k) mix SQL, policy and HTTP. The staff-role lookup is copy-pasted in
-   7 files.
+   `territory-board-routes.ts` 1.1k) mix SQL, policy and HTTP. ✅ The staff-role lookup, once
+   copy-pasted in 8 files, is now one `staffRoles` in `services/api/src/staff-roles.ts` (M7.2).
 5. **Two staff authorization models** (env allow-list vs DB roles).
 6. **Two territory engines** (Turf live, H3 seasons dormant) with separate tables and jobs. Every
    sweep pays for the dormant one's checks, and readers get confused.

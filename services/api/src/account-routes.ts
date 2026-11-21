@@ -23,6 +23,7 @@ import {
 } from '@runsphere/contracts';
 import type { Database } from '@runsphere/db';
 import { hashPassword, verifyAccessToken } from './auth.js';
+import { staffRoles } from './staff-roles.js';
 
 export interface AccountLifecycleRouteDeps {
   routes: FastifyInstance;
@@ -84,14 +85,6 @@ const allowAttempt = (key: string): boolean => {
   if (current.attempts >= 10) return false;
   current.attempts += 1;
   return true;
-};
-
-const staffRoles = async (database: Database, accountId: string): Promise<StaffRolesResponse> => {
-  const result = await database.query<{ role: string }>(
-    'SELECT role FROM staff_role_assignments WHERE account_id = $1 ORDER BY role',
-    [accountId]
-  );
-  return { roles: result.rows.map((row) => row.role) };
 };
 
 export const registerAccountLifecycleRoutes = ({
@@ -361,7 +354,8 @@ export const registerAccountLifecycleRoutes = ({
       if (!database) return reply.code(503).send({ message: 'Service unavailable' });
       const accountId = requireAccount(request, reply, authSecret);
       if (!accountId) return;
-      return staffRoles(database, accountId);
+      const response: StaffRolesResponse = { roles: await staffRoles(database, accountId) };
+      return response;
     }
   );
 };

@@ -32,6 +32,7 @@ import {
 } from '@runsphere/domain';
 import { verifyAccessToken } from './auth.js';
 import { notSharingSuspended, requireSharingAllowed } from './sanction-guard.js';
+import { staffRoles } from './staff-roles.js';
 
 /**
  * Scheduled competitions (Phase 3, milestone 3.6).
@@ -80,15 +81,6 @@ const audit = (
      VALUES ($1, $1, $2, 'competition', $3, $4)`,
     [accountId, eventType, resourceId, JSON.stringify(metadata)]
   );
-
-/** Whether the caller may schedule and run competitions. */
-const operatorRoles = async (database: Database, accountId: string): Promise<string[]> => {
-  const result = await database.query<{ role: string }>(
-    'SELECT role FROM staff_role_assignments WHERE account_id = $1',
-    [accountId]
-  );
-  return result.rows.map((row) => row.role);
-};
 
 interface CompetitionRow {
   id: string;
@@ -584,7 +576,7 @@ export const registerCompetitionRoutes = ({
       if (!database) return reply.code(503).send({ message: 'Service unavailable' });
       const accountId = requireAccount(request, reply, authSecret);
       if (!accountId) return;
-      const roles = await operatorRoles(database, accountId);
+      const roles = await staffRoles(database, accountId);
       if (!canOperateCompetitions(roles))
         return reply.code(403).send({ message: 'Scheduling a competition needs a staff role' });
 
@@ -661,7 +653,7 @@ export const registerCompetitionRoutes = ({
       if (!database) return reply.code(503).send({ message: 'Service unavailable' });
       const accountId = requireAccount(request, reply, authSecret);
       if (!accountId) return;
-      const roles = await operatorRoles(database, accountId);
+      const roles = await staffRoles(database, accountId);
       if (!canOperateCompetitions(roles))
         return reply.code(403).send({ message: 'Running a competition needs a staff role' });
 

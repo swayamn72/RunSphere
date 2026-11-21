@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { ActivityAuthorizationHeadersSchema, ErrorResponseSchema } from '@runsphere/contracts';
 import type { Database } from '@runsphere/db';
 import { verifyAccessToken } from './auth.js';
+import { staffRoles } from './staff-roles.js';
 
 // Written as plain JSON Schema rather than TypeBox: these two responses are
 // staff-only reads with no client contract to share, and the API package does
@@ -44,14 +45,6 @@ const requireAccount = (
     : undefined;
   if (!accountId) void reply.code(401).send({ message: 'Unauthorized' });
   return accountId;
-};
-
-const staffRoles = async (database: Database, accountId: string): Promise<string[]> => {
-  const result = await database.query<{ role: string }>(
-    'SELECT role FROM staff_role_assignments WHERE account_id = $1',
-    [accountId]
-  );
-  return result.rows.map((row) => row.role);
 };
 
 const staffAudit = (

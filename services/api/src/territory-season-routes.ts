@@ -26,6 +26,7 @@ import {
   territoryWeekOf
 } from '@runsphere/domain';
 import { verifyAccessToken } from './auth.js';
+import { staffRoles } from './staff-roles.js';
 
 /**
  * The season ladder, the map, concentration monitoring, and week rollback
@@ -72,14 +73,6 @@ const requireAccount = (
     : undefined;
   if (!accountId) void reply.code(401).send({ message: 'Unauthorized' });
   return accountId;
-};
-
-const staffRoles = async (database: Database, accountId: string): Promise<string[]> => {
-  const result = await database.query<{ role: string }>(
-    'SELECT role FROM staff_role_assignments WHERE account_id = $1',
-    [accountId]
-  );
-  return result.rows.map((row) => row.role);
 };
 
 /** One page of a division's ladder is bounded by the contract's 200 entries. */
