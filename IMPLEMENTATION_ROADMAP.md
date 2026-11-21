@@ -177,6 +177,20 @@ From the compliance review of 2026-11-22. Legal text is drafted from what the co
 | C.8 | ✅ Already existed (found 2026-11-22): run detail → Delete activity calls `DELETE /v1/activities/:id` via the sync coordinator. Follow-up: it deletes without a confirmation and doesn't handle a failed request                                                              | Run detail has Delete                                                            |
 | C.9 | ✅ DONE 2026-11-22 (shared `ReportPanel`): Report a club, and report a runner from their profile page and club member list, not only from Friends (Play UGC policy)                                                                                                           | Report reachable from every place user content appears                           |
 
+## Milestone 9 — Independent run modes, metrics, run log and detail, guided tour
+
+Detailed plan, decisions and task list (9.0–9.29): [](docs/plans/m9-run-modes-metrics-tutorial.md).
+Tick tasks there and here as they land.
+
+| Phase                                                                                       | Tasks     | Status |
+| ------------------------------------------------------------------------------------------- | --------- | ------ |
+| A. Modes (Free run, Turf, Quest, Ghost Race; server-enforced) and the start/finish trim fix | 9.0–9.7   | Open   |
+| B. Metrics engine (splits, best efforts, elevation, charts)                                 | 9.8–9.12  | Open   |
+| C. Run log on profiles                                                                      | 9.13–9.15 | Open   |
+| D. Run detail, open transition, drawn route                                                 | 9.16–9.20 | Open   |
+| E. Guided tour with blur, spotlight and animated Rho                                        | 9.21–9.25 | Open   |
+| F. Privacy, legal and release checks (same build as C)                                      | 9.26–9.29 | Open   |
+
 ## Milestone 7 — Housekeeping (any time, low risk)
 
 | ID   | Task                                                                                                                                                                                                                                                                                         | Done when                                 |
