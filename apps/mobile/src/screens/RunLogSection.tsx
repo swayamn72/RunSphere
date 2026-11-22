@@ -35,7 +35,9 @@ export function RunLogSection({
   onOpenRun?: (
     item: RunLogItem,
     origin: Rect | undefined,
-    measureOrigin: () => Promise<Rect | undefined>
+    measureOrigin: () => Promise<Rect | undefined>,
+    /** Drops the run from this list once it is deleted from its detail. */
+    onDeleted: () => void
   ) => void;
 }) {
   const styles = useAppStyles();
@@ -105,7 +107,10 @@ export function RunLogSection({
               card={card}
               {...(onOpenRun
                 ? {
-                    onPress: (origin, measure) => onOpenRun(byId.get(card.id)!, origin, measure)
+                    onPress: (origin, measure) =>
+                      onOpenRun(byId.get(card.id)!, origin, measure, () =>
+                        setItems((previous) => previous.filter((item) => item.id !== card.id))
+                      )
                   }
                 : {})}
             />

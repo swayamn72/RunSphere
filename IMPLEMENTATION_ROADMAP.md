@@ -187,7 +187,7 @@ Tick tasks there and here as they land.
 | A. Modes (Free run, Turf, Quest, Ghost Race; server-enforced) and the start/finish trim fix | 9.0–9.7   | ✅ 9.0–9.7 done 2026-11-22               |
 | B. Metrics engine (splits, best efforts, elevation, charts)                                 | 9.8–9.12  | ✅ 9.8–9.12 done 2026-11-22              |
 | C. Run log on profiles                                                                      | 9.13–9.15 | ✅ 9.13–9.15 done (device check pending) |
-| D. Run detail, open transition, drawn route                                                 | 9.16–9.20 | 🟡 9.16–9.18 done                        |
+| D. Run detail, open transition, drawn route                                                 | 9.16–9.20 | 🟡 9.16–9.19 done                        |
 | E. Guided tour with blur, spotlight and animated Rho                                        | 9.21–9.25 | Open                                     |
 | F. Privacy, legal and release checks (same build as C)                                      | 9.26–9.29 | 🟡 9.26–9.28 done                        |
 

@@ -757,6 +757,35 @@ export const createAppStyles = (t: SemanticTokens) =>
       top: 0
     },
     runDetailMapLayer: { bottom: 0, left: 0, position: 'absolute', right: 0, top: 0 },
+    runResultCard: {
+      backgroundColor: t.background.surface,
+      borderColor: t.border.subtle,
+      borderRadius: radius.control,
+      borderWidth: 1,
+      marginBottom: 12,
+      padding: 14
+    },
+    runStatGrid: {
+      backgroundColor: t.background.surface,
+      borderColor: t.border.subtle,
+      borderRadius: radius.control,
+      borderWidth: 1,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      marginBottom: 12,
+      paddingVertical: 8
+    },
+    runStatCell: { alignItems: 'center', paddingVertical: 8, width: '33.33%' },
+    splitBarTrack: {
+      backgroundColor: t.background.surfaceInset,
+      borderRadius: 3,
+      flex: 1,
+      height: 6,
+      marginHorizontal: 10,
+      overflow: 'hidden'
+    },
+    splitBar: { backgroundColor: t.action.primary, borderRadius: 3, height: 6 },
+    runDeleteArea: { marginTop: 24 },
     /** A run in the profile run log (M9 9.15): route line left, numbers right. */
     runCard: {
       alignItems: 'center',

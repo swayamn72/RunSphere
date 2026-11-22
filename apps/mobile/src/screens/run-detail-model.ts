@@ -26,6 +26,8 @@ export interface OpenRun {
   origin?: Rect | undefined;
   /** Measures the card again when closing; it may have scrolled. */
   measureOrigin?: (() => Promise<Rect | undefined>) | undefined;
+  /** Called after you delete the run from its detail, so the list drops it. */
+  onDeleted?: (() => void) | undefined;
 }
 
 export const OPEN_DURATION_MS = 350;

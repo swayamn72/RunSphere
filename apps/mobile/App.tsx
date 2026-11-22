@@ -676,7 +676,7 @@ function RunSphereApp() {
       edges={['top']}
       style={[styles.screen, { backgroundColor: tokens.background.canvas }]}
     >
-      <RunDetailProvider renderDetail={(props) => <RunDetailScreen {...props} />}>
+      <RunDetailProvider renderDetail={(props) => <RunDetailScreen {...props} api={apiClient} />}>
         <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
         {shell === 'tab-scroll' ? (
           <TabScrollShell>{content}</TabScrollShell>

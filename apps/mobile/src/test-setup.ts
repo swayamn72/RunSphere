@@ -59,6 +59,7 @@ vi.mock('react-native-reanimated', async () => {
     useAnimatedStyle: (factory: () => unknown) => factory(),
     useDerivedValue: (factory: () => unknown) => ({ value: factory() }),
     useAnimatedReaction: () => undefined,
+    useAnimatedScrollHandler: () => () => undefined,
     withSpring: finish,
     withTiming: finish,
     withDelay: (_ms: number, value: unknown) => value,

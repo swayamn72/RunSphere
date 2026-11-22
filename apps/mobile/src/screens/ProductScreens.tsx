@@ -565,8 +565,8 @@ export function ProfileScreen({
         owner
         {...(openRun
           ? {
-              onOpenRun: (item, origin, measureOrigin) =>
-                openRun({ item, owner: true, origin, measureOrigin })
+              onOpenRun: (item, origin, measureOrigin, onDeleted) =>
+                openRun({ item, owner: true, origin, measureOrigin, onDeleted })
             }
           : {})}
       />

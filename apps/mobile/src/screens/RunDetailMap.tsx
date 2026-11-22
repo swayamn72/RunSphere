@@ -35,13 +35,16 @@ export function RunDetailMap({
   lines,
   paceSeries,
   reduceMotion,
-  accessibilityLabel
+  accessibilityLabel,
+  marker
 }: {
   lines: Lines;
   /** `[distanceMeters, secondsPerKm]`; without it the line is one colour. */
   paceSeries?: readonly (readonly [number, number])[] | undefined;
   reduceMotion: boolean;
   accessibilityLabel: string;
+  /** Where the chart cursor is on the route (9.19), shown as a dot. */
+  marker?: [number, number] | undefined;
 }) {
   const [ready, setReady] = useState(false);
   const [fraction, setFraction] = useState(reduceMotion ? 1 : 0);
@@ -103,9 +106,15 @@ export function RunDetailMap({
         kind: 'route-head',
         visible: fraction > 0 && fraction < 1,
         data: collection(slice.head ? { type: 'Point', coordinates: slice.head } : undefined)
+      },
+      {
+        id: 'run-detail-scrub',
+        kind: 'route-head',
+        visible: Boolean(marker) && fraction >= 1,
+        data: collection(marker ? { type: 'Point', coordinates: marker } : undefined)
       }
     ];
-  }, [lines, fraction, stops]);
+  }, [lines, fraction, stops, marker]);
 
   return (
     <MapSurface
