@@ -82,6 +82,43 @@ const recorder = (stored: ActivitySession) => ({
   list: vi.fn()
 });
 
+describe('samplesToChunks altitude (M9 9.9)', () => {
+  const withAltitude = [
+    { ...samples[0]!, altitude: 12.5 },
+    { ...samples[1]!, altitude: null }
+  ];
+  it('sends altitude only when asked, and only where the fix has one', () => {
+    expect(samplesToChunks(withAltitude, true)[0]!.points).toEqual([
+      expect.objectContaining({ altitudeMeters: 12.5 }),
+      expect.not.objectContaining({ altitudeMeters: expect.anything() })
+    ]);
+  });
+  it('leaves an older run byte for byte as before, so a part-done upload still finalizes', () => {
+    expect(JSON.stringify(samplesToChunks(withAltitude))).not.toContain('altitude');
+    expect(samplesToChunks(withAltitude)).toEqual(samplesToChunks(samples));
+  });
+  it('uploads altitude for a run recorded with it', async () => {
+    const recorded = { ...session, uploadsAltitude: true };
+    const api = {
+      createActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'received' }),
+      recoverActivitySync: vi
+        .fn()
+        .mockResolvedValue({ id: 'remote-1', status: 'received', missingSequences: [0] }),
+      uploadActivityChunk: vi.fn(),
+      finalizeActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'validating' })
+    };
+    const local = {
+      ...recorder({ ...recorded }),
+      samples: vi.fn().mockResolvedValue(withAltitude)
+    };
+    await createActivitySyncCoordinator(api as never, local as never).sync(recorded);
+    expect(api.uploadActivityChunk).toHaveBeenCalledWith(
+      'remote-1',
+      samplesToChunks(withAltitude, true)[0]
+    );
+  });
+});
+
 describe('activity sync coordinator', () => {
   it('persists received/validating lifecycle metadata while uploading canonical chunks', async () => {
     const stored = { ...session };

@@ -151,6 +151,7 @@ export interface ActivityPoint {
   longitude: number;
   recordedAt: string;
   accuracyMeters?: number;
+  altitudeMeters?: number;
 }
 export interface ActivityChunk {
   sequence: number;

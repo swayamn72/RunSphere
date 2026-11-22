@@ -432,6 +432,35 @@ describe('activity recorder', () => {
       expect(calls.filter((sql) => sql.includes(`ADD COLUMN ${column} `))).toHaveLength(1);
     expect(calls.join(' ')).toContain("run_mode IN ('free', 'turf', 'quest', 'ghost')");
   });
+  it('adds the altitude upload flag once on upgrade, off for runs already recorded (M9 9.9)', async () => {
+    const database = new MemoryDatabase();
+    const calls: string[] = [];
+    let added = false;
+    database.getFirstAsync = async (sql) =>
+      sql === 'PRAGMA user_version' ? ({ user_version: 10 } as never) : null;
+    database.getAllAsync = async (sql) =>
+      (sql.includes('recorded_activities')
+        ? [{ name: 'id' }, ...(added ? [{ name: 'upload_altitude' }] : [])]
+        : []) as never;
+    database.execAsync = async (sql) => {
+      calls.push(sql);
+      if (sql.includes('ADD COLUMN upload_altitude')) added = true;
+    };
+    const recorder = createActivityRecorder(database);
+    await recorder.initialize();
+    await recorder.initialize();
+    const adds = calls.filter((sql) => sql.includes('ADD COLUMN upload_altitude'));
+    expect(adds).toEqual([
+      'ALTER TABLE recorded_activities ADD COLUMN upload_altitude INTEGER NOT NULL DEFAULT 0;'
+    ]);
+    expect(calls.some((sql) => sql.includes('ADD COLUMN run_mode'))).toBe(false);
+  });
+  it('records new runs with the altitude upload flag on', async () => {
+    const database = new MemoryDatabase();
+    const run = vi.spyOn(database, 'runAsync');
+    await createActivityRecorder(database).create({ ...base, state: 'active' });
+    expect(String(run.mock.calls[0]![0])).toMatch(/upload_altitude\)\s+VALUES \([^)]*, 1\)/);
+  });
   it.each([
     [{ mode: 'free' as const }, [null, null]],
     [{ mode: 'turf' as const }, [null, null]],

@@ -11,18 +11,29 @@ import { runStartFallback } from './run-start';
 import { isKnownRemoteStatus, type SyncActivityStatus } from './screens/activity-results-model';
 
 export const SYNC_CHUNK_SIZE = 250;
-export const samplesToChunks = (samples: readonly LocationSample[]): ActivityChunk[] => {
+/**
+ * `withAltitude` only for runs recorded from recorder schema 11 (see
+ * `ActivitySession.uploadsAltitude`): the chunks of an older run must stay byte
+ * for byte what they were, or a part-done upload can never finalize.
+ */
+export const samplesToChunks = (
+  samples: readonly LocationSample[],
+  withAltitude = false
+): ActivityChunk[] => {
   const chunks: ActivityChunk[] = [];
   for (let index = 0; index < samples.length; index += SYNC_CHUNK_SIZE)
     chunks.push({
       sequence: chunks.length,
       points: samples
         .slice(index, index + SYNC_CHUNK_SIZE)
-        .map(({ latitude, longitude, recordedAt, accuracy }) => ({
+        .map(({ latitude, longitude, recordedAt, accuracy, altitude }) => ({
           latitude,
           longitude,
           recordedAt,
-          ...(accuracy === null ? {} : { accuracyMeters: accuracy })
+          ...(accuracy === null ? {} : { accuracyMeters: accuracy }),
+          ...(withAltitude && altitude !== null && altitude >= -1_000 && altitude <= 10_000
+            ? { altitudeMeters: altitude }
+            : {})
         }))
     });
   return chunks;
@@ -129,7 +140,10 @@ export const createActivitySyncCoordinator = (
     if (session.state !== 'syncing')
       await recorder.transition(session.id, session.accountId, session.state, 'syncing', now);
     try {
-      const chunks = samplesToChunks(await recorder.samples(session.id, session.accountId));
+      const chunks = samplesToChunks(
+        await recorder.samples(session.id, session.accountId),
+        session.uploadsAltitude === true
+      );
       if (!chunks.length) throw new Error('No recorded samples are available to upload.');
       let remoteId = session.remoteId;
       if (!remoteId) {

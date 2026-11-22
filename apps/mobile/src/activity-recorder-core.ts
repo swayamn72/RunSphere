@@ -80,6 +80,13 @@ export interface ActivitySession {
   runStart?: RunStart | undefined;
   /** The mode the server refused, when `runStart` is its fallback (9.7 says so). */
   refusedRunMode?: RunMode | undefined;
+  /**
+   * Upload altitude with the points (schema 11, M9 9.9), for elevation in the
+   * run's metrics. False on rows recorded before it: one of those may be part
+   * uploaded already, and adding a field to its chunks now would change their
+   * checksums, so the server would refuse to finalize it.
+   */
+  uploadsAltitude?: boolean | undefined;
 }
 
 export type RemoteActivityStatus = ActivityLifecycleStatus;
@@ -91,7 +98,7 @@ export interface RecorderDatabase {
   getAllAsync<T>(sql: string, ...params: unknown[]): Promise<T[]>;
 }
 
-export const ACTIVITY_RECORDER_SCHEMA_VERSION = 10;
+export const ACTIVITY_RECORDER_SCHEMA_VERSION = 11;
 export const MAX_SAMPLE_ACCURACY_METERS = 50;
 export const MAX_SEGMENT_SPEED_METERS_PER_SECOND = 25_000 / 3_600;
 export const EXCLUDED_GAP_SECONDS = 60;
@@ -130,7 +137,9 @@ export const activityRecorderSchema = `
     run_mode TEXT CHECK (run_mode IN ('free', 'turf', 'quest', 'ghost')),
     quest_id TEXT,
     ghost_claim_id TEXT,
-    refused_run_mode TEXT CHECK (refused_run_mode IN ('quest', 'ghost'))
+    refused_run_mode TEXT CHECK (refused_run_mode IN ('quest', 'ghost')),
+    -- 1 on runs recorded from schema 11, whose chunks carry altitude.
+    upload_altitude INTEGER NOT NULL DEFAULT 0
   );
   CREATE TABLE IF NOT EXISTS activity_location_samples (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -177,7 +186,8 @@ const rowToSession = (row: Record<string, unknown>): ActivitySession => ({
         }
       : undefined,
   runStart: runStartFromColumns(row.runMode, row.questId, row.ghostClaimId),
-  refusedRunMode: (row.refusedRunMode as RunMode | null) ?? undefined
+  refusedRunMode: (row.refusedRunMode as RunMode | null) ?? undefined,
+  uploadsAltitude: Boolean(row.uploadAltitude)
 });
 
 export const distanceBetween = (a: LocationSample, b: LocationSample): number => {
@@ -237,7 +247,8 @@ const sessionSelect = `SELECT id, account_id AS accountId, movement_type AS move
   paused_at AS pausedAt, pause_reason AS pauseReason, completed_at AS completedAt, duration_seconds AS durationSeconds, distance_meters AS distanceMeters,
   accepted_samples AS acceptedSamples, last_heartbeat_at AS lastHeartbeatAt, remote_id AS remoteId, remote_status AS remoteStatus, sync_error AS syncError,
   verification_method AS verificationMethod, verified_at AS verifiedAt, verification_device_id AS verificationDeviceId,
-  run_mode AS runMode, quest_id AS questId, ghost_claim_id AS ghostClaimId, refused_run_mode AS refusedRunMode FROM recorded_activities`;
+  run_mode AS runMode, quest_id AS questId, ghost_claim_id AS ghostClaimId, refused_run_mode AS refusedRunMode,
+  upload_altitude AS uploadAltitude FROM recorded_activities`;
 
 const migrationChecksum = (
   rows: readonly Pick<ActivitySession, 'id' | 'remoteId' | 'updatedAt'>[]
@@ -330,6 +341,17 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
           "ALTER TABLE recorded_activities ADD COLUMN refused_run_mode TEXT CHECK (refused_run_mode IN ('quest', 'ghost'));"
         );
     }
+    if (current > 0 && current < 11) {
+      const activityColumns = await database.getAllAsync<{ name: string }>(
+        'PRAGMA table_info(recorded_activities)'
+      );
+      // Additive and metadata-checked, so an interrupted upgrade re-runs safely.
+      // Rows already here default to 0 and keep uploading exactly as before.
+      if (!activityColumns.some((column) => column.name === 'upload_altitude'))
+        await database.execAsync(
+          'ALTER TABLE recorded_activities ADD COLUMN upload_altitude INTEGER NOT NULL DEFAULT 0;'
+        );
+    }
     await database.execAsync(activityRecorderSchema);
     // Preparation is now in-memory. Safely discard pre-route rows left by older builds so they
     // cannot become orphaned recovery/history entries; recording never reached route retention.
@@ -350,8 +372,8 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
     const mode = session.runStart ? runStartFields(session.runStart) : undefined;
     await database.runAsync(
       `INSERT INTO recorded_activities (id, account_id, movement_type, state, started_at, updated_at, paused_at, pause_reason, completed_at, duration_seconds, distance_meters, accepted_samples, last_heartbeat_at,
-         verification_method, verified_at, verification_device_id, run_mode, quest_id, ghost_claim_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, ?, ?, ?)`,
+         verification_method, verified_at, verification_device_id, run_mode, quest_id, ghost_claim_id, upload_altitude)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, ?, ?, ?, 1)`,
       session.id,
       session.accountId,
       session.movementType,
