@@ -112,6 +112,28 @@ describe('run detail transition (M9 9.17)', () => {
 });
 
 describe('run detail host (M9 9.16)', () => {
+  it('tells the app when a run opens and closes, so it can hide the screen from TalkBack', async () => {
+    const changes: boolean[] = [];
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        <RunDetailProvider
+          renderDetail={() => React.createElement('Detail' as React.ElementType)}
+          onOpenChange={(open) => changes.push(open)}
+        >
+          <Opener />
+        </RunDetailProvider>
+      );
+    });
+    await act(async () => {
+      renderer.root.findByType('Opener' as React.ElementType).props.onPress();
+    });
+    await act(async () => {
+      native.back.at(-1)!();
+    });
+    expect(changes).toEqual([false, true, false]);
+  });
+
   it('opens over the tabs and closes on Android Back', async () => {
     const { open, detail } = await mount();
     expect(detail()).toHaveLength(0);

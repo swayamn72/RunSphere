@@ -9,6 +9,8 @@ import { TOUR_STEPS, tourReducer, type TourAction, type TourState } from '../tut
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
+const a11y = vi.hoisted(() => ({ focus: vi.fn() }));
+
 vi.mock('react-native', async () => {
   const React = await import('react');
   const host =
@@ -16,6 +18,8 @@ vi.mock('react-native', async () => {
     ({ children, ...props }: Record<string, unknown>) =>
       React.createElement(name as React.ElementType, props, children as React.ReactNode);
   return {
+    AccessibilityInfo: { setAccessibilityFocus: a11y.focus },
+    findNodeHandle: () => 42,
     Platform: { OS: 'android', Version: 30 },
     StyleSheet: { absoluteFill: {} },
     Pressable: host('Pressable'),
@@ -87,6 +91,7 @@ function App({
 
 describe('first tour after sign-up (M9 9.25)', () => {
   it('walks every step on the right tab, readable by TalkBack, and finishes once', async () => {
+    vi.useFakeTimers();
     const registry = createTargetRegistry();
     for (const [index, step] of TOUR_STEPS.entries())
       registry.report(step.targetId, { x: 20 + index * 60, y: 740, width: 56, height: 48 });
@@ -115,11 +120,25 @@ describe('first tour after sign-up (M9 9.25)', () => {
       expect(
         renderer.root.findAll((node) => node.props.accessibilityLiveRegion === 'polite')
       ).not.toHaveLength(0);
+      expect(
+        renderer.root.findAll(
+          (node) =>
+            typeof node.type === 'string' &&
+            node.props.accessibilityLabel ===
+              `Step ${index + 1} of ${TOUR_STEPS.length}. ${step.title}. ${step.rhoLine}`
+        )
+      ).toHaveLength(1);
+      await act(async () => {
+        vi.advanceTimersByTime(400);
+      });
       await press(renderer, index === TOUR_STEPS.length - 1 ? 'Done' : 'Next');
     }
 
     expect(tabs).toEqual(['Map', 'Home', 'Profile']);
+    // Android ignores accessibilityViewIsModal: each step moves TalkBack to the bubble.
+    expect(a11y.focus).toHaveBeenCalledWith(42);
     expect(onFinished).toHaveBeenCalledTimes(1);
     expect(renderer.toJSON()).toBeNull();
+    vi.useRealTimers();
   });
 });

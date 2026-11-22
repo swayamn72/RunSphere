@@ -8,6 +8,8 @@ import { TOUR_STEPS, tourReducer, type TourState } from '../tutorial-model.js';
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
+const a11y = vi.hoisted(() => ({ focus: vi.fn() }));
+
 vi.mock('react-native', async () => {
   const React = await import('react');
   const host =
@@ -15,6 +17,8 @@ vi.mock('react-native', async () => {
     ({ children, ...props }: Record<string, unknown>) =>
       React.createElement(name as React.ElementType, props, children as React.ReactNode);
   return {
+    AccessibilityInfo: { setAccessibilityFocus: a11y.focus },
+    findNodeHandle: () => 42,
     Platform: { OS: 'android', Version: 34 },
     StyleSheet: { absoluteFill: {} },
     Pressable: host('Pressable'),

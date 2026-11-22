@@ -1,5 +1,14 @@
-import { useEffect, useState, type RefObject } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useEffect, useRef, useState, type RefObject } from 'react';
+import {
+  AccessibilityInfo,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  findNodeHandle,
+  useWindowDimensions
+} from 'react-native';
 import { BlurView } from 'expo-blur';
 import Animated, {
   Easing,
@@ -89,6 +98,18 @@ export function TutorialOverlay({
   }, [step, activeTab, onShowTab, registry]);
 
   const typed = useTypedLine(step?.rhoLine ?? '', reduceMotion);
+  // Found with TalkBack on a phone: Android ignores accessibilityViewIsModal,
+  // so each step moves TalkBack's focus to the bubble itself; the app shell
+  // behind the tour is hidden from TalkBack by App.tsx.
+  const bubbleCopy = useRef<View>(null);
+  useEffect(() => {
+    if (!step) return;
+    const timer = setTimeout(() => {
+      const node = findNodeHandle(bubbleCopy.current);
+      if (node) AccessibilityInfo.setAccessibilityFocus(node);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [step]);
   // A target off screen or under the tab bar is scrolled into view first; until
   // it arrives the bubble sits centred with no ring.
   const hidden = step ? needsReveal(step.targetId, target, screen) : false;
@@ -215,7 +236,12 @@ export function TutorialOverlay({
             }
             reduceMotion={reduceMotion}
           />
-          <View style={styles.flexCopy}>
+          <View
+            ref={bubbleCopy}
+            style={styles.flexCopy}
+            accessible
+            accessibilityLabel={`${tourProgress(state)}. ${step.title}. ${step.rhoLine}`}
+          >
             <Text style={styles.eyebrow}>{tourProgress(state).toUpperCase()}</Text>
             <Text accessibilityRole="header" style={styles.rowTitle}>
               {step.title}

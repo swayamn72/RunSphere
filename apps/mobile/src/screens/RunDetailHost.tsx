@@ -61,10 +61,16 @@ export interface RunDetailSlotProps {
 
 export function RunDetailProvider({
   children,
-  renderDetail
+  renderDetail,
+  onOpenChange
 }: {
   children: ReactNode;
   renderDetail: (props: RunDetailSlotProps) => ReactNode;
+  /**
+   * Told when a run opens or closes, so the host can hide the screen under it
+   * from TalkBack: Android ignores accessibilityViewIsModal (found on a phone).
+   */
+  onOpenChange?: (open: boolean) => void;
 }) {
   const { tokens, reduceMotion } = useAppTheme();
   const { width, height } = useWindowDimensions();
@@ -110,6 +116,10 @@ export function RunDetailProvider({
         .catch(() => undefined)
         .then(shrink);
   }, [run, from, progress, reduceMotion, screen, finishClose]);
+
+  useEffect(() => {
+    onOpenChange?.(Boolean(run));
+  }, [run, onOpenChange]);
 
   useEffect(() => {
     if (!run) return;

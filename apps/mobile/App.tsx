@@ -367,6 +367,7 @@ function RunSphereApp() {
   // sees your runs?", and again from Settings.
   const [tour, setTour] = useState<TourState>();
   const tourBlurTarget = useRef<View>(null);
+  const [runOpen, setRunOpen] = useState(false);
   useEffect(() => {
     if (onboarding.step !== 'complete' || !accountId || runsPrompt) return;
     let active = true;
@@ -714,10 +715,19 @@ function RunSphereApp() {
       edges={['top']}
       style={[styles.screen, { backgroundColor: tokens.background.canvas }]}
     >
-      <RunDetailProvider renderDetail={(props) => <RunDetailScreen {...props} api={apiClient} />}>
+      <RunDetailProvider
+        renderDetail={(props) => <RunDetailScreen {...props} api={apiClient} />}
+        onOpenChange={setRunOpen}
+      >
         <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
         {/* What the tour's panels blur on Android (M9 9.23). */}
-        <BlurTargetView ref={tourBlurTarget} style={styles.screen}>
+        <BlurTargetView
+          ref={tourBlurTarget}
+          style={styles.screen}
+          // Android has no accessibilityViewIsModal: hide the app from
+          // TalkBack while the tour is over it (found on a phone, M9 9.29).
+          importantForAccessibility={tour || runOpen ? 'no-hide-descendants' : 'auto'}
+        >
           {shell === 'tab-scroll' ? (
             <TabScrollShell>{content}</TabScrollShell>
           ) : shell === 'tab-map' ? (
