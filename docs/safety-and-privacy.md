@@ -126,9 +126,26 @@ accounts immediately appear on each other's weekly friend board. There is no
 separate opt-in toggle for the friend board. A block, unfriend, or suspension
 removes the account from the board immediately.
 
-Social surfaces expose only an approved display identity and cosmetic, never
-coarse location, exact route, or activity timestamps. No location-based
-discovery of nearby runners exists.
+Social surfaces other than the run log expose only an approved display identity
+and cosmetic, never coarse location, route, or activity timestamps. No
+location-based discovery of nearby runners exists.
+
+## Run log visibility (ADR-0015)
+
+A runner's counted runs appear on their profile (`GET /v1/profiles/by-username/:username/runs`).
+The server decides what each reader gets, from the runner's privacy settings:
+
+- **Who:** Everyone, Friends (the default) or Only me. A block either way, or a profile the reader
+  may not open, reads as "not found", exactly like the profile itself.
+- **Route:** shown by default (`show_route_maps`), as the privacy-trimmed shareable route
+  simplified to at most 100 points. Start and finish are included unless the runner turns on
+  **Hide start and finish**, which cuts the first and last 200 m along the route for readers
+  (off by default for accounts from migration 056).
+- **Time:** the day only, unless the runner turns on start times.
+- **Never:** runs that didn't count, raw GPS, anything inside a privacy zone, live position.
+
+Every runner who agreed to the legal text before runs became visible is shown "Who sees your
+runs?" once (M9 9.27), with their current setting pre-selected, before carrying on.
 
 ## Clubs and competition privacy
 

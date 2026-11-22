@@ -189,7 +189,7 @@ Tick tasks there and here as they land.
 | C. Run log on profiles                                                                      | 9.13–9.15 | ✅ 9.13–9.15 done (device check pending) |
 | D. Run detail, open transition, drawn route                                                 | 9.16–9.20 | Open                                     |
 | E. Guided tour with blur, spotlight and animated Rho                                        | 9.21–9.25 | Open                                     |
-| F. Privacy, legal and release checks (same build as C)                                      | 9.26–9.29 | Open                                     |
+| F. Privacy, legal and release checks (same build as C)                                      | 9.26–9.29 | 🟡 9.26–9.28 done                        |
 
 ## Milestone 7 — Housekeeping (any time, low risk)
 
