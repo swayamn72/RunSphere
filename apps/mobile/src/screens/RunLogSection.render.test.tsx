@@ -106,7 +106,10 @@ describe('run log section (M9 9.15)', () => {
         (node.type as unknown) === 'Pressable' &&
         String(node.props.accessibilityLabel).startsWith('Tue 17 Nov')
     );
-    card.props.onPress();
+    await act(async () => {
+      card.props.onPress();
+    });
+    // Not laid out in a test renderer, so there is no rectangle to grow from.
     expect(opened).toEqual(['a']);
   });
 

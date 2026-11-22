@@ -739,6 +739,15 @@ export const createAppStyles = (t: SemanticTokens) =>
       width: 40
     },
     runDetailBody: { padding: 18, paddingBottom: 48 },
+    runDetailRouteArea: {
+      alignItems: 'center',
+      backgroundColor: t.background.surfaceInset,
+      borderRadius: radius.control,
+      justifyContent: 'center',
+      marginBottom: 14,
+      overflow: 'hidden'
+    },
+    runDetailThumbnail: { alignItems: 'center', justifyContent: 'center' },
     /** A run in the profile run log (M9 9.15): route line left, numbers right. */
     runCard: {
       alignItems: 'center',

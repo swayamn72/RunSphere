@@ -563,7 +563,12 @@ export function ProfileScreen({
       <RunLogSection
         load={loadRunLog}
         owner
-        {...(openRun ? { onOpenRun: (item) => openRun({ item, owner: true }) } : {})}
+        {...(openRun
+          ? {
+              onOpenRun: (item, origin, measureOrigin) =>
+                openRun({ item, owner: true, origin, measureOrigin })
+            }
+          : {})}
       />
       <View style={styles.sectionHeader}>
         <Text accessibilityRole="header" style={styles.sectionTitle}>

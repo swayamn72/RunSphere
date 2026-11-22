@@ -145,7 +145,13 @@ export function RunnerProfileSheet({
             owner={profile.relationship === 'self'}
             {...(openRun
               ? {
-                  onOpenRun: (item) => openRun({ item, owner: profile.relationship === 'self' })
+                  onOpenRun: (item, origin, measureOrigin) =>
+                    openRun({
+                      item,
+                      owner: profile.relationship === 'self',
+                      origin,
+                      measureOrigin
+                    })
                 }
               : {})}
           />

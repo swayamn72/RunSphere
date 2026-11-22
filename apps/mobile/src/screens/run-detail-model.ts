@@ -6,7 +6,8 @@ import type { RunLogItem } from '@runsphere/contracts';
  * The detail opens as an overlay above the tabs, keeping the app's own
  * navigation (no navigation library mid-beta). It grows out of the card that
  * was tapped and shrinks back into it, so the model works in window
- * rectangles: where the card is, and the whole screen.
+ * rectangles: where the card is, and the whole screen. `rectAt` and
+ * `radiusAt` run on the UI thread inside Reanimated styles, hence 'worklet'.
  */
 
 export interface Rect {
@@ -35,8 +36,9 @@ export const SECTION_RISE = 24;
 export const CARD_RADIUS = 14;
 
 /**
- * The spring that grows the card to full screen: settles in about 350 ms and
- * never overshoots, so the detail never bulges past the screen edge.
+ * The spring that grows the card to full screen (`OPEN_DURATION_MS`): damping
+ * ratio about 0.8, settling in about 0.31 s, clamped so the detail never
+ * bulges past the screen edge.
  */
 export const OPEN_SPRING = {
   damping: 26,
@@ -74,12 +76,18 @@ export const transitionFrom = (origin: Rect | undefined, screen: Rect): Rect => 
 };
 
 /** Interpolate a rectangle: 0 is the card, 1 is the screen. */
-export const rectAt = (from: Rect, to: Rect, progress: number): Rect => ({
-  x: from.x + (to.x - from.x) * progress,
-  y: from.y + (to.y - from.y) * progress,
-  width: from.width + (to.width - from.width) * progress,
-  height: from.height + (to.height - from.height) * progress
-});
+export const rectAt = (from: Rect, to: Rect, progress: number): Rect => {
+  'worklet';
+  return {
+    x: from.x + (to.x - from.x) * progress,
+    y: from.y + (to.y - from.y) * progress,
+    width: from.width + (to.width - from.width) * progress,
+    height: from.height + (to.height - from.height) * progress
+  };
+};
 
 /** Corner radius from the card's to none at full screen. */
-export const radiusAt = (progress: number): number => CARD_RADIUS * (1 - progress);
+export const radiusAt = (progress: number): number => {
+  'worklet';
+  return CARD_RADIUS * (1 - progress);
+};

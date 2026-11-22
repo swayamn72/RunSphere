@@ -34,3 +34,46 @@ vi.mock('react-native-svg', async () => {
     Stop: host('Stop')
   };
 });
+
+// Reanimated needs its native module. In Node, shared values are plain boxes,
+// animations jump straight to their end value (calling the completion back),
+// and Animated.View is a host element, so render tests see the final layout.
+vi.mock('react-native-reanimated', async () => {
+  const React = await import('react');
+  const host =
+    (name: string) =>
+    ({ children, entering: _entering, ...props }: Record<string, unknown>) =>
+      React.createElement(name, props, children as never);
+  const finish = (value: unknown, _config?: unknown, done?: (finished: boolean) => void) => {
+    done?.(true);
+    return value;
+  };
+  const chain: Record<string, unknown> = {};
+  for (const method of ['delay', 'duration', 'springify', 'withInitialValues', 'reduceMotion'])
+    chain[method] = () => chain;
+  const Animated = { View: host('Animated.View'), ScrollView: host('Animated.ScrollView') };
+  return {
+    default: Animated,
+    ...Animated,
+    useSharedValue: (value: unknown) => React.useRef({ value }).current,
+    useAnimatedStyle: (factory: () => unknown) => factory(),
+    useDerivedValue: (factory: () => unknown) => ({ value: factory() }),
+    useAnimatedReaction: () => undefined,
+    withSpring: finish,
+    withTiming: finish,
+    withDelay: (_ms: number, value: unknown) => value,
+    cancelAnimation: () => undefined,
+    runOnJS: (fn: (...args: unknown[]) => unknown) => fn,
+    interpolate: (value: number, input: number[], output: number[]) =>
+      output[0]! + ((value - input[0]!) / (input[1]! - input[0]!)) * (output[1]! - output[0]!),
+    Extrapolation: { CLAMP: 'clamp' },
+    Easing: { out: (fn: unknown) => fn, cubic: (t: number) => t, linear: (t: number) => t },
+    FadeInDown: chain,
+    FadeIn: chain,
+    ReduceMotion: { System: 'system', Always: 'always', Never: 'never' }
+  };
+});
+vi.mock('react-native-worklets', () => ({
+  scheduleOnRN: (fn: (...args: unknown[]) => unknown, ...args: unknown[]) => fn(...args),
+  runOnJS: (fn: (...args: unknown[]) => unknown) => fn
+}));

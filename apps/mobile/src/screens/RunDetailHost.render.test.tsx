@@ -32,36 +32,51 @@ vi.mock('react-native', async () => {
       }
     },
     StyleSheet: { absoluteFill: {} },
+    useWindowDimensions: () => ({ width: 400, height: 800 }),
     Pressable: host('Pressable'),
     Text: host('Text'),
     View: host('View')
   };
 });
 vi.mock('../theme/theme', () => ({
-  useAppTheme: () => ({ tokens: { background: { canvas: 'canvas' } } })
+  useAppTheme: () => ({ tokens: { background: { canvas: 'canvas' } }, reduceMotion: false })
 }));
 
 const { RunDetailProvider, useOpenRun } = await import('./RunDetailHost.js');
 
 const item = { id: 'run-1' } as RunLogItem;
 
-function Opener() {
+function Opener({
+  origin,
+  measureOrigin
+}: {
+  origin?: { x: number; y: number; width: number; height: number } | undefined;
+  measureOrigin?:
+    (() => Promise<{ x: number; y: number; width: number; height: number }>) | undefined;
+}) {
   const open = useOpenRun();
   return React.createElement('Opener' as React.ElementType, {
-    onPress: () => open?.({ item, owner: true })
+    onPress: () => open?.({ item, owner: true, origin, measureOrigin })
   });
 }
 
-const mount = async () => {
+const mount = async (
+  origin?: { x: number; y: number; width: number; height: number },
+  measureOrigin?: () => Promise<{ x: number; y: number; width: number; height: number }>
+) => {
   let renderer!: ReactTestRenderer;
   await act(async () => {
     renderer = create(
       <RunDetailProvider
-        renderDetail={({ run, close }) =>
-          React.createElement('Detail' as React.ElementType, { id: run.item.id, close })
+        renderDetail={({ run, close, progress }) =>
+          React.createElement('Detail' as React.ElementType, {
+            id: run.item.id,
+            close,
+            progress: progress.value
+          })
         }
       >
-        <Opener />
+        <Opener origin={origin} measureOrigin={measureOrigin} />
       </RunDetailProvider>
     );
   });
@@ -70,8 +85,31 @@ const mount = async () => {
       renderer.root.findByType('Opener' as React.ElementType).props.onPress();
     });
   const detail = () => renderer.root.findAllByType('Detail' as React.ElementType);
-  return { renderer, open, detail };
+  const frame = () => {
+    const view = renderer.root.findAllByType('Animated.View' as React.ElementType)[0];
+    return Object.assign({}, ...[view?.props.style].flat(2)) as Record<string, number>;
+  };
+  return { renderer, open, detail, frame };
 };
+
+describe('run detail transition (M9 9.17)', () => {
+  it('grows to full screen and, on close, measures the card again to shrink into it', async () => {
+    const measureOrigin = vi.fn(async () => ({ x: 16, y: 500, width: 368, height: 90 }));
+    const { open, detail, frame } = await mount(
+      { x: 16, y: 300, width: 368, height: 90 },
+      measureOrigin
+    );
+    await open();
+    // Animations finish at once in tests: open means full screen, square corners.
+    expect(frame()).toMatchObject({ left: 0, top: 0, width: 400, height: 800, borderRadius: 0 });
+    expect(detail()[0]!.props.progress).toBe(1);
+    await act(async () => {
+      native.back.at(-1)!();
+    });
+    expect(measureOrigin).toHaveBeenCalled();
+    expect(detail()).toHaveLength(0);
+  });
+});
 
 describe('run detail host (M9 9.16)', () => {
   it('opens over the tabs and closes on Android Back', async () => {

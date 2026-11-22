@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { View as NativeView } from 'react-native';
 import { Pressable, Text, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import type { RunLogItem } from '@runsphere/contracts';
@@ -6,6 +7,7 @@ import { useAppStyles } from '../components/styles';
 import { useAppTheme } from '../theme/theme';
 import { failureMessage } from '../failure-copy';
 import { runLogEmptyCopy, runWeeks, type RunCard } from './run-log-model';
+import type { Rect } from './run-detail-model';
 
 /** One page as either endpoint returns it; `visible` is absent on your own log. */
 export interface RunLogPage {
@@ -26,8 +28,15 @@ export function RunLogSection({
 }: {
   load: (cursor?: string) => Promise<RunLogPage>;
   owner: boolean;
-  /** Opens the run's detail (9.16). Without it, cards aren't tappable. */
-  onOpenRun?: (item: RunLogItem) => void;
+  /**
+   * Opens the run's detail (9.16), with where the card is on screen so the
+   * detail can grow out of it (9.17). Without it, cards aren't tappable.
+   */
+  onOpenRun?: (
+    item: RunLogItem,
+    origin: Rect | undefined,
+    measureOrigin: () => Promise<Rect | undefined>
+  ) => void;
 }) {
   const styles = useAppStyles();
   const [items, setItems] = useState<RunLogItem[]>([]);
@@ -94,7 +103,11 @@ export function RunLogSection({
             <RunLogCard
               key={card.id}
               card={card}
-              {...(onOpenRun ? { onPress: () => onOpenRun(byId.get(card.id)!) } : {})}
+              {...(onOpenRun
+                ? {
+                    onPress: (origin, measure) => onOpenRun(byId.get(card.id)!, origin, measure)
+                  }
+                : {})}
             />
           ))}
         </View>
@@ -112,9 +125,25 @@ export function RunLogSection({
   );
 }
 
-function RunLogCard({ card, onPress }: { card: RunCard; onPress?: () => void }) {
+/** The card's rectangle in the window, or undefined if it isn't laid out. */
+const measure = (view: NativeView | null): Promise<Rect | undefined> =>
+  new Promise((resolve) => {
+    if (!view?.measureInWindow) return resolve(undefined);
+    view.measureInWindow((x, y, width, height) =>
+      resolve(width > 0 && height > 0 ? { x, y, width, height } : undefined)
+    );
+  });
+
+function RunLogCard({
+  card,
+  onPress
+}: {
+  card: RunCard;
+  onPress?: (origin: Rect | undefined, measureOrigin: () => Promise<Rect | undefined>) => void;
+}) {
   const styles = useAppStyles();
   const { tokens } = useAppTheme();
+  const ref = useRef<NativeView>(null);
   const body = (
     <>
       <View style={styles.runThumb}>
@@ -156,9 +185,13 @@ function RunLogCard({ card, onPress }: { card: RunCard; onPress?: () => void }) 
   );
   return onPress ? (
     <Pressable
+      ref={ref}
       accessibilityRole="button"
       accessibilityLabel={card.accessibilityLabel}
-      onPress={onPress}
+      onPress={() => {
+        const again = () => measure(ref.current);
+        void again().then((origin) => onPress(origin, again));
+      }}
       style={styles.runCard}
     >
       {body}
