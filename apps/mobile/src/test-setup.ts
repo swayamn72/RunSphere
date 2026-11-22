@@ -63,6 +63,8 @@ vi.mock('react-native-reanimated', async () => {
     withSpring: finish,
     withTiming: finish,
     withDelay: (_ms: number, value: unknown) => value,
+    withRepeat: (value: unknown) => value,
+    withSequence: (...values: unknown[]) => values.at(-1),
     cancelAnimation: () => undefined,
     runOnJS: (fn: (...args: unknown[]) => unknown) => fn,
     interpolate: (value: number, input: number[], output: number[]) =>
@@ -72,6 +74,13 @@ vi.mock('react-native-reanimated', async () => {
     FadeInDown: chain,
     FadeIn: chain,
     ReduceMotion: { System: 'system', Always: 'always', Never: 'never' }
+  };
+});
+vi.mock('expo-blur', async () => {
+  const React = await import('react');
+  return {
+    BlurView: ({ children, ...props }: Record<string, unknown>) =>
+      React.createElement('BlurView', props, children as never)
   };
 });
 vi.mock('react-native-worklets', () => ({

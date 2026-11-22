@@ -721,6 +721,26 @@ export const createAppStyles = (t: SemanticTokens) =>
       marginTop: 4,
       textAlign: 'center'
     },
+    /** The guided tour (M9 9.23): spotlight ring, speech bubble and its buttons. */
+    tourRing: { borderWidth: 3, position: 'absolute' },
+    tourBubble: {
+      backgroundColor: t.background.surface,
+      borderColor: t.border.subtle,
+      borderRadius: radius.control,
+      borderWidth: 1,
+      left: 16,
+      padding: 16,
+      position: 'absolute',
+      right: 16
+    },
+    tourBubbleRow: { flexDirection: 'row', gap: 12 },
+    tourButtons: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: 12
+    },
+    tourButtonOff: { opacity: 0.4 },
+    tourNext: { fontWeight: '900' },
     /** The run detail overlay (M9 9.16): its drag-to-close header and body. */
     runDetailHeader: {
       backgroundColor: t.background.canvas,
