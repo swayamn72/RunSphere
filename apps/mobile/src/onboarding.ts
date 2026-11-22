@@ -36,7 +36,7 @@ export const initialOnboardingState: OnboardingState = {
   birthDay: '',
   birthMonth: '',
   birthYear: '',
-  hideStartFinish: true,
+  hideStartFinish: false,
   visibility: 'private',
   location: 'idle'
 };

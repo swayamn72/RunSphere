@@ -1,6 +1,7 @@
 # ADR-0014: Social identity, discovery and privacy controls
 
-- **Status:** Accepted
+- **Status:** Accepted; amended by [ADR-0015](0015-run-visibility-defaults.md) (start and finish
+  points may be shown)
 - **Date:** 2026-11-21
 - **Decided by:** product owner ("I want it kind of like a social platform"; defaults chosen
   2026-11-21)
@@ -75,8 +76,8 @@ pre-selected, so the choice is visible and deliberate.
 
 ### Never shared, whatever the settings
 
-Live location, exact start and finish points, raw GPS, anything inside a privacy zone, date of
-birth and email address. A blocked account sees nothing of the blocker, and the blocker does not
+Live location, raw GPS, anything inside a privacy zone, date of
+birth and email address. (Exact start and finish points were on this list until ADR-0015.) A blocked account sees nothing of the blocker, and the blocker does not
 appear in the blocked account's search.
 
 ### Onboarding

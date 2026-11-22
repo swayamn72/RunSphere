@@ -55,13 +55,13 @@ export function Onboarding({
 
   /**
    * The start/finish switch used to stay on the phone and do nothing (M9 9.0).
-   * The server already defaults it on, so only turning it off needs saving;
+   * The server defaults it off (ADR-0015), so only turning it on needs saving;
    * saving otherwise would also mark the privacy settings as reviewed, which
    * hides the one-time review prompt from an existing account signing in.
    */
   const finishOnboarding = () => {
-    if (!state.hideStartFinish)
-      void api.savePrivacySettings({ trimStartFinish: false }).catch(() => undefined);
+    if (state.hideStartFinish)
+      void api.savePrivacySettings({ trimStartFinish: true }).catch(() => undefined);
     dispatch({ type: 'finish' });
   };
   const [authNotice, setAuthNotice] = useState<string>();

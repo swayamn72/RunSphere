@@ -61,7 +61,7 @@ describe('onboarding state machine', () => {
     ).toBe(true);
   });
 
-  it('keeps the 200 m safety zone on by default and handles denial retry/back predictably', () => {
+  it('leaves start and finish shown by default (ADR-0015) and handles denial retry/back predictably', () => {
     const denied = onboardingReducer(
       { ...initialOnboardingState, step: 'privacy' },
       { type: 'setLocation', status: 'denied' }
@@ -69,7 +69,7 @@ describe('onboarding state machine', () => {
     expect(denied).toMatchObject({
       step: 'location-denied',
       location: 'denied',
-      hideStartFinish: true
+      hideStartFinish: false
     });
     const retry = onboardingReducer(denied, { type: 'retryLocation' });
     expect(retry).toMatchObject({ step: 'privacy', location: 'idle' });

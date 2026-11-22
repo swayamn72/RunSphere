@@ -21,7 +21,8 @@
   The recorder keeps the refused mode (`refused_run_mode`, schema 10) so the result can say a run was
   kept as Turf or Free.
 - **Phase A and Phase B (build 2, 9.0–9.12) are done.** Next up: Phase C, 9.13 (run log endpoint).
-  9.14 and 9.27 wait on the owner's answer to section 1.6; ask before starting them.
+  Section 1.6 is answered (ADR-0015), so 9.14 and 9.27 are unblocked. "Hide start and finish" is
+  now off by default for new accounts (migration 056).
 - **Found in 9.8:** the upload point contract has no altitude, though the recorder stores it. 9.9
   adds optional `altitudeMeters` to chunk points so the server can compute elevation. Only runs
   recorded from recorder schema 11 (`upload_altitude`) send it; older local runs upload unchanged
@@ -85,14 +86,20 @@
 
 2. **Every run shows full metrics** to its owner (section 3).
 3. **Start and finish markers are shown.** The owner sees their real start and finish. Other people see
-   the trimmed route's ends; if the runner has "Trim start and finish" on (default on), the first and
-   last 200 m are also cut for viewers even without a privacy zone.
+   the route's ends after privacy zones are trimmed; if the runner turns "Hide start and finish" on
+   (**default off** since 2026-11-22, ADR-0015, migration 056), the first and last 200 m are also cut
+   for viewers even without a privacy zone.
 4. **Opening a run is animated:** the card expands into the detail screen and the route draws itself
    (section 5).
 5. **A guided tour** with blur, a spotlit button and an animated Rho (section 6).
-6. Still to confirm with the owner before 9.5 ships: who sees others' runs by default. The plan
-   assumes friends see stats, and see the route only if `show_route_maps` is on, with a one-time
-   "Who sees your runs?" prompt before anything becomes visible.
+6. **Who sees runs (owner, 2026-11-22; ADR-0015).** Each runner chooses Everyone, Friends or Only
+   me; the default is **Friends**. Viewers see the route map by default (`show_route_maps` on) with
+   start and finish **not** trimmed unless the runner turns the trim on; privacy zones always apply;
+   start times stay hidden by default. Runs recorded before the run log ships become visible under
+   these settings at once (beta runs are cleaned up before launch). The one-time "Who sees your
+   runs?" prompt (9.27) pre-selects the runner's current setting, and closing it keeps that setting.
+   Onboarding's "Activities stay private by default" line stops being true when 9.14 ships; fix it
+   with 9.27.
 
 ## 2. Phase A — Modes (build 2)
 
