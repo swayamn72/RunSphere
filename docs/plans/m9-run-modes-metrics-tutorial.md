@@ -20,7 +20,7 @@
   off locally by the server's 30 m / 80% rule; Ghost: ghost card + loop guide) and its own result.
   The recorder keeps the refused mode (`refused_run_mode`, schema 10) so the result can say a run was
   kept as Turf or Free.
-- **Phase A and Phase B (build 2, 9.0–9.12) are done.** Next up: Phase C, 9.13 (run log endpoint).
+- **Phase A and Phase B (build 2, 9.0–9.12) are done.** 9.13 done; next 9.14.
   Section 1.6 is answered (ADR-0015), so 9.14 and 9.27 are unblocked. "Hide start and finish" is
   now off by default for new accounts (migration 056).
 - **Found in 9.8:** the upload point contract has no altitude, though the recorder stores it. 9.9
@@ -132,11 +132,11 @@ Copy never judges pace (`docs/voice.md`).
 
 ## 4. Phase C — Run log (build 3)
 
-| ID   | Task                                                                                                                                                                                                                 | Done when                                               |
-| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| 9.13 | `GET /v1/activities?cursor=` paginated (20 per page): summary, key metrics, mode, mode result (area claimed / quest done / ghost won-lost), and a simplified route thumbnail (Douglas-Peucker to ≤100 points)        | Route tests                                             |
-| 9.14 | `GET /v1/profiles/:username/runs?cursor=` applying `runs_visibility`, `show_route_maps`, `show_start_times`, `trim_start_finish` and blocks on the server; trimmed route only; date only when start times are hidden | PostGIS test matrix over every setting                  |
-| 9.15 | Profile "Runs" section (yours and others'): cards grouped by week, each with an SVG route thumbnail (not a map per row), distance, time, pace, mode badge                                                            | Render tests; smooth with 100 runs on a mid-range phone |
+| ID   | Task                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Done when                                               |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| 9.13 | ✅ DONE 2026-11-22 (`GET /v1/runs?cursor=` in `run-log-routes.ts`, so the Turf screen's `GET /v1/activities` stays as it is; counted runs only; dates in Asia/Kolkata; `routeThumbnail` and `trimRouteEnds` in `packages/domain/src/route-thumbnail.ts`; ghost "won" = this run took the raced ground): `GET /v1/activities?cursor=` paginated (20 per page): summary, key metrics, mode, mode result (area claimed / quest done / ghost won-lost), and a simplified route thumbnail (Douglas-Peucker to ≤100 points) | Route tests                                             |
+| 9.14 | `GET /v1/profiles/:username/runs?cursor=` applying `runs_visibility`, `show_route_maps`, `show_start_times`, `trim_start_finish` and blocks on the server; trimmed route only; date only when start times are hidden                                                                                                                                                                                                                                                                                                  | PostGIS test matrix over every setting                  |
+| 9.15 | Profile "Runs" section (yours and others'): cards grouped by week, each with an SVG route thumbnail (not a map per row), distance, time, pace, mode badge                                                                                                                                                                                                                                                                                                                                                             | Render tests; smooth with 100 runs on a mid-range phone |
 
 ## 5. Phase D — Run detail, transition and the drawn route (build 3)
 

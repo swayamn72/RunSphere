@@ -9,6 +9,7 @@ import Fastify, { type FastifyBaseLogger } from 'fastify';
 import { registerAuthRoutes } from './auth-routes.js';
 import { registerSafetyRoutes } from './safety-routes.js';
 import { registerActivityRoutes } from './activity-routes.js';
+import { registerRunLogRoutes } from './run-log-routes.js';
 import { registerQuestRoutes } from './quest-routes.js';
 import { registerAccountPrivacyRoutes } from './account-privacy-routes.js';
 import { registerAccountDeletionPages } from './account-deletion-pages.js';
@@ -198,6 +199,7 @@ export const buildApp = ({
     registerLegalPages({ routes, contact: config.legalContact });
     registerSafetyRoutes({ routes, database, authSecret });
     registerActivityRoutes({ routes, database, authSecret });
+    registerRunLogRoutes({ routes, database, authSecret });
 
     registerGamificationRoutes({ routes, database, authSecret });
     registerSocialIdentityRoutes({ routes, database, authSecret });

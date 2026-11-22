@@ -619,6 +619,69 @@ export const ActivityListResponseSchema = Type.Object(
   { data: Type.Array(ActivityStatusResponseSchema, { maxItems: 100 }) },
   { $id: 'ActivityListResponse' }
 );
+/**
+ * The run log (M9 9.13–9.15): one card per counted run, 20 a page, newest first.
+ *
+ * The same item serves your own log and someone else's (9.14), so what may be
+ * hidden is optional or nullable: `startedAt` only when start times are shown
+ * (`startedOn`, the date, always is), and `route` is null when route maps are
+ * off or nothing is left after trimming. `route` is the privacy-trimmed route
+ * simplified to at most 100 points (`routeThumbnail`), for a drawn line rather
+ * than a map.
+ */
+export const RUN_LOG_PAGE_SIZE = 20;
+const RoutePositionSchema = Type.Tuple([
+  Type.Number({ minimum: -180, maximum: 180 }),
+  Type.Number({ minimum: -90, maximum: 90 })
+]);
+export const RunLogResultSchema = Type.Object(
+  {
+    /** Ground this run claimed, if it claimed any. */
+    claimedAreaSqm: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
+    /** A quest run: whether it finished its quest, and which. */
+    questCompleted: Type.Optional(Type.Boolean()),
+    questTitle: Type.Optional(Type.String({ maxLength: 200 })),
+    /** A Ghost Race: whether this run took the ground it raced. */
+    ghostWon: Type.Optional(Type.Boolean())
+  },
+  Strict
+);
+export const RunLogItemSchema = Type.Object(
+  {
+    id: UuidSchema,
+    startedOn: Type.String({ format: 'date' }),
+    startedAt: Type.Optional(Type.String({ format: 'date-time' })),
+    distanceMeters: Type.Number({ minimum: 0 }),
+    durationSeconds: Type.Number({ minimum: 0 }),
+    movingSeconds: Type.Union([Type.Number({ minimum: 0 }), Type.Null()]),
+    paceSecondsPerKm: Type.Union([Type.Number({ minimum: 0 }), Type.Null()]),
+    elevationGainMeters: Type.Union([Type.Number({ minimum: 0 }), Type.Null()]),
+    runMode: Type.Optional(RunModeSchema),
+    result: RunLogResultSchema,
+    route: Type.Union([
+      Type.Array(Type.Array(RoutePositionSchema, { minItems: 2, maxItems: 100 }), {
+        minItems: 1,
+        maxItems: 50
+      }),
+      Type.Null()
+    ])
+  },
+  Strict
+);
+export const RunLogQuerySchema = Type.Object(
+  { cursor: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })) },
+  { ...Strict, $id: 'RunLogQuery' }
+);
+export const RunLogResponseSchema = Type.Object(
+  {
+    data: Type.Array(RunLogItemSchema, { maxItems: RUN_LOG_PAGE_SIZE }),
+    /** Pass back as `cursor` for the next page; null on the last one. */
+    nextCursor: Type.Union([Type.String(), Type.Null()])
+  },
+  { $id: 'RunLogResponse' }
+);
+export type RunLogItem = Static<typeof RunLogItemSchema>;
+export type RunLogResponse = Static<typeof RunLogResponseSchema>;
 /** Lifecycle responses reuse the safe status projection; raw submitted points are never included. */
 export const ActivityCreateResponseSchema = ActivityStatusResponseSchema;
 export const ActivityFinalizeResponseSchema = ActivityStatusResponseSchema;

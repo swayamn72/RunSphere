@@ -50,3 +50,4 @@ export * from './route-suggestion.js';
 export * from './claim-trading.js';
 export * from './social-identity.js';
 export * from './run-metrics.js';
+export * from './route-thumbnail.js';
