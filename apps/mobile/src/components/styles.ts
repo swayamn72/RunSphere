@@ -721,6 +721,35 @@ export const createAppStyles = (t: SemanticTokens) =>
       marginTop: 4,
       textAlign: 'center'
     },
+    /** A run in the profile run log (M9 9.15): route line left, numbers right. */
+    runCard: {
+      alignItems: 'center',
+      backgroundColor: t.background.surface,
+      borderColor: t.border.subtle,
+      borderRadius: radius.control,
+      borderWidth: 1,
+      flexDirection: 'row',
+      gap: 12,
+      marginBottom: 8,
+      padding: 12
+    },
+    runThumb: {
+      backgroundColor: t.background.surfaceInset,
+      borderRadius: radius.control,
+      height: 64,
+      width: 64
+    },
+    runCardWhen: { color: t.text.secondary, fontSize: 12, fontWeight: '700' },
+    runCardStats: { color: t.text.primary, fontSize: 16, fontWeight: '900', marginTop: 2 },
+    runCardMeta: { color: t.text.secondary, fontSize: 12, marginTop: 2 },
+    runWeekTitle: {
+      color: t.text.secondary,
+      fontSize: 12,
+      fontWeight: '800',
+      letterSpacing: 0.5,
+      marginBottom: 8,
+      marginTop: 14
+    },
     /** One km split on the run result (M9 9.12): label left, pace and climb right. */
     splitRow: {
       alignItems: 'center',

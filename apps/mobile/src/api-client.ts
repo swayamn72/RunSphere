@@ -64,6 +64,8 @@ import type {
   MyQuest,
   MyQuestListResponse,
   PublicProfile,
+  ProfileRunsResponse,
+  RunLogResponse,
   QuestAcceptResponse,
   SafetyShareReceived,
   SafetyShareReceivedListResponse,
@@ -497,6 +499,19 @@ export class MobileApiClient {
         { method: 'GET' }
       )
     ).data;
+  }
+  /** Your counted runs, newest first, 20 a page (M9 9.13). */
+  async getRunLog(cursor?: string): Promise<RunLogResponse> {
+    return this.request(`/v1/runs${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`, {
+      method: 'GET'
+    });
+  }
+  /** A runner's runs, as their settings let you see them (M9 9.14). */
+  async getRunnerRuns(username: string, cursor?: string): Promise<ProfileRunsResponse> {
+    return this.request(
+      `/v1/profiles/by-username/${encodeURIComponent(username)}/runs${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,
+      { method: 'GET' }
+    );
   }
   async getRunnerProfile(username: string): Promise<PublicProfile> {
     return this.request(`/v1/profiles/by-username/${encodeURIComponent(username)}`, {

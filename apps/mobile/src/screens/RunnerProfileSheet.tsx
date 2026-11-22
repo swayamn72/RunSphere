@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import type { PublicProfile } from '@runsphere/contracts';
 import { ApiFailure, type MobileApiClient } from '../api-client';
@@ -6,6 +6,7 @@ import { useAppStyles } from '../components/styles';
 import { ReportPanel } from '../components/ReportPanel';
 import { REPORT_CONSEQUENCE_HINT } from './moderation-model';
 import { failureMessage } from '../failure-copy';
+import { RunLogSection } from './RunLogSection';
 import {
   addFailureMessage,
   markRequested,
@@ -37,7 +38,10 @@ export function RunnerProfileSheet({
   username,
   onClose
 }: {
-  api: Pick<MobileApiClient, 'getRunnerProfile' | 'sendFriendRequest' | 'fileReport'>;
+  api: Pick<
+    MobileApiClient,
+    'getRunnerProfile' | 'getRunnerRuns' | 'sendFriendRequest' | 'fileReport'
+  >;
   username: string;
   onClose: () => void;
 }) {
@@ -78,6 +82,10 @@ export function RunnerProfileSheet({
   };
 
   const action = profile ? runnerAction(profile) : undefined;
+  const loadRuns = useCallback(
+    (cursor?: string) => api.getRunnerRuns(username, cursor),
+    [api, username]
+  );
 
   return (
     <View style={styles.recordCard} accessibilityViewIsModal>
@@ -130,6 +138,7 @@ export function RunnerProfileSheet({
                 <Text style={styles.textButton}>Report</Text>
               </Pressable>
             ))}
+          <RunLogSection load={loadRuns} owner={profile.relationship === 'self'} />
         </>
       ) : notice === '' ? (
         <Text style={styles.rowDetail}>Loading…</Text>

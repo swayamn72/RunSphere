@@ -43,6 +43,7 @@ import { ProfileIdentityScreen } from './ProfileIdentityScreen';
 import type { NotificationTarget } from './notifications-model';
 import { profileInitials, profileNameLabel } from './profile-model';
 import { AchievementStrip, LevelCard, ProfileIdentityHead, ProfileStats } from './ProfileOverview';
+import { RunLogSection } from './RunLogSection';
 import {
   achievementMedallions,
   FAIR_PLAY_PRIVACY,
@@ -221,6 +222,7 @@ export function ProfileScreen({
       active = false;
     };
   }, [api, screen]);
+  const loadRunLog = useCallback((cursor?: string) => api.getRunLog(cursor), [api]);
   const { sanctions, loaded: sanctionsLoaded, reload: reloadSanctions } = useSanctions(api);
   const [appealDrafts, setAppealDrafts] = useState<Readonly<Record<string, string>>>({});
   const [appealNotice, setAppealNotice] = useState('');
@@ -556,6 +558,7 @@ export function ProfileScreen({
         earnedCount={progression?.achievements.length ?? 0}
         onViewAll={() => setScreen('achievements')}
       />
+      <RunLogSection load={loadRunLog} owner />
       <View style={styles.sectionHeader}>
         <Text accessibilityRole="header" style={styles.sectionTitle}>
           Account

@@ -19,6 +19,8 @@ vi.mock('react-native', async () => {
 vi.mock('../components/styles', () => ({
   useAppStyles: () => new Proxy({}, { get: () => ({}) })
 }));
+// The runner's Runs section has its own render test; here it just has to mount.
+vi.mock('./RunLogSection', () => ({ RunLogSection: () => null }));
 
 const { RunnerProfileSheet, initialsOf } = await import('./RunnerProfileSheet.js');
 
@@ -40,6 +42,7 @@ const texts = (renderer: ReactTestRenderer) =>
 const open = async (getRunnerProfile: (u: string) => Promise<PublicProfile>) => {
   const api = {
     getRunnerProfile: vi.fn(getRunnerProfile),
+    getRunnerRuns: vi.fn(async () => ({ visible: true, data: [], nextCursor: null })),
     sendFriendRequest: vi.fn(async () => ({ status: 'recorded' as const })),
     fileReport: vi.fn(async () => ({ received: true, message: 'Thanks.' }))
   };
