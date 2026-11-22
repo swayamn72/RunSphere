@@ -1,5 +1,6 @@
 import type { ActivityLifecycleStatus } from '@runsphere/contracts';
 import type { RunVerification, RunVerificationMethod } from '@runsphere/domain';
+import { runStartFields, runStartFromColumns, type RunStart } from './run-start';
 
 /**
  * RunSphere is running-only (`product.md`, 2026-09-06). Walking and hiking were
@@ -70,6 +71,13 @@ export interface ActivitySession {
    * which kind of check ran, when, and an opaque per-installation id.
    */
   verification?: RunVerification | undefined;
+  /**
+   * The mode this run was started as (M9). Written with the row; changed only
+   * when the server refuses it at upload and the run is kept in a fallback
+   * mode (`runStartFallback`). Absent on rows older than schema 10, which
+   * upload with no mode and keep the server's pre-mode behaviour.
+   */
+  runStart?: RunStart | undefined;
 }
 
 export type RemoteActivityStatus = ActivityLifecycleStatus;
@@ -81,7 +89,7 @@ export interface RecorderDatabase {
   getAllAsync<T>(sql: string, ...params: unknown[]): Promise<T[]>;
 }
 
-export const ACTIVITY_RECORDER_SCHEMA_VERSION = 9;
+export const ACTIVITY_RECORDER_SCHEMA_VERSION = 10;
 export const MAX_SAMPLE_ACCURACY_METERS = 50;
 export const MAX_SEGMENT_SPEED_METERS_PER_SECOND = 25_000 / 3_600;
 export const EXCLUDED_GAP_SECONDS = 60;
@@ -114,7 +122,12 @@ export const activityRecorderSchema = `
     -- why "nothing to ask" still produces a run.
     verification_method TEXT CHECK (verification_method IN ('biometric', 'device-credential', 'unenrolled', 'unsupported')),
     verified_at TEXT,
-    verification_device_id TEXT
+    verification_device_id TEXT,
+    -- Run mode (M9). Null together on rows older than schema 10. The target
+    -- columns sit only on their own mode, as on the server (migration 054).
+    run_mode TEXT CHECK (run_mode IN ('free', 'turf', 'quest', 'ghost')),
+    quest_id TEXT,
+    ghost_claim_id TEXT
   );
   CREATE TABLE IF NOT EXISTS activity_location_samples (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -159,7 +172,8 @@ const rowToSession = (row: Record<string, unknown>): ActivitySession => ({
           verifiedAt: row.verifiedAt as string,
           deviceId: row.verificationDeviceId as string
         }
-      : undefined
+      : undefined,
+  runStart: runStartFromColumns(row.runMode, row.questId, row.ghostClaimId)
 });
 
 export const distanceBetween = (a: LocationSample, b: LocationSample): number => {
@@ -218,7 +232,8 @@ const canTransition = (from: RecordingState, to: RecordingState): boolean => {
 const sessionSelect = `SELECT id, account_id AS accountId, movement_type AS movementType, state, started_at AS startedAt, updated_at AS updatedAt,
   paused_at AS pausedAt, pause_reason AS pauseReason, completed_at AS completedAt, duration_seconds AS durationSeconds, distance_meters AS distanceMeters,
   accepted_samples AS acceptedSamples, last_heartbeat_at AS lastHeartbeatAt, remote_id AS remoteId, remote_status AS remoteStatus, sync_error AS syncError,
-  verification_method AS verificationMethod, verified_at AS verifiedAt, verification_device_id AS verificationDeviceId FROM recorded_activities`;
+  verification_method AS verificationMethod, verified_at AS verifiedAt, verification_device_id AS verificationDeviceId,
+  run_mode AS runMode, quest_id AS questId, ghost_claim_id AS ghostClaimId FROM recorded_activities`;
 
 const migrationChecksum = (
   rows: readonly Pick<ActivitySession, 'id' | 'remoteId' | 'updatedAt'>[]
@@ -291,6 +306,22 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
           'ALTER TABLE recorded_activities ADD COLUMN verification_device_id TEXT;'
         );
     }
+    if (current > 0 && current < 10) {
+      const activityColumns = await database.getAllAsync<{ name: string }>(
+        'PRAGMA table_info(recorded_activities)'
+      );
+      // Additive and metadata-checked, so an interrupted upgrade re-runs safely.
+      // Rows already here keep no mode: they were started before modes existed
+      // and upload exactly as they would have.
+      if (!activityColumns.some((column) => column.name === 'run_mode'))
+        await database.execAsync(
+          "ALTER TABLE recorded_activities ADD COLUMN run_mode TEXT CHECK (run_mode IN ('free', 'turf', 'quest', 'ghost'));"
+        );
+      if (!activityColumns.some((column) => column.name === 'quest_id'))
+        await database.execAsync('ALTER TABLE recorded_activities ADD COLUMN quest_id TEXT;');
+      if (!activityColumns.some((column) => column.name === 'ghost_claim_id'))
+        await database.execAsync('ALTER TABLE recorded_activities ADD COLUMN ghost_claim_id TEXT;');
+    }
     await database.execAsync(activityRecorderSchema);
     // Preparation is now in-memory. Safely discard pre-route rows left by older builds so they
     // cannot become orphaned recovery/history entries; recording never reached route retention.
@@ -308,10 +339,11 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
   async create(
     session: Omit<ActivitySession, 'durationSeconds' | 'distanceMeters' | 'acceptedSamples'>
   ): Promise<void> {
+    const mode = session.runStart ? runStartFields(session.runStart) : undefined;
     await database.runAsync(
       `INSERT INTO recorded_activities (id, account_id, movement_type, state, started_at, updated_at, paused_at, pause_reason, completed_at, duration_seconds, distance_meters, accepted_samples, last_heartbeat_at,
-         verification_method, verified_at, verification_device_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?)`,
+         verification_method, verified_at, verification_device_id, run_mode, quest_id, ghost_claim_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, ?, ?, ?)`,
       session.id,
       session.accountId,
       session.movementType,
@@ -324,7 +356,10 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
       session.lastHeartbeatAt,
       session.verification?.method ?? null,
       session.verification?.verifiedAt ?? null,
-      session.verification?.deviceId ?? null
+      session.verification?.deviceId ?? null,
+      mode?.runMode ?? null,
+      mode?.questId ?? null,
+      mode?.ghostClaimId ?? null
     );
   },
   async get(id: string, accountId: string): Promise<ActivitySession | undefined> {
@@ -544,6 +579,22 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
       'UPDATE recorded_activities SET remote_id = ?, remote_status = coalesce(?, remote_status), sync_error = NULL WHERE id = ? AND account_id = ?',
       remoteId,
       remoteStatus ?? null,
+      id,
+      accountId
+    );
+  },
+  /**
+   * Re-save a run in its fallback mode after the server refused the one it
+   * started with (`runStartFallback`). Only before the run exists remotely:
+   * once created, the server's copy holds the mode and this one must match.
+   */
+  async setRunStart(id: string, accountId: string, start: RunStart): Promise<void> {
+    const mode = runStartFields(start);
+    await database.runAsync(
+      'UPDATE recorded_activities SET run_mode = ?, quest_id = ?, ghost_claim_id = ? WHERE id = ? AND account_id = ? AND remote_id IS NULL',
+      mode.runMode,
+      mode.questId ?? null,
+      mode.ghostClaimId ?? null,
       id,
       accountId
     );

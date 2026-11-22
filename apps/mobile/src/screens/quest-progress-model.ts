@@ -1,6 +1,7 @@
 import type { MyQuest } from '@runsphere/contracts';
 import { ApiFailure } from '../api-client';
 import { failureMessage } from '../failure-copy';
+import type { RunStart } from '../run-start';
 
 /**
  * Taking a quest on and finishing it (M6.3). The server decides completion
@@ -24,12 +25,29 @@ export const QUEST_PROGRESS_COPY: Readonly<
   },
   taken: {
     title: "You're on this quest",
-    detail: 'Pass every stop on one run. Runs you started before taking it on do not count.'
+    detail: 'Start your run from here and pass every stop on it. Other runs do not count.'
   },
   done: {
     title: 'Quest complete',
     detail: 'You passed every stop. Nice loop.'
   }
+};
+
+/**
+ * The run this quest's Start button begins, or nothing when there's no quest
+ * run to start. Only a quest you've taken on and not finished can have one:
+ * the server refuses a quest run for anything else (M9 9.3), and only a quest
+ * run can complete a quest (9.4).
+ */
+export const questRunStart = (
+  questId: string,
+  progress: QuestProgress | undefined
+): RunStart | undefined => (progress === 'taken' ? { mode: 'quest', questId } : undefined);
+
+/** Shown in place of Start when there's no quest run to start. */
+export const QUEST_START_HINT: Readonly<Record<Exclude<QuestProgress, 'taken'>, string>> = {
+  'not-taken': 'Take it on first, then start your run.',
+  done: "You've finished this one."
 };
 
 export const questActionFailure = (error: unknown): string =>

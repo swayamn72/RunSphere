@@ -15,13 +15,19 @@ import {
  */
 export function QuestProgressCard({
   api,
-  questId
+  questId,
+  onProgress
 }: {
   api: Pick<MobileApiClient, 'listMyQuests' | 'acceptQuest' | 'dropQuest'>;
   questId: string;
+  /** Told whenever the state changes, so the screen can offer a quest run. */
+  onProgress?: (progress: QuestProgress) => void;
 }) {
   const styles = useAppStyles();
   const [progress, setProgress] = useState<QuestProgress>();
+  useEffect(() => {
+    if (progress) onProgress?.(progress);
+  }, [onProgress, progress]);
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
 

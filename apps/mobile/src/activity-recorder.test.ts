@@ -64,7 +64,10 @@ class MemoryDatabase implements RecorderDatabase {
         durationSeconds: 0,
         distanceMeters: 0,
         acceptedSamples: 0,
-        lastHeartbeatAt
+        lastHeartbeatAt,
+        // The mode columns are the last three parameters; held under the
+        // aliases the session select reads them back as.
+        ...({ runMode: params[13], questId: params[14], ghostClaimId: params[15] } as object)
       };
     } else if (sql.startsWith('INSERT OR IGNORE INTO activity_location_samples')) {
       const [
@@ -400,5 +403,65 @@ describe('activity recorder', () => {
     await expect(
       recorder.transition(base.id, base.accountId, 'prepare', 'active', base.startedAt)
     ).rejects.toThrow('Invalid recording transition');
+  });
+  it('adds the run mode columns once on upgrade, leaving older runs without a mode (M9 9.5)', async () => {
+    const database = new MemoryDatabase();
+    const calls: string[] = [];
+    let added = false;
+    database.getFirstAsync = async (sql) =>
+      sql === 'PRAGMA user_version' ? ({ user_version: 9 } as never) : null;
+    database.getAllAsync = async (sql) =>
+      (sql.includes('recorded_activities')
+        ? [
+            { name: 'id' },
+            ...(added
+              ? [{ name: 'run_mode' }, { name: 'quest_id' }, { name: 'ghost_claim_id' }]
+              : [])
+          ]
+        : []) as never;
+    database.execAsync = async (sql) => {
+      calls.push(sql);
+      if (sql.includes('ADD COLUMN ghost_claim_id')) added = true;
+    };
+    const recorder = createActivityRecorder(database);
+    await recorder.initialize();
+    await recorder.initialize();
+    for (const column of ['run_mode', 'quest_id', 'ghost_claim_id'])
+      expect(calls.filter((sql) => sql.includes(`ADD COLUMN ${column} `))).toHaveLength(1);
+    expect(calls.join(' ')).toContain("run_mode IN ('free', 'turf', 'quest', 'ghost')");
+  });
+  it.each([
+    [{ mode: 'free' as const }, [null, null]],
+    [{ mode: 'turf' as const }, [null, null]],
+    [{ mode: 'quest' as const, questId: 'quest-1' }, ['quest-1', null]],
+    [{ mode: 'ghost' as const, ghostClaimId: 'claim-1' }, [null, 'claim-1']]
+  ])('stores and reads back a %o run', async (runStart, [questId, ghostClaimId]) => {
+    const database = new MemoryDatabase();
+    const run = vi.spyOn(database, 'runAsync');
+    const recorder = createActivityRecorder(database);
+    await recorder.create({ ...base, state: 'active', runStart });
+    expect(run.mock.calls[0]!.slice(-3)).toEqual([runStart.mode, questId, ghostClaimId]);
+    await expect(recorder.get(base.id, base.accountId)).resolves.toMatchObject({ runStart });
+  });
+  it('reads a run with no mode, or a mode missing its target, as a pre-mode run', async () => {
+    const database = new MemoryDatabase();
+    const recorder = createActivityRecorder(database);
+    await recorder.create({ ...base, state: 'active' });
+    expect((await recorder.get(base.id, base.accountId))?.runStart).toBeUndefined();
+    Object.assign(database.session!, { runMode: 'quest', questId: null });
+    expect((await recorder.get(base.id, base.accountId))?.runStart).toBeUndefined();
+  });
+  it('re-saves the fallback mode only while the run has no server copy', async () => {
+    const database = new MemoryDatabase();
+    const run = vi.spyOn(database, 'runAsync');
+    await createActivityRecorder(database).setRunStart(base.id, base.accountId, { mode: 'turf' });
+    expect(run).toHaveBeenCalledWith(
+      expect.stringContaining('WHERE id = ? AND account_id = ? AND remote_id IS NULL'),
+      'turf',
+      null,
+      null,
+      base.id,
+      base.accountId
+    );
   });
 });

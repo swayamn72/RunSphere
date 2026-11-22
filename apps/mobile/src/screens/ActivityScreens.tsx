@@ -68,15 +68,19 @@ import {
 import { ROUTE_GUIDE_CAPTION, routeGuideLayers, type RouteGuide } from './route-preview-model';
 import { ghostCard, ghostLayers, type GhostRun } from './ghost-race-model';
 import type { RecordedLocationSample } from '../activity-recorder-core';
+import type { RunStart } from '../run-start';
 
 export function ActivityPreparation({
   accountId,
+  start,
   originLabel,
   guide,
   onChange,
   onExit
 }: {
   accountId: string;
+  /** The mode the run is recorded as; written once with the local session. */
+  start: RunStart;
   originLabel?: string;
   /** Named here so nobody starts a run wondering whether their choice took. */
   guide?: RouteGuide;
@@ -163,7 +167,8 @@ export function ActivityPreparation({
         // Written once, with the row. The gate has already refused to reach
         // here on a failed or dismissed prompt, so an absent verification at
         // this point means the device had nothing to ask.
-        ...(verification.current ? { verification: verification.current } : {})
+        ...(verification.current ? { verification: verification.current } : {}),
+        runStart: start
       });
       const session = await activityRecorder.get(id, accountId);
       if (!mounted.current || !session) {

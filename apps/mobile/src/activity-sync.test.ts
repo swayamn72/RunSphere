@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ActivitySession } from './activity-recorder-core.js';
 import { createActivitySyncCoordinator, samplesToChunks } from './activity-sync.js';
+import { ApiFailure } from './api-client.js';
+import { AuthFailure } from './auth-failure.js';
 
 const session: ActivitySession = {
   id: 'local-1',
@@ -50,6 +52,9 @@ const recorder = (stored: ActivitySession) => ({
       stored.remoteStatus = remoteStatus;
     }
   ),
+  setRunStart: vi.fn(async (_id: string, _account: string, start: ActivitySession['runStart']) => {
+    stored.runStart = start;
+  }),
   setRemoteStatus: vi.fn(
     async (_id: string, _account: string, status: ActivitySession['remoteStatus']) => {
       stored.remoteStatus = status;
@@ -134,6 +139,97 @@ describe('activity sync coordinator', () => {
     );
 
     expect(api.createActivity).toHaveBeenCalledWith('run', 'local-1', undefined, session.startedAt);
+  });
+
+  describe('run modes (M9 9.5)', () => {
+    const uploading = () => ({
+      recoverActivitySync: vi
+        .fn()
+        .mockResolvedValue({ id: 'remote-1', status: 'received', missingSequences: [] }),
+      uploadActivityChunk: vi.fn(),
+      finalizeActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'validating' })
+    });
+
+    it('sends the mode the run was started as', async () => {
+      const quest = { ...session, runStart: { mode: 'quest' as const, questId: 'quest-1' } };
+      const api = {
+        ...uploading(),
+        createActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'received' })
+      };
+      await createActivitySyncCoordinator(api as never, recorder({ ...quest }) as never).sync(
+        quest
+      );
+      expect(api.createActivity).toHaveBeenCalledWith(
+        'run',
+        'local-1',
+        undefined,
+        session.startedAt,
+        { mode: 'quest', questId: 'quest-1' }
+      );
+    });
+
+    it.each([
+      ['a Ghost Race whose ground changed hands', new ApiFailure(404, 'gone'), 'ghost', 'turf'],
+      [
+        'a Ghost Race the holder closed',
+        new AuthFailure('invalid-credentials', 403),
+        'ghost',
+        'turf'
+      ],
+      ['a quest no longer open', new ApiFailure(400, 'Take this quest on first'), 'quest', 'free']
+    ] as const)('keeps %s as a %s run in its fallback mode', async (_case, failure, from, to) => {
+      const start =
+        from === 'ghost'
+          ? ({ mode: 'ghost', ghostClaimId: 'claim-1' } as const)
+          : ({ mode: 'quest', questId: 'quest-1' } as const);
+      const stored = { ...session, runStart: start };
+      const api = {
+        ...uploading(),
+        createActivity: vi
+          .fn()
+          .mockRejectedValueOnce(failure)
+          .mockResolvedValueOnce({ id: 'remote-1', status: 'received' })
+      };
+      const local = recorder(stored);
+      const result = await createActivitySyncCoordinator(api as never, local as never).sync({
+        ...stored
+      });
+
+      expect(local.setRunStart).toHaveBeenCalledWith('local-1', 'account-1', { mode: to });
+      expect(api.createActivity).toHaveBeenLastCalledWith(
+        'run',
+        'local-1',
+        undefined,
+        session.startedAt,
+        { mode: to }
+      );
+      expect(result.session).toMatchObject({ remoteId: 'remote-1', runStart: { mode: to } });
+    });
+
+    it('retries a network failure in the same mode, never downgrading it', async () => {
+      const ghost = { ...session, runStart: { mode: 'ghost' as const, ghostClaimId: 'claim-1' } };
+      const api = {
+        ...uploading(),
+        createActivity: vi.fn().mockRejectedValue(new AuthFailure('network'))
+      };
+      const local = recorder({ ...ghost });
+      const result = await createActivitySyncCoordinator(api as never, local as never).sync(ghost);
+      expect(api.createActivity).toHaveBeenCalledTimes(1);
+      expect(local.setRunStart).not.toHaveBeenCalled();
+      expect(result.session.state).toBe('failed');
+    });
+
+    it('has nothing to fall back to for a refused Turf run', async () => {
+      const turf = { ...session, runStart: { mode: 'turf' as const } };
+      const api = {
+        ...uploading(),
+        createActivity: vi.fn().mockRejectedValue(new ApiFailure(400, 'bad'))
+      };
+      const local = recorder({ ...turf });
+      await createActivitySyncCoordinator(api as never, local as never).sync(turf);
+      expect(api.createActivity).toHaveBeenCalledTimes(1);
+      expect(local.setRunStart).not.toHaveBeenCalled();
+    });
   });
 
   it.each(['rejected', 'derived'] as const)(

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { ApiFailure } from '../api-client';
-import { QUEST_PROGRESS_COPY, progressFor, questActionFailure } from './quest-progress-model';
+import {
+  QUEST_PROGRESS_COPY,
+  progressFor,
+  questActionFailure,
+  questRunStart
+} from './quest-progress-model';
 
 const mine = [
   {
@@ -26,10 +31,17 @@ describe('quest progress (M6.3)', () => {
   });
 
   it('says what the next run needs to do, never asking for proof', () => {
-    expect(QUEST_PROGRESS_COPY.taken.detail).toMatch(/Pass every stop on one run/);
-    expect(QUEST_PROGRESS_COPY.taken.detail).toMatch(/before taking it on do not count/);
+    expect(QUEST_PROGRESS_COPY.taken.detail).toMatch(/Start your run from here/);
+    expect(QUEST_PROGRESS_COPY.taken.detail).toMatch(/Other runs do not count/);
     for (const copy of Object.values(QUEST_PROGRESS_COPY))
       expect(`${copy.title} ${copy.detail}`).not.toMatch(/photo|upload|check in|tap to complete/i);
+  });
+
+  it('starts a quest run only for a quest you are on (M9 9.5)', () => {
+    expect(questRunStart('a', 'taken')).toEqual({ mode: 'quest', questId: 'a' });
+    expect(questRunStart('a', 'not-taken')).toBeUndefined();
+    expect(questRunStart('a', 'done')).toBeUndefined();
+    expect(questRunStart('a', undefined)).toBeUndefined();
   });
 
   it('explains a quest that is gone', () => {

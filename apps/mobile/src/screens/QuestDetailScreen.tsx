@@ -13,6 +13,8 @@ import {
   shouldDrawSelectedGeometry,
   type QuestDetailState
 } from './explore-model';
+import { QUEST_START_HINT, questRunStart, type QuestProgress } from './quest-progress-model';
+import type { RunStart } from '../run-start';
 
 /** Detail loads exactly once for an explicit list selection. It never preloads catalog details. */
 export function QuestDetailScreen({
@@ -24,10 +26,13 @@ export function QuestDetailScreen({
   api: MobileApiClient;
   quest: QuestSummary;
   onBack: () => void;
-  onStart: () => void;
+  /** Called with a quest run for this quest; only offered once it's taken on. */
+  onStart: (start: RunStart) => void;
 }) {
   const { tokens } = useAppTheme();
   const [detail, setDetail] = useState<QuestDetail>();
+  const [progress, setProgress] = useState<QuestProgress>();
+  const start = questRunStart(quest.id, progress);
   const [error, setError] = useState<unknown>();
   useEffect(() => {
     let active = true;
@@ -91,8 +96,17 @@ export function QuestDetailScreen({
         />
       </View>
       <DetailContent quest={quest} detail={detail} state={state} />
-      <QuestProgressCard api={api} questId={quest.id} />
-      <PrimaryButton label="Start a run" onPress={onStart} />
+      <QuestProgressCard api={api} questId={quest.id} onProgress={setProgress} />
+      {start ? (
+        <PrimaryButton label="Start this quest" onPress={() => onStart(start)} />
+      ) : (
+        progress &&
+        progress !== 'taken' && (
+          <Text style={[styles.copy, { color: tokens.text.secondary }]}>
+            {QUEST_START_HINT[progress]}
+          </Text>
+        )
+      )}
     </View>
   );
 }

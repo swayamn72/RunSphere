@@ -1,5 +1,13 @@
 import type { ActivityRecorder, ActivitySession, LocationSample } from './activity-recorder-core';
-import type { ActivityChunk, ActivityDetail, ActivityStatus, MobileApiClient } from './api-client';
+import {
+  ApiFailure,
+  type ActivityChunk,
+  type ActivityDetail,
+  type ActivityStatus,
+  type MobileApiClient
+} from './api-client';
+import { AuthFailure } from './auth-failure';
+import { runStartFallback } from './run-start';
 import { isKnownRemoteStatus, type SyncActivityStatus } from './screens/activity-results-model';
 
 export const SYNC_CHUNK_SIZE = 250;
@@ -67,6 +75,49 @@ const settleRemoteStatus = async (
     );
 };
 
+/**
+ * Whether a failed create was the server refusing the run's mode, rather than
+ * the network, an expired session or an outage, which are retried as always.
+ * The create route answers a refused mode with 400, 403 or 404 and a missing
+ * sign-in with 401, so a 403 here is a refusal even though the client reports
+ * every 403 as an `AuthFailure`.
+ */
+export const isRunModeRefusal = (error: unknown): boolean => {
+  const status =
+    error instanceof ApiFailure || error instanceof AuthFailure ? error.status : undefined;
+  return status === 400 || status === 403 || status === 404;
+};
+
+/**
+ * Create the server's record of a run, in the mode it started with if the
+ * server still accepts it, or else in its fallback mode (`runStartFallback`
+ * explains when that happens). The fallback is saved locally first, so the
+ * phone and the server agree on what the run was, and a retry after a lost
+ * response replays the same body under the same idempotency key.
+ */
+const createRemote = async (
+  api: MobileApiClient,
+  recorder: ActivityRecorder,
+  session: ActivitySession
+): Promise<ActivityStatus> => {
+  const create = (start: ActivitySession['runStart']) =>
+    api.createActivity(
+      session.movementType,
+      session.id,
+      session.verification,
+      session.startedAt,
+      ...(start ? [start] : [])
+    );
+  try {
+    return await create(session.runStart);
+  } catch (error) {
+    const fallback = session.runStart && runStartFallback(session.runStart);
+    if (!fallback || !isRunModeRefusal(error)) throw error;
+    await recorder.setRunStart(session.id, session.accountId, fallback);
+    return create(fallback);
+  }
+};
+
 export const createActivitySyncCoordinator = (
   api: MobileApiClient,
   recorder: ActivityRecorder
@@ -86,12 +137,7 @@ export const createActivitySyncCoordinator = (
         // offline-first client may have been days before this upload. It
         // travels with `startedAt` so the server can check it against the run
         // it belongs to rather than against the moment it happened to arrive.
-        const created = await api.createActivity(
-          session.movementType,
-          session.id,
-          session.verification,
-          session.startedAt
-        );
+        const created = await createRemote(api, recorder, session);
         remoteId = created.id;
         await recorder.setRemote(session.id, session.accountId, remoteId, created.status);
       }

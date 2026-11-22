@@ -64,6 +64,7 @@ import {
   routeOrigin,
   type FocusedSurface
 } from './src/activity-flow';
+import { FREE_RUN, TURF_RUN, type RunStart } from './src/run-start';
 import { landingTab, type Tab } from './src/navigation/types';
 import { initialOnboardingState, onboardingReducer } from './src/onboarding';
 import {
@@ -353,12 +354,21 @@ function RunSphereApp() {
       />
     );
 
-  const openActivity = (origin: 'home' | 'quests' | 'map' | 'quest-detail') => {
+  /**
+   * Open the prepare screen for a run in the given mode (M9 9.5). Until the
+   * mode picker lands (9.6), a run started from Home, the Run tab, the Map or a
+   * suggested route is a Turf run, because that is the mode closest to how
+   * every run behaved before modes: it can claim ground.
+   */
+  const openActivity = (
+    origin: 'home' | 'quests' | 'map' | 'quest-detail',
+    start: RunStart = TURF_RUN
+  ) => {
     const capturedOrigin =
       origin === 'quest-detail' && selectedQuest
         ? { kind: 'quest-detail' as const, quest: selectedQuest }
         : { kind: origin as 'home' | 'quests' | 'map' };
-    dispatchActivityRoute({ type: 'start-free', origin: capturedOrigin });
+    dispatchActivityRoute({ type: 'start-run', origin: capturedOrigin, start });
     setSelectedQuest(undefined);
     setActiveTab('Run');
   };
@@ -429,6 +439,7 @@ function RunSphereApp() {
     ) : (activeTab === 'Run' || activityRoute.screen === 'prepare') && accountId ? (
       <ActivityPreparation
         accountId={accountId}
+        start={activityRoute.screen === 'prepare' ? activityRoute.start : TURF_RUN}
         {...(originLabel ? { originLabel } : {})}
         {...(routeGuide ? { guide: routeGuide } : {})}
         onChange={(session) => {
@@ -459,13 +470,13 @@ function RunSphereApp() {
         api={apiClient}
         quest={selectedQuest}
         onBack={() => setSelectedQuest(undefined)}
-        onStart={() => openActivity('quest-detail')}
+        onStart={(start) => openActivity('quest-detail', start)}
       />
     ) : focus === 'quests' ? (
       <ExploreScreen
         api={apiClient}
         onSelectQuest={setSelectedQuest}
-        onStart={() => openActivity('quests')}
+        onStart={() => openActivity('quests', FREE_RUN)}
         onBack={() => setFocus('none')}
         onSessionExpired={expireSession}
       />
@@ -530,7 +541,7 @@ function RunSphereApp() {
           // A ghost is a reference on the map, not a route to follow, so it
           // does not also set a route guide.
           setRouteGuide(undefined);
-          openActivity('map');
+          openActivity('map', { mode: 'ghost', ghostClaimId: run.claimId });
         }}
       />
     ) : activeTab === 'Social' ? (

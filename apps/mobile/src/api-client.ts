@@ -123,6 +123,7 @@ import type {
 import type { AuthSession, AuthStorage } from './auth-storage-core';
 import { getApiBaseUrl } from './api-config';
 import { canonicalJson, sha256 } from './activity-checksum';
+import { runStartFields, type RunStart } from './run-start';
 import {
   AuthFailure,
   classifyAuthResponse,
@@ -409,12 +410,16 @@ export class MobileApiClient {
    * it honestly as unverified rather than refusing it. They travel together
    * because the server's one checkable claim is that the verification happened
    * near the start of *this* run.
+   *
+   * `start` is the run's mode (M9). Absent for runs recorded before modes,
+   * which the server keeps on its pre-mode rules.
    */
   async createActivity(
     movementType: ActivityMovement,
     idempotencyKey: string,
     verification?: RunVerificationPayload,
-    startedAt?: string
+    startedAt?: string,
+    start?: RunStart
   ): Promise<ActivityStatus> {
     return this.request('/v1/activities', {
       method: 'POST',
@@ -422,7 +427,8 @@ export class MobileApiClient {
       body: {
         movementType,
         ...(verification ? { verification } : {}),
-        ...(startedAt ? { startedAt } : {})
+        ...(startedAt ? { startedAt } : {}),
+        ...(start ? runStartFields(start) : {})
       }
     });
   }
