@@ -1,3 +1,4 @@
+import type { ActivityMetrics } from '@runsphere/contracts';
 import { haversineMetres } from './territory-claim.js';
 
 /**
@@ -412,3 +413,10 @@ export const computeRunMetrics = (
     elevationSeries
   };
 };
+
+/**
+ * The metrics as the API sends them (`ActivityMetricsSchema`). An identity at
+ * runtime; its job is to stop this file and the contract drifting apart, which
+ * the compiler now catches.
+ */
+export const runMetricsForContract = (metrics: RunMetrics): ActivityMetrics => metrics;

@@ -211,6 +211,47 @@ describePostgis('activity processing (B8, B9)', () => {
     expect(row.elevation_gain_meters).toBeGreaterThan(5);
     expect(JSON.stringify(row.metrics)).not.toMatch(/latitude|longitude/);
   });
+
+  it('returns the metrics with the run detail, and none for a run without them (9.11)', async () => {
+    const token = await register();
+    const id = await finalizedActivity(token, true);
+    await processActivity(db, id);
+    const detail = async () =>
+      (
+        await app.inject({
+          method: 'GET',
+          url: `/v1/activities/${id}`,
+          headers: { authorization: `Bearer ${token}` }
+        })
+      ).json() as { status: string; metrics?: RunMetrics };
+
+    const { status, metrics } = await detail();
+    expect(status).toBe('derived');
+    const stored = await db.query<{ metrics: RunMetrics }>(
+      'SELECT metrics FROM activity_metrics WHERE activity_id = $1',
+      [id]
+    );
+    // Everything stored survives the response schema, series tuples included.
+    expect(metrics).toEqual(stored.rows[0]!.metrics);
+    expect(metrics!.paceSeries.length).toBeGreaterThan(0);
+    expect(metrics!.paceSeries[0]).toHaveLength(2);
+    expect(metrics!.elevation).not.toBeNull();
+
+    // A run derived before metrics, its points since purged.
+    await db.query('DELETE FROM activity_metrics WHERE activity_id = $1', [id]);
+    expect(await detail()).not.toHaveProperty('metrics');
+  });
+
+  it("never returns another runner's metrics", async () => {
+    const id = await finalizedActivity(await register());
+    await processActivity(db, id);
+    const response = await app.inject({
+      method: 'GET',
+      url: `/v1/activities/${id}`,
+      headers: { authorization: `Bearer ${await register()}` }
+    });
+    expect(response.statusCode).toBe(404);
+  });
 });
 
 describe('activity processing integration gate', () => {

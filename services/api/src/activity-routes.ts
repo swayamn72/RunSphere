@@ -20,6 +20,7 @@ import {
   type ActivityChunkRequest,
   type ActivityCreateRequest,
   type ActivityFinalizeRequest,
+  type ActivityMetrics,
   type RunMode
 } from '@runsphere/contracts';
 import {
@@ -564,14 +565,17 @@ export const registerActivityRoutes = ({ routes, database, authSecret }: Activit
           algorithm_version: string | null;
           removed_point_count: number | null;
           outcome: string | null;
+          metrics: ActivityMetrics | null;
         }
       >(
         `SELECT submission.id, submission.status, submission.summary, submission.rejection_reason,
            submission.validation_errors, submission.expected_chunk_count, submission.movement_type, submission.created_at,
            ${qualifiedVerificationColumns('submission')},
            ST_AsGeoJSON(derivation.shareable_route)::jsonb AS route, derivation.policy_version,
-           derivation.algorithm_version, derivation.removed_point_count, derivation.outcome
+           derivation.algorithm_version, derivation.removed_point_count, derivation.outcome,
+           metrics.metrics
          FROM activity_submissions submission LEFT JOIN activity_derivations derivation ON derivation.activity_id = submission.id
+         LEFT JOIN activity_metrics metrics ON metrics.activity_id = submission.id
          WHERE submission.id = $1 AND submission.account_id = $2 AND submission.deleted_at IS NULL`,
         [request.params.activityId, accountId]
       );
@@ -587,7 +591,8 @@ export const registerActivityRoutes = ({ routes, database, authSecret }: Activit
                 algorithmVersion: row.algorithm_version!,
                 removedPointCount: row.removed_point_count!,
                 outcome: row.outcome!
-              }
+              },
+              ...(row.metrics ? { metrics: row.metrics } : {})
             }
           : {})
       };

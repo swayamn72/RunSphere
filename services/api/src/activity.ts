@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { canonicalJson, type ActivityChunkRequest } from '@runsphere/contracts';
 import { withTransaction, type Database } from '@runsphere/db';
-import { computeRunMetrics } from '@runsphere/domain';
+import { computeRunMetrics, runMetricsForContract } from '@runsphere/domain';
 
 type Queryable = Pick<Database, 'query'>;
 
@@ -254,7 +254,7 @@ export const writeActivityMetrics = async (
   activityId: string,
   points: readonly TracePoint[]
 ): Promise<void> => {
-  const metrics = computeRunMetrics(points);
+  const metrics = runMetricsForContract(computeRunMetrics(points));
   await db.query(
     `INSERT INTO activity_metrics (activity_id, metrics_version, metrics, moving_seconds, elevation_gain_meters)
      VALUES ($1, $2, $3::jsonb, $4, $5)

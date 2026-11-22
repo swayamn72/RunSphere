@@ -1,4 +1,5 @@
 import { Type, type Static } from '@sinclair/typebox';
+import { ActivityMetricsSchema } from './run-metrics.js';
 
 const UuidSchema = Type.String({ format: 'uuid' });
 const Strict = { additionalProperties: false };
@@ -608,7 +609,9 @@ export const ActivityDetailResponseSchema = Type.Object(
     provenance: Type.Optional(ActivityProvenanceSchema),
     runMode: Type.Optional(RunModeSchema),
     questId: Type.Optional(UuidSchema),
-    ghostClaimId: Type.Optional(UuidSchema)
+    ghostClaimId: Type.Optional(UuidSchema),
+    /** On a derived run that has them (M9 9.11). Older runs whose raw points were purged have none. */
+    metrics: Type.Optional(ActivityMetricsSchema)
   },
   { $id: 'ActivityDetailResponse' }
 );
@@ -688,3 +691,4 @@ export * from './territory-leaderboard.js';
 export * from './route-suggestion.js';
 export * from './quest-recommendation.js';
 export * from './social-identity.js';
+export * from './run-metrics.js';
