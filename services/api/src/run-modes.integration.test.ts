@@ -3,7 +3,8 @@ import {
   createDatabase,
   defaultDatabaseUrl,
   migrate,
-  postgisIntegrationEnabled
+  postgisIntegrationEnabled,
+  withTransaction
 } from '@runsphere/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
@@ -17,14 +18,26 @@ const describePostgis = enabled ? describe : describe.skip;
 const db = createDatabase(defaultDatabaseUrl(process.env));
 const app = buildApp({ db, authSecret: 'run-modes-integration-secret' });
 
-const created: { quests: string[] } = { quests: [] };
+/**
+ * Everything this suite creates, removed afterwards. The accounts matter most:
+ * their claims are in the current season, and the worker's season suite runs
+ * later against the same database and counts every claim it finds (B19).
+ * Deleting an account cascades to its claims and runs, the way erasure does.
+ */
+const created: { quests: string[]; accounts: string[] } = { quests: [], accounts: [] };
 
 beforeAll(async () => {
   if (enabled) await migrate(db);
 });
 afterAll(async () => {
-  if (enabled)
+  if (enabled) {
+    // Registration writes consent history, which only an erasure may delete.
+    await withTransaction(db, async (client) => {
+      await client.query("SELECT set_config('runsphere.account_erasure', 'on', true)");
+      await client.query('DELETE FROM accounts WHERE id = ANY($1::uuid[])', [created.accounts]);
+    });
     await db.query('DELETE FROM quest_versions WHERE id = ANY($1::uuid[])', [created.quests]);
+  }
   await app.close();
   await db.end();
 });
@@ -45,6 +58,7 @@ const runner = async (): Promise<{ token: string; id: string }> => {
   expect(response.statusCode).toBe(201);
   const token = (response.json() as { accessToken: string }).accessToken;
   const id = JSON.parse(Buffer.from(token.split('.')[0]!, 'base64url').toString()).sub as string;
+  created.accounts.push(id);
   return { token, id };
 };
 

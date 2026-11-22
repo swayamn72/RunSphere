@@ -21,9 +21,8 @@
   The recorder keeps the refused mode (`refused_run_mode`, schema 10) so the result can say a run was
   kept as Turf or Free.
 - **Phase A is done. Next up: 9.8** (`packages/domain/src/run-metrics.ts`).
-- **Known, pre-existing:** `services/worker/src/territory-claim-season.integration.test.ts` fails
-  against the local `runsphere_test` database on `main` too (rank and season-warning cases see
-  leftover data). See B19. Exclude it locally until fixed; CI uses a fresh database.
+- **B19 fixed:** the worker season suite failed because the API run-modes suite (9.3) left
+  claims behind. It now erases its accounts.
 
 ## 0. How the app works today (verified in code, 2026-11-22)
 
