@@ -17,6 +17,9 @@ vi.mock('react-native', async () => {
     ({ children, ...props }: Record<string, unknown>) =>
       React.createElement(name as React.ElementType, props, children as React.ReactNode);
   return {
+    // Tour targets (M9 9.22) listen for rotation and the keyboard.
+    Dimensions: { addEventListener: () => ({ remove: () => undefined }) },
+    Keyboard: { addListener: () => ({ remove: () => undefined }) },
     Image: native('Image'),
     Pressable: native('Pressable'),
     StyleSheet: { create: <T,>(styles: T) => styles },

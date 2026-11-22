@@ -132,12 +132,15 @@ export function ProfileScreen({
   api,
   accountId,
   onLogoutComplete,
+  onReplayTour,
   onNavigate,
   initialScreen = 'profile'
 }: {
   api: MobileApiClient;
   accountId: string | undefined;
   onLogoutComplete: () => void;
+  /** Starts the guided tour again (M9 9.21, 9.25). */
+  onReplayTour?: () => void;
   /** Leaves the Profile tab for a destination an inbox entry points at. */
   onNavigate?: (target: NotificationTarget) => void;
   /**
@@ -384,6 +387,16 @@ export function ProfileScreen({
           value="Cosmetic only"
           onPress={() => setScreen('achievements')}
         />
+        {onReplayTour ? (
+          <Setting
+            label="Replay the tour"
+            value="Rho shows you around again"
+            onPress={() => {
+              setScreen('profile');
+              onReplayTour();
+            }}
+          />
+        ) : null}
       </SettingsGroup>
       <SettingsGroup title="You and your friends">
         <Setting

@@ -57,7 +57,15 @@ import { useAppStyles } from './src/components/styles';
 import { coordinateLogout } from './src/logout-coordinator';
 import { setGuidanceStore } from './src/loop-guidance';
 import { persistentGuidanceStore } from './src/loop-guidance.native';
-import { setTourStore } from './src/tutorial-model';
+import {
+  setTourStore,
+  shouldStartTour,
+  tourReducer,
+  tourStore,
+  type TourAction,
+  type TourState
+} from './src/tutorial-model';
+import { TutorialOverlay } from './src/components/TutorialOverlay';
 import { persistentTourStore } from './src/tour-secure-store.native';
 import { registerForPush, revokePushRegistration } from './src/push-registration';
 import { nativePushTokenSource, pushRegistrationStore } from './src/push-registration.native';
@@ -354,6 +362,30 @@ function RunSphereApp() {
       active = false;
     };
   }, [onboarding.step, accountId]);
+  // The guided tour (M9 9.25): once per account after sign-up, after "Who
+  // sees your runs?", and again from Settings.
+  const [tour, setTour] = useState<TourState>();
+  useEffect(() => {
+    if (onboarding.step !== 'complete' || !accountId || runsPrompt) return;
+    let active = true;
+    void shouldStartTour(accountId).then((start) => {
+      if (active && start) setTour({ index: 0 });
+    });
+    return () => {
+      active = false;
+    };
+  }, [onboarding.step, accountId, runsPrompt]);
+  const tourAction = useCallback(
+    (action: TourAction) =>
+      setTour((current) => {
+        if (!current) return current;
+        const next = tourReducer(current, action);
+        if (next !== 'done') return next;
+        if (accountId) void tourStore().markDone(accountId);
+        return undefined;
+      }),
+    [accountId]
+  );
   if (initializationState === 'loading')
     return (
       <SafeAreaView
@@ -660,6 +692,7 @@ function RunSphereApp() {
           accountId={accountId}
           initialScreen={profileEntry}
           onLogoutComplete={finishSession}
+          onReplayTour={() => setTour({ index: 0 })}
           onNavigate={(target) => {
             // Friend requests open the friends list inside Social; challenges
             // and quests open over Home (`NOTIFICATION_TARGET_FOCUS`).
@@ -711,6 +744,17 @@ function RunSphereApp() {
             }}
           />
         )}
+        {tour ? (
+          <TutorialOverlay
+            state={tour}
+            onAction={tourAction}
+            activeTab={activeTab}
+            onShowTab={(tab) => {
+              dispatchActivityRoute({ type: 'select-tab' });
+              setActiveTab(tab);
+            }}
+          />
+        ) : null}
       </RunDetailProvider>
     </SafeAreaView>
   );

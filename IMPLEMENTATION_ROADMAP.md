@@ -188,7 +188,7 @@ Tick tasks there and here as they land.
 | B. Metrics engine (splits, best efforts, elevation, charts)                                 | 9.8–9.12  | ✅ 9.8–9.12 done 2026-11-22              |
 | C. Run log on profiles                                                                      | 9.13–9.15 | ✅ 9.13–9.15 done (device check pending) |
 | D. Run detail, open transition, drawn route                                                 | 9.16–9.20 | ✅ 9.16–9.20 done (device check pending) |
-| E. Guided tour with blur, spotlight and animated Rho                                        | 9.21–9.25 | 🟡 9.21–9.24 done                        |
+| E. Guided tour with blur, spotlight and animated Rho                                        | 9.21–9.25 | ✅ 9.21–9.25 done (device check pending) |
 | F. Privacy, legal and release checks (same build as C)                                      | 9.26–9.29 | 🟡 9.26–9.28 done                        |
 
 ## Milestone 7 — Housekeeping (any time, low risk)

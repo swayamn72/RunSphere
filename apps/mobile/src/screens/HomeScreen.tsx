@@ -39,6 +39,7 @@ import {
   weeklyGoalState
 } from './home-state';
 import { unreadBadgeLabel, unreadIds } from './notifications-model';
+import { TutorialTarget } from '../components/TutorialTarget';
 import {
   seasonCountdown,
   turfAreaLabel,
@@ -469,13 +470,15 @@ export function HomeScreen({
         </View>
       </View>
 
-      <QuickActions
-        onAction={(action) => {
-          if (action === 'run') onStart();
-          else if (action === 'map') onOpenMap();
-          else onOpenSocial();
-        }}
-      />
+      <TutorialTarget id="home-start">
+        <QuickActions
+          onAction={(action) => {
+            if (action === 'run') onStart();
+            else if (action === 'map') onOpenMap();
+            else onOpenSocial();
+          }}
+        />
+      </TutorialTarget>
 
       <Pressable accessibilityRole="button" style={styles.recordCard} onPress={onOpenMap}>
         <Text style={[styles.eyebrow, { color: tokens.text.danger }]}>GHOST RACES</Text>
@@ -487,7 +490,7 @@ export function HomeScreen({
         <Text style={local.chooseRoute}>Choose a route instead →</Text>
       </Pressable>
 
-      <View style={styles.sectionHeader}>
+      <TutorialTarget id="home-quests" style={styles.sectionHeader}>
         <Text accessibilityRole="header" style={styles.sectionTitle}>
           Verified quests
         </Text>
@@ -498,7 +501,7 @@ export function HomeScreen({
         >
           <Text style={styles.link}>View all</Text>
         </Pressable>
-      </View>
+      </TutorialTarget>
       {questState === 'loading' && (
         <View style={local.questLoading}>
           <LoopMascot variant="loading" accessibility={{ mode: 'decorative' }} size={48} />

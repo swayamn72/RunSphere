@@ -17,6 +17,7 @@ import { useAppTheme } from '../theme/theme';
 import { tabEmphasis } from './tab-style';
 import { tabs, type Tab } from './types';
 import { gameWorld } from '../theme/game-world';
+import { TutorialTarget } from '../components/TutorialTarget';
 
 const tabIconAssets: Record<Tab, ImageSourcePropType> = {
   Home: homeIcon,
@@ -58,31 +59,33 @@ export function TabBar({
             ]}
           >
             {/* The lit pill is what reads as "you are here" at a glance. */}
-            <View
-              style={[
-                styles.iconWell,
-                selected && styles.iconWellActive,
-                startRun && styles.runOrb
-              ]}
-            >
-              <Image
-                source={tabIconAssets[tab]}
+            <TutorialTarget id={`tab-${tab.toLowerCase()}`}>
+              <View
                 style={[
-                  styles.tabIconImage,
-                  {
-                    tintColor: startRun
-                      ? gameWorld.orb.ink
-                      : selected
-                        ? tokens.action.selected
-                        : quiet
-                          ? tokens.text.tertiary
-                          : tokens.text.secondary
-                  }
+                  styles.iconWell,
+                  selected && styles.iconWellActive,
+                  startRun && styles.runOrb
                 ]}
-                resizeMode="contain"
-              />
-              {startRun && <Text style={styles.runLabel}>START RUN</Text>}
-            </View>
+              >
+                <Image
+                  source={tabIconAssets[tab]}
+                  style={[
+                    styles.tabIconImage,
+                    {
+                      tintColor: startRun
+                        ? gameWorld.orb.ink
+                        : selected
+                          ? tokens.action.selected
+                          : quiet
+                            ? tokens.text.tertiary
+                            : tokens.text.secondary
+                    }
+                  ]}
+                  resizeMode="contain"
+                />
+                {startRun && <Text style={styles.runLabel}>START RUN</Text>}
+              </View>
+            </TutorialTarget>
           </Pressable>
         );
       })}

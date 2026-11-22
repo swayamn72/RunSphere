@@ -75,7 +75,9 @@ export function TutorialOverlay({
   }, [step, activeTab, onShowTab, registry]);
 
   const typed = useTypedLine(step?.rhoLine ?? '', reduceMotion);
-  const ring = target ? ringRect(target, screen) : undefined;
+  // A target scrolled off screen gets a centred bubble, not a ring pinned to the edge.
+  const onScreen = target && target.y + target.height > 0 && target.y < height ? target : undefined;
+  const ring = onScreen ? ringRect(onScreen, screen) : undefined;
   const x = useSharedValue(ring?.x ?? width / 2);
   const y = useSharedValue(ring?.y ?? height / 2);
   const w = useSharedValue(ring?.width ?? 0);
