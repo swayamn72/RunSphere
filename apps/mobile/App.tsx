@@ -49,6 +49,8 @@ import {
 import { inviteTokenFromUrl } from './src/invite-link';
 import { InviteAcceptSheet } from './src/screens/InviteAcceptSheet';
 import { RunsSharingPrompt } from './src/screens/RunsSharingPrompt';
+import { RunDetailProvider } from './src/screens/RunDetailHost';
+import { RunDetailScreen } from './src/screens/RunDetailScreen';
 import { needsRunsPrompt } from './src/screens/runs-sharing-prompt-model';
 import { PrimaryButton } from './src/components/primitives';
 import { useAppStyles } from './src/components/styles';
@@ -674,37 +676,39 @@ function RunSphereApp() {
       edges={['top']}
       style={[styles.screen, { backgroundColor: tokens.background.canvas }]}
     >
-      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-      {shell === 'tab-scroll' ? (
-        <TabScrollShell>{content}</TabScrollShell>
-      ) : shell === 'tab-map' ? (
-        <FocusedFlexShell fullBleed>{content}</FocusedFlexShell>
-      ) : shell === 'focused-scroll' ? (
-        <FocusedScrollShell>{content}</FocusedScrollShell>
-      ) : (
-        <FocusedFlexShell>{content}</FocusedFlexShell>
-      )}
-      {isTabBarVisible(shell) && (
-        <TabBar
-          activeTab={activeTab}
-          turf={shell === 'tab-map'}
-          onChange={(tab) => {
-            setSelectedQuest(undefined);
-            setFocus('none');
-            setRouteGuide(undefined);
-            setGhostRun(undefined);
-            setGhostHint(false);
-            if (tab !== 'Social') setSocialEntry('feed');
-            if (tab !== 'Profile') setProfileEntry('profile');
-            if (tab === 'Run') {
-              if (activeTab !== 'Run') chooseRun(activeTab === 'Map' ? 'map' : 'home');
-              return;
-            }
-            dispatchActivityRoute({ type: 'select-tab' });
-            setActiveTab(tab);
-          }}
-        />
-      )}
+      <RunDetailProvider renderDetail={(props) => <RunDetailScreen {...props} />}>
+        <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+        {shell === 'tab-scroll' ? (
+          <TabScrollShell>{content}</TabScrollShell>
+        ) : shell === 'tab-map' ? (
+          <FocusedFlexShell fullBleed>{content}</FocusedFlexShell>
+        ) : shell === 'focused-scroll' ? (
+          <FocusedScrollShell>{content}</FocusedScrollShell>
+        ) : (
+          <FocusedFlexShell>{content}</FocusedFlexShell>
+        )}
+        {isTabBarVisible(shell) && (
+          <TabBar
+            activeTab={activeTab}
+            turf={shell === 'tab-map'}
+            onChange={(tab) => {
+              setSelectedQuest(undefined);
+              setFocus('none');
+              setRouteGuide(undefined);
+              setGhostRun(undefined);
+              setGhostHint(false);
+              if (tab !== 'Social') setSocialEntry('feed');
+              if (tab !== 'Profile') setProfileEntry('profile');
+              if (tab === 'Run') {
+                if (activeTab !== 'Run') chooseRun(activeTab === 'Map' ? 'map' : 'home');
+                return;
+              }
+              dispatchActivityRoute({ type: 'select-tab' });
+              setActiveTab(tab);
+            }}
+          />
+        )}
+      </RunDetailProvider>
     </SafeAreaView>
   );
 }

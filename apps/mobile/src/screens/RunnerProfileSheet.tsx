@@ -7,6 +7,7 @@ import { ReportPanel } from '../components/ReportPanel';
 import { REPORT_CONSEQUENCE_HINT } from './moderation-model';
 import { failureMessage } from '../failure-copy';
 import { RunLogSection } from './RunLogSection';
+import { useOpenRun } from './RunDetailHost';
 import {
   addFailureMessage,
   markRequested,
@@ -82,6 +83,7 @@ export function RunnerProfileSheet({
   };
 
   const action = profile ? runnerAction(profile) : undefined;
+  const openRun = useOpenRun();
   const loadRuns = useCallback(
     (cursor?: string) => api.getRunnerRuns(username, cursor),
     [api, username]
@@ -138,7 +140,15 @@ export function RunnerProfileSheet({
                 <Text style={styles.textButton}>Report</Text>
               </Pressable>
             ))}
-          <RunLogSection load={loadRuns} owner={profile.relationship === 'self'} />
+          <RunLogSection
+            load={loadRuns}
+            owner={profile.relationship === 'self'}
+            {...(openRun
+              ? {
+                  onOpenRun: (item) => openRun({ item, owner: profile.relationship === 'self' })
+                }
+              : {})}
+          />
         </>
       ) : notice === '' ? (
         <Text style={styles.rowDetail}>Loading…</Text>

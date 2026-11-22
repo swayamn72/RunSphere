@@ -721,6 +721,24 @@ export const createAppStyles = (t: SemanticTokens) =>
       marginTop: 4,
       textAlign: 'center'
     },
+    /** The run detail overlay (M9 9.16): its drag-to-close header and body. */
+    runDetailHeader: {
+      backgroundColor: t.background.canvas,
+      borderBottomColor: t.border.subtle,
+      borderBottomWidth: 1,
+      paddingBottom: 10,
+      paddingHorizontal: 18,
+      paddingTop: 8
+    },
+    runDetailGrabber: {
+      alignSelf: 'center',
+      backgroundColor: t.border.subtle,
+      borderRadius: 3,
+      height: 5,
+      marginBottom: 8,
+      width: 40
+    },
+    runDetailBody: { padding: 18, paddingBottom: 48 },
     /** A run in the profile run log (M9 9.15): route line left, numbers right. */
     runCard: {
       alignItems: 'center',

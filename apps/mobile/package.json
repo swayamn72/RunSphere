@@ -22,6 +22,7 @@
     "@runsphere/ui": "workspace:*",
     "expo": "57.0.17",
     "expo-background-fetch": "~57.0.21",
+    "expo-blur": "~57.0.3",
     "expo-crypto": "~57.0.2",
     "expo-dev-client": "^57.0.19",
     "expo-local-authentication": "~57.0.3",
@@ -34,8 +35,10 @@
     "expo-task-manager": "~57.0.21",
     "react": "19.2.3",
     "react-native": "0.86.3",
+    "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
-    "react-native-svg": "15.15.4"
+    "react-native-svg": "15.15.4",
+    "react-native-worklets": "0.10.1"
   },
   "devDependencies": {
     "@types/geojson": "^7946.0.16",
