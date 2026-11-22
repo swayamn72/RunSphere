@@ -28,12 +28,21 @@ export const replaySamples = (
 ) => {
   let index = 0;
   const startEpoch = Date.now();
+  const firstAt = Date.parse(samples[0]?.recordedAt ?? '');
   const timer = setInterval(() => {
     const sample = samples[index];
     if (!sample) return clearInterval(timer);
+    // Keep the track's own spacing so its speeds are what was recorded. A fixed
+    // 5 s step made a 10 s-apart track read as 35 km/h, and the recorder
+    // (rightly) refused every step: a synthetic run counted 0 km (found on a
+    // phone, M9 9.29). Fixtures without usable times fall back to 5 s.
+    const offset =
+      Number.isFinite(firstAt) && Number.isFinite(Date.parse(sample.recordedAt))
+        ? Date.parse(sample.recordedAt) - firstAt
+        : index * 5000;
     const dynamicSample: LocationSample = {
       ...sample,
-      recordedAt: new Date(startEpoch + index * 5000).toISOString()
+      recordedAt: new Date(startEpoch + offset).toISOString()
     };
     index++;
     emit(dynamicSample);
