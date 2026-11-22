@@ -184,7 +184,7 @@ Tick tasks there and here as they land.
 
 | Phase                                                                                       | Tasks     | Status                    |
 | ------------------------------------------------------------------------------------------- | --------- | ------------------------- |
-| A. Modes (Free run, Turf, Quest, Ghost Race; server-enforced) and the start/finish trim fix | 9.0–9.7   | 🟡 9.0–9.5 done; next 9.6 |
+| A. Modes (Free run, Turf, Quest, Ghost Race; server-enforced) and the start/finish trim fix | 9.0–9.7   | 🟡 9.0–9.6 done; next 9.7 |
 | B. Metrics engine (splits, best efforts, elevation, charts)                                 | 9.8–9.12  | Open                      |
 | C. Run log on profiles                                                                      | 9.13–9.15 | Open                      |
 | D. Run detail, open transition, drawn route                                                 | 9.16–9.20 | Open                      |

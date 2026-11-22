@@ -57,6 +57,7 @@ import {
   previewTurfQuests
 } from './dashboard-preview';
 import { ghostOffer, type GhostRun } from './ghost-race-model';
+import { ghostRaceHint } from './run-mode-model';
 import { CLAIM_PUBLISHES_NOTICE, FIRST_CLAIM_PRIVACY_PROMPT } from '@runsphere/domain';
 import {
   TIER_HINT,
@@ -118,6 +119,11 @@ export interface TurfScreenProps {
    * caller that has nowhere to send the runner simply never shows the button.
    */
   readonly onGhostRace?: (run: GhostRun) => void;
+  /**
+   * The runner picked Ghost Race on the Run tab (M9 9.6) and came here to
+   * choose whose ground to race, so the map says what to tap.
+   */
+  readonly ghostHint?: boolean;
   readonly onSessionExpired?: () => void;
 }
 
@@ -136,6 +142,7 @@ export function TurfScreen({
   onOpenProfile,
   onOpenSettings,
   onGhostRace,
+  ghostHint = false,
   onSessionExpired
 }: TurfScreenProps) {
   const { tokens, reduceMotion } = useAppTheme();
@@ -1046,6 +1053,11 @@ export function TurfScreen({
           )}
         </View>
 
+        {ghostHint && onGhostRace && !chosen ? (
+          <View style={styles.banner} accessibilityLiveRegion="polite">
+            <Text style={styles.bannerText}>{ghostRaceHint(claims, summary?.ghostRacesLeft)}</Text>
+          </View>
+        ) : null}
         {TIER_HINT[tier] ? (
           <View style={styles.banner}>
             <Text style={styles.bannerText}>{TIER_HINT[tier]}</Text>

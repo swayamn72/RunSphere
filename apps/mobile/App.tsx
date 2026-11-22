@@ -65,6 +65,8 @@ import {
   type FocusedSurface
 } from './src/activity-flow';
 import { FREE_RUN, TURF_RUN, type RunStart } from './src/run-start';
+import { RunModePicker } from './src/screens/RunModePicker';
+import { pickRunMode } from './src/screens/run-mode-model';
 import { landingTab, type Tab } from './src/navigation/types';
 import { initialOnboardingState, onboardingReducer } from './src/onboarding';
 import {
@@ -181,6 +183,8 @@ function RunSphereApp() {
    * a ghost was on screen while it was recorded.
    */
   const [ghostRun, setGhostRun] = useState<GhostRun>();
+  /** Ghost Race was picked on the Run tab, so the map says what to tap (M9 9.6). */
+  const [ghostHint, setGhostHint] = useState(false);
   // Which Social sub-screen to land on. A friend-request notice on Profile has
   // to be able to reach the friends list, which lives under Social.
   const [socialEntry, setSocialEntry] = useState<'feed' | 'friends'>('feed');
@@ -291,6 +295,7 @@ function RunSphereApp() {
     setFocus('none');
     setRouteGuide(undefined);
     setGhostRun(undefined);
+    setGhostHint(false);
     setRecording(undefined);
     setAccountId(undefined);
     dispatch({ type: 'logoutComplete' });
@@ -355,10 +360,10 @@ function RunSphereApp() {
     );
 
   /**
-   * Open the prepare screen for a run in the given mode (M9 9.5). Until the
-   * mode picker lands (9.6), a run started from Home, the Run tab, the Map or a
-   * suggested route is a Turf run, because that is the mode closest to how
-   * every run behaved before modes: it can claim ground.
+   * Open the prepare screen for a run in the given mode (M9 9.5). Most starts
+   * go through the picker (`chooseRun`); the ones that skip it already say
+   * what the run is for. "Run here" on the map and a suggested loop are Turf
+   * runs, a quest's Start is a quest run, a rival's ground is a Ghost Race.
    */
   const openActivity = (
     origin: 'home' | 'quests' | 'map' | 'quest-detail',
@@ -369,6 +374,12 @@ function RunSphereApp() {
         ? { kind: 'quest-detail' as const, quest: selectedQuest }
         : { kind: origin as 'home' | 'quests' | 'map' };
     dispatchActivityRoute({ type: 'start-run', origin: capturedOrigin, start });
+    setSelectedQuest(undefined);
+    setActiveTab('Run');
+  };
+  /** The Run tab's mode picker (M9 9.6), opened by Home's Start and the Run tab. */
+  const chooseRun = (origin: 'home' | 'map') => {
+    dispatchActivityRoute({ type: 'choose-mode', origin: { kind: origin } });
     setSelectedQuest(undefined);
     setActiveTab('Run');
   };
@@ -436,10 +447,32 @@ function RunSphereApp() {
         onExit={exitActivity}
         sync={activitySync}
       />
-    ) : (activeTab === 'Run' || activityRoute.screen === 'prepare') && accountId ? (
+    ) : (activityRoute.screen === 'choose' ||
+        (activeTab === 'Run' && activityRoute.screen === 'idle')) &&
+      accountId ? (
+      <RunModePicker
+        onPick={(mode) => {
+          const pick = pickRunMode(mode);
+          const from = routeOrigin(activityRoute) ?? { kind: 'home' as const };
+          if (pick.kind === 'start') {
+            dispatchActivityRoute({ type: 'start-run', origin: from, start: pick.start });
+            return;
+          }
+          dispatchActivityRoute({ type: 'exit' });
+          if (pick.kind === 'choose-quest') {
+            // A quest's own Start begins the quest run once it's taken on.
+            setActiveTab('Home');
+            setFocus('quests');
+          } else {
+            setActiveTab('Map');
+            setGhostHint(true);
+          }
+        }}
+      />
+    ) : activityRoute.screen === 'prepare' && accountId ? (
       <ActivityPreparation
         accountId={accountId}
-        start={activityRoute.screen === 'prepare' ? activityRoute.start : TURF_RUN}
+        start={activityRoute.start}
         {...(originLabel ? { originLabel } : {})}
         {...(routeGuide ? { guide: routeGuide } : {})}
         onChange={(session) => {
@@ -460,7 +493,7 @@ function RunSphereApp() {
           // Not a decline: passing on a route today is not rejecting one.
           setRouteGuide(undefined);
           setFocus('none');
-          openActivity('home');
+          chooseRun('home');
         }}
         onBack={() => setFocus('none')}
         onSessionExpired={expireSession}
@@ -491,7 +524,7 @@ function RunSphereApp() {
     ) : activeTab === 'Home' ? (
       <HomeScreen
         api={apiClient}
-        onStart={() => openActivity('home')}
+        onStart={() => chooseRun('home')}
         onChooseRoute={() => {
           setRouteGuide(undefined);
           setFocus('route-preview');
@@ -536,7 +569,9 @@ function RunSphereApp() {
           setActiveTab('Profile');
         }}
         onSessionExpired={expireSession}
+        ghostHint={ghostHint}
         onGhostRace={(run) => {
+          setGhostHint(false);
           setGhostRun(run);
           // A ghost is a reference on the map, not a route to follow, so it
           // does not also set a route guide.
@@ -598,12 +633,11 @@ function RunSphereApp() {
             setFocus('none');
             setRouteGuide(undefined);
             setGhostRun(undefined);
+            setGhostHint(false);
             if (tab !== 'Social') setSocialEntry('feed');
             if (tab !== 'Profile') setProfileEntry('profile');
             if (tab === 'Run') {
-              if (activeTab !== 'Run') {
-                openActivity(activeTab === 'Map' ? 'map' : 'home');
-              }
+              if (activeTab !== 'Run') chooseRun(activeTab === 'Map' ? 'map' : 'home');
               return;
             }
             dispatchActivityRoute({ type: 'select-tab' });

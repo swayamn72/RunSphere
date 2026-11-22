@@ -25,6 +25,8 @@ export type FocusedSurface = 'none' | 'challenges' | 'quests' | 'route-preview';
 
 export type ActivityRoute =
   | { readonly screen: 'idle' }
+  /** The mode picker (M9 9.6): nothing is recording and no mode is chosen yet. */
+  | { readonly screen: 'choose'; readonly origin: ActivityOrigin }
   /**
    * `start` is the mode the run will be recorded as. It lives only on the
    * prepare screen: from the moment recording begins it is on the local
@@ -37,6 +39,7 @@ export type ActivityRoute =
 export const initialActivityRoute: ActivityRoute = { screen: 'idle' };
 
 export type ActivityFlowEvent =
+  | { readonly type: 'choose-mode'; readonly origin: ActivityOrigin }
   | { readonly type: 'start-run'; readonly origin: ActivityOrigin; readonly start: RunStart }
   | { readonly type: 'recording-active' }
   | { readonly type: 'recording-finished' }
@@ -50,6 +53,7 @@ export const activityFlowReducer = (
   route: ActivityRoute,
   event: ActivityFlowEvent
 ): ActivityRoute => {
+  if (event.type === 'choose-mode') return { screen: 'choose', origin: event.origin };
   if (event.type === 'start-run')
     return { screen: 'prepare', origin: event.origin, start: event.start };
   if (event.type === 'select-tab' || event.type === 'logout' || event.type === 'exit')

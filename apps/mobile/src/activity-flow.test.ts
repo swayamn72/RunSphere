@@ -34,6 +34,24 @@ describe('activity flow', () => {
     });
   });
 
+  it('opens the mode picker, then the prepare screen for the mode picked (M9 9.6)', () => {
+    const choose = activityFlowReducer(initialActivityRoute, {
+      type: 'choose-mode',
+      origin: { kind: 'home' }
+    });
+    expect(choose).toEqual({ screen: 'choose', origin: { kind: 'home' } });
+    // Nothing records from the picker.
+    expect(activityFlowReducer(choose, { type: 'recording-active' })).toBe(choose);
+    expect(
+      activityFlowReducer(choose, {
+        type: 'start-run',
+        origin: choose.screen === 'choose' ? choose.origin : { kind: 'home' },
+        start: { mode: 'turf' }
+      })
+    ).toEqual({ screen: 'prepare', origin: { kind: 'home' }, start: { mode: 'turf' } });
+    expect(activityFlowReducer(choose, { type: 'exit' })).toEqual(initialActivityRoute);
+  });
+
   it('carries the chosen mode and its target to the prepare screen', () => {
     expect(
       activityFlowReducer(initialActivityRoute, {

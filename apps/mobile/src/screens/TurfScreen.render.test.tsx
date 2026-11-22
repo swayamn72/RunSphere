@@ -611,4 +611,41 @@ describe('the zone bar', () => {
     );
     expect(drawnIds(renderer)).toEqual(['00000000-0000-4000-8000-0000000000d1']);
   });
+
+  it('says what to tap after Ghost Race was picked on the Run tab (M9 9.6)', async () => {
+    const render = async (api: MobileApiClient) => {
+      let renderer!: ReactTestRenderer;
+      await act(async () => {
+        renderer = create(
+          React.createElement(TurfScreen, { api, ghostHint: true, onGhostRace: () => undefined })
+        );
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await moveMap(renderer, [72.8, 19, 72.95, 19.15], 13);
+      return renderer;
+    };
+    const raceable = {
+      claims: [claim({ ghostAvailable: true })],
+      truncated: false,
+      mapNote: MAP_NOTE
+    };
+    expect(textOf(await render(stubApi({ map: raceable })))).toContain(
+      'Tap a rival’s ground to race it.'
+    );
+    expect(textOf(await render(stubApi({})))).toContain('No rival ground to race here.');
+    expect(
+      textOf(
+        await render(
+          stubApi({
+            map: raceable,
+            summary: { claimCount: 1, totalAreaSqm: 1, lostCount: 0, ghostRacesLeft: 0 }
+          })
+        )
+      )
+    ).toContain('No ghost races left this hour.');
+    // Without the pick, the map says nothing of the kind.
+    expect(textOf(await renderTurf(stubApi({ map: raceable })))).not.toContain('Tap a rival');
+  });
 });
