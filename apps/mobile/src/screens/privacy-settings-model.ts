@@ -91,11 +91,21 @@ export const PROFILE_HELP: Readonly<Record<Audience, string>> = {
   only_me: 'Nobody can open your profile. You still show by username on boards you join.'
 };
 
-export const RUNS_HELP =
-  'Applies when friends can see each other’s runs. Exact start and finish points are never shown.';
+/**
+ * Who sees your runs, per choice (ADR-0015). Viewers see runs that count, with
+ * the route including start and finish unless "Hide start and finish" is on.
+ */
+export const RUNS_HELP: Readonly<Record<Audience, string>> = {
+  everyone: 'Anyone can see your runs that count: distance, time, pace, route and the day.',
+  friends: 'Friends see your runs that count: distance, time, pace, route and the day.',
+  only_me: 'Only you see your runs.'
+};
+
+/** Shown under the runs choice: what is cut whatever the choice. */
+export const RUNS_ALWAYS_CUT = 'Anything near your privacy zones is always cut from your routes.';
 
 export const NEVER_SHARED =
-  'Never shared, whatever you choose: your live location, exact start and finish points, raw GPS, date of birth and email.';
+  'Never shared, whatever you choose: your live location, anything inside your privacy zones, raw GPS, date of birth and email.';
 
 /** Apply a change locally before the server confirms, so switches feel instant. */
 export const applyChange = (

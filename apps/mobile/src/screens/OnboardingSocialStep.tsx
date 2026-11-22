@@ -5,7 +5,13 @@ import type { MobileApiClient } from '../api-client';
 import { PrimaryButton } from '../components/primitives';
 import { useAppStyles } from '../components/styles';
 import { failureMessage } from '../failure-copy';
-import { AUDIENCE_OPTIONS, PROFILE_HELP, type Audience } from './privacy-settings-model';
+import {
+  AUDIENCE_OPTIONS,
+  PROFILE_HELP,
+  RUNS_ALWAYS_CUT,
+  RUNS_HELP,
+  type Audience
+} from './privacy-settings-model';
 
 type Api = Pick<MobileApiClient, 'savePrivacySettings' | 'saveIdentity' | 'createPrivacyZone'>;
 
@@ -14,8 +20,8 @@ export type CaptureLocation = () => Promise<{ latitude: number; longitude: numbe
 
 /**
  * Sign-up's "Who can see you" step (ADR-0014, SI.4): profile visibility with
- * Everyone pre-selected, an optional area, and the offer to hide home or work
- * from routes. Nothing here blocks: every choice can be changed later in
+ * Everyone pre-selected, who sees your runs with Friends pre-selected (ADR-0015,
+ * M9 9.27), an optional area, and the offer to hide home or work from routes. Nothing here blocks: every choice can be changed later in
  * Privacy & visibility, and a failed save still lets the runner continue.
  */
 export function OnboardingSocialStep({
@@ -29,6 +35,7 @@ export function OnboardingSocialStep({
 }) {
   const styles = useAppStyles();
   const [audience, setAudience] = useState<Audience>('everyone');
+  const [runsAudience, setRunsAudience] = useState<Audience>('friends');
   const [area, setArea] = useState<string>();
   const [showAreas, setShowAreas] = useState(false);
   const [zoneNote, setZoneNote] = useState('');
@@ -58,6 +65,7 @@ export function OnboardingSocialStep({
       // only-me profiles start anonymous there and out of search (ADR-0014).
       await api.savePrivacySettings({
         profileVisibility: audience,
+        runsVisibility: runsAudience,
         searchable: audience !== 'only_me',
         nameOnGround: audience === 'everyone'
       });
@@ -93,6 +101,28 @@ export function OnboardingSocialStep({
         })}
       </View>
       <Text style={styles.lead}>{PROFILE_HELP[audience]}</Text>
+
+      <Text style={styles.fieldLabel}>WHO SEES YOUR RUNS</Text>
+      <View style={styles.segmented} accessibilityRole="radiogroup" accessibilityLabel="Runs">
+        {AUDIENCE_OPTIONS.map((option) => {
+          const active = option.value === runsAudience;
+          return (
+            <Pressable
+              key={option.value}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={`Runs: ${option.label}`}
+              onPress={() => setRunsAudience(option.value)}
+              style={[styles.segment, active && styles.segmentActive]}
+            >
+              <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <Text style={styles.lead}>{`${RUNS_HELP[runsAudience]} ${RUNS_ALWAYS_CUT}`}</Text>
 
       <Text style={styles.fieldLabel}>YOUR AREA (OPTIONAL)</Text>
       <Pressable

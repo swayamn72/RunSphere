@@ -448,8 +448,8 @@ export function Onboarding({
                 />
               </View>
               <Text style={styles.privateNote}>
-                Activities stay private by default. Declining location still lets you browse
-                RunSphere, but activity recording and nearby quests remain unavailable.
+                Change who sees your runs any time in Privacy & visibility. Declining location still
+                lets you browse RunSphere, but recording runs and nearby quests stay unavailable.
               </Text>
               {state.location !== 'granted' ? (
                 <PrimaryButton label="Allow location" onPress={() => void requestLocation()} />

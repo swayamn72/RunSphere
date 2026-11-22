@@ -65,10 +65,21 @@ describe('sign-up Who can see you step (SI.4)', () => {
     await press(renderer, 'Continue');
     expect(api.savePrivacySettings).toHaveBeenCalledWith({
       profileVisibility: 'everyone',
+      runsVisibility: 'friends',
       searchable: true,
       nameOnGround: true
     });
     expect(onDone).toHaveBeenCalled();
+  });
+
+  it('asks who sees your runs, Friends first, and saves the choice (M9 9.27)', async () => {
+    const api = stubApi();
+    const { renderer } = await render(api);
+    await press(renderer, 'Runs: Only me');
+    await press(renderer, 'Continue');
+    expect(api.savePrivacySettings).toHaveBeenCalledWith(
+      expect.objectContaining({ profileVisibility: 'everyone', runsVisibility: 'only_me' })
+    );
   });
 
   it('keeps a friends-only runner anonymous on Turf, and saves a chosen area', async () => {
@@ -80,6 +91,7 @@ describe('sign-up Who can see you step (SI.4)', () => {
     await press(renderer, 'Continue');
     expect(api.savePrivacySettings).toHaveBeenCalledWith({
       profileVisibility: 'friends',
+      runsVisibility: 'friends',
       searchable: true,
       nameOnGround: false
     });

@@ -56,6 +56,8 @@ describe('privacy settings screen (SI.5)', () => {
   it('says what is never shared', () => {
     expect(NEVER_SHARED).toMatch(/live location/);
     expect(NEVER_SHARED).toMatch(/date of birth/);
+    // Start and finish may be shown since ADR-0015, so this mustn't promise otherwise.
+    expect(NEVER_SHARED).not.toMatch(/start and finish/);
   });
 
   it('applies a change locally before the server answers', () => {

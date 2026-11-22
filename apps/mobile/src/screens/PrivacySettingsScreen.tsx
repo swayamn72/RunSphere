@@ -16,6 +16,7 @@ import {
   NEVER_SHARED,
   PROFILE_HELP,
   REQUESTS_FROM_OPTIONS,
+  RUNS_ALWAYS_CUT,
   RUNS_HELP,
   TOGGLES,
   applyChange,
@@ -253,7 +254,9 @@ export function PrivacySettingsScreen({
             settings?.runsVisibility,
             (value) => void change({ runsVisibility: value })
           )}
-          <Text style={styles.rowDetail}>{RUNS_HELP}</Text>
+          <Text style={styles.rowDetail}>
+            {`${RUNS_HELP[settings?.runsVisibility ?? 'friends']} ${RUNS_ALWAYS_CUT}`}
+          </Text>
         </View>
         {TOGGLES.runs.map(toggleRow)}
         {onOpenSafety ? (

@@ -65,6 +65,7 @@ import type {
   MyQuestListResponse,
   PublicProfile,
   ProfileRunsResponse,
+  LegalConsentStatus,
   RunLogResponse,
   QuestAcceptResponse,
   SafetyShareReceived,
@@ -499,6 +500,13 @@ export class MobileApiClient {
         { method: 'GET' }
       )
     ).data;
+  }
+  /** Whether you have agreed to the legal text now in force (M9 9.26). */
+  async getLegalConsent(): Promise<LegalConsentStatus> {
+    return this.request('/v1/legal/consent', { method: 'GET' });
+  }
+  async acceptLegalPolicy(policyVersion: string): Promise<LegalConsentStatus> {
+    return this.request('/v1/legal/consent', { method: 'POST', body: { policyVersion } });
   }
   /** Your counted runs, newest first, 20 a page (M9 9.13). */
   async getRunLog(cursor?: string): Promise<RunLogResponse> {

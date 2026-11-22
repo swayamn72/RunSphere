@@ -48,6 +48,8 @@ import {
 } from './src/location-adapter';
 import { inviteTokenFromUrl } from './src/invite-link';
 import { InviteAcceptSheet } from './src/screens/InviteAcceptSheet';
+import { RunsSharingPrompt } from './src/screens/RunsSharingPrompt';
+import { needsRunsPrompt } from './src/screens/runs-sharing-prompt-model';
 import { PrimaryButton } from './src/components/primitives';
 import { useAppStyles } from './src/components/styles';
 import { coordinateLogout } from './src/logout-coordinator';
@@ -331,6 +333,22 @@ function RunSphereApp() {
       ...(accountId ? { recorder: { clear: () => activityRecorder.clearAccount(accountId) } } : {})
     }).then(finishSession);
   }, [accountId, finishSession]);
+  // "Who sees your runs?" (M9 9.27): once per account, when the legal text it
+  // agreed to predates runs being visible. Unknown never blocks the app.
+  const [runsPrompt, setRunsPrompt] = useState(false);
+  useEffect(() => {
+    if (onboarding.step !== 'complete' || !accountId) {
+      setRunsPrompt(false);
+      return;
+    }
+    let active = true;
+    void needsRunsPrompt(apiClient).then((needed) => {
+      if (active) setRunsPrompt(needed);
+    });
+    return () => {
+      active = false;
+    };
+  }, [onboarding.step, accountId]);
   if (initializationState === 'loading')
     return (
       <SafeAreaView
@@ -362,6 +380,18 @@ function RunSphereApp() {
             api={apiClient}
             token={pendingInvite}
             onClose={() => setPendingInvite(undefined)}
+          />
+        </FocusedScrollShell>
+      </SafeAreaView>
+    );
+  if (onboarding.step === 'complete' && accountId && runsPrompt)
+    return (
+      <SafeAreaView style={styles.screen}>
+        <FocusedScrollShell>
+          <RunsSharingPrompt
+            api={apiClient}
+            onDone={() => setRunsPrompt(false)}
+            onSignOut={expireSession}
           />
         </FocusedScrollShell>
       </SafeAreaView>
