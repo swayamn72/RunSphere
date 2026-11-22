@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { canonicalJson, type ActivityChunkRequest } from '@runsphere/contracts';
 import { withTransaction, type Database } from '@runsphere/db';
+import { computeRunMetrics } from '@runsphere/domain';
 
 type Queryable = Pick<Database, 'query'>;
 
@@ -9,6 +10,7 @@ export interface TracePoint {
   longitude: number;
   recordedAt: string;
   accuracyMeters?: number;
+  altitudeMeters?: number;
 }
 interface ZoneProvenance {
   id: string;
@@ -231,9 +233,41 @@ const deriveActivity = async (db: Queryable, activityId: string): Promise<void> 
       })
     ]
   );
+  await writeActivityMetrics(db, activityId, points);
   await db.query(
     `UPDATE activity_submissions SET status = $1, processed_at = now(), summary = $2
      WHERE id = $3 AND status = 'validating' AND deleted_at IS NULL`,
     ['derived', JSON.stringify(summary), activityId]
+  );
+};
+
+/**
+ * Compute and store a run's metrics (M9 9.9) from its raw points.
+ *
+ * Runs inside the derivation transaction, and by the backfill (9.10) for runs
+ * derived before metrics existed. A row is replaced only by a newer
+ * `metricsVersion`, so a replay is a no-op and old code never overwrites new
+ * numbers. The metrics carry no coordinates (see `run-metrics.ts`).
+ */
+export const writeActivityMetrics = async (
+  db: Queryable,
+  activityId: string,
+  points: readonly TracePoint[]
+): Promise<void> => {
+  const metrics = computeRunMetrics(points);
+  await db.query(
+    `INSERT INTO activity_metrics (activity_id, metrics_version, metrics, moving_seconds, elevation_gain_meters)
+     VALUES ($1, $2, $3::jsonb, $4, $5)
+     ON CONFLICT (activity_id) DO UPDATE SET metrics_version = EXCLUDED.metrics_version,
+       metrics = EXCLUDED.metrics, moving_seconds = EXCLUDED.moving_seconds,
+       elevation_gain_meters = EXCLUDED.elevation_gain_meters, computed_at = now()
+     WHERE activity_metrics.metrics_version < EXCLUDED.metrics_version`,
+    [
+      activityId,
+      metrics.metricsVersion,
+      JSON.stringify(metrics),
+      metrics.movingSeconds,
+      metrics.elevation?.gainMeters ?? null
+    ]
   );
 };

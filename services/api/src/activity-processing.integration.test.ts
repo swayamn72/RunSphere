@@ -6,8 +6,10 @@ import {
   migrate,
   postgisIntegrationEnabled,
   requirePostgisInCi,
+  withTransaction,
   type Database
 } from '@runsphere/db';
+import type { RunMetrics } from '@runsphere/domain';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
 import { chunkHash, processActivity } from './activity.js';
@@ -16,7 +18,11 @@ import { weeklyGoalResponse } from './quest-routes.js';
 /**
  * B8 and B9 against real PostgreSQL: activity processing is one transaction,
  * so a failure halfway leaves nothing behind and a retry succeeds, and a run
- * with no points ends `rejected` instead of stuck in `validating`.
+ * with no points ends `rejected` instead of stuck in `validating`. Also M9 9.9:
+ * a derived run has its metrics.
+ *
+ * Every account this suite registers is erased afterwards, so suites that run
+ * later against the same database don't see its runs (B19).
  */
 
 const enabled = postgisIntegrationEnabled();
@@ -24,10 +30,21 @@ const describePostgis = enabled ? describe : describe.skip;
 const db = createDatabase(defaultDatabaseUrl(process.env));
 const app = buildApp({ db, authSecret: 'activity-processing-integration-secret' });
 
+const createdAccounts: string[] = [];
+const accountIdOf = (token: string) =>
+  JSON.parse(Buffer.from(token.split('.')[0]!, 'base64url').toString()).sub as string;
+
 beforeAll(async () => {
   if (enabled) await migrate(db);
 });
 afterAll(async () => {
+  if (enabled) {
+    // Registration writes consent history, which only an erasure may delete.
+    await withTransaction(db, async (client) => {
+      await client.query("SELECT set_config('runsphere.account_erasure', 'on', true)");
+      await client.query('DELETE FROM accounts WHERE id = ANY($1::uuid[])', [createdAccounts]);
+    });
+  }
   await app.close();
   await db.end();
 });
@@ -46,11 +63,13 @@ const register = async () => {
     }
   });
   expect(response.statusCode).toBe(201);
-  return (response.json() as { accessToken: string }).accessToken;
+  const token = (response.json() as { accessToken: string }).accessToken;
+  createdAccounts.push(accountIdOf(token));
+  return token;
 };
 
 /** A finalized activity in `validating`, with a short synthetic trace. */
-const finalizedActivity = async (token: string) => {
+const finalizedActivity = async (token: string, withAltitude = false) => {
   const headers = { authorization: `Bearer ${token}` };
   const created = await app.inject({
     method: 'POST',
@@ -66,7 +85,8 @@ const finalizedActivity = async (token: string) => {
       latitude: 1.0 + index * 0.0001,
       longitude: 1.0,
       recordedAt: new Date(Date.UTC(2026, 10, 1, 6, 0, index * 5)).toISOString(),
-      accuracyMeters: 5
+      accuracyMeters: 5,
+      ...(withAltitude ? { altitudeMeters: 10 + index * 4 } : {})
     }))
   };
   const put = await app.inject({
@@ -160,6 +180,36 @@ describePostgis('activity processing (B8, B9)', () => {
     await processActivity(db, id);
 
     expect(await statusOf(id)).toEqual({ status: 'rejected', rejection_reason: 'no_points' });
+    expect(await countRows('activity_metrics', id)).toBe(0);
+  });
+
+  it('stores the metrics of a derived run once, with elevation when points carry altitude (9.9)', async () => {
+    const id = await finalizedActivity(await register(), true);
+
+    await processActivity(db, id);
+    await processActivity(db, id);
+
+    const rows = await db.query<{
+      metrics_version: number;
+      metrics: RunMetrics;
+      moving_seconds: number;
+      elevation_gain_meters: number | null;
+    }>(
+      'SELECT metrics_version, metrics, moving_seconds, elevation_gain_meters FROM activity_metrics WHERE activity_id = $1',
+      [id]
+    );
+    expect(rows.rows).toHaveLength(1);
+    const row = rows.rows[0]!;
+    const output = await db.query<{ distance_meters: number }>(
+      'SELECT distance_meters FROM activity_validation_outputs WHERE activity_id = $1',
+      [id]
+    );
+    // Same segments as validation, so the same distance.
+    expect(row.metrics.distanceMeters).toBeCloseTo(output.rows[0]!.distance_meters, 0);
+    expect(row.metrics_version).toBe(row.metrics.metricsVersion);
+    expect(row.moving_seconds).toBe(25);
+    expect(row.elevation_gain_meters).toBeGreaterThan(5);
+    expect(JSON.stringify(row.metrics)).not.toMatch(/latitude|longitude/);
   });
 });
 
@@ -171,9 +221,7 @@ describe('activity processing integration gate', () => {
 
 describePostgis('weekly goal week boundary (B10)', () => {
   it('counts a run at 00:30 Monday in India toward the new Kolkata week', async () => {
-    const token = await register();
-    const accountId = JSON.parse(Buffer.from(token.split('.')[0]!, 'base64url').toString())
-      .sub as string;
+    const accountId = accountIdOf(await register());
     // 2026-11-15 is a Sunday. 19:00 UTC is 00:30 IST on Monday 16 November.
     const processedAt = new Date('2026-11-15T19:00:00.000Z');
     const run = await db.query<{ id: string }>(

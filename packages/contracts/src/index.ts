@@ -454,7 +454,13 @@ const PointSchema = Type.Object(
     latitude: Type.Number({ minimum: -90, maximum: 90 }),
     longitude: Type.Number({ minimum: -180, maximum: 180 }),
     recordedAt: Type.String({ format: 'date-time' }),
-    accuracyMeters: Type.Optional(Type.Number({ minimum: 0, maximum: 10000 }))
+    accuracyMeters: Type.Optional(Type.Number({ minimum: 0, maximum: 10000 })),
+    /**
+     * GPS altitude, for elevation in the run's metrics (M9 9.9). Optional: builds
+     * before it never send it, and a run already part-uploaded without it keeps
+     * uploading without it, or its finalize checksum would stop matching.
+     */
+    altitudeMeters: Type.Optional(Type.Number({ minimum: -1000, maximum: 10000 }))
   },
   Strict
 );
