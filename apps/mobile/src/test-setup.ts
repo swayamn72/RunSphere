@@ -27,6 +27,7 @@ vi.mock('react-native-svg', async () => {
     Path: host('Path'),
     Circle: host('Circle'),
     Line: host('Line'),
+    Ellipse: host('Ellipse'),
     Rect: host('Rect'),
     G: host('G'),
     Defs: host('Defs'),
@@ -51,7 +52,11 @@ vi.mock('react-native-reanimated', async () => {
   const chain: Record<string, unknown> = {};
   for (const method of ['delay', 'duration', 'springify', 'withInitialValues', 'reduceMotion'])
     chain[method] = () => chain;
-  const Animated = { View: host('Animated.View'), ScrollView: host('Animated.ScrollView') };
+  const Animated = {
+    View: host('Animated.View'),
+    ScrollView: host('Animated.ScrollView'),
+    createAnimatedComponent: (component: unknown) => component
+  };
   return {
     default: Animated,
     ...Animated,
@@ -59,6 +64,7 @@ vi.mock('react-native-reanimated', async () => {
     useAnimatedStyle: (factory: () => unknown) => factory(),
     useDerivedValue: (factory: () => unknown) => ({ value: factory() }),
     useAnimatedReaction: () => undefined,
+    useAnimatedProps: (factory: () => unknown) => factory(),
     useAnimatedScrollHandler: () => () => undefined,
     withSpring: finish,
     withTiming: finish,
@@ -70,7 +76,13 @@ vi.mock('react-native-reanimated', async () => {
     interpolate: (value: number, input: number[], output: number[]) =>
       output[0]! + ((value - input[0]!) / (input[1]! - input[0]!)) * (output[1]! - output[0]!),
     Extrapolation: { CLAMP: 'clamp' },
-    Easing: { out: (fn: unknown) => fn, cubic: (t: number) => t, linear: (t: number) => t },
+    Easing: {
+      out: (fn: unknown) => fn,
+      inOut: (fn: unknown) => fn,
+      cubic: (t: number) => t,
+      sin: (t: number) => t,
+      linear: (t: number) => t
+    },
     FadeInDown: chain,
     FadeIn: chain,
     ReduceMotion: { System: 'system', Always: 'always', Never: 'never' }

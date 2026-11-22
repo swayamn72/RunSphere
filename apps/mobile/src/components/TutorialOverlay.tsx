@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { BlurView } from 'expo-blur';
 import Animated, {
@@ -22,6 +22,7 @@ import {
 import { RING_RADIUS, bubbleSide, bubbleTop, ringRect } from '../tutorial-overlay-model';
 import { tutorialTargets, type TargetRegistry } from '../tutorial-targets';
 import { useAppStyles } from './styles';
+import { TourRho, useTypedLine } from './TourRho';
 
 /** Blur only where Android can do it well (12+); elsewhere the panels just dim. */
 const canBlur =
@@ -41,15 +42,12 @@ export function TutorialOverlay({
   onAction,
   activeTab,
   onShowTab,
-  rho,
   registry = tutorialTargets
 }: {
   state: TourState;
   onAction: (action: TourAction) => void;
   activeTab: Tab;
   onShowTab: (tab: Tab) => void;
-  /** Rho, drawn beside the bubble's text (9.24). */
-  rho?: ReactNode;
   registry?: TargetRegistry;
 }) {
   const styles = useAppStyles();
@@ -76,6 +74,7 @@ export function TutorialOverlay({
     };
   }, [step, activeTab, onShowTab, registry]);
 
+  const typed = useTypedLine(step?.rhoLine ?? '', reduceMotion);
   const ring = target ? ringRect(target, screen) : undefined;
   const x = useSharedValue(ring?.x ?? width / 2);
   const y = useSharedValue(ring?.y ?? height / 2);
@@ -180,13 +179,23 @@ export function TutorialOverlay({
         accessibilityLiveRegion="polite"
       >
         <View style={styles.tourBubbleRow}>
-          {rho}
+          <TourRho
+            gesture={
+              state !== 'done' && (state.index === 0 || state.index === TOUR_STEPS.length - 1)
+                ? 'wave'
+                : 'point'
+            }
+            reduceMotion={reduceMotion}
+          />
           <View style={styles.flexCopy}>
             <Text style={styles.eyebrow}>{tourProgress(state).toUpperCase()}</Text>
             <Text accessibilityRole="header" style={styles.rowTitle}>
               {step.title}
             </Text>
-            <Text style={styles.rowDetail}>{step.rhoLine}</Text>
+            {/* Typed on for sight; read whole by TalkBack from the start. */}
+            <Text style={styles.rowDetail} accessibilityLabel={step.rhoLine}>
+              {typed}
+            </Text>
           </View>
         </View>
         <View style={styles.tourButtons}>

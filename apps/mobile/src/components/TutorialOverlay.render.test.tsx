@@ -27,7 +27,11 @@ vi.mock('./styles', () => ({ useAppStyles: () => new Proxy({}, { get: () => ({})
 vi.mock('../theme/theme', () => ({
   useAppTheme: () => ({
     reduceMotion: true,
-    tokens: { action: { primary: 'a' }, scrim: { subtle: 's', strong: 'S' } }
+    tokens: {
+      action: { primary: 'a' },
+      scrim: { subtle: 's', strong: 'S' },
+      mascot: { body: 'b', outline: 'o', eye: 'e', beacon: 'n' }
+    }
   })
 }));
 
