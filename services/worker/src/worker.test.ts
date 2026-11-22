@@ -115,6 +115,10 @@ describe('privacy maintenance', () => {
     const calls: string[] = [];
     const database = {
       query: vi.fn(async (sql: string) => {
+        if (sql.includes('LEFT JOIN activity_metrics')) {
+          calls.push('metrics-backfill');
+          return { rows: [] };
+        }
         if (sql.includes('raw_trace_retention_until')) {
           calls.push('purge:start');
           await Promise.resolve();
@@ -197,6 +201,8 @@ describe('privacy maintenance', () => {
     // global board — a full recompute over the widest set of accounts — is
     // last of all.
     expect(calls).toEqual([
+      // Metrics while the raw points still exist (M9 9.10).
+      'metrics-backfill',
       'purge:start',
       'purge:end',
       'delete',

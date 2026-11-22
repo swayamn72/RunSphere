@@ -28,6 +28,7 @@ import { processTerritorySeasonReset } from './territory-season-reset-job.js';
 import { processTerritorySeasonEnding } from './territory-season-ending-job.js';
 import { processMlFeatureExtraction } from './ml-feature-extractor-job.js';
 import { processProgressionWeekClose } from './progression-week-close.js';
+import { processActivityMetricsBackfill } from './activity-metrics-backfill.js';
 import {
   processAnticheatRetrain,
   processQuestRecommendRetrain,
@@ -195,12 +196,15 @@ export interface MaintenanceJob {
  * - Turf runs in the order a month happens: geo-tag, weekly rank, ending
  *   warning, reset. All four are state-driven, so an idle sweep is a handful of
  *   indexed reads.
+ * - Run metrics backfill first, while raw points still exist (M9 9.10).
  * - ML feature extraction runs while raw traces still exist (30 days); the
  *   retrain proposals no-op without a training service.
  * - Campaigns resolve their audience last, so consent revoked anywhere in the
  *   sweep is already reflected.
  */
 export const maintenanceJobs: readonly MaintenanceJob[] = [
+  // Before the purge, so a run on its last day of raw points still gets metrics.
+  { name: 'activity_metrics_backfill', run: (db) => processActivityMetricsBackfill(db) },
   { name: 'raw_trace_purge', run: (db) => purgeExpiredRawTraces(db) },
   { name: 'account_deletion', run: (db) => convergeAccountDeletion(db) },
   { name: 'safety_share_expiry', run: (db) => expireSafetyShares(db) },
