@@ -174,6 +174,18 @@ Was:
   transaction with `runsphere.account_erasure` on, since registration writes consent history), and
   their claims cascade. Verified: run-modes then the season suite, in CI order, 7/7 and 22/22.
 
+### B20 — A failed upload could never be retried, and history read "offline" (S2, Fixed 2026-11-22)
+
+- Found on a phone during the M9 9.29 device pass. `sync()` accepted runs in `failed` but moved
+  them straight to `syncing`; the recorder only allows `failed → queued → syncing`, so it threw.
+  "Retry sync" on a failed run therefore never worked, and because one throw aborts
+  `syncPending`, Activity history showed "History is offline" on any phone holding one failed
+  run, whatever the connection. The unit tests missed it because their recorder double accepted
+  any transition.
+- Fix: a failed run goes back to `queued` first (`activity-sync.ts`); the test double now enforces
+  the recorder's real table (`canTransition`, exported). Verified on the phone: the stuck run
+  uploaded and counted, and history loads.
+
 ### Integration run (2026-11-20, isolated `runsphere_test` database, `CI=true`)
 
 All migrations apply cleanly. **Every PostGIS suite passes with nothing skipped**: API 568/568,

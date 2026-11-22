@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ActivitySession } from './activity-recorder-core.js';
+import { canTransition, type ActivitySession } from './activity-recorder-core.js';
 import { createActivitySyncCoordinator, samplesToChunks } from './activity-sync.js';
 import { ApiFailure } from './api-client.js';
 import { AuthFailure } from './auth-failure.js';
@@ -38,6 +38,9 @@ const recorder = (stored: ActivitySession) => ({
   samples: vi.fn().mockResolvedValue(samples),
   transition: vi.fn(async (_id: string, _account: string, from: string, to: string) => {
     if (stored.state !== from) return false;
+    // Like the real recorder: an impossible step throws.
+    if (!canTransition(from as ActivitySession['state'], to as ActivitySession['state']))
+      throw new Error(`Invalid recording transition: ${from} -> ${to}`);
     stored.state = to as ActivitySession['state'];
     return true;
   }),
@@ -120,6 +123,27 @@ describe('samplesToChunks altitude (M9 9.9)', () => {
 });
 
 describe('activity sync coordinator', () => {
+  it('retries a failed run: back in the queue, then uploading (found on a phone, M9 9.29)', async () => {
+    const failed = { ...session, state: 'failed' as const };
+    const stored = { ...failed };
+    const api = {
+      createActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'received' }),
+      recoverActivitySync: vi
+        .fn()
+        .mockResolvedValue({ id: 'remote-1', status: 'received', missingSequences: [0] }),
+      uploadActivityChunk: vi.fn(),
+      finalizeActivity: vi.fn().mockResolvedValue({ id: 'remote-1', status: 'validating' })
+    };
+    const local = recorder(stored);
+    const result = await createActivitySyncCoordinator(api as never, local as never).sync(failed);
+    expect(local.transition.mock.calls.slice(0, 2).map((call) => [call[2], call[3]])).toEqual([
+      ['failed', 'queued'],
+      ['queued', 'syncing']
+    ]);
+    expect(api.finalizeActivity).toHaveBeenCalled();
+    expect(result.session.state).toBe('queued');
+  });
+
   it('persists received/validating lifecycle metadata while uploading canonical chunks', async () => {
     const stored = { ...session };
     const api = {

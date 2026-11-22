@@ -225,7 +225,8 @@ export const acceptedSegment = (
   return { distanceMeters: distance, durationSeconds: elapsed };
 };
 
-const canTransition = (from: RecordingState, to: RecordingState): boolean => {
+/** The recorder's lifecycle; exported so test doubles keep to it. */
+export const canTransition = (from: RecordingState, to: RecordingState): boolean => {
   const transitions: Record<RecordingState, readonly RecordingState[]> = {
     prepare: ['acquiring', 'discarded'],
     acquiring: ['active', 'failed', 'discarded'],

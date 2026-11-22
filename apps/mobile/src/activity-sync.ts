@@ -137,8 +137,14 @@ export const createActivitySyncCoordinator = (
     if (!['queued', 'failed', 'syncing'].includes(session.state)) return { session };
     if (['rejected', 'deleted', 'derived'].includes(session.remoteStatus ?? '')) return { session };
     const now = new Date().toISOString();
+    // A failed run goes back in the queue first: the recorder allows
+    // failed -> queued -> syncing, not failed -> syncing. Going straight there
+    // threw, so a phone with one failed upload could never retry it, and the
+    // whole history refresh reported itself offline (found on a phone, M9 9.29).
+    if (session.state === 'failed')
+      await recorder.transition(session.id, session.accountId, 'failed', 'queued', now);
     if (session.state !== 'syncing')
-      await recorder.transition(session.id, session.accountId, session.state, 'syncing', now);
+      await recorder.transition(session.id, session.accountId, 'queued', 'syncing', now);
     try {
       const chunks = samplesToChunks(
         await recorder.samples(session.id, session.accountId),
