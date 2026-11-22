@@ -1,6 +1,7 @@
 import type React from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useAppTheme } from '../theme/theme';
+import { tutorialTargets } from '../tutorial-targets';
 
 /**
  * Keeps a focused text field above the keyboard. The app draws edge to edge,
@@ -28,6 +29,9 @@ export function TabScrollShell({ children }: { children: React.ReactNode }) {
         contentContainerStyle={[styles.tabContent, { backgroundColor: tokens.background.canvas }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        // A settled scroll has moved every tour target on the tab (M9 9.22).
+        onScrollEndDrag={tutorialTargets.requestMeasure}
+        onMomentumScrollEnd={tutorialTargets.requestMeasure}
       >
         {children}
       </ScrollView>
