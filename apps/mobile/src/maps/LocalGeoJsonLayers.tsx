@@ -34,7 +34,18 @@ export interface LocalGeoJsonLayer {
     | 'ghost-head'
     | 'run-glow'
     | 'loop-return'
-    | 'loop-ready';
+    | 'loop-ready'
+    | 'drawn-route'
+    | 'route-head'
+    | 'route-start'
+    | 'route-finish';
+  /**
+   * `drawn-route` only: a `line-gradient` expression over `line-progress`
+   * (M9 9.18). The source then turns on `lineMetrics`, which gradients need.
+   */
+  readonly gradient?: unknown[];
+  /** Markers only: hidden markers stay in place at radius 0, so they can pop in. */
+  readonly visible?: boolean;
 }
 
 const decimateGeometry = (geometry: Geometry): Geometry => {
@@ -79,8 +90,50 @@ export function LocalGeoJsonLayers({
   return (
     <>
       {rendererLayers.map((layer) => (
-        <GeoJSONSource key={layer.id} id={`${layer.id}-source`} data={layer.data}>
-          {layer.kind === 'run-glow' ? (
+        <GeoJSONSource
+          key={layer.id}
+          id={`${layer.id}-source`}
+          data={layer.data}
+          {...(layer.kind === 'drawn-route' ? { lineMetrics: true } : {})}
+        >
+          {layer.kind === 'drawn-route' ? (
+            <Layer
+              id={`${layer.id}-layer`}
+              type="line"
+              layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+              paint={{
+                'line-width': 5,
+                'line-opacity': 0.95,
+                ...(layer.gradient
+                  ? { 'line-gradient': layer.gradient as never }
+                  : { 'line-color': gameWorld.route.quick })
+              }}
+            />
+          ) : layer.kind === 'route-head' ? (
+            <Layer
+              id={`${layer.id}-layer`}
+              type="circle"
+              paint={{
+                'circle-color': gameWorld.route.head,
+                'circle-radius': 6,
+                'circle-blur': 0.4,
+                'circle-opacity': layer.visible === false ? 0 : 0.95
+              }}
+            />
+          ) : layer.kind === 'route-start' || layer.kind === 'route-finish' ? (
+            <Layer
+              id={`${layer.id}-layer`}
+              type="circle"
+              paint={{
+                'circle-color':
+                  layer.kind === 'route-start' ? gameWorld.route.start : gameWorld.route.finish,
+                'circle-radius': layer.visible === false ? 0 : 7,
+                'circle-radius-transition': { duration: 260, delay: 0 },
+                'circle-stroke-color': gameWorld.route.markerRim,
+                'circle-stroke-width': layer.visible === false ? 0 : 2
+              }}
+            />
+          ) : layer.kind === 'run-glow' ? (
             <Layer
               id={`${layer.id}-layer`}
               type="line"

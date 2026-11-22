@@ -7,6 +7,7 @@ import { useAppTheme } from '../theme/theme';
 import type { RunDetailSlotProps } from './RunDetailHost';
 import { SECTION_RISE, SECTION_STAGGER_MS } from './run-detail-model';
 import { routeThumbnailPath, runCard } from './run-log-model';
+import { RunDetailMap } from './RunDetailMap';
 
 /** The route area takes about 55% of the screen (9.19). */
 export const ROUTE_AREA_SHARE = 0.55;
@@ -32,6 +33,8 @@ export function RunDetailScreen({
   const areaHeight = Math.round(height * ROUTE_AREA_SHARE);
   const line = routeThumbnailPath(run.item.route, 100, 12);
   const thumbnailFade = useAnimatedStyle(() => ({ opacity: 1 - progress.value }));
+  const mapFade = useAnimatedStyle(() => ({ opacity: progress.value }));
+  const lines = run.item.route ?? [];
 
   const section = (index: number, children: ReactNode) => (
     <Animated.View
@@ -67,7 +70,14 @@ export function RunDetailScreen({
       <ScrollView contentContainerStyle={styles.runDetailBody}>
         {line ? (
           <View style={[styles.runDetailRouteArea, { height: areaHeight }]}>
-            <Animated.View style={[styles.runDetailThumbnail, thumbnailFade]}>
+            <Animated.View style={[styles.runDetailMapLayer, mapFade]}>
+              <RunDetailMap
+                lines={lines}
+                reduceMotion={reduceMotion}
+                accessibilityLabel={run.owner ? 'Your route' : 'Their route'}
+              />
+            </Animated.View>
+            <Animated.View pointerEvents="none" style={[styles.runDetailThumbnail, thumbnailFade]}>
               <Svg
                 width={Math.min(width - 36, areaHeight)}
                 height={Math.min(width - 36, areaHeight)}

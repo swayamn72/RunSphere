@@ -44,6 +44,19 @@ export interface MapSurfaceProps {
   readonly accessibilityLabel: string;
   /** Keep attribution visible for non-full-screen product map embeds. */
   readonly showAttribution?: boolean;
+  /**
+   * Fit the camera to these `[west, south, east, north]` bounds once the style
+   * has loaded (M9 9.18). `duration: 0` jumps, for reduce motion.
+   */
+  readonly fitBounds?: {
+    readonly bounds: [number, number, number, number];
+    readonly padding: number;
+    readonly duration: number;
+  };
+  /** Called once the map style has loaded and layers can draw. */
+  readonly onStyleReady?: () => void;
+  /** Hide the zoom and recenter buttons, for a map that only shows a route. */
+  readonly showControls?: boolean;
 }
 
 /**
@@ -61,7 +74,10 @@ export function MapSurface({
   onRequestRecenter,
   fallbackState,
   accessibilityLabel,
-  showAttribution = true
+  showAttribution = true,
+  fitBounds,
+  onStyleReady,
+  showControls = true
 }: MapSurfaceProps) {
   const { tokens, reduceMotion } = useAppTheme();
   const providerConfig = useMemo(() => resolveMapRenderPlan(), []);
@@ -209,9 +225,17 @@ export function MapSurface({
           compass={false}
           scaleBar={false}
           tintColor={tokens.map.controlText}
-          onDidFinishLoadingStyle={() =>
-            setLifecycle((current) => transitionMapLifecycle(current, 'style-loaded'))
-          }
+          onDidFinishLoadingStyle={() => {
+            setLifecycle((current) => transitionMapLifecycle(current, 'style-loaded'));
+            if (fitBounds) {
+              const pad = fitBounds.padding;
+              cameraRef.current?.fitBounds(fitBounds.bounds, {
+                padding: { top: pad, right: pad, bottom: pad, left: pad },
+                duration: fitBounds.duration
+              });
+            }
+            onStyleReady?.();
+          }}
           onDidFailLoadingMap={() =>
             setLifecycle((current) => transitionMapLifecycle(current, 'style-failed'))
           }
@@ -228,7 +252,7 @@ export function MapSurface({
         />
       )}
 
-      {showMap && (
+      {showMap && showControls && (
         <MapControls
           camera={camera}
           tokens={tokens}

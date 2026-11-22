@@ -747,7 +747,16 @@ export const createAppStyles = (t: SemanticTokens) =>
       marginBottom: 14,
       overflow: 'hidden'
     },
-    runDetailThumbnail: { alignItems: 'center', justifyContent: 'center' },
+    runDetailThumbnail: {
+      alignItems: 'center',
+      bottom: 0,
+      justifyContent: 'center',
+      left: 0,
+      position: 'absolute',
+      right: 0,
+      top: 0
+    },
+    runDetailMapLayer: { bottom: 0, left: 0, position: 'absolute', right: 0, top: 0 },
     /** A run in the profile run log (M9 9.15): route line left, numbers right. */
     runCard: {
       alignItems: 'center',

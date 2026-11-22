@@ -17,6 +17,19 @@ export const gameWorld = {
     fog: '#040917'
   },
   loop: { ready: '#53ffab', returning: '#f8c969' },
+  /**
+   * A run drawn on its detail map (M9 9.18): coloured from the run's own
+   * quickest stretch to its slowest, a glowing tip while it draws, and the
+   * start and finish markers.
+   */
+  route: {
+    quick: '#53ffab',
+    easy: '#f8c969',
+    head: '#c5ffe8',
+    start: '#53ffab',
+    finish: '#f0f7ff',
+    markerRim: '#090f25'
+  },
   hud: {
     glass: '#0b1426ee',
     sheet: '#101a2df5',
