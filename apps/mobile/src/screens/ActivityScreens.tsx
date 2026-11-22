@@ -80,6 +80,7 @@ import {
   resultCopy
 } from './run-mode-hud-model';
 import { questStopRows, questStopsLine } from './quest-stops-model';
+import { runMetricsPanel, type RunMetricsPanel } from './run-metrics-preview-model';
 
 export function ActivityPreparation({
   accountId,
@@ -899,6 +900,10 @@ export function ActivityDetail({
     () => activityResultPresentation(detail, current.remoteStatus),
     [current.remoteStatus, detail]
   );
+  const metricsPanel = useMemo(
+    () => runMetricsPanel(presentation, localSamples),
+    [presentation, localSamples]
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -1025,6 +1030,7 @@ export function ActivityDetail({
           provenance="Recorded on your device. Run check pending."
         />
       )}
+      {metricsPanel ? <RunSplits panel={metricsPanel} /> : null}
       {(terminalRejected || terminalDeleted) && (
         <View style={styles.notice} accessibilityLiveRegion="polite">
           <Text style={styles.noticeIcon}>i</Text>
@@ -1301,6 +1307,50 @@ function SummaryMetrics({
       </View>
       <Text style={styles.provisional}>{provenance}</Text>
     </>
+  );
+}
+
+/** Moving time, climb, best km and the km splits; the phone's until the server's arrive. */
+function RunSplits({ panel }: { panel: RunMetricsPanel }) {
+  const styles = useAppStyles();
+  return (
+    <View accessibilityLabel="Splits">
+      <View style={styles.metricRow}>
+        {panel.stats.map((stat) => (
+          <View key={stat.label} style={styles.metricCell}>
+            <Text style={styles.metricCellValue}>{stat.value}</Text>
+            <Text style={styles.metricCellLabel}>{stat.label}</Text>
+          </View>
+        ))}
+      </View>
+      {panel.splits.map((split) => (
+        <View
+          key={split.label}
+          style={styles.splitRow}
+          accessible
+          accessibilityLabel={[
+            split.label,
+            `${split.pace} per km`,
+            split.climb,
+            split.fastest ? 'best km' : null
+          ]
+            .filter(Boolean)
+            .join(', ')}
+        >
+          <Text style={styles.splitLabel}>
+            {split.fastest ? `${split.label} · Best` : split.label}
+          </Text>
+          <Text style={styles.splitValue}>
+            {split.climb ? `${split.pace} /km · ${split.climb}` : `${split.pace} /km`}
+          </Text>
+        </View>
+      ))}
+      {panel.note ? (
+        <Text style={styles.provisional} accessibilityLiveRegion="polite">
+          {panel.note}
+        </Text>
+      ) : null}
+    </View>
   );
 }
 

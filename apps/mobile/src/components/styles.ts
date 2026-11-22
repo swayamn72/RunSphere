@@ -721,6 +721,17 @@ export const createAppStyles = (t: SemanticTokens) =>
       marginTop: 4,
       textAlign: 'center'
     },
+    /** One km split on the run result (M9 9.12): label left, pace and climb right. */
+    splitRow: {
+      alignItems: 'center',
+      borderBottomColor: t.border.subtle,
+      borderBottomWidth: 1,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingVertical: 8
+    },
+    splitLabel: { color: t.text.primary, fontSize: 14, fontWeight: '700' },
+    splitValue: { color: t.text.secondary, fontSize: 14, fontVariant: ['tabular-nums'] },
     sectionHeader: {
       alignItems: 'center',
       flexDirection: 'row',

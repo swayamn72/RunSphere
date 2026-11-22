@@ -249,6 +249,96 @@ describe('activity render lifecycle regressions', () => {
     });
   });
 
+  it('shows the phone’s splits as Checking…, then the server’s once the run counts (M9 9.12)', async () => {
+    // 1.2 km at 5:00/km, one fix a second. Synthetic, not a real place.
+    mocks.recorder.liveSamples.mockResolvedValue(
+      Array.from({ length: 361 }, (_, index) => ({
+        recordedAt: new Date(Date.UTC(2026, 10, 22, 1, 0, index)).toISOString(),
+        latitude: 1 + (index * (1_000 / 300)) / 111_195,
+        longitude: 1,
+        accuracy: 8,
+        altitude: null,
+        disposition: 'usable',
+        segmentBreak: false
+      }))
+    );
+    const pending = {
+      ...session,
+      state: 'queued' as const,
+      remoteId: 'remote-1',
+      remoteStatus: 'validating' as const
+    };
+    let resolveRefresh!: (value: unknown) => void;
+    const detailSync = {
+      sync: vi.fn(),
+      refresh: vi.fn(() => new Promise((resolve) => (resolveRefresh = resolve))),
+      delete: vi.fn(),
+      syncPending: vi.fn()
+    };
+    mocks.recorder.get.mockResolvedValue(pending);
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        <ActivityDetail session={pending} sync={detailSync as never} onExit={vi.fn()} />
+      );
+    });
+    expect(text(renderer)).toContain('Checking…');
+    expect(text(renderer)).toContain('Km 1 · Best');
+    expect(text(renderer)).toContain('5:00 /km');
+
+    await act(async () => {
+      resolveRefresh({
+        id: 'remote-1',
+        status: 'derived',
+        summary: {
+          distanceMeters: 1_200,
+          durationSeconds: 360,
+          pointCount: 361,
+          rejectedPointCount: 0,
+          rejectedGapCount: 0,
+          privacyTrimmed: false
+        },
+        metrics: {
+          metricsVersion: 1,
+          elapsedSeconds: 360,
+          activeSeconds: 360,
+          movingSeconds: 355,
+          distanceMeters: 1_200,
+          averagePaceSecondsPerKm: 300,
+          movingPaceSecondsPerKm: 295.8,
+          splits: [
+            {
+              km: 1,
+              distanceMeters: 1_000,
+              movingSeconds: 292,
+              paceSecondsPerKm: 292,
+              elevationChangeMeters: null,
+              partial: false
+            },
+            {
+              km: 2,
+              distanceMeters: 200,
+              movingSeconds: 63,
+              paceSecondsPerKm: 315,
+              elevationChangeMeters: null,
+              partial: true
+            }
+          ],
+          fastestSplitKm: 1,
+          bestEfforts: [],
+          elevation: null,
+          paceSeries: [],
+          elevationSeries: []
+        }
+      });
+      await Promise.resolve();
+    });
+    expect(text(renderer)).toContain('Your run counts.');
+    expect(text(renderer)).not.toContain('Checking…');
+    expect(text(renderer)).toContain('4:52 /km');
+    expect(text(renderer)).toContain('Last 0.20 km');
+  });
+
   describe('each mode has its own HUD and result (M9 9.7)', () => {
     const sync = () => ({
       sync: vi.fn(),
