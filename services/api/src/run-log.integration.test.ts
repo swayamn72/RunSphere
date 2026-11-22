@@ -7,7 +7,7 @@ import {
   requirePostgisInCi,
   withTransaction
 } from '@runsphere/db';
-import type { RunLogResponse } from '@runsphere/contracts';
+import type { ProfileRunsResponse, RunLogResponse } from '@runsphere/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
 
@@ -49,6 +49,7 @@ const runner = async () => {
       email: `runlog-${randomUUID()}@example.test`,
       password: 'a-safe-pilot-password',
       dateOfBirth: '1990-05-05',
+      username: `log_${randomUUID().replace(/-/g, '').slice(0, 10)}`,
       policyVersion: 'm2'
     }
   });
@@ -56,7 +57,10 @@ const runner = async () => {
   const token = (response.json() as { accessToken: string }).accessToken;
   const id = JSON.parse(Buffer.from(token.split('.')[0]!, 'base64url').toString()).sub as string;
   created.accounts.push(id);
-  return { token, id };
+  const username = (
+    await db.query<{ username: string }>('SELECT username FROM accounts WHERE id = $1', [id])
+  ).rows[0]!.username;
+  return { token, id, username };
 };
 
 /** Synthetic ground near 0°, 0°, nowhere real. */
@@ -249,6 +253,102 @@ describePostgis('run log (M9 9.13)', () => {
     const points = data[0]!.route!.flat();
     expect(points.length).toBeLessThanOrEqual(100);
     expect(points.length).toBeGreaterThan(10);
+  });
+});
+
+describePostgis('someone else’s runs follow their settings (M9 9.14, ADR-0015)', () => {
+  const profileRuns = async (reader: { token: string }, username: string) =>
+    app.inject({
+      method: 'GET',
+      url: `/v1/profiles/by-username/${username}/runs`,
+      headers: { authorization: `Bearer ${reader.token}` }
+    });
+  const befriend = async (a: string, b: string) =>
+    db.query(
+      `INSERT INTO friendships (account_id, friend_account_id) VALUES ($1, $2), ($2, $1)
+       ON CONFLICT DO NOTHING`,
+      [a, b]
+    );
+  const settle = (accountId: string, settings: Record<string, unknown>) =>
+    db.query(
+      `UPDATE privacy_settings SET
+         runs_visibility = COALESCE($2, runs_visibility),
+         show_route_maps = COALESCE($3, show_route_maps),
+         show_start_times = COALESCE($4, show_start_times),
+         trim_start_finish = COALESCE($5, trim_start_finish),
+         profile_visibility = COALESCE($6, profile_visibility)
+       WHERE account_id = $1`,
+      [
+        accountId,
+        settings['runs'] ?? null,
+        settings['routes'] ?? null,
+        settings['times'] ?? null,
+        settings['trim'] ?? null,
+        settings['profile'] ?? null
+      ]
+    );
+  /** One run on a straight 1 km line, synthetic. */
+  const straight = Array.from({ length: 101 }, (_, index) => [0.05, index * 0.00009]);
+
+  const setup = async () => {
+    const owner = await runner();
+    const friend = await runner();
+    const stranger = await runner();
+    await befriend(owner.id, friend.id);
+    await run(owner.id, { createdAt: new Date(Date.UTC(2026, 10, 10, 1)), route: [straight] });
+    return { owner, friend, stranger };
+  };
+  const page = async (reader: { token: string }, username: string) =>
+    (await profileRuns(reader, username)).json() as ProfileRunsResponse;
+
+  it('by default shows friends the run, whole route and date only, and strangers nothing', async () => {
+    const { owner, friend, stranger } = await setup();
+    const seen = await page(friend, owner.username);
+    expect(seen.visible).toBe(true);
+    expect(seen.data).toHaveLength(1);
+    expect(seen.data[0]!.startedOn).toBe('2026-11-10');
+    expect(seen.data[0]).not.toHaveProperty('startedAt');
+    // Not trimmed by default: the route still reaches its very start.
+    expect(seen.data[0]!.route![0]![0]).toEqual([0.05, 0]);
+
+    const hidden = await profileRuns(stranger, owner.username);
+    expect(hidden.statusCode).toBe(200);
+    expect(hidden.json()).toEqual({ visible: false, data: [], nextCursor: null });
+  });
+
+  it('applies every setting: everyone, only me, route maps, start times and the trim', async () => {
+    const { owner, friend, stranger } = await setup();
+
+    await settle(owner.id, { runs: 'everyone' });
+    expect((await page(stranger, owner.username)).data).toHaveLength(1);
+
+    await settle(owner.id, { runs: 'only_me' });
+    expect((await page(friend, owner.username)).visible).toBe(false);
+    expect((await page(owner, owner.username)).data[0]).toHaveProperty('startedAt');
+
+    await settle(owner.id, { runs: 'friends', routes: false });
+    expect((await page(friend, owner.username)).data[0]!.route).toBeNull();
+
+    await settle(owner.id, { routes: true, times: true, trim: true });
+    const trimmed = (await page(friend, owner.username)).data[0]!;
+    expect(trimmed.startedAt).toBe('2026-11-10T01:00:00.000Z');
+    // About 200 m gone from each end: 0.0018 degrees of latitude.
+    expect(trimmed.route![0]![0]![1]).toBeGreaterThan(0.0017);
+    expect(trimmed.route!.flat().at(-1)![1]).toBeLessThan(0.009 - 0.0017);
+    // The owner always sees their own route whole.
+    expect((await page(owner, owner.username)).data[0]!.route![0]![0]).toEqual([0.05, 0]);
+  });
+
+  it('hides runner and runs alike behind a block, or a private profile', async () => {
+    const { owner, friend, stranger } = await setup();
+    await db.query(
+      `INSERT INTO blocks (blocker_account_id, blocked_account_id, reason) VALUES ($1, $2, 'test')`,
+      [owner.id, friend.id]
+    );
+    expect((await profileRuns(friend, owner.username)).statusCode).toBe(404);
+    await settle(owner.id, { runs: 'everyone', profile: 'only_me' });
+    expect((await profileRuns(stranger, owner.username)).statusCode).toBe(404);
+    expect((await profileRuns(stranger, 'no_such_runner_here')).statusCode).toBe(404);
   });
 });
 

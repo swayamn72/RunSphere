@@ -98,7 +98,7 @@ const COLUMN: Readonly<Record<keyof PrivacySettingsUpdate, string>> = {
  * the reader's relationship, whether a block stands between them either way,
  * and whether the target's settings let the reader see or request them.
  */
-const PROFILE_SELECT = `
+export const PROFILE_SELECT = `
   SELECT target.id, target.username, target.home_area,
     COALESCE(profile.display_name, target.username) AS display_name,
     COALESCE(profile.cosmetic, '{"avatarKey":"default"}'::jsonb) AS cosmetic,
@@ -127,7 +127,7 @@ const PROFILE_SELECT = `
   LEFT JOIN privacy_settings settings ON settings.account_id = target.id
   WHERE target.deleted_at IS NULL`;
 
-interface ProfileRow {
+export interface ProfileRow {
   id: string;
   username: string;
   home_area: string | null;

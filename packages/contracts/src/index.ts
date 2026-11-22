@@ -680,6 +680,19 @@ export const RunLogResponseSchema = Type.Object(
   },
   { $id: 'RunLogResponse' }
 );
+/**
+ * Someone's runs from their profile (M9 9.14). `visible` is false when their
+ * profile is open to you but their runs aren't; `data` is then empty.
+ */
+export const ProfileRunsResponseSchema = Type.Object(
+  {
+    visible: Type.Boolean(),
+    data: Type.Array(RunLogItemSchema, { maxItems: RUN_LOG_PAGE_SIZE }),
+    nextCursor: Type.Union([Type.String(), Type.Null()])
+  },
+  { $id: 'ProfileRunsResponse' }
+);
+export type ProfileRunsResponse = Static<typeof ProfileRunsResponseSchema>;
 export type RunLogItem = Static<typeof RunLogItemSchema>;
 export type RunLogResponse = Static<typeof RunLogResponseSchema>;
 /** Lifecycle responses reuse the safe status projection; raw submitted points are never included. */

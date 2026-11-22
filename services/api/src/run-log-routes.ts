@@ -2,15 +2,19 @@ import type { FastifyInstance } from 'fastify';
 import {
   ActivityAuthorizationHeadersSchema,
   ErrorResponseSchema,
+  ProfileRunsResponseSchema,
   RUN_LOG_PAGE_SIZE,
   RunLogQuerySchema,
   RunLogResponseSchema,
+  UsernameParamsSchema,
   type RunLogItem,
   type RunMode
 } from '@runsphere/contracts';
 import type { Database } from '@runsphere/db';
 import { routeThumbnail, trimRouteEnds } from '@runsphere/domain';
 import { requireAccount } from './auth-routes.js';
+import { PROFILE_SELECT, canSeeProfile, type ProfileRow } from './social-identity-routes.js';
+import { normalizeUsername } from '@runsphere/domain';
 
 /**
  * The run log (M9 9.13): counted runs, newest first, 20 a page.
@@ -34,6 +38,37 @@ export interface RunLogView {
 }
 
 export const OWNER_VIEW: RunLogView = { showStartTimes: true, showRoute: true, trimEndsMetres: 0 };
+
+/** "Hide start and finish" cuts this much from each end for viewers (ADR-0015). */
+export const TRIM_START_FINISH_METRES = 200;
+
+interface RunSettingsRow {
+  runs_visibility: 'everyone' | 'friends' | 'only_me';
+  show_route_maps: boolean;
+  show_start_times: boolean;
+  trim_start_finish: boolean;
+}
+
+/**
+ * What `reader` may see of a runner's runs, or `hidden` when nothing. The
+ * caller has already checked the profile itself is visible, which covers
+ * blocks both ways (`canSeeProfile`).
+ */
+export const runLogViewFor = (
+  relationship: ProfileRow['relationship'],
+  settings: RunSettingsRow
+): RunLogView | 'hidden' => {
+  if (relationship === 'self') return OWNER_VIEW;
+  const allowed =
+    settings.runs_visibility === 'everyone' ||
+    (settings.runs_visibility === 'friends' && relationship === 'friend');
+  if (!allowed) return 'hidden';
+  return {
+    showStartTimes: settings.show_start_times,
+    showRoute: settings.show_route_maps,
+    trimEndsMetres: settings.trim_start_finish ? TRIM_START_FINISH_METRES : 0
+  };
+};
 
 interface Cursor {
   createdAt: string;
@@ -191,6 +226,52 @@ export const registerRunLogRoutes = ({
       if (request.query.cursor && !cursor)
         return reply.code(400).send({ message: 'That page link has expired. Reload your runs.' });
       return runLogPage(database, accountId, cursor, OWNER_VIEW);
+    }
+  );
+
+  /**
+   * Someone's runs from their profile (M9 9.14), as their settings allow
+   * (ADR-0015). A runner you can't see, blocked either way or missing, reads
+   * as not found, the same as their profile does.
+   */
+  routes.get<{ Params: { username: string }; Querystring: { cursor?: string } }>(
+    '/v1/profiles/by-username/:username/runs',
+    {
+      schema: {
+        headers: ActivityAuthorizationHeadersSchema,
+        params: UsernameParamsSchema,
+        querystring: RunLogQuerySchema,
+        response: {
+          200: ProfileRunsResponseSchema,
+          400: ErrorResponseSchema,
+          401: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+      const cursor = request.query.cursor ? decodeCursor(request.query.cursor) : undefined;
+      if (request.query.cursor && !cursor)
+        return reply.code(400).send({ message: 'That page link has expired. Reload their runs.' });
+      const rows = await database.query<ProfileRow & RunSettingsRow>(
+        `SELECT profile_row.*,
+           COALESCE(settings.runs_visibility, 'friends') AS runs_visibility,
+           COALESCE(settings.show_route_maps, true) AS show_route_maps,
+           COALESCE(settings.show_start_times, false) AS show_start_times,
+           COALESCE(settings.trim_start_finish, false) AS trim_start_finish
+         FROM (${PROFILE_SELECT} AND lower(target.username) = lower($2)) profile_row
+         LEFT JOIN privacy_settings settings ON settings.account_id = profile_row.id`,
+        [accountId, normalizeUsername(request.params.username)]
+      );
+      const row = rows.rows[0];
+      if (!row || !canSeeProfile(row)) return reply.code(404).send({ message: 'Runner not found' });
+      const view = runLogViewFor(row.relationship, row);
+      if (view === 'hidden') return { visible: false, data: [], nextCursor: null };
+      return { visible: true, ...(await runLogPage(database, row.id, cursor, view)) };
     }
   );
 };
