@@ -92,7 +92,9 @@ vi.mock('expo-blur', async () => {
   const React = await import('react');
   return {
     BlurView: ({ children, ...props }: Record<string, unknown>) =>
-      React.createElement('BlurView', props, children as never)
+      React.createElement('BlurView', props, children as never),
+    BlurTargetView: ({ children, ...props }: Record<string, unknown>) =>
+      React.createElement('BlurTargetView', props, children as never)
   };
 });
 vi.mock('react-native-worklets', () => ({

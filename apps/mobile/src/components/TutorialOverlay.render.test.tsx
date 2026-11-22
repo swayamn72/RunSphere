@@ -66,6 +66,7 @@ function Harness({
       activeTab="Home"
       onShowTab={onShowTab as never}
       registry={registry}
+      blurTarget={{ current: null }}
     />
   );
 }
@@ -82,7 +83,9 @@ describe('tour overlay (M9 9.23)', () => {
     expect(texts(renderer)).toEqual(
       expect.arrayContaining(['STEP 1 OF 6', TOUR_STEPS[0]!.title, TOUR_STEPS[0]!.rhoLine])
     );
-    expect(renderer.root.findAll((node) => (node.type as unknown) === 'BlurView')).toHaveLength(4);
+    const blurs = renderer.root.findAll((node) => (node.type as unknown) === 'BlurView');
+    expect(blurs).toHaveLength(4);
+    expect(blurs[0]!.props.blurMethod).toBe('dimezisBlurViewSdk31Plus');
     const ring = renderer.root
       .findAll((node) => (node.type as unknown) === 'Animated.View')
       .find((node) => styleOf(node).borderRadius === 16)!;

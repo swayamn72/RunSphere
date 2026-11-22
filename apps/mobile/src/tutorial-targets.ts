@@ -20,6 +20,13 @@ export interface TargetRegistry {
   /** Ask every mounted target to measure itself again. */
   requestMeasure(): void;
   onMeasureRequest(handler: () => void): () => void;
+  /**
+   * Ask whatever scrolls the target's screen to bring `rect` into view (the
+   * tab's scroll view registers with `onReveal`). Found on a device: Home's
+   * Start actions sit under the tab bar until you scroll.
+   */
+  reveal(rect: Rect): void;
+  onReveal(handler: (rect: Rect) => void): () => void;
 }
 
 const sameRect = (a: Rect | undefined, b: Rect | undefined) =>
@@ -35,6 +42,7 @@ export const createTargetRegistry = (): TargetRegistry => {
   const rects = new Map<string, Rect>();
   const listeners = new Map<string, Set<Listener>>();
   const measurers = new Set<() => void>();
+  const revealers = new Set<(rect: Rect) => void>();
   const notify = (id: string) => {
     for (const listener of listeners.get(id) ?? []) listener(rects.get(id));
   };
@@ -63,6 +71,13 @@ export const createTargetRegistry = (): TargetRegistry => {
     onMeasureRequest(handler) {
       measurers.add(handler);
       return () => measurers.delete(handler);
+    },
+    reveal(rect) {
+      for (const handler of [...revealers]) handler(rect);
+    },
+    onReveal(handler) {
+      revealers.add(handler);
+      return () => revealers.delete(handler);
     }
   };
 };

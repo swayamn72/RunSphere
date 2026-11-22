@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useReducer, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { Linking, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { activityQueue } from './src/activity-queue.native';
@@ -66,6 +66,7 @@ import {
   type TourState
 } from './src/tutorial-model';
 import { TutorialOverlay } from './src/components/TutorialOverlay';
+import { BlurTargetView } from 'expo-blur';
 import { persistentTourStore } from './src/tour-secure-store.native';
 import { registerForPush, revokePushRegistration } from './src/push-registration';
 import { nativePushTokenSource, pushRegistrationStore } from './src/push-registration.native';
@@ -365,6 +366,7 @@ function RunSphereApp() {
   // The guided tour (M9 9.25): once per account after sign-up, after "Who
   // sees your runs?", and again from Settings.
   const [tour, setTour] = useState<TourState>();
+  const tourBlurTarget = useRef<View>(null);
   useEffect(() => {
     if (onboarding.step !== 'complete' || !accountId || runsPrompt) return;
     let active = true;
@@ -714,38 +716,42 @@ function RunSphereApp() {
     >
       <RunDetailProvider renderDetail={(props) => <RunDetailScreen {...props} api={apiClient} />}>
         <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-        {shell === 'tab-scroll' ? (
-          <TabScrollShell>{content}</TabScrollShell>
-        ) : shell === 'tab-map' ? (
-          <FocusedFlexShell fullBleed>{content}</FocusedFlexShell>
-        ) : shell === 'focused-scroll' ? (
-          <FocusedScrollShell>{content}</FocusedScrollShell>
-        ) : (
-          <FocusedFlexShell>{content}</FocusedFlexShell>
-        )}
-        {isTabBarVisible(shell) && (
-          <TabBar
-            activeTab={activeTab}
-            turf={shell === 'tab-map'}
-            onChange={(tab) => {
-              setSelectedQuest(undefined);
-              setFocus('none');
-              setRouteGuide(undefined);
-              setGhostRun(undefined);
-              setGhostHint(false);
-              if (tab !== 'Social') setSocialEntry('feed');
-              if (tab !== 'Profile') setProfileEntry('profile');
-              if (tab === 'Run') {
-                if (activeTab !== 'Run') chooseRun(activeTab === 'Map' ? 'map' : 'home');
-                return;
-              }
-              dispatchActivityRoute({ type: 'select-tab' });
-              setActiveTab(tab);
-            }}
-          />
-        )}
+        {/* What the tour's panels blur on Android (M9 9.23). */}
+        <BlurTargetView ref={tourBlurTarget} style={styles.screen}>
+          {shell === 'tab-scroll' ? (
+            <TabScrollShell>{content}</TabScrollShell>
+          ) : shell === 'tab-map' ? (
+            <FocusedFlexShell fullBleed>{content}</FocusedFlexShell>
+          ) : shell === 'focused-scroll' ? (
+            <FocusedScrollShell>{content}</FocusedScrollShell>
+          ) : (
+            <FocusedFlexShell>{content}</FocusedFlexShell>
+          )}
+          {isTabBarVisible(shell) && (
+            <TabBar
+              activeTab={activeTab}
+              turf={shell === 'tab-map'}
+              onChange={(tab) => {
+                setSelectedQuest(undefined);
+                setFocus('none');
+                setRouteGuide(undefined);
+                setGhostRun(undefined);
+                setGhostHint(false);
+                if (tab !== 'Social') setSocialEntry('feed');
+                if (tab !== 'Profile') setProfileEntry('profile');
+                if (tab === 'Run') {
+                  if (activeTab !== 'Run') chooseRun(activeTab === 'Map' ? 'map' : 'home');
+                  return;
+                }
+                dispatchActivityRoute({ type: 'select-tab' });
+                setActiveTab(tab);
+              }}
+            />
+          )}
+        </BlurTargetView>
         {tour ? (
           <TutorialOverlay
+            blurTarget={tourBlurTarget}
             state={tour}
             onAction={tourAction}
             activeTab={activeTab}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type RefObject } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { BlurView } from 'expo-blur';
 import Animated, {
@@ -19,13 +19,19 @@ import {
   type TourAction,
   type TourState
 } from '../tutorial-model';
-import { RING_RADIUS, bubbleSide, bubbleTop, ringRect } from '../tutorial-overlay-model';
+import {
+  RING_RADIUS,
+  bubbleSide,
+  bubbleTop,
+  needsReveal,
+  ringRect
+} from '../tutorial-overlay-model';
 import { tutorialTargets, type TargetRegistry } from '../tutorial-targets';
 import { useAppStyles } from './styles';
 import { TourRho, useTypedLine } from './TourRho';
 
 /** Blur only where Android can do it well (12+); elsewhere the panels just dim. */
-const canBlur =
+const blurSupported =
   Platform.OS === 'ios' || (Platform.OS === 'android' && Number(Platform.Version) >= 31);
 const GLIDE_MS = 260;
 
@@ -42,19 +48,27 @@ export function TutorialOverlay({
   onAction,
   activeTab,
   onShowTab,
-  registry = tutorialTargets
+  registry = tutorialTargets,
+  blurTarget
 }: {
   state: TourState;
   onAction: (action: TourAction) => void;
   activeTab: Tab;
   onShowTab: (tab: Tab) => void;
   registry?: TargetRegistry;
+  /**
+   * On Android the blur needs to know what to blur: the app shell, wrapped in
+   * expo-blur's `BlurTargetView`. Without it the panels just dim.
+   */
+  blurTarget?: RefObject<View | null>;
 }) {
   const styles = useAppStyles();
   const { tokens, reduceMotion } = useAppTheme();
   const { width, height } = useWindowDimensions();
   const screen: Rect = { x: 0, y: 0, width, height };
   const step = tourStep(state);
+  // Android blurs only what a BlurTargetView holds; without one, dim instead.
+  const canBlur = blurSupported && (Platform.OS !== 'android' || Boolean(blurTarget));
   const [target, setTarget] = useState<Rect | undefined>(() =>
     step ? registry.rect(step.targetId) : undefined
   );
@@ -75,8 +89,18 @@ export function TutorialOverlay({
   }, [step, activeTab, onShowTab, registry]);
 
   const typed = useTypedLine(step?.rhoLine ?? '', reduceMotion);
-  // A target scrolled off screen gets a centred bubble, not a ring pinned to the edge.
-  const onScreen = target && target.y + target.height > 0 && target.y < height ? target : undefined;
+  // A target off screen or under the tab bar is scrolled into view first; until
+  // it arrives the bubble sits centred with no ring.
+  const hidden = step ? needsReveal(step.targetId, target, screen) : false;
+  useEffect(() => {
+    if (!hidden || !target) return;
+    registry.reveal(target);
+    const timer = setTimeout(() => registry.requestMeasure(), 400);
+    return () => clearTimeout(timer);
+    // Reveal once per step and position, not on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hidden, step?.id, target?.y]);
+  const onScreen = target && !hidden ? target : undefined;
   const ring = onScreen ? ringRect(onScreen, screen) : undefined;
   const x = useSharedValue(ring?.x ?? width / 2);
   const y = useSharedValue(ring?.y ?? height / 2);
@@ -141,7 +165,9 @@ export function TutorialOverlay({
         <BlurView
           intensity={24}
           tint="dark"
-          {...(Platform.OS === 'android' ? { experimentalBlurMethod: 'dimezisBlurView' } : {})}
+          {...(Platform.OS === 'android'
+            ? { blurMethod: 'dimezisBlurViewSdk31Plus' as const, blurTarget }
+            : {})}
           style={StyleSheet.absoluteFill}
         />
       ) : null}

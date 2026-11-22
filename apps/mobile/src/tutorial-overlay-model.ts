@@ -14,6 +14,19 @@ export const RING_RADIUS = 16;
 /** Room kept between the bubble and the ring, and the screen edge. */
 export const BUBBLE_GAP = 12;
 
+/** Room kept clear at the bottom for the tab bar. */
+export const TAB_BAR_ALLOWANCE = 96;
+
+/**
+ * Whether a target must be scrolled into view before it can be spotlit: it is
+ * off screen, or under the tab bar. Tab bar buttons themselves never scroll.
+ */
+export const needsReveal = (targetId: string, target: Rect | undefined, screen: Rect): boolean =>
+  Boolean(target) &&
+  !targetId.startsWith('tab-') &&
+  (target!.y < screen.y ||
+    target!.y + target!.height > screen.y + screen.height - TAB_BAR_ALLOWANCE);
+
 /** The spotlit area: the button grown by `RING_PAD`, kept on screen. */
 export const ringRect = (target: Rect, screen: Rect): Rect => {
   const x = Math.max(screen.x, target.x - RING_PAD);

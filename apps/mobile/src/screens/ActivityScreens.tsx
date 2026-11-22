@@ -1190,7 +1190,7 @@ export function ActivityHistory({
           <View style={styles.flexCopy}>
             <Text style={styles.noticeTitle}>No activities yet</Text>
             <Text style={styles.noticeCopy}>
-              Your completed activities will appear here privately.
+              Runs on this phone show here. Once they count, they’re in Runs above too.
             </Text>
           </View>
         </View>

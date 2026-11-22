@@ -5,10 +5,24 @@ import {
   bubbleSide,
   bubbleTop,
   panelsAround,
+  TAB_BAR_ALLOWANCE,
+  needsReveal,
   ringRect
 } from './tutorial-overlay-model.js';
 
 const screen = { x: 0, y: 0, width: 400, height: 800 };
+
+describe('scrolling a target into view (found on a device)', () => {
+  it('scrolls to a target off screen or under the tab bar, never to a tab button', () => {
+    const underBar = { x: 20, y: 800 - TAB_BAR_ALLOWANCE + 10, width: 300, height: 60 };
+    expect(needsReveal('home-start', underBar, screen)).toBe(true);
+    expect(needsReveal('home-quests', { ...underBar, y: 1_400 }, screen)).toBe(true);
+    expect(needsReveal('home-quests', { ...underBar, y: -80 }, screen)).toBe(true);
+    expect(needsReveal('home-start', { ...underBar, y: 300 }, screen)).toBe(false);
+    expect(needsReveal('tab-run', underBar, screen)).toBe(false);
+    expect(needsReveal('home-start', undefined, screen)).toBe(false);
+  });
+});
 
 describe('tour overlay geometry (M9 9.23)', () => {
   it('grows the ring around the button and keeps it on screen', () => {

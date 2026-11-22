@@ -1,5 +1,13 @@
 import type React from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import {
+  Dimensions,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  View
+} from 'react-native';
 import { useAppTheme } from '../theme/theme';
 import { tutorialTargets } from '../tutorial-targets';
 
@@ -23,9 +31,29 @@ export function KeyboardSafe({ children }: { children: React.ReactNode }) {
 /** Scrolling tab screens own their scroll view and reserve the visible tab bar. */
 export function TabScrollShell({ children }: { children: React.ReactNode }) {
   const { tokens } = useAppTheme();
+  const scroll = useRef<ScrollView>(null);
+  const offset = useRef(0);
+  // The guided tour scrolls a spotlit target to about a third of the way down
+  // (M9 9.22; found on a device: Home's Start actions start under the tab bar).
+  useEffect(
+    () =>
+      tutorialTargets.onReveal((rect) => {
+        const height = Dimensions.get('window').height;
+        scroll.current?.scrollTo({
+          y: Math.max(0, offset.current + rect.y - height * 0.3),
+          animated: true
+        });
+      }),
+    []
+  );
   return (
     <KeyboardSafe>
       <ScrollView
+        ref={scroll}
+        scrollEventThrottle={64}
+        onScroll={(event) => {
+          offset.current = event.nativeEvent.contentOffset.y;
+        }}
         contentContainerStyle={[styles.tabContent, { backgroundColor: tokens.background.canvas }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
