@@ -57,6 +57,8 @@ import { useAppStyles } from './src/components/styles';
 import { coordinateLogout } from './src/logout-coordinator';
 import { setGuidanceStore } from './src/loop-guidance';
 import { persistentGuidanceStore } from './src/loop-guidance.native';
+import { setTourStore } from './src/tutorial-model';
+import { persistentTourStore } from './src/tour-secure-store.native';
 import { registerForPush, revokePushRegistration } from './src/push-registration';
 import { nativePushTokenSource, pushRegistrationStore } from './src/push-registration.native';
 import { TabBar } from './src/navigation/TabBar';
@@ -97,6 +99,7 @@ import { ThemeProvider, useAppTheme } from './src/theme/theme';
 // Guidance memory is resolved through the registry so no screen imports a
 // native secure-storage module.
 setGuidanceStore(persistentGuidanceStore);
+setTourStore(persistentTourStore);
 const apiClient = new MobileApiClient(undefined, fetch, authStorage);
 const activitySync = createActivitySyncCoordinator(apiClient, activityRecorder);
 const accountIdFromSession = (session: AuthSession): string => accountScopeFor(session);

@@ -398,8 +398,8 @@ export function ProfileScreen({
         />
         <Setting label="Clubs" value="Create or join one" onPress={() => setScreen('clubs')} />
         <Text style={styles.settingsHint}>
-          Friends see your display name and nothing else. Manage friends and requests from the
-          Social tab.
+          Friends see your display name, and your runs as you choose in Privacy & visibility. Manage
+          friends and requests from the Social tab.
         </Text>
       </SettingsGroup>
       <SettingsGroup title="Fair play">
