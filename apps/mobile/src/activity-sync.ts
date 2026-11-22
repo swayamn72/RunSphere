@@ -113,8 +113,8 @@ const createRemote = async (
   } catch (error) {
     const fallback = session.runStart && runStartFallback(session.runStart);
     if (!fallback || !isRunModeRefusal(error)) throw error;
-    await recorder.setRunStart(session.id, session.accountId, fallback);
-    return create(fallback);
+    await recorder.setRunStart(session.id, session.accountId, fallback.start, fallback.refused);
+    return create(fallback.start);
   }
 };
 

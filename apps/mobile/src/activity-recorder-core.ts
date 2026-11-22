@@ -1,4 +1,4 @@
-import type { ActivityLifecycleStatus } from '@runsphere/contracts';
+import type { ActivityLifecycleStatus, RunMode } from '@runsphere/contracts';
 import type { RunVerification, RunVerificationMethod } from '@runsphere/domain';
 import { runStartFields, runStartFromColumns, type RunStart } from './run-start';
 
@@ -78,6 +78,8 @@ export interface ActivitySession {
    * upload with no mode and keep the server's pre-mode behaviour.
    */
   runStart?: RunStart | undefined;
+  /** The mode the server refused, when `runStart` is its fallback (9.7 says so). */
+  refusedRunMode?: RunMode | undefined;
 }
 
 export type RemoteActivityStatus = ActivityLifecycleStatus;
@@ -127,7 +129,8 @@ export const activityRecorderSchema = `
     -- columns sit only on their own mode, as on the server (migration 054).
     run_mode TEXT CHECK (run_mode IN ('free', 'turf', 'quest', 'ghost')),
     quest_id TEXT,
-    ghost_claim_id TEXT
+    ghost_claim_id TEXT,
+    refused_run_mode TEXT CHECK (refused_run_mode IN ('quest', 'ghost'))
   );
   CREATE TABLE IF NOT EXISTS activity_location_samples (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -173,7 +176,8 @@ const rowToSession = (row: Record<string, unknown>): ActivitySession => ({
           deviceId: row.verificationDeviceId as string
         }
       : undefined,
-  runStart: runStartFromColumns(row.runMode, row.questId, row.ghostClaimId)
+  runStart: runStartFromColumns(row.runMode, row.questId, row.ghostClaimId),
+  refusedRunMode: (row.refusedRunMode as RunMode | null) ?? undefined
 });
 
 export const distanceBetween = (a: LocationSample, b: LocationSample): number => {
@@ -233,7 +237,7 @@ const sessionSelect = `SELECT id, account_id AS accountId, movement_type AS move
   paused_at AS pausedAt, pause_reason AS pauseReason, completed_at AS completedAt, duration_seconds AS durationSeconds, distance_meters AS distanceMeters,
   accepted_samples AS acceptedSamples, last_heartbeat_at AS lastHeartbeatAt, remote_id AS remoteId, remote_status AS remoteStatus, sync_error AS syncError,
   verification_method AS verificationMethod, verified_at AS verifiedAt, verification_device_id AS verificationDeviceId,
-  run_mode AS runMode, quest_id AS questId, ghost_claim_id AS ghostClaimId FROM recorded_activities`;
+  run_mode AS runMode, quest_id AS questId, ghost_claim_id AS ghostClaimId, refused_run_mode AS refusedRunMode FROM recorded_activities`;
 
 const migrationChecksum = (
   rows: readonly Pick<ActivitySession, 'id' | 'remoteId' | 'updatedAt'>[]
@@ -321,6 +325,10 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
         await database.execAsync('ALTER TABLE recorded_activities ADD COLUMN quest_id TEXT;');
       if (!activityColumns.some((column) => column.name === 'ghost_claim_id'))
         await database.execAsync('ALTER TABLE recorded_activities ADD COLUMN ghost_claim_id TEXT;');
+      if (!activityColumns.some((column) => column.name === 'refused_run_mode'))
+        await database.execAsync(
+          "ALTER TABLE recorded_activities ADD COLUMN refused_run_mode TEXT CHECK (refused_run_mode IN ('quest', 'ghost'));"
+        );
     }
     await database.execAsync(activityRecorderSchema);
     // Preparation is now in-memory. Safely discard pre-route rows left by older builds so they
@@ -588,13 +596,19 @@ export const createActivityRecorder = (database: RecorderDatabase) => ({
    * started with (`runStartFallback`). Only before the run exists remotely:
    * once created, the server's copy holds the mode and this one must match.
    */
-  async setRunStart(id: string, accountId: string, start: RunStart): Promise<void> {
+  async setRunStart(
+    id: string,
+    accountId: string,
+    start: RunStart,
+    refused: 'quest' | 'ghost'
+  ): Promise<void> {
     const mode = runStartFields(start);
     await database.runAsync(
-      'UPDATE recorded_activities SET run_mode = ?, quest_id = ?, ghost_claim_id = ? WHERE id = ? AND account_id = ? AND remote_id IS NULL',
+      'UPDATE recorded_activities SET run_mode = ?, quest_id = ?, ghost_claim_id = ?, refused_run_mode = ? WHERE id = ? AND account_id = ? AND remote_id IS NULL',
       mode.runMode,
       mode.questId ?? null,
       mode.ghostClaimId ?? null,
+      refused,
       id,
       accountId
     );

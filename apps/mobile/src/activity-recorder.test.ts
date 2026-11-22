@@ -415,18 +415,20 @@ describe('activity recorder', () => {
         ? [
             { name: 'id' },
             ...(added
-              ? [{ name: 'run_mode' }, { name: 'quest_id' }, { name: 'ghost_claim_id' }]
+              ? ['run_mode', 'quest_id', 'ghost_claim_id', 'refused_run_mode'].map((name) => ({
+                  name
+                }))
               : [])
           ]
         : []) as never;
     database.execAsync = async (sql) => {
       calls.push(sql);
-      if (sql.includes('ADD COLUMN ghost_claim_id')) added = true;
+      if (sql.includes('ADD COLUMN refused_run_mode')) added = true;
     };
     const recorder = createActivityRecorder(database);
     await recorder.initialize();
     await recorder.initialize();
-    for (const column of ['run_mode', 'quest_id', 'ghost_claim_id'])
+    for (const column of ['run_mode', 'quest_id', 'ghost_claim_id', 'refused_run_mode'])
       expect(calls.filter((sql) => sql.includes(`ADD COLUMN ${column} `))).toHaveLength(1);
     expect(calls.join(' ')).toContain("run_mode IN ('free', 'turf', 'quest', 'ghost')");
   });
@@ -454,12 +456,18 @@ describe('activity recorder', () => {
   it('re-saves the fallback mode only while the run has no server copy', async () => {
     const database = new MemoryDatabase();
     const run = vi.spyOn(database, 'runAsync');
-    await createActivityRecorder(database).setRunStart(base.id, base.accountId, { mode: 'turf' });
+    await createActivityRecorder(database).setRunStart(
+      base.id,
+      base.accountId,
+      { mode: 'turf' },
+      'ghost'
+    );
     expect(run).toHaveBeenCalledWith(
       expect.stringContaining('WHERE id = ? AND account_id = ? AND remote_id IS NULL'),
       'turf',
       null,
       null,
+      'ghost',
       base.id,
       base.accountId
     );

@@ -52,9 +52,17 @@ const recorder = (stored: ActivitySession) => ({
       stored.remoteStatus = remoteStatus;
     }
   ),
-  setRunStart: vi.fn(async (_id: string, _account: string, start: ActivitySession['runStart']) => {
-    stored.runStart = start;
-  }),
+  setRunStart: vi.fn(
+    async (
+      _id: string,
+      _account: string,
+      start: ActivitySession['runStart'],
+      refused: ActivitySession['refusedRunMode']
+    ) => {
+      stored.runStart = start;
+      stored.refusedRunMode = refused;
+    }
+  ),
   setRemoteStatus: vi.fn(
     async (_id: string, _account: string, status: ActivitySession['remoteStatus']) => {
       stored.remoteStatus = status;
@@ -195,7 +203,7 @@ describe('activity sync coordinator', () => {
         ...stored
       });
 
-      expect(local.setRunStart).toHaveBeenCalledWith('local-1', 'account-1', { mode: to });
+      expect(local.setRunStart).toHaveBeenCalledWith('local-1', 'account-1', { mode: to }, from);
       expect(api.createActivity).toHaveBeenLastCalledWith(
         'run',
         'local-1',
@@ -203,7 +211,11 @@ describe('activity sync coordinator', () => {
         session.startedAt,
         { mode: to }
       );
-      expect(result.session).toMatchObject({ remoteId: 'remote-1', runStart: { mode: to } });
+      expect(result.session).toMatchObject({
+        remoteId: 'remote-1',
+        runStart: { mode: to },
+        refusedRunMode: from
+      });
     });
 
     it('retries a network failure in the same mode, never downgrading it', async () => {

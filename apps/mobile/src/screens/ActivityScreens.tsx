@@ -43,9 +43,7 @@ import {
   calculatedPace,
   derivedResultRouteLayers,
   derivedRouteCenter,
-  CLAIM_CHECKLIST,
-  VERIFYING_RUN_TITLE,
-  VERIFYING_RUN_COPY
+  VERIFYING_RUN_TITLE
 } from './activity-results-model';
 import { LoopCallout } from '../components/LoopCallout';
 import { PrimaryButton } from '../components/primitives';
@@ -69,11 +67,26 @@ import { ROUTE_GUIDE_CAPTION, routeGuideLayers, type RouteGuide } from './route-
 import { ghostCard, ghostLayers, type GhostRun } from './ghost-race-model';
 import type { RecordedLocationSample } from '../activity-recorder-core';
 import type { RunStart } from '../run-start';
+import type { QuestDetail } from '@runsphere/contracts';
+import {
+  MODE_LABEL,
+  canClaim,
+  countedNext,
+  fallbackNote,
+  hudModeOf,
+  livePanels,
+  pendingCopy,
+  prepareCopy,
+  resultCopy
+} from './run-mode-hud-model';
+import { questStopRows, questStopsLine } from './quest-stops-model';
 
 export function ActivityPreparation({
   accountId,
   start,
   originLabel,
+  questTitle,
+  rivalName,
   guide,
   onChange,
   onExit
@@ -82,6 +95,10 @@ export function ActivityPreparation({
   /** The mode the run is recorded as; written once with the local session. */
   start: RunStart;
   originLabel?: string;
+  /** Named on a Quest run's prepare card, so the runner knows which quest counts. */
+  questTitle?: string;
+  /** Named on a Ghost Race's prepare card. */
+  rivalName?: string;
   /** Named here so nobody starts a run wondering whether their choice took. */
   guide?: RouteGuide;
   onChange: (session: ActivitySession) => void;
@@ -326,16 +343,21 @@ export function ActivityPreparation({
   // guidance would compete with the GPS notices for the same attention.
   const guidanceCandidates = useMemo<readonly LoopGuidanceCue[]>(() => [], []);
   const guidance = useLoopGuidance(guidanceCandidates);
+  const mode = hudModeOf(start);
+  const copy = prepareCopy(mode, {
+    ...(questTitle ? { questTitle } : {}),
+    ...(rivalName ? { rivalName } : {})
+  });
   return (
     <View style={styles.recordCard}>
-      <Text style={styles.eyebrow}>TURF RUN</Text>
-      <Text style={styles.recordTitle}>How to Claim Turf</Text>
-      {CLAIM_CHECKLIST.map((item) => (
+      <Text style={styles.eyebrow}>{copy.eyebrow}</Text>
+      <Text style={styles.recordTitle}>{copy.title}</Text>
+      {copy.points.map((item) => (
         <Text key={item} style={styles.lead}>{`• ${item}`}</Text>
       ))}
       <Text style={styles.privateNote}>Your phone confirms it is you before recording starts.</Text>
       {originLabel && <Text style={styles.privateNote}>Started from {originLabel}</Text>}
-      {guide && (
+      {guide && livePanels(mode).routeGuide && (
         <Text style={styles.privateNote}>
           {`Route guide: ${guide.name}, ${(guide.distanceMetres / 1_000).toFixed(1)} km. ${ROUTE_GUIDE_CAPTION}`}
         </Text>
@@ -435,10 +457,12 @@ export function ActivityPreparation({
 export function ActivityRecording({
   session,
   accountId,
-  guide,
-  ghost,
+  guide: offeredGuide,
+  ghost: offeredGhost,
+  quest,
   onChange,
   onExit,
+  onOpenMap,
   sync
 }: {
   session: ActivitySession;
@@ -454,8 +478,15 @@ export function ActivityRecording({
    * It changes no rule: the loop is won on time whether it is on screen or not.
    */
   ghost?: GhostRun;
+  /**
+   * The quest a Quest run is for, with its stops, so the HUD can tick them
+   * off as they're passed. Absent offline, when the list just isn't shown.
+   */
+  quest?: QuestDetail;
   onChange: (session: ActivitySession | undefined) => void;
   onExit: () => void;
+  /** Opens the Map, where a Turf or Ghost Race run's ground is claimed. */
+  onOpenMap?: () => void;
   sync: ReturnType<typeof createActivitySyncCoordinator>;
 }) {
   const styles = useAppStyles();
@@ -472,6 +503,12 @@ export function ActivityRecording({
   const refreshGeneration = useRef(0);
   const sessionRef = useRef({ id: session.id, accountId });
   sessionRef.current = { id: current.id, accountId };
+  // Each mode shows only its own panels (M9 9.7). A guide or ghost handed in
+  // for a run of another mode is ignored rather than drawn.
+  const mode = hudModeOf(current.runStart);
+  const panels = livePanels(mode);
+  const guide = panels.routeGuide ? offeredGuide : undefined;
+  const ghost = panels.ghost ? offeredGhost : undefined;
 
   const refresh = useCallback(async (): Promise<ActivitySession | undefined> => {
     const generation = ++refreshGeneration.current;
@@ -575,10 +612,14 @@ export function ActivityRecording({
   // matters most is the one they are drawing.
   const loop = useMemo(
     () =>
-      status.state === 'strong' || status.state === 'recovered'
+      panels.loopGuide && (status.state === 'strong' || status.state === 'recovered')
         ? liveLoopFeedback(samples)
         : undefined,
-    [samples, status.state]
+    [panels.loopGuide, samples, status.state]
+  );
+  const stops = useMemo(
+    () => (panels.questStops && quest ? questStopRows(quest.checkpoints, samples) : undefined),
+    [panels.questStops, quest, samples]
   );
   const [loopBright, setLoopBright] = useState(true);
   const loopReady = loop?.ready === true;
@@ -613,6 +654,7 @@ export function ActivityRecording({
     return (
       <ActivityResults
         session={current}
+        {...(ghostStatus ? { ghostResult: ghostStatus.headline } : {})}
         onQueue={async () => {
           await transition('queued');
           const refreshed = await activityRecorder.get(current.id, accountId);
@@ -632,7 +674,14 @@ export function ActivityRecording({
     ['queued', 'failed', 'processed'].includes(current.state) ||
     ['rejected', 'derived', 'deleted'].includes(current.remoteStatus ?? '')
   )
-    return <ActivityDetail session={current} sync={sync} onExit={onExit} />;
+    return (
+      <ActivityDetail
+        session={current}
+        sync={sync}
+        onExit={onExit}
+        {...(onOpenMap ? { onOpenMap } : {})}
+      />
+    );
 
   return (
     <View style={styles.liveScreen}>
@@ -684,9 +733,21 @@ export function ActivityRecording({
             {`Rho: ${rhoCue({ moment: 'mid-run', loopReady: loop.ready, loopGapMetres: loop.gap })?.message ?? ''}`}
           </Text>
         )}
-        <Text style={styles.eyebrow}>
-          {current.movementType.toUpperCase()} · PRIVATE ON THIS DEVICE
-        </Text>
+        <Text style={styles.eyebrow}>{`${MODE_LABEL[mode]} · PRIVATE ON THIS DEVICE`}</Text>
+        {panels.questStops ? (
+          <View accessibilityLiveRegion="polite">
+            <Text style={styles.rowDetail}>{questStopsLine(stops ?? [])}</Text>
+            {stops?.map((stop) => (
+              <Text
+                key={stop.id}
+                accessibilityLabel={`${stop.title}, ${stop.passed ? 'passed' : 'not passed yet'}`}
+                style={styles.rowDetail}
+              >
+                {`${stop.passed ? '✓' : '○'} ${stop.title}`}
+              </Text>
+            ))}
+          </View>
+        ) : null}
         {guide ? (
           <Text style={styles.rowDetail}>{`${guide.name} · ${ROUTE_GUIDE_CAPTION}`}</Text>
         ) : null}
@@ -815,11 +876,13 @@ export const reseedActivityDetailSession = (
 export function ActivityDetail({
   session,
   sync,
-  onExit
+  onExit,
+  onOpenMap
 }: {
   session: ActivitySession;
   sync: ReturnType<typeof createActivitySyncCoordinator>;
   onExit: () => void;
+  onOpenMap?: () => void;
 }) {
   const styles = useAppStyles();
   const [current, setCurrent] = useState(session);
@@ -941,8 +1004,11 @@ export function ActivityDetail({
               ? 'This run was deleted from your account.'
               : current.state === 'failed'
                 ? 'Sync paused. Refresh to try again.'
-                : VERIFYING_RUN_COPY}
+                : pendingCopy(hudModeOf(current.runStart))}
       </Text>
+      {fallbackNote(current.refusedRunMode) ? (
+        <Text style={styles.privateNote}>{fallbackNote(current.refusedRunMode)}</Text>
+      ) : null}
       <ActivityDetailMap presentation={presentation} localSamples={localSamples} />
       {presentation.state === 'validated' ? (
         <SummaryMetrics
@@ -993,6 +1059,12 @@ export function ActivityDetail({
           </View>
         </View>
       )}
+      {presentation.state === 'validated' && countedNext(hudModeOf(current.runStart)) ? (
+        <Text style={styles.privateNote}>{countedNext(hudModeOf(current.runStart))}</Text>
+      ) : null}
+      {presentation.state === 'validated' && canClaim(hudModeOf(current.runStart)) && onOpenMap ? (
+        <PrimaryButton label="Claim it on the Map" onPress={onOpenMap} />
+      ) : null}
       {canSync && (
         <PrimaryButton
           label={current.state === 'failed' ? 'Retry sync' : 'Sync now'}
@@ -1238,22 +1310,28 @@ const stylesForResultMap = {
 
 function ActivityResults({
   session,
+  ghostResult,
   onQueue,
   onDiscard
 }: {
   session: ActivitySession;
+  /** Where the race ended against the ghost, as the live card last put it. */
+  ghostResult?: string;
   onQueue: () => void;
   onDiscard: () => void;
 }) {
   const styles = useAppStyles();
+  const mode = hudModeOf(session.runStart);
+  const copy = resultCopy(mode);
   const pace = session.distanceMeters
     ? formatDuration(Math.round(session.durationSeconds / (session.distanceMeters / 1000)))
     : '—';
   return (
     <View style={styles.recordCard}>
-      <Text style={styles.eyebrow}>ACTIVITY COMPLETE · LOCAL RESULT</Text>
-      <Text style={styles.recordTitle}>New ground covered</Text>
-      <Text style={styles.lead}>Saved on this device. Run totals update after verification.</Text>
+      <Text style={styles.eyebrow}>{`${MODE_LABEL[mode]} · LOCAL RESULT`}</Text>
+      <Text style={styles.recordTitle}>{copy.title}</Text>
+      {ghostResult ? <Text style={styles.lead}>{ghostResult}</Text> : null}
+      <Text style={styles.lead}>{copy.lead}</Text>
       {/* Distance, time, and pace as one row of equals, which is how a
           finished run is actually read. */}
       <View style={styles.metricRow}>

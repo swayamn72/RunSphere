@@ -248,4 +248,181 @@ describe('activity render lifecycle regressions', () => {
       remoteStatus: 'received'
     });
   });
+
+  describe('each mode has its own HUD and result (M9 9.7)', () => {
+    const sync = () => ({
+      sync: vi.fn(),
+      refresh: vi.fn(),
+      delete: vi.fn(),
+      syncPending: vi.fn()
+    });
+    const ghost = {
+      claimId: 'claim-1',
+      holderName: 'Ravi',
+      trace: {
+        points: [
+          { latitude: 19.076, longitude: 72.8777, elapsedSeconds: 0, distanceMetres: 0 },
+          { latitude: 19.077, longitude: 72.8777, elapsedSeconds: 600, distanceMetres: 110 }
+        ],
+        durationSeconds: 600,
+        distanceMetres: 110
+      },
+      privacyNote: '',
+      rulesNote: ''
+    };
+    const renderLive = async (
+      runStart: ActivitySession['runStart'],
+      extra: Record<string, unknown> = {}
+    ) => {
+      const live = { ...session, ...(runStart ? { runStart } : {}) };
+      mocks.recorder.get.mockResolvedValue(live);
+      let renderer!: ReactTestRenderer;
+      await act(async () => {
+        renderer = create(
+          <ActivityRecording
+            session={live}
+            accountId={session.accountId}
+            onChange={vi.fn()}
+            onExit={vi.fn()}
+            sync={sync() as never}
+            {...extra}
+          />
+        );
+      });
+      return renderer;
+    };
+
+    it('shows a Free run as stats only, even when a ghost is handed in', async () => {
+      const renderer = await renderLive({ mode: 'free' }, { ghost });
+      expect(text(renderer)).toContain('FREE RUN · PRIVATE ON THIS DEVICE');
+      expect(text(renderer)).toContain('Distance');
+      expect(text(renderer)).not.toContain('Ravi');
+      expect(text(renderer)).not.toMatch(/stops passed/);
+    });
+
+    it('shows the ghost card only on a Ghost Race', async () => {
+      const renderer = await renderLive({ mode: 'ghost', ghostClaimId: 'claim-1' }, { ghost });
+      expect(text(renderer)).toContain('GHOST RACE · PRIVATE ON THIS DEVICE');
+      expect(text(renderer)).toContain('Ravi');
+    });
+
+    it('lists a Quest run’s stops, ticking off the ones passed', async () => {
+      mocks.recorder.liveSamples.mockResolvedValue([
+        {
+          recordedAt: '2026-08-28T06:00:30Z',
+          latitude: 19.076,
+          longitude: 72.8777,
+          accuracy: 8,
+          altitude: null,
+          disposition: 'usable',
+          segmentBreak: false
+        }
+      ]);
+      const quest = {
+        checkpoints: [
+          {
+            id: 'a',
+            kind: 'place',
+            title: 'Gate',
+            geometry: { type: 'Point', coordinates: [72.8777, 19.076] }
+          },
+          {
+            id: 'b',
+            kind: 'place',
+            title: 'Pier',
+            geometry: { type: 'Point', coordinates: [72.9, 19.1] }
+          }
+        ]
+      };
+      const renderer = await renderLive({ mode: 'quest', questId: 'quest-1' }, { quest });
+      expect(text(renderer)).toContain('QUEST RUN · PRIVATE ON THIS DEVICE');
+      expect(text(renderer)).toContain('1 of 2 stops passed · any order');
+      expect(text(renderer)).toContain('✓ Gate');
+      expect(text(renderer)).toContain('○ Pier');
+    });
+
+    it.each([
+      [{ mode: 'free' as const }, 'Run done'],
+      [{ mode: 'quest' as const, questId: 'q' }, 'Quest run done'],
+      [{ mode: 'ghost' as const, ghostClaimId: 'c' }, 'Race done'],
+      [undefined, 'New ground covered']
+    ])('finishes a %o run on its own result', async (runStart, title) => {
+      mocks.recorder.get.mockResolvedValue({
+        ...session,
+        ...(runStart ? { runStart } : {}),
+        state: 'completed-local'
+      });
+      let finished!: ReactTestRenderer;
+      await act(async () => {
+        finished = create(
+          <ActivityRecording
+            session={{ ...session, ...(runStart ? { runStart } : {}), state: 'completed-local' }}
+            accountId={session.accountId}
+            onChange={vi.fn()}
+            onExit={vi.fn()}
+            sync={sync() as never}
+          />
+        );
+      });
+      expect(text(finished)).toContain(title);
+    });
+
+    const counted = async (session2: ActivitySession, onOpenMap?: () => void) => {
+      const detailSync = sync();
+      detailSync.refresh.mockResolvedValue({
+        id: 'remote-1',
+        status: 'derived',
+        summary: { distanceMeters: 1200, durationSeconds: 600, privacyTrimmed: true }
+      });
+      mocks.recorder.get.mockResolvedValue(session2);
+      let renderer!: ReactTestRenderer;
+      await act(async () => {
+        renderer = create(
+          <ActivityDetail
+            session={session2}
+            sync={detailSync as never}
+            onExit={vi.fn()}
+            {...(onOpenMap ? { onOpenMap } : {})}
+          />
+        );
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      return renderer;
+    };
+    const claimButton = (renderer: ReactTestRenderer) =>
+      renderer.root
+        .findAllByType('PrimaryButton' as React.ElementType)
+        .find((node) => node.props['label'] === 'Claim it on the Map');
+
+    it('offers to claim a counted Turf run on the Map, but not a counted Free run', async () => {
+      const base = {
+        ...session,
+        state: 'processed' as const,
+        remoteId: 'remote-1',
+        remoteStatus: 'derived' as const
+      };
+      const onOpenMap = vi.fn();
+      const turf = await counted({ ...base, runStart: { mode: 'turf' } }, onOpenMap);
+      expect(text(turf)).toContain('Your run counts.');
+      claimButton(turf)!.props.onPress();
+      expect(onOpenMap).toHaveBeenCalled();
+      const free = await counted({ ...base, runStart: { mode: 'free' } }, onOpenMap);
+      expect(text(free)).toContain('Your run counts.');
+      expect(claimButton(free)).toBeUndefined();
+    });
+
+    it('says when a Ghost Race was kept as a Turf run', async () => {
+      const renderer = await counted({
+        ...session,
+        state: 'processed',
+        remoteId: 'remote-1',
+        remoteStatus: 'derived',
+        runStart: { mode: 'turf' },
+        refusedRunMode: 'ghost'
+      });
+      expect(text(renderer)).toContain('counts as a Turf run');
+    });
+  });
 });

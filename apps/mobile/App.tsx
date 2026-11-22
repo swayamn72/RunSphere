@@ -6,7 +6,7 @@ import { activityQueue } from './src/activity-queue.native';
 import { accountScopeFor, legacyAccountScopesFor } from './src/account-scope';
 import { activityRecorder } from './src/activity-recorder.native';
 import type { ActivitySession } from './src/activity-recorder-core';
-import type { QuestSummary } from '@runsphere/contracts';
+import type { QuestDetail, QuestSummary } from '@runsphere/contracts';
 import type { AuthSession } from './src/auth-storage-core';
 import { createActivitySyncCoordinator } from './src/activity-sync';
 import { MobileApiClient } from './src/api-client';
@@ -185,6 +185,26 @@ function RunSphereApp() {
   const [ghostRun, setGhostRun] = useState<GhostRun>();
   /** Ghost Race was picked on the Run tab, so the map says what to tap (M9 9.6). */
   const [ghostHint, setGhostHint] = useState(false);
+  /**
+   * The stops of the quest a Quest run is for, so the live HUD can tick them
+   * off (M9 9.7). Keyed on the session, so a run restored after a restart
+   * gets its list back once the app is online.
+   */
+  const [questRun, setQuestRun] = useState<QuestDetail>();
+  const questRunId = recording?.runStart?.mode === 'quest' ? recording.runStart.questId : undefined;
+  useEffect(() => {
+    setQuestRun(undefined);
+    if (!questRunId) return;
+    let active = true;
+    void apiClient
+      .getQuest(questRunId)
+      .then((detail) => active && setQuestRun(detail))
+      // Offline the HUD just doesn't list the stops; the server still checks them.
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [questRunId]);
   // Which Social sub-screen to land on. A friend-request notice on Profile has
   // to be able to reach the friends list, which lives under Social.
   const [socialEntry, setSocialEntry] = useState<'feed' | 'friends'>('feed');
@@ -431,6 +451,12 @@ function RunSphereApp() {
         accountId={accountId}
         {...(routeGuide ? { guide: routeGuide } : {})}
         {...(ghostRun ? { ghost: ghostRun } : {})}
+        {...(questRun ? { quest: questRun } : {})}
+        onOpenMap={() => {
+          exitActivity();
+          setActiveTab('Map');
+          setFocus('none');
+        }}
         onChange={(session) => {
           if (session?.state === 'completed-local') {
             dispatchActivityRoute({ type: 'recording-finished' });
@@ -473,6 +499,10 @@ function RunSphereApp() {
       <ActivityPreparation
         accountId={accountId}
         start={activityRoute.start}
+        {...(activityRoute.origin.kind === 'quest-detail'
+          ? { questTitle: activityRoute.origin.quest.title }
+          : {})}
+        {...(ghostRun ? { rivalName: ghostRun.holderName } : {})}
         {...(originLabel ? { originLabel } : {})}
         {...(routeGuide ? { guide: routeGuide } : {})}
         onChange={(session) => {

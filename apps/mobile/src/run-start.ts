@@ -62,5 +62,11 @@ export const runStartFromColumns = (
  *
  * Free and Turf take nothing the server can refuse, so they have no fallback.
  */
-export const runStartFallback = (start: RunStart): RunStart | undefined =>
-  start.mode === 'ghost' ? TURF_RUN : start.mode === 'quest' ? FREE_RUN : undefined;
+export const runStartFallback = (
+  start: RunStart
+): { start: RunStart; refused: 'quest' | 'ghost' } | undefined =>
+  start.mode === 'ghost'
+    ? { start: TURF_RUN, refused: 'ghost' }
+    : start.mode === 'quest'
+      ? { start: FREE_RUN, refused: 'quest' }
+      : undefined;
