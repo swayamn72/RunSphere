@@ -15,6 +15,7 @@ import { registerAccountPrivacyRoutes } from './account-privacy-routes.js';
 import { registerAccountDeletionPages } from './account-deletion-pages.js';
 import { registerEmailLinkPages } from './email-link-pages.js';
 import { registerLegalPages } from './legal-pages.js';
+import { registerLegalConsentRoutes } from './legal-consent-routes.js';
 import { registerStaffRoutes } from './staff-routes.js';
 import { registerGamificationRoutes } from './gamification-routes.js';
 import { registerAccountLifecycleRoutes } from './account-routes.js';
@@ -197,6 +198,7 @@ export const buildApp = ({
     registerAccountDeletionPages({ routes });
     registerEmailLinkPages({ routes, database });
     registerLegalPages({ routes, contact: config.legalContact });
+    registerLegalConsentRoutes({ routes, database, authSecret });
     registerSafetyRoutes({ routes, database, authSecret });
     registerActivityRoutes({ routes, database, authSecret });
     registerRunLogRoutes({ routes, database, authSecret });

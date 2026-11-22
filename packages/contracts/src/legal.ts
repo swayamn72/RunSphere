@@ -34,3 +34,22 @@ export const ConsentRecordSchema = Type.Object(
 export type LegalDocumentKind = Static<typeof LegalDocumentKindSchema>;
 export type LegalVersion = Static<typeof LegalVersionSchema>;
 export type ConsentRecord = Static<typeof ConsentRecordSchema>;
+
+/**
+ * Whether the signed-in runner has agreed to the legal text now in force
+ * (M9 9.26). Sign-up records the version shown then; when the text changes the
+ * app asks again before the runner carries on.
+ */
+export const LegalConsentStatusSchema = Type.Object(
+  {
+    currentVersion: Type.String({ maxLength: 64 }),
+    acceptedVersion: Type.Union([Type.String({ maxLength: 64 }), Type.Null()]),
+    needsAcceptance: Type.Boolean()
+  },
+  { additionalProperties: false, $id: 'LegalConsentStatus' }
+);
+export const LegalConsentRequestSchema = Type.Object(
+  { policyVersion: Type.String({ minLength: 1, maxLength: 64 }) },
+  { additionalProperties: false, $id: 'LegalConsentRequest' }
+);
+export type LegalConsentStatus = Static<typeof LegalConsentStatusSchema>;

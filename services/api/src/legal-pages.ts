@@ -77,8 +77,14 @@ photos, contacts from your address book, or health data such as heart rate.</p>
 <li>Your profile (username, display name, avatar, home area if you set one) is visible to
 everyone and findable by username unless you change it: Profile → Settings → Privacy &amp; safety →
 Privacy &amp; visibility lets you choose Friends or Only me, and turn off search.</li>
+<li>Your runs: your friends see each run that counts, with its distance, time, pace, route
+(including where it starts and finishes) and the day, but not the time of day. You can change who
+sees them (Everyone, Friends or Only me), hide route maps, show start times, or turn on Hide start
+and finish to cut the first and last 200 m of every route, in the same privacy settings. The parts
+of a run near your privacy zones are always cut before anyone else sees it. Runs that didn't count
+are never shown.</li>
 <li>Your claimed ground appears on the Turf map, with your name unless you turn that off in
-the same privacy settings. Other runners don't see your route, start or finish, or run times.</li>
+the same privacy settings.</li>
 <li>Global leaderboards are off until you turn them on, and show only scores.</li>
 <li>Club members see club results, never your route or location.</li>
 <li>If you share a run with a safety contact, they see a rough area (at least 500 m across), at
@@ -127,7 +133,8 @@ are kept out of our logs. If a breach affects your data, we will tell you and th
 Board as the law requires.</p>
 
 <h2>Changes</h2>
-<p>When this notice changes we will tell you in the app before the change applies to you.</p>
+<p>When this notice changes we will tell you in the app and ask you to agree before you carry
+on.</p>
 ${contactBlock(contact)}`;
 
 const termsBody = (contact: LegalContact): string => `${draftBanner}

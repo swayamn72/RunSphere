@@ -7,7 +7,8 @@
  * The `-draft` suffix stays until the owner's lawyer has approved the text
  * (C.7); the pages show a draft banner while it is there.
  */
-export const LEGAL_POLICY_VERSION = '2026-11-22-draft';
+// 2026-11-22b: others may see your runs and routes per your settings (M9 9.26, ADR-0015).
+export const LEGAL_POLICY_VERSION = '2026-11-22b-draft';
 
 export const LEGAL_PAGES = {
   privacy: '/privacy',
