@@ -21,6 +21,7 @@ import { SECTION_RISE, SECTION_STAGGER_MS } from './run-detail-model';
 import {
   DELETE_CONFIRM,
   DELETE_FAILED,
+  ROUTE_HIDDEN,
   bestEffortRows,
   linesFromGeometry,
   splitRows,
@@ -204,6 +205,8 @@ export function RunDetailScreen({
               </Animated.View>
             ) : null}
           </Animated.View>
+        ) : !run.owner ? (
+          <Text style={styles.rowDetail}>{ROUTE_HIDDEN}</Text>
         ) : null}
 
         {card.result

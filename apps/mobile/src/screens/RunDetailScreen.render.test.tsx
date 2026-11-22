@@ -170,6 +170,36 @@ describe('run detail layout (M9 9.19)', () => {
     expect(texts(renderer).some((line) => /try again/.test(line))).toBe(true);
   });
 
+  it('shows someone else’s run as their settings allow (9.20)', async () => {
+    // Start times hidden: the day only. Route maps off: no map, and a line saying so.
+    const dayOnly: RunLogItem = { ...item, route: null };
+    delete dayOnly.startedAt;
+    const props = {
+      close: vi.fn(),
+      dragHandlers: {},
+      progress: { value: 1 } as never,
+      reduceMotion: true,
+      api: { activityStatus: vi.fn(), deleteActivity: vi.fn() } as never
+    };
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(<RunDetailScreen run={{ item: dayOnly, owner: false }} {...props} />);
+    });
+    expect(texts(renderer)).toContain('Tue 17 Nov');
+    expect(texts(renderer).some((line) => line.includes('·') && line.startsWith('Tue'))).toBe(
+      false
+    );
+    expect(texts(renderer)).toContain('This runner keeps their route maps to themselves.');
+    expect(renderer.root.findAll((node) => (node.type as unknown) === 'Svg')).toHaveLength(0);
+
+    // Times shown and the route trimmed on the server: both appear as given.
+    await act(async () => {
+      renderer.update(<RunDetailScreen run={{ item, owner: false }} {...props} />);
+    });
+    expect(texts(renderer)).toContain('Tue 17 Nov · 6:15');
+    expect(texts(renderer)).not.toContain('This runner keeps their route maps to themselves.');
+  });
+
   it('shows someone else’s run without loading splits or offering Delete', async () => {
     const { renderer, api } = await mount(false);
     expect(api.activityStatus).not.toHaveBeenCalled();

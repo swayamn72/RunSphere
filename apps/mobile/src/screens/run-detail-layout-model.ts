@@ -195,5 +195,8 @@ export const linesFromGeometry = (geometry: unknown): [number, number][][] | und
   return undefined;
 };
 
+/** Someone else's run whose route they keep to themselves (9.20). */
+export const ROUTE_HIDDEN = 'This runner keeps their route maps to themselves.';
+
 export const DELETE_CONFIRM = 'Delete this run? It comes off your profile for good.';
 export const DELETE_FAILED = "Couldn't delete this run. Check your connection and try again.";
