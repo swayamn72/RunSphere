@@ -144,7 +144,12 @@ export function TutorialOverlay({
           style={StyleSheet.absoluteFill}
         />
       ) : null}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: canBlur ? tokens.scrim.subtle : tokens.scrim.strong }]} />
+      <View
+        style={[
+          StyleSheet.absoluteFill,
+          { backgroundColor: canBlur ? tokens.scrim.subtle : tokens.scrim.strong }
+        ]}
+      />
     </Animated.View>
   );
 
