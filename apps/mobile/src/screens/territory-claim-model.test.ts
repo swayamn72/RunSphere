@@ -216,10 +216,10 @@ describe('what the reader is told about their own ground', () => {
 
   it('reports ground held, and ground lost when there is any', () => {
     expect(summaryLine({ claimCount: 3, totalAreaSqm: 270_000, lostCount: 0 })).toBe(
-      '3 claims, 27.0 ha'
+      '3 claims, 2,700 Turf points'
     );
     expect(summaryLine({ claimCount: 1, totalAreaSqm: 90_000, lostCount: 2 })).toBe(
-      '1 claim, 9.0 ha · 2 taken from you'
+      '1 claim, 900 Turf points · 2 taken from you'
     );
   });
 
@@ -435,7 +435,7 @@ describe('the leaderboard', () => {
   });
 
   it('words the detail to match what the board counts', () => {
-    expect(leaderboardRows(board())[0]?.detail).toBe('27.0 ha');
+    expect(leaderboardRows(board())[0]?.detail).toBe('2,700 Turf points');
     expect(leaderboardRows(board({ metric: 'claims' }))[0]?.detail).toBe('3 territories');
     expect(leaderboardRows(board({ metric: 'defended' }))[0]?.detail).toContain('1 defended');
   });
@@ -610,6 +610,14 @@ describe('zone filters', () => {
 });
 
 describe('claimableRunId (B4)', () => {
+  it('uses the run opened from results without falling back to another run', () => {
+    const runs = [
+      { id: 'newer', status: 'derived' },
+      { id: 'selected', status: 'derived' }
+    ];
+    expect(claimableRunId(runs, 'selected')).toBe('selected');
+    expect(claimableRunId(runs, 'missing')).toBeUndefined();
+  });
   it('offers the newest derived run that has not claimed yet', () => {
     expect(
       claimableRunId([

@@ -15,10 +15,10 @@ const messages: Record<AuthFailureKind, string> = {
   'invalid-credentials': 'Email or password was not accepted. Check your details and try again.',
   'invalid-request': 'Check your account details and try again.',
   'rate-limited': 'Too many attempts. Wait a moment and try again.',
-  'service-unavailable': 'RunSphere is temporarily unavailable. Try again shortly.',
-  tls: "RunSphere couldn't establish a secure connection. Check your device date and network, then try again.",
-  network: "RunSphere couldn't reach the service. Check your internet connection and try again.",
-  configuration: 'A RunSphere API URL is required to sign in.',
+  'service-unavailable': 'TURFR is temporarily unavailable. Try again shortly.',
+  tls: "TURFR couldn't establish a secure connection. Check your device date and network, then try again.",
+  network: "TURFR couldn't reach the service. Check your internet connection and try again.",
+  configuration: 'A TURFR API URL is required to sign in.',
   unknown: 'Unable to complete account authentication. Try again.'
 };
 
@@ -67,7 +67,7 @@ export const reportAuthFailure = (
     typeof __DEV__ === 'boolean' ? __DEV__ : process.env.NODE_ENV !== 'production';
   if (!isDevelopmentBuild) return;
   // Do not include the request URL, email, password, tokens, or response body here.
-  console.warn('[RunSphere auth failure]', {
+  console.warn('[TURFR auth failure]', {
     operation,
     kind: failure.kind,
     ...(failure.status === undefined ? {} : { status: failure.status })

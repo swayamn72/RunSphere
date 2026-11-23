@@ -32,6 +32,9 @@ vi.mock('../theme/theme', () => ({
   })
 }));
 vi.mock('./RunDetailMap', () => ({ RunDetailMap: () => null }));
+vi.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 24, bottom: 0, left: 0, right: 0 })
+}));
 
 const { RunDetailScreen } = await import('./RunDetailScreen.js');
 

@@ -89,7 +89,7 @@ describe('inbox rows', () => {
 
   it('gives every inbox kind a label', () => {
     expect(Object.values(NOTIFICATION_KIND_LABEL)).not.toContain(undefined);
-    expect(NOTIFICATION_KIND_LABEL.system).toBe('RunSphere');
+    expect(NOTIFICATION_KIND_LABEL.system).toBe('TURFR');
   });
 });
 

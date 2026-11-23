@@ -145,7 +145,7 @@ export function ExploreScreen({
         </View>
       )}
       <View style={[styles.sheetOverlay, isList && styles.listOverlay]}>
-        <MapListSheet state={sheetState} onStateChange={setSheetState} title="Verified quests">
+        <MapListSheet state={sheetState} onStateChange={setSheetState} title="Quests">
           <View style={styles.content}>
             <View style={styles.sheetHeader}>
               <Pressable
@@ -313,7 +313,7 @@ function QuestCatalog({
   );
   const guidance = useLoopGuidance(guidanceCandidates);
   if (state === 'loading')
-    return <SheetState title="Loading verified quests" copy="Loading the verified catalog." />;
+    return <SheetState title="Loading quests" copy="Finding quests near you." />;
   if (state === 'offline')
     return (
       <SheetState
@@ -324,16 +324,11 @@ function QuestCatalog({
       />
     );
   if (state === 'configuration')
-    return (
-      <SheetState
-        title="Explore needs setup"
-        copy="RunSphere needs an API URL before the verified catalog can load."
-      />
-    );
+    return <SheetState title="Explore needs setup" copy="Quests aren't available right now." />;
   if (state === 'error')
     return (
       <SheetState
-        title="Verified quests unavailable"
+        title="Quests unavailable"
         copy="The map and free activity remain available."
         action="Retry catalog"
         onPress={onRetry}

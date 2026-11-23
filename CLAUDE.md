@@ -3,7 +3,7 @@
 Guidance for Claude Code in this repository. Verified against the code on 2026-11-21 (commit `2a93032`).
 Deeper references: `PROJECT_ARCHITECTURE.md`, `IMPLEMENTATION_STATUS.md`, `BUGS_AND_RISKS.md`,
 `IMPLEMENTATION_ROADMAP.md` (✅ done / 🟡 partial / unmarked = open; start here to pick work). **Trust the code over `docs/`**: several docs are stale (see
-PROJECT_ARCHITECTURE.md §9). In particular, `docs/pending-work.md` is superseded and contradicts itself; ignore it.
+PROJECT_ARCHITECTURE.md §9). The [TURFR mobile handoff](docs/plans/turfr-ui-rebrand.md) records the approved design, preview setup, and open device checks.
 
 ## What this is
 

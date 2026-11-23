@@ -103,8 +103,7 @@ export const ghostStateMessage = (state: GhostState): string => {
   if (state === 'loading') return 'Loading the ghost.';
   if (state === 'rate-limited') return GHOST_REFUSAL_MESSAGE.rate_limited;
   if (state === 'unavailable') return GHOST_REFUSAL_MESSAGE.no_trace;
-  if (state === 'offline')
-    return 'RunSphere could not reach the service. You can still run the loop.';
+  if (state === 'offline') return 'TURFR could not reach the service. You can still run the loop.';
   if (state === 'error') return 'The ghost could not be loaded. You can still run the loop.';
   return '';
 };

@@ -278,7 +278,7 @@ export const globalBoardEmptyMessage = (board: GlobalBoardResponse): string =>
  * so what it publishes — and what it never does — is stated in full.
  */
 export const GLOBAL_BOARD_JOIN_CONSEQUENCE =
-  'Joining shows your display name, one weekly number, and a rank to other people who have joined. Never your route, pace, distance, or where you went. You are ranked only against people with a similar length of time on RunSphere, and you can leave at any time.';
+  'Joining shows your display name, one weekly number, and a rank to other people who have joined. Never your route, pace, distance, or where you went. You are ranked only against people with a similar length of time on TURFR, and you can leave at any time.';
 
 /**
  * Scheduled competitions (milestone 3.6). Everything a participant needs to

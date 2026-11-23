@@ -19,4 +19,5 @@ where shared rules live, local pitfalls and guardrails. Then:
    [`docs/incident-response.md`](docs/incident-response.md) and `services/api/src/legal-pages.ts`.
    Keep them true when behaviour changes. All user-facing copy follows [`docs/voice.md`](docs/voice.md).
 
-Trust the code over `docs/`; `docs/pending-work.md` is superseded.
+For the approved TURFR branding, palette, Home layout and remaining device checks, read the
+[TURFR mobile handoff](docs/plans/turfr-ui-rebrand.md). Use the code to resolve historical design notes.

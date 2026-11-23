@@ -204,11 +204,15 @@ export const boundsFrom = (
   north: bounds[3]
 });
 
+/** Display units for held ground. Ranking uses the exact area from the API. */
+export const formatTurfPoints = (areaSqm: number): string =>
+  areaSqm > 0 && areaSqm < 100 ? '<1' : Math.floor(areaSqm / 100).toLocaleString('en-IN');
+
 /** The reader's standing, in a line. Ground held, never a rank. */
 export const summaryLine = (summary: TerritoryClaimSummary | undefined): string => {
   if (!summary || summary.claimCount === 0)
     return 'You hold no ground yet. Run a closed loop to claim some.';
-  const held = `${summary.claimCount === 1 ? '1 claim' : `${summary.claimCount} claims`}, ${formatArea(summary.totalAreaSqm)}`;
+  const held = `${summary.claimCount === 1 ? '1 claim' : `${summary.claimCount} claims`}, ${formatTurfPoints(summary.totalAreaSqm)} Turf points`;
   return summary.lostCount === 0
     ? held
     : `${held} · ${summary.lostCount === 1 ? '1 taken from you' : `${summary.lostCount} taken from you`}`;
@@ -387,7 +391,7 @@ export interface LeaderboardRow {
 
 export const leaderboardRows = (board: TerritoryLeaderboardResponse): LeaderboardRow[] => {
   const render = (entry: TerritoryLeaderboardEntry, beyondPage = false): LeaderboardRow => {
-    const name = entry.club?.name ?? entry.owner?.displayName ?? 'RunSphere member';
+    const name = entry.club?.name ?? entry.owner?.displayName ?? 'TURFR member';
     const detail =
       board.metric === 'fastest' && entry.fastestSeconds
         ? `${formatLoopTime(entry.fastestSeconds)} · ${formatArea(entry.totalAreaSqm)}`
@@ -395,7 +399,7 @@ export const leaderboardRows = (board: TerritoryLeaderboardResponse): Leaderboar
           ? `${entry.defendedCount} defended · ${formatArea(entry.totalAreaSqm)}`
           : board.metric === 'claims'
             ? `${entry.claimCount === 1 ? '1 territory' : `${entry.claimCount} territories`}`
-            : formatArea(entry.totalAreaSqm);
+            : `${formatTurfPoints(entry.totalAreaSqm)} Turf points`;
     // Beyond the page the exact position is unknown, so it is not invented.
     const rankLabel = beyondPage ? '—' : `#${entry.rank}`;
     return {
@@ -539,10 +543,12 @@ export const claimableRunId = (
     readonly status: string;
     readonly territoryClaimed?: boolean;
     readonly runMode?: 'free' | 'turf' | 'quest' | 'ghost';
-  }>
+  }>,
+  requestedRunId?: string
 ): string | undefined =>
   runs.find(
     (run) =>
+      (requestedRunId === undefined || run.id === requestedRunId) &&
       run.status === 'derived' &&
       run.territoryClaimed !== true &&
       // M9 9.4: the server refuses claims from Free and Quest runs.

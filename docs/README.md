@@ -1,8 +1,8 @@
 # Docs — Agent Onboarding Index
 
-**If you are an agent starting work on this project, read the files in the order listed below.** Each file is one level deeper than the previous. Do not skip any file in the MUST READ list — they contain decisions that override common assumptions and are not obvious from the code alone.
-
----
+Start with [AGENTS.md](../AGENTS.md) and [CLAUDE.md](../CLAUDE.md). This index lists
+supporting design and operations documents. Use implementation status and the code
+to resolve differences with historical specs.
 
 ## Product context (Read first — before touching any code)
 
@@ -15,11 +15,12 @@
 | [`map-ux.md`](map-ux.md)                         | Full spec for the live-run map (path trace, auto-follow, relocation button, zoom, Ghost Race ghost layer) and the route suggestion preview screen                                                   | 6 min        |
 | [`screens.md`](screens.md)                       | **Screen-by-screen UX spec for every tab and flow** — onboarding (6 screens), Turf tab, Home tab, Explore tab, live running screen, Play tab, Clubs tab, You tab, post-run flow, push notifications | 12 min       |
 
-## What is not done yet
+## Current work
 
-| File                                 | What it tells you                                                                                                                                                                 |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`pending-work.md`](pending-work.md) | Master list of all outstanding work — blockers, important items, planned features, known gaps, and specific files that need changing. **Read this before starting any new task.** |
+- [Implementation roadmap](../IMPLEMENTATION_ROADMAP.md)
+- [Implementation status](../IMPLEMENTATION_STATUS.md)
+- [Bugs and risks](../BUGS_AND_RISKS.md)
+- [TURFR mobile handoff](plans/turfr-ui-rebrand.md)
 
 ## Architecture and infrastructure
 

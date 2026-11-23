@@ -194,7 +194,7 @@ export function NotificationsScreen({
       <Text style={styles.eyebrow}>YOUR INBOX</Text>
       <Text style={styles.homeTitle}>Notifications</Text>
       <Text style={styles.lead}>
-        Everything RunSphere sends you arrives here, whether or not a push reaches your phone. A
+        Everything TURFR sends you arrives here, whether or not a push reaches your phone. A
         notification never carries your route, pace, or location.
       </Text>
 
@@ -373,7 +373,7 @@ export function NotificationsScreen({
             </Text>
             <Text style={styles.noticeCopy}>
               {state === 'configuration'
-                ? 'RunSphere needs an API URL before notifications can load.'
+                ? 'TURFR needs an API URL before notifications can load.'
                 : 'Your inbox and settings could not load. Nothing was changed.'}
             </Text>
             {state !== 'configuration' && (

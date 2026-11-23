@@ -125,7 +125,7 @@ describe('member rows', () => {
 
   it('keeps a member with no display name addressable', () => {
     const rows = clubMemberRows([member(RAVI, 'member', '')], { accountId: ME, role: 'owner' });
-    expect(rows[0]!.nameLabel).toBe('RunSphere member');
+    expect(rows[0]!.nameLabel).toBe('TURFR member');
   });
 });
 
@@ -369,7 +369,7 @@ describe('club board rows', () => {
   it('names an entry that has no display name rather than showing an id', () => {
     const rows = clubBoardRows([entry(RAVI, '', 1, 0)]);
 
-    expect(rows[0]?.nameLabel).toBe('RunSphere member');
+    expect(rows[0]?.nameLabel).toBe('TURFR member');
     expect(rows[0]?.accessibilityLabel).not.toContain(RAVI);
   });
 
@@ -508,7 +508,7 @@ describe('club challenge rows', () => {
 describe('sharing a club code', () => {
   it('names the club, says where to enter the code, and includes it', () => {
     expect(clubShareMessage('Bandra Dawn Runners', 'K7PX2M')).toBe(
-      'Join Bandra Dawn Runners on RunSphere. Open Social > Clubs > Join and enter K7PX2M.'
+      'Join Bandra Dawn Runners on TURFR. Open Social > Clubs > Join and enter K7PX2M.'
     );
   });
 });

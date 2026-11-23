@@ -12,7 +12,7 @@ import { AuthFailure } from './auth-failure';
 export const FAILURE_COPY = {
   offline: "You're offline. Your runs are saved and sync when you're back.",
   sessionEnded: 'You were signed out. Sign in again to carry on.',
-  unavailable: "RunSphere isn't responding right now. Try again in a minute.",
+  unavailable: "TURFR isn't responding right now. Try again in a minute.",
   rateLimited: 'Lots of tries just now. Wait a minute, then try again.',
   notFound: "That's no longer here. Pull to refresh.",
   generic: 'Something went wrong. Nothing was lost; try again.',

@@ -7,7 +7,7 @@ RunSphere has **two separate territory mechanics**. They share no tables, rules,
 
 ## Mechanic 1 — Turf (Enclosure Claims)
 
-**Status: PRIMARY FEATURE. Live and active. Implementation underway (see pending-work.md).**
+**Status: PRIMARY FEATURE. Live and active. See the [implementation status](../IMPLEMENTATION_STATUS.md) for current availability.**
 
 ### What it is
 
@@ -283,7 +283,7 @@ The full takeover history (who held it, for how long, what time they set) is alw
 - **Sharing suspension.** If your account has a social suspension, your claims do not appear on the map and you cannot make new ones.
 - **Display identity only.** The map shows your display name and avatar — never your email, contact details, or activity history.
 
-### Current known gaps (not yet resolved — see pending-work.md)
+### Known gaps from the original plan
 
 - No protection for runners who have not set a privacy zone.
 - No concentration guardrail (unlike the H3 season, there is no top-10% cap for Turf).

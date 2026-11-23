@@ -57,21 +57,16 @@ export function QuestDetailScreen({
   return (
     <View style={styles.root}>
       <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Back to verified quests"
-          onPress={onBack}
-        >
+        <Pressable accessibilityRole="button" accessibilityLabel="Back to quests" onPress={onBack}>
           <Text style={[styles.back, { color: tokens.text.primary }]}>‹</Text>
         </Pressable>
-        <Text style={[styles.eyebrow, { color: tokens.status.success }]}>VERIFIED QUEST</Text>
       </View>
       <Text accessibilityRole="header" style={[styles.title, { color: tokens.text.primary }]}>
         {quest.title}
       </Text>
       <Text style={[styles.copy, { color: tokens.text.secondary }]}>
-        Pass every stop on one run, in any order. RunSphere checks your run when it's uploaded;
-        there's nothing to tap at each stop.
+        Pass every stop on one run, in any order. TURFR checks your run when it's uploaded; there's
+        nothing to tap at each stop.
       </Text>
       <View style={[styles.stats, { backgroundColor: tokens.background.surface }]}>
         <Stat
@@ -139,21 +134,21 @@ function DetailContent({
     return (
       <DetailState
         title="Quest unavailable"
-        copy="This quest is no longer available. Return to the verified quest list for alternatives."
+        copy="This quest is no longer available. Return to the quest list for alternatives."
       />
     );
   if (state === 'closed')
     return (
       <DetailState
         title="Quest currently closed"
-        copy={`Published hours: ${quest.openHours.schedule}. Browse other verified quests or start a free activity.`}
+        copy={`Published hours: ${quest.openHours.schedule}. Browse other quests or start a free activity.`}
       />
     );
   if (state === 'error')
     return (
       <DetailState
         title="Checkpoint details unavailable"
-        copy="Return to the verified quest list and choose another quest."
+        copy="Return to the quest list and choose another quest."
       />
     );
   return (
@@ -202,7 +197,6 @@ const styles = StyleSheet.create({
   root: { gap: 12, paddingBottom: 8 },
   header: { alignItems: 'center', flexDirection: 'row', gap: 12 },
   back: { fontSize: 38, fontWeight: '500', lineHeight: 36 },
-  eyebrow: { fontSize: 11, fontWeight: '900', letterSpacing: 1.3 },
   title: { fontSize: 30, fontWeight: '900', letterSpacing: -1 },
   copy: { fontSize: 14, lineHeight: 20 },
   stats: { borderRadius: 16, flexDirection: 'row', padding: 14 },

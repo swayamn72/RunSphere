@@ -25,7 +25,7 @@ const resolveGoogleServicesFile = (): string | undefined => {
 const googleServicesFile = resolveGoogleServicesFile();
 
 const config: ExpoConfig = {
-  name: 'RunSphere',
+  name: 'TURFR',
   slug: 'runsphere',
   // Friend invite links open the app: runsphere://invite/<token> (ADR-0014).
   scheme: 'runsphere',
@@ -79,7 +79,7 @@ const config: ExpoConfig = {
       'expo-local-authentication',
       {
         faceIDPermission:
-          'Allow RunSphere to confirm it is you before a run starts, so your runs cannot be recorded by somebody else.'
+          'Allow TURFR to confirm it is you before a run starts, so your runs cannot be recorded by somebody else.'
       }
     ],
     ['expo-sqlite', { useSQLCipher: true }],
@@ -87,7 +87,7 @@ const config: ExpoConfig = {
       'expo-location',
       {
         locationWhenInUsePermission:
-          'Allow RunSphere to use your location while you record an activity.',
+          'Allow TURFR to use your location while you record an activity.',
         // A location foreground service keeps a run recording with the screen
         // locked, started from the Start tap, without ACCESS_BACKGROUND_LOCATION
         // (still blocked below). Adds FOREGROUND_SERVICE(_LOCATION) (M8 C.3).

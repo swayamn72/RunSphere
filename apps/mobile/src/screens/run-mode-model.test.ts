@@ -6,13 +6,8 @@ const mine = { owner: { isSelf: true }, ghostAvailable: true };
 const closed = { owner: { isSelf: false }, ghostAvailable: false };
 
 describe('run mode picker (M9 9.6)', () => {
-  it('offers the four modes in order, one short line each', () => {
-    expect(RUN_MODE_CARDS.map((card) => card.title)).toEqual([
-      'Free run',
-      'Turf',
-      'Quest',
-      'Ghost Race'
-    ]);
+  it('offers the three launch modes in order, one short line each', () => {
+    expect(RUN_MODE_CARDS.map((card) => card.title)).toEqual(['Free run', 'Turf', 'Quest']);
     for (const card of RUN_MODE_CARDS) expect(card.line.length).toBeLessThanOrEqual(50);
   });
 
@@ -21,9 +16,8 @@ describe('run mode picker (M9 9.6)', () => {
     expect(pickRunMode('turf')).toEqual({ kind: 'start', start: { mode: 'turf' } });
   });
 
-  it('asks for a quest or a rival’s ground before the other two can start', () => {
+  it('asks for a quest before starting a Quest run', () => {
     expect(pickRunMode('quest')).toEqual({ kind: 'choose-quest' });
-    expect(pickRunMode('ghost')).toEqual({ kind: 'choose-ground' });
   });
 
   it('says what to tap on the map, or why there is nothing to tap', () => {

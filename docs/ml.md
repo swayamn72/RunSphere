@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-09-07
 **Status:** Approved for implementation. Not yet started.
-**Agent reading this:** This document contains everything needed to implement the two ML systems described here. Read `pending-work.md` Section 5 for task-level breakdown. Read `packages/domain/src/run-integrity.ts` before touching the anti-cheat system — the rule-based layer that the ML model supplements already exists.
+**Agent reading this:** This document contains everything needed to implement the two ML systems described here. Launch scope follows [ADR-0013](adr/0013-defer-ml-at-launch.md). Read `packages/domain/src/run-integrity.ts` before touching the anti-cheat system — the rule-based layer that the ML model supplements already exists.
 
 ---
 

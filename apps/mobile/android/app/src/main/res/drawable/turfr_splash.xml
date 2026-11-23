@@ -1,0 +1,8 @@
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/turfr_canvas" />
+    <item
+        android:width="108dp"
+        android:height="108dp"
+        android:drawable="@drawable/turfr_loop"
+        android:gravity="center" />
+</layer-list>

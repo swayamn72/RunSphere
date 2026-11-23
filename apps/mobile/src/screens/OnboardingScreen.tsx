@@ -5,7 +5,6 @@ import { useCallback, useEffect, useState } from 'react';
 import type React from 'react';
 import {
   AppState,
-  Image,
   Linking,
   Pressable,
   SafeAreaView,
@@ -29,7 +28,6 @@ import type { initialOnboardingState, onboardingReducer } from '../onboarding';
 import { PermissionCard, PrimaryButton, StepHeader } from '../components/primitives';
 import { KeyboardSafe } from '../components/ScreenShell';
 import { useAppStyles } from '../components/styles';
-import appLogo from '../../assets/logo.png';
 
 type AuthStatus = 'idle' | 'loading' | 'error';
 
@@ -145,28 +143,11 @@ export function Onboarding({
         >
           {state.step === 'welcome' && (
             <>
-              {/*
-              The wordmark sits inside the hero rather than under it, so the
-              first screen is one image with a name on it. Geometry rather than
-              a photograph: the app ships no bitmap hero, and a stock runner
-              would be the one thing on this screen that is not RunSphere's.
-            */}
-              <View accessible={false} style={styles.splashHero}>
-                <View style={styles.orbitOne} />
-                <View style={styles.orbitTwo} />
-                <Image
-                  source={appLogo}
-                  style={styles.splashLogo}
-                  resizeMode="contain"
-                  accessibilityRole="image"
-                  accessibilityLabel="RunSphere logo"
-                />
-                <View style={styles.splashMark}>
-                  <Text accessibilityRole="header" style={styles.wordmark}>
-                    Run<Text style={styles.teal}>Sphere</Text>
-                  </Text>
-                  <Text style={styles.splashTagline}>More than a run.{'\n'}A bigger world.</Text>
-                </View>
+              <View style={styles.splashMark}>
+                <Text accessibilityRole="header" style={styles.wordmark}>
+                  TURFR
+                </Text>
+                <Text style={styles.splashTagline}>Run a loop. Claim your ground.</Text>
               </View>
               <PrimaryButton
                 label="Get started"
@@ -179,9 +160,6 @@ export function Onboarding({
               >
                 <Text style={styles.textButton}>I already have an account</Text>
               </Pressable>
-              {/* The three verbs the product is built on, as the design closes
-                the screen with. */}
-              <Text style={styles.splashFooter}>Run · Capture · Connect</Text>
             </>
           )}
           {state.step === 'account' && recovering && (
@@ -202,13 +180,7 @@ export function Onboarding({
                 step={state.accountMode === 'login' ? 'SIGN IN' : 'STEP 1 OF 3'}
                 onBack={() => dispatch({ type: 'back' })}
               />
-              <Image
-                source={appLogo}
-                style={styles.accountLogo}
-                resizeMode="contain"
-                accessibilityRole="image"
-                accessibilityLabel="RunSphere logo"
-              />
+              <Text style={styles.wordmark}>TURFR</Text>
               <Text style={styles.eyebrow}>
                 {state.accountMode === 'login' ? 'WELCOME BACK' : 'MAKE IT YOURS'}
               </Text>
@@ -217,8 +189,8 @@ export function Onboarding({
               </Text>
               <Text style={styles.lead}>
                 {state.accountMode === 'login'
-                  ? 'Use your email and password to restore your private RunSphere account.'
-                  : 'We use your email and password to create your private RunSphere account.'}
+                  ? 'Use your email and password to restore your private TURFR account.'
+                  : 'We use your email and password to create your private TURFR account.'}
               </Text>
               {state.accountMode === 'register' && (
                 <>
@@ -417,8 +389,8 @@ export function Onboarding({
               <Text style={styles.onboardingTitle}>Set up your activity map.</Text>
               <Text style={styles.lead}>
                 Precise location records your run. GPS points are encrypted on this device, then
-                uploaded to RunSphere to check the run when you choose to sync. Uploaded raw GPS is
-                kept for up to 30 days, and route maps are trimmed around your saved privacy zones.
+                uploaded to TURFR to check the run when you choose to sync. Uploaded raw GPS is kept
+                for up to 30 days, and route maps are trimmed around your saved privacy zones.
               </Text>
               <PermissionCard
                 icon="⌖"
@@ -429,7 +401,7 @@ export function Onboarding({
               <PermissionCard
                 icon="⌁"
                 title="Screen-off recording"
-                detail="During a run, a notification shows while RunSphere records with your screen locked. It stops when you pause or finish."
+                detail="During a run, a notification shows while TURFR records with your screen locked. It stops when you pause or finish."
                 badge="During runs"
               />
               <View style={styles.privacyRow}>
@@ -449,13 +421,13 @@ export function Onboarding({
               </View>
               <Text style={styles.privateNote}>
                 Change who sees your runs any time in Privacy & visibility. Declining location still
-                lets you browse RunSphere, but recording runs and nearby quests stay unavailable.
+                lets you browse TURFR, but recording runs and nearby quests stay unavailable.
               </Text>
               {state.location !== 'granted' ? (
                 <PrimaryButton label="Allow location" onPress={() => void requestLocation()} />
               ) : (
                 <>
-                  <PrimaryButton label="Continue to RunSphere" onPress={finishOnboarding} />
+                  <PrimaryButton label="Continue to TURFR" onPress={finishOnboarding} />
                 </>
               )}
               {state.location !== 'granted' && (
@@ -476,8 +448,7 @@ export function Onboarding({
               </Text>
               {state.location === 'blocked' && (
                 <Text style={styles.privateNote}>
-                  Location is disabled for RunSphere. Enable it in Android Settings, then return
-                  here.
+                  Location is disabled for TURFR. Enable it in Android Settings, then return here.
                 </Text>
               )}
               <PrimaryButton

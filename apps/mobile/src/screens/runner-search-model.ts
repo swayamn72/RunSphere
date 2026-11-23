@@ -49,4 +49,4 @@ export const addFailureMessage = (error: unknown): string =>
     : failureMessage(error, "Couldn't send that request. Try again.");
 
 export const inviteShareMessage = (link: string): string =>
-  `Run with me on RunSphere. Tap to add me as a friend: ${link}`;
+  `Run with me on TURFR. Tap to add me as a friend: ${link}`;

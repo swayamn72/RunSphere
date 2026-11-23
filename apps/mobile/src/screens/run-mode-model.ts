@@ -2,13 +2,15 @@ import type { RunMode } from '@runsphere/contracts';
 import { FREE_RUN, TURF_RUN, type RunStart } from '../run-start';
 
 /**
- * The Run tab's mode picker (M9 9.6). Four cards, one line each on what that
+ * The Run tab's mode picker (M9 9.6). Three cards, one line each on what that
  * run does, so the choice is made before the run and not discovered after it
  * (plan section 1, decision 1). The lines say what the run *can* do; the
  * server still decides what it did.
  */
+export type LaunchRunMode = Exclude<RunMode, 'ghost'>;
+
 export interface RunModeCard {
-  readonly mode: RunMode;
+  readonly mode: LaunchRunMode;
   readonly title: string;
   readonly line: string;
 }
@@ -16,30 +18,23 @@ export interface RunModeCard {
 export const RUN_MODE_CARDS: readonly RunModeCard[] = [
   { mode: 'free', title: 'Free run', line: 'Just run. Distance, time and pace.' },
   { mode: 'turf', title: 'Turf', line: 'Close a loop to claim the ground inside it.' },
-  { mode: 'quest', title: 'Quest', line: 'Pass every stop of a quest you’ve taken on.' },
-  { mode: 'ghost', title: 'Ghost Race', line: 'Race a rival’s loop to take their ground.' }
+  { mode: 'quest', title: 'Quest', line: 'Pass every stop of a quest you’ve taken on.' }
 ];
 
 /**
  * What picking a card does. Free and Turf need nothing and go straight to the
  * prepare screen. A Quest run needs a quest you've taken on, so it opens the
- * quests; a Ghost Race needs a rival's ground, so it opens the map. Neither
- * starts until that choice is made, because the server would refuse a run
- * without it.
+ * quests before starting.
  */
 export type RunModePick =
-  | { readonly kind: 'start'; readonly start: RunStart }
-  | { readonly kind: 'choose-quest' }
-  | { readonly kind: 'choose-ground' };
+  { readonly kind: 'start'; readonly start: RunStart } | { readonly kind: 'choose-quest' };
 
-export const pickRunMode = (mode: RunMode): RunModePick =>
+export const pickRunMode = (mode: LaunchRunMode): RunModePick =>
   mode === 'free'
     ? { kind: 'start', start: FREE_RUN }
     : mode === 'turf'
       ? { kind: 'start', start: TURF_RUN }
-      : mode === 'quest'
-        ? { kind: 'choose-quest' }
-        : { kind: 'choose-ground' };
+      : { kind: 'choose-quest' };
 
 /**
  * The line over the map after picking Ghost Race. It tells the runner what to

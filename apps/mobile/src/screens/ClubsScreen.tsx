@@ -338,8 +338,8 @@ export function ClubsScreen({
             }}
           />
           <Text style={styles.rowDetail}>
-            You become the owner. RunSphere generates the invite code; you cannot choose it, and
-            anyone with it can join.
+            You become the owner. TURFR generates the invite code; you cannot choose it, and anyone
+            with it can join.
           </Text>
         </View>
       </SettingsGroup>
@@ -353,7 +353,7 @@ export function ClubsScreen({
             </Text>
             <Text style={styles.noticeCopy}>
               {state === 'configuration'
-                ? 'RunSphere needs an API URL before clubs can load.'
+                ? 'TURFR needs an API URL before clubs can load.'
                 : 'Your clubs could not load. Nothing was changed.'}
             </Text>
             {state !== 'configuration' && (

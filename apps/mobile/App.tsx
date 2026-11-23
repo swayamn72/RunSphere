@@ -40,6 +40,7 @@ const loadBackgroundModules = (): {
 const { BackgroundFetch, TaskManager } = loadBackgroundModules();
 
 import { FocusedFlexShell, FocusedScrollShell, TabScrollShell } from './src/components/ScreenShell';
+import { ScreenProgression } from './src/components/ProgressionBadge';
 import type { LocationObject } from 'expo-location';
 import {
   RUN_LOCATION_TASK,
@@ -95,8 +96,7 @@ import { ProfileScreen } from './src/screens/ProductScreens';
 import { PlayScreen } from './src/screens/PlayScreen';
 import { ExploreScreen } from './src/screens/ExploreScreen';
 import { RoutePreviewScreen } from './src/screens/RoutePreviewScreen';
-import type { RouteGuide } from './src/screens/route-preview-model';
-import type { GhostRun } from './src/screens/ghost-race-model';
+import type { RouteGuide, RoutePreviewCard } from './src/screens/route-preview-model';
 import {
   NOTIFICATION_TARGET_FOCUS,
   NOTIFICATION_TARGET_TAB
@@ -170,6 +170,10 @@ function RunSphereApp() {
   const styles = useAppStyles();
   const [onboarding, dispatch] = useReducer(onboardingReducer, initialOnboardingState);
   const [activeTab, setActiveTab] = useState<Tab>(landingTab);
+  const [claimRunId, setClaimRunId] = useState<string>();
+  useEffect(() => {
+    if (activeTab !== 'Map') setClaimRunId(undefined);
+  }, [activeTab]);
   const [activityRoute, dispatchActivityRoute] = useReducer(
     activityFlowReducer,
     initialActivityRoute
@@ -193,14 +197,7 @@ function RunSphereApp() {
    * whether one was on screen (`map-ux.md` 1.5).
    */
   const [routeGuide, setRouteGuide] = useState<RouteGuide>();
-  /**
-   * A ghost being raced. Held here for the same reason as the route guide: it
-   * belongs to one run, and nothing about a saved activity depends on whether
-   * a ghost was on screen while it was recorded.
-   */
-  const [ghostRun, setGhostRun] = useState<GhostRun>();
-  /** Ghost Race was picked on the Run tab, so the map says what to tap (M9 9.6). */
-  const [ghostHint, setGhostHint] = useState(false);
+  const [homeLoop, setHomeLoop] = useState<RoutePreviewCard>();
   /**
    * The stops of the quest a Quest run is for, so the live HUD can tick them
    * off (M9 9.7). Keyed on the session, so a run restored after a restart
@@ -330,8 +327,7 @@ function RunSphereApp() {
     dispatchActivityRoute({ type: 'logout' });
     setFocus('none');
     setRouteGuide(undefined);
-    setGhostRun(undefined);
-    setGhostHint(false);
+    setHomeLoop(undefined);
     setRecording(undefined);
     setAccountId(undefined);
     dispatch({ type: 'logoutComplete' });
@@ -405,8 +401,8 @@ function RunSphereApp() {
         <View style={styles.loading}>
           <Text style={styles.onboardingTitle}>Secure storage unavailable</Text>
           <Text style={styles.lead}>
-            RunSphere could not unlock encrypted activity data. Recording stays disabled to protect
-            your local data.
+            TURFR could not unlock encrypted activity data. Recording stays disabled to protect your
+            local data.
           </Text>
           <PrimaryButton label="Try again" onPress={retryStorage} />
         </View>
@@ -453,7 +449,7 @@ function RunSphereApp() {
    * Open the prepare screen for a run in the given mode (M9 9.5). Most starts
    * go through the picker (`chooseRun`); the ones that skip it already say
    * what the run is for. "Run here" on the map and a suggested loop are Turf
-   * runs, a quest's Start is a quest run, a rival's ground is a Ghost Race.
+   * runs, and a quest's Start is a quest run.
    */
   const openActivity = (
     origin: 'home' | 'quests' | 'map' | 'quest-detail',
@@ -478,7 +474,6 @@ function RunSphereApp() {
     dispatchActivityRoute({ type: 'exit' });
     setRecording(undefined);
     setRouteGuide(undefined);
-    setGhostRun(undefined);
     if (origin) {
       const destination = activityOriginReturn(origin);
       setActiveTab(destination.activeTab);
@@ -520,10 +515,10 @@ function RunSphereApp() {
         session={recording}
         accountId={accountId}
         {...(routeGuide ? { guide: routeGuide } : {})}
-        {...(ghostRun ? { ghost: ghostRun } : {})}
         {...(questRun ? { quest: questRun } : {})}
-        onOpenMap={() => {
+        onOpenMap={(runId) => {
           exitActivity();
+          setClaimRunId(runId);
           setActiveTab('Map');
           setFocus('none');
         }}
@@ -547,6 +542,11 @@ function RunSphereApp() {
         (activeTab === 'Run' && activityRoute.screen === 'idle')) &&
       accountId ? (
       <RunModePicker
+        onBrowseRoutes={() => {
+          dispatchActivityRoute({ type: 'exit' });
+          setRouteGuide(undefined);
+          setFocus('route-preview');
+        }}
         onPick={(mode) => {
           const pick = pickRunMode(mode);
           const from = routeOrigin(activityRoute) ?? { kind: 'home' as const };
@@ -555,14 +555,9 @@ function RunSphereApp() {
             return;
           }
           dispatchActivityRoute({ type: 'exit' });
-          if (pick.kind === 'choose-quest') {
-            // A quest's own Start begins the quest run once it's taken on.
-            setActiveTab('Home');
-            setFocus('quests');
-          } else {
-            setActiveTab('Map');
-            setGhostHint(true);
-          }
+          // A quest's own Start begins the quest run once it's taken on.
+          setActiveTab('Home');
+          setFocus('quests');
         }}
       />
     ) : activityRoute.screen === 'prepare' && accountId ? (
@@ -572,7 +567,6 @@ function RunSphereApp() {
         {...(activityRoute.origin.kind === 'quest-detail'
           ? { questTitle: activityRoute.origin.quest.title }
           : {})}
-        {...(ghostRun ? { rivalName: ghostRun.holderName } : {})}
         {...(originLabel ? { originLabel } : {})}
         {...(routeGuide ? { guide: routeGuide } : {})}
         onChange={(session) => {
@@ -584,6 +578,8 @@ function RunSphereApp() {
     ) : focus === 'route-preview' ? (
       <RoutePreviewScreen
         api={apiClient}
+        {...(homeLoop ? { preferredRouteId: homeLoop.suggestion.id } : {})}
+        onPreviewChange={setHomeLoop}
         onUseRoute={(guide) => {
           setRouteGuide(guide);
           setFocus('none');
@@ -623,25 +619,18 @@ function RunSphereApp() {
       />
     ) : activeTab === 'Home' ? (
       <HomeScreen
+        onOpenClaim={(runId) => {
+          setClaimRunId(runId);
+          setActiveTab('Map');
+        }}
         api={apiClient}
         onStart={() => chooseRun('home')}
-        onChooseRoute={() => {
-          setRouteGuide(undefined);
-          setFocus('route-preview');
-        }}
         onOpenChallenges={() => setFocus('challenges')}
         onOpenQuests={() => setFocus('quests')}
+        onSelectQuest={setSelectedQuest}
         onOpenMap={() => setActiveTab('Map')}
-        onOpenSocial={() => {
-          setSocialEntry('friends');
-          setActiveTab('Social');
-        }}
         onOpenNotifications={() => {
           setProfileEntry('notifications');
-          setActiveTab('Profile');
-        }}
-        onOpenSettings={() => {
-          setProfileEntry('settings');
           setActiveTab('Profile');
         }}
         onOpenPrivacy={() => {
@@ -657,6 +646,7 @@ function RunSphereApp() {
     ) : activeTab === 'Map' ? (
       <TurfScreen
         api={apiClient}
+        {...(claimRunId ? { requestedRunId: claimRunId } : {})}
         {...(accountId ? { accountId } : {})}
         onOpenRun={() => openActivity('map')}
         onOpenQuest={setSelectedQuest}
@@ -669,15 +659,6 @@ function RunSphereApp() {
           setActiveTab('Profile');
         }}
         onSessionExpired={expireSession}
-        ghostHint={ghostHint}
-        onGhostRace={(run) => {
-          setGhostHint(false);
-          setGhostRun(run);
-          // A ghost is a reference on the map, not a route to follow, so it
-          // does not also set a route guide.
-          setRouteGuide(undefined);
-          openActivity('map', { mode: 'ghost', ghostClaimId: run.claimId });
-        }}
       />
     ) : activeTab === 'Social' ? (
       <PlayScreen
@@ -711,12 +692,24 @@ function RunSphereApp() {
     );
 
   return (
-    <SafeAreaView
-      edges={['top']}
-      style={[styles.screen, { backgroundColor: tokens.background.canvas }]}
-    >
+    <SafeAreaView edges={['top']} style={styles.screen}>
       <RunDetailProvider
-        renderDetail={(props) => <RunDetailScreen {...props} api={apiClient} />}
+        renderDetail={(props) => (
+          <RunDetailScreen
+            {...props}
+            api={apiClient}
+            status={
+              accountId && (
+                <ScreenProgression
+                  key={accountId}
+                  api={apiClient}
+                  refreshKey="run-detail"
+                  inHeader
+                />
+              )
+            }
+          />
+        )}
         onOpenChange={setRunOpen}
       >
         <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
@@ -728,6 +721,13 @@ function RunSphereApp() {
           // TalkBack while the tour is over it (found on a phone, M9 9.29).
           importantForAccessibility={tour || runOpen ? 'no-hide-descendants' : 'auto'}
         >
+          {accountId && content.type !== HomeScreen && content.type !== TurfScreen && (
+            <ScreenProgression
+              key={accountId}
+              api={apiClient}
+              refreshKey={`${activeTab}:${focus}:${activityRoute.screen}:${recording?.state ?? ''}`}
+            />
+          )}
           {shell === 'tab-scroll' ? (
             <TabScrollShell>{content}</TabScrollShell>
           ) : shell === 'tab-map' ? (
@@ -745,8 +745,6 @@ function RunSphereApp() {
                 setSelectedQuest(undefined);
                 setFocus('none');
                 setRouteGuide(undefined);
-                setGhostRun(undefined);
-                setGhostHint(false);
                 if (tab !== 'Social') setSocialEntry('feed');
                 if (tab !== 'Profile') setProfileEntry('profile');
                 if (tab === 'Run') {

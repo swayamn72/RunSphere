@@ -85,7 +85,7 @@ describe('tour overlay (M9 9.23)', () => {
       renderer = create(<Harness registry={registry} onShowTab={onShowTab} />);
     });
     expect(texts(renderer)).toEqual(
-      expect.arrayContaining(['STEP 1 OF 6', TOUR_STEPS[0]!.title, TOUR_STEPS[0]!.rhoLine])
+      expect.arrayContaining(['STEP 1 OF 5', TOUR_STEPS[0]!.title, TOUR_STEPS[0]!.rhoLine])
     );
     const blurs = renderer.root.findAll((node) => (node.type as unknown) === 'BlurView');
     expect(blurs).toHaveLength(4);
@@ -101,9 +101,9 @@ describe('tour overlay (M9 9.23)', () => {
     expect(button(renderer, 'Back').props.disabled).toBe(true);
 
     await act(async () => button(renderer, 'Next').props.onPress());
-    expect(texts(renderer)).toContain('STEP 2 OF 6');
+    expect(texts(renderer)).toContain('STEP 2 OF 5');
     await act(async () => button(renderer, 'Back').props.onPress());
-    expect(texts(renderer)).toContain('STEP 1 OF 6');
+    expect(texts(renderer)).toContain('STEP 1 OF 5');
     await act(async () => button(renderer, 'Skip').props.onPress());
     expect(renderer.root.findAll((node) => (node.type as unknown) === 'Finished')).toHaveLength(1);
   });

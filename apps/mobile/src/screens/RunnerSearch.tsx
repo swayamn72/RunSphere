@@ -3,6 +3,7 @@ import { Pressable, Share, Text, TextInput, View } from 'react-native';
 import type { PublicProfile } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { useAppStyles } from '../components/styles';
+import { NavigationIcon } from '../components/NavigationIcon';
 import { useAppTheme } from '../theme/theme';
 import { failureMessage } from '../failure-copy';
 import {
@@ -90,7 +91,12 @@ export function RunnerSearch({
 
   return (
     <View style={styles.settingStack}>
-      <Text style={styles.fieldLabel}>FIND RUNNERS</Text>
+      <View style={styles.cardRow}>
+        <NavigationIcon name="search" color={tokens.text.secondary} size={18} />
+        <Text accessibilityRole="header" style={styles.rowTitle}>
+          Find runners
+        </Text>
+      </View>
       <TextInput
         accessibilityLabel="Search runners by username"
         autoCapitalize="none"

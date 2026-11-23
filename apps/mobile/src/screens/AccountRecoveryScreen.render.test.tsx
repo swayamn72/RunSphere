@@ -91,7 +91,7 @@ describe('forgot password (M3.5)', () => {
     await typeInto(renderer, 'Your email', 'maya@example.com');
     await press(renderer, 'Send link');
     expect(api.requestPasswordReset).toHaveBeenCalledWith('maya@example.com');
-    expect(texts(renderer).join(' ')).toMatch(/If that address has a RunSphere account/);
+    expect(texts(renderer).join(' ')).toMatch(/If that address has a TURFR account/);
 
     await typeInto(
       renderer,

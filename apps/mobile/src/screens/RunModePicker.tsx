@@ -1,7 +1,10 @@
-import { Pressable, Text, View } from 'react-native';
-import type { RunMode } from '@runsphere/contracts';
+﻿import { Pressable, Text, View } from 'react-native';
 import { useAppStyles } from '../components/styles';
-import { RUN_MODE_CARDS } from './run-mode-model';
+import { NavigationIcon } from '../components/NavigationIcon';
+import { useAppTheme } from '../theme/theme';
+import { RUN_MODE_CARDS, type LaunchRunMode } from './run-mode-model';
+
+const modeIcons = { free: 'run', turf: 'loop', quest: 'flag' } as const;
 
 /**
  * Pick the kind of run before it starts (M9 9.6). The cards are large and one
@@ -9,8 +12,15 @@ import { RUN_MODE_CARDS } from './run-mode-model';
  * one hand. What each pick leads to is `pickRunMode`'s decision, not this
  * screen's.
  */
-export function RunModePicker({ onPick }: { onPick: (mode: RunMode) => void }) {
+export function RunModePicker({
+  onPick,
+  onBrowseRoutes
+}: {
+  onPick: (mode: LaunchRunMode) => void;
+  onBrowseRoutes?: () => void;
+}) {
   const styles = useAppStyles();
+  const { tokens } = useAppTheme();
   return (
     <View>
       <Text accessibilityRole="header" style={styles.screenTitle}>
@@ -23,12 +33,24 @@ export function RunModePicker({ onPick }: { onPick: (mode: RunMode) => void }) {
           accessibilityRole="button"
           accessibilityLabel={`${card.title}. ${card.line}`}
           onPress={() => onPick(card.mode)}
-          style={styles.card}
+          style={({ pressed }) => [styles.card, styles.cardRow, pressed && styles.buttonPressed]}
         >
-          <Text style={styles.cardTitle}>{card.title}</Text>
-          <Text style={styles.rowDetail}>{card.line}</Text>
+          <NavigationIcon name={modeIcons[card.mode]} color={tokens.text.secondary} />
+          <View style={styles.flexCopy}>
+            <Text style={styles.cardTitle}>{card.title}</Text>
+            <Text style={styles.rowDetail}>{card.line}</Text>
+          </View>
         </Pressable>
       ))}
+      {onBrowseRoutes && (
+        <Pressable
+          accessibilityRole="button"
+          onPress={onBrowseRoutes}
+          style={styles.secondaryButton}
+        >
+          <Text style={styles.secondaryText}>Browse running routes</Text>
+        </Pressable>
+      )}
     </View>
   );
 }

@@ -132,7 +132,7 @@ export const calculatedPace = (
 export const activityHistoryLabel = (remoteStatus: ActivityLifecycleStatus | undefined): string => {
   if (remoteStatus === 'derived') return "Counted. Totals refresh when you're online";
   if (remoteStatus === 'rejected') return 'Saved, but not counted';
-  if (remoteStatus === 'deleted') return 'Deleted on RunSphere';
+  if (remoteStatus === 'deleted') return 'Deleted on TURFR';
   return 'Waiting for run check';
 };
 

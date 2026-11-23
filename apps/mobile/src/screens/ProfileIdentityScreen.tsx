@@ -149,7 +149,7 @@ export function ProfileIdentityScreen({
             </Text>
             <Text style={styles.noticeCopy}>
               {state === 'configuration'
-                ? 'RunSphere needs an API URL before your profile can load.'
+                ? 'TURFR needs an API URL before your profile can load.'
                 : 'Your display name could not load. Nothing was changed.'}
             </Text>
             {state !== 'configuration' && (

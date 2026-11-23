@@ -1,0 +1,7 @@
+<resources>
+  <style name="Theme.App.SplashScreen" parent="AppTheme">
+    <item name="android:windowSplashScreenBackground">@color/turfr_canvas</item>
+    <item name="android:windowSplashScreenAnimatedIcon">@drawable/turfr_loop</item>
+    <item name="android:windowBackground">@drawable/turfr_splash</item>
+  </style>
+</resources>

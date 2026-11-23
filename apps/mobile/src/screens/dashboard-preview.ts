@@ -1,5 +1,6 @@
 import type {
   QuestDetail,
+  ProgressionSummary,
   Coordinate,
   GhostTraceResponse,
   TerritoryClaim,
@@ -9,6 +10,20 @@ import previewGeometry from './preview-turf-geometry.json';
 
 export const dashboardPreviewEnabled =
   typeof __DEV__ !== 'undefined' && __DEV__ && process.env.EXPO_PUBLIC_HOME_PREVIEW === 'true';
+
+export const previewProgression: ProgressionSummary = {
+  totalXp: 1240,
+  questsCompleted: 6,
+  achievements: [],
+  weeklyConsistency: {
+    periodStart: '2026-11-16',
+    activeDays: 3,
+    cappedActiveMinutes: 78,
+    goalActiveDays: 5,
+    current: true
+  },
+  level: { level: 4, xpInLevel: 90, nextLevelAt: 1400 }
+};
 
 export const previewTurfQuests: readonly QuestDetail[] = [
   {

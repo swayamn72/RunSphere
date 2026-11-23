@@ -59,7 +59,7 @@ export const validateInviteEmail = (raw: string): InviteValidation => {
  * registered; saying "not found" would leak the opposite.
  */
 export const INVITE_RECORDED_NOTICE =
-  'Request recorded. If that address belongs to a RunSphere account that can receive it, it will appear in their requests. You will see them in your friends list once they accept.';
+  'Request recorded. If that address belongs to a TURFR account that can receive it, it will appear in their requests. You will see them in your friends list once they accept.';
 
 export const inviteFailureNotice = (error: unknown): string => {
   if (error instanceof ApiFailure && error.status === 429)
@@ -100,7 +100,7 @@ export interface FriendRow {
 }
 
 /** A profile with no display name still has to be addressable in a list. */
-const nameOf = (profile: Profile): string => profile.displayName || 'RunSphere member';
+const nameOf = (profile: Profile): string => profile.displayName || 'TURFR member';
 
 export const friendRows = (friends: readonly Profile[]): readonly FriendRow[] =>
   [...friends]

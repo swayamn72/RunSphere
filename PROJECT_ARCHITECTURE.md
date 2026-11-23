@@ -196,12 +196,12 @@ _Updated 2026-11-20 after Milestone 0._
 
 ## 9. Where docs and code disagree
 
-| Topic            | Docs say                                                                                       | Code does                                                                                                                              |
-| ---------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Tabs             | ✅ Resolved 2026-11-20: **Home** is the landing tab; docs updated                              | `navigation/types.ts`: `Home, Map, Run, Social, Profile`, landing = `Home`                                                             |
-| Activity types   | `README.md`, `CONTRIBUTING.md`: walk/run/hike                                                  | Running only (DB CHECK, contracts)                                                                                                     |
-| API scope        | `docs/architecture.md`: API serves `/health` and `/v1/quests` only                             | ~125 routes                                                                                                                            |
-| Pending work     | `docs/pending-work.md` is "single source of truth"                                             | Contains two contradictory copies of sections 1–9. Many "not built" items are built (leaderboard endpoints, ML, route suggestion API). |
-| Ghost race limit | "Rate limit of 3/hour enforced at DB level"                                                    | App-level count-then-insert                                                                                                            |
-| Account deletion | ✅ Resolved 2026-11-20 by ADR-0012: immediate, verified, complete erasure; copy and code agree | —                                                                                                                                      |
-| ML training      | Worker posts to `{ML_TRAINER_URL}/train`                                                       | `services/ml` has no `/train` HTTP endpoint (CLI scripts only)                                                                         |
+| Topic            | Docs say                                                                                       | Code does                                                                  |
+| ---------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Tabs             | ✅ Resolved 2026-11-20: **Home** is the landing tab; docs updated                              | `navigation/types.ts`: `Home, Map, Run, Social, Profile`, landing = `Home` |
+| Activity types   | `README.md`, `CONTRIBUTING.md`: walk/run/hike                                                  | Running only (DB CHECK, contracts)                                         |
+| API scope        | `docs/architecture.md`: API serves `/health` and `/v1/quests` only                             | ~125 routes                                                                |
+| Pending work     | Historical specs describe superseded work.                                                     | Use the roadmap and implementation status for current scope.               |
+| Ghost race limit | "Rate limit of 3/hour enforced at DB level"                                                    | App-level count-then-insert                                                |
+| Account deletion | ✅ Resolved 2026-11-20 by ADR-0012: immediate, verified, complete erasure; copy and code agree | —                                                                          |
+| ML training      | Worker posts to `{ML_TRAINER_URL}/train`                                                       | `services/ml` has no `/train` HTTP endpoint (CLI scripts only)             |

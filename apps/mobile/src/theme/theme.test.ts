@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { contrastPairs, darkTokens } from '@runsphere/ui';
+import { appPalette, contrastPairs, darkTokens } from '@runsphere/ui';
 import { resolveColorScheme } from './theme-state.js';
 import { gameWorld } from './game-world.js';
 
@@ -33,15 +33,15 @@ describe('single-appearance theme', () => {
   });
 
   it('provides one complete semantic system covering every role a screen reads', () => {
-    expect(darkTokens.background.canvas).toBe('#090D16');
-    expect(darkTokens.background.surface).toBe('#111827');
-    expect(darkTokens.action.primary).toBe('#22C55E');
+    expect(darkTokens.background.canvas).toBe(appPalette.canvas);
+    expect(darkTokens.background.surface).toBe(appPalette.panel);
+    expect(darkTokens.action.primary).toBe(appPalette.accent);
     expect(darkTokens.map.control).toMatch(/^#/);
     expect(darkTokens.route.line).toMatch(/^#/);
     expect(darkTokens.checkpoint.fill).toMatch(/^#/);
     expect(darkTokens.mascot.beacon).toMatch(/^#/);
     // The named hues the redesign leans on: zone ownership and reward tiers.
-    expect(darkTokens.zone.owned).toBe('#00E5FF');
+    expect(darkTokens.zone.owned).toBe(appPalette.accent);
     expect(darkTokens.zone.rival).toBe('#F43F5E');
     expect(darkTokens.zone.neutral).toBe('#F59E0B');
     expect(darkTokens.accent.gold).toMatch(/^#/);
@@ -124,6 +124,11 @@ describe('single-appearance theme', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('keeps paper cards readable', () => {
+    for (const ink of [appPalette.ink, appPalette.mutedInk])
+      expect(contrast(ink, appPalette.paper)).toBeGreaterThanOrEqual(4.5);
+  });
+
   it('keeps the Turf HUD text readable on its glass and sheets (AA)', () => {
     // The glass is ~93% opaque over a near-black basemap, so its own RGB is
     // the background a reader actually sees.
@@ -146,7 +151,7 @@ describe('single-appearance theme', () => {
 
   it('keeps the brand rose for zones and a lighter rose only for text', () => {
     expect(darkTokens.zone.rival).toBe('#F43F5E');
-    expect(darkTokens.text.danger).toBe('#F54B67');
+    expect(darkTokens.text.danger).toBe('#FA6078');
     // The reason the text shade exists: brand rose on a raised card is under AA.
     expect(contrast(darkTokens.zone.rival, darkTokens.background.surfaceRaised)).toBeLessThan(4.5);
   });

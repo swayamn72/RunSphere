@@ -92,7 +92,7 @@ export const accountProblem = (
       return 'Usernames are 3–20 letters, numbers or _, starting with a letter.';
     const dob = dateOfBirthFrom(state);
     if (!dob) return 'Add your date of birth.';
-    if (!isAdult(dob, today)) return 'You need to be 18 or older to use RunSphere.';
+    if (!isAdult(dob, today)) return 'You need to be 18 or older to use TURFR.';
   }
   if (!hasValidEmail(state.email)) return 'Add your email.';
   if (!hasValidPassword(state.password)) return 'Passwords need at least 12 characters.';

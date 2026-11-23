@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import type {
   Profile,
   ProgressionSummary,
@@ -8,31 +8,32 @@ import type {
   WeeklyGoalResponse
 } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
-import { CrewMascot } from '../components/CrewMascot';
 import { LoopCallout } from '../components/LoopCallout';
 import { LoopMascot } from '../components/Mascot';
 import { useAppStyles } from '../components/styles';
 import { useLoopGuidance } from '../components/useLoopGuidance';
 import type { LoopGuidanceCue } from '../loop-guidance';
-import { dashboardPreviewEnabled } from './dashboard-preview';
-import { homeGhostCard } from './ghost-race-model';
+import { dashboardPreviewEnabled, previewProgression } from './dashboard-preview';
 import { useAppTheme } from '../theme/theme';
+import { appPalette } from '@runsphere/ui';
 import {
   ActiveDaysCard,
   DashboardGrid,
   HomeHeader,
-  QuickActions,
-  TodaysChallengeCard
+  HomeLinkRow,
+  HomeSectionTitle,
+  HomeStartButton,
+  HomeTurfCard,
+  WeeklyGoalCard
 } from './HomeDashboard';
 import {
   activeDaysPresentation,
-  tacticalDashboardTiles,
+  dashboardTiles,
   greetingPresentation
 } from './home-dashboard-model';
 import {
   homeErrorState,
   homeStatusMessage,
-  questDistanceLabel,
   questListState,
   type HomeRemoteState,
   weeklyGoalMetrics,
@@ -41,14 +42,12 @@ import {
 import { unreadBadgeLabel, unreadIds } from './notifications-model';
 import { TutorialTarget } from '../components/TutorialTarget';
 import {
-  seasonCountdown,
-  turfAreaLabel,
-  RHO_TURF_TIP,
   progressionCardState,
   progressionErrorState,
   progressionStatusMessage,
   type ProgressionCardState
 } from './home-progression-model';
+import { claimableRunId, formatTurfPoints } from './territory-claim-model';
 
 interface HomeRemoteData {
   /** Unread inbox entries, for the header's marker. */
@@ -74,19 +73,7 @@ const homePreview = {
     distanceMeters: { goal: 15_000, actual: 9_400 }
   },
   goalState: 'ready',
-  progression: {
-    totalXp: 1240,
-    questsCompleted: 6,
-    achievements: [],
-    weeklyConsistency: {
-      periodStart: '2026-11-16',
-      activeDays: 3,
-      cappedActiveMinutes: 78,
-      goalActiveDays: 5,
-      current: true
-    },
-    level: { level: 4, xpInLevel: 90, nextLevelAt: 1400 }
-  },
+  progression: previewProgression,
   progressionState: 'ready',
   turf: { claimCount: 7, totalAreaSqm: 84_000, lostCount: 1 },
   profile: {
@@ -275,33 +262,78 @@ const useHomeRemoteData = (api: MobileApiClient, onSessionExpired: () => void): 
 
 export function HomeScreen({
   api,
+  onOpenClaim,
   onStart,
-  onChooseRoute,
   onOpenChallenges,
   onOpenQuests,
+  onSelectQuest,
   onOpenMap,
-  onOpenSocial,
   onOpenNotifications,
   onOpenProfile,
-  onOpenSettings,
   onOpenPrivacy,
   onSessionExpired
 }: {
   api: MobileApiClient;
+  onOpenClaim?: (runId: string) => void;
   onStart: () => void;
-  /** "Choose a route instead" (`screens.md` 2.1) - secondary to starting. */
-  onChooseRoute: () => void;
   onOpenChallenges: () => void;
   onOpenQuests: () => void;
+  onSelectQuest: (quest: QuestSummary) => void;
   onOpenMap: () => void;
-  onOpenSocial: () => void;
   onOpenNotifications: () => void;
   onOpenProfile: () => void;
-  onOpenSettings?: () => void;
   /** Opens Privacy & visibility, for the one-time review prompt (ADR-0014). */
   onOpenPrivacy?: () => void;
   onSessionExpired: () => void;
 }) {
+  const [readyClaim, setReadyClaim] = useState<string>();
+  const checksClaims = Boolean(onOpenClaim);
+  useEffect(() => {
+    if (!checksClaims) return;
+    let generation = 0;
+    let followUps = 0;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const refresh = async () => {
+      const request = ++generation;
+      clearTimeout(retry);
+      try {
+        const runs = await api.listActivities();
+        if (request !== generation) return;
+        const ready = claimableRunId(runs);
+        setReadyClaim(ready);
+        if (
+          !ready &&
+          followUps < 8 &&
+          runs.some(
+            (run) =>
+              (run.status === 'received' || run.status === 'validating') &&
+              (run.runMode === 'turf' || run.runMode === 'ghost')
+          )
+        ) {
+          followUps += 1;
+          retry = setTimeout(() => void refresh(), 15_000);
+        }
+      } catch {
+        if (request === generation) setReadyClaim(undefined);
+      }
+    };
+    void refresh();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        followUps = 0;
+        void refresh();
+      } else {
+        generation += 1;
+        clearTimeout(retry);
+      }
+    });
+    return () => {
+      generation += 1;
+      clearTimeout(retry);
+      subscription.remove();
+    };
+  }, [api, checksClaims]);
+
   // Accounts from before usernames haven't seen their privacy settings yet.
   // Until they save them once, Home asks them to look (ADR-0014, SI.5).
   const [privacyUnreviewed, setPrivacyUnreviewed] = useState(false);
@@ -340,11 +372,6 @@ export function HomeScreen({
   const greeting = greetingPresentation(profile, new Date().getHours());
   const activeDays = activeDaysPresentation(progression);
   const unreadLabel = unreadBadgeLabel(unreadCount);
-  const tiles = tacticalDashboardTiles(
-    goal,
-    progression,
-    dashboardPreviewEnabled ? turf?.claimCount : undefined
-  );
   const statusMessage = homeStatusMessage(
     goalState,
     questState,
@@ -367,72 +394,64 @@ export function HomeScreen({
         {...(unreadLabel ? { unreadLabel } : {})}
         onOpenNotifications={onOpenNotifications}
         onOpenProfile={onOpenProfile}
-        season={seasonCountdown(new Date())}
-        {...(onOpenSettings ? { onOpenSettings } : {})}
       />
 
       {dashboardPreviewEnabled && <Text style={styles.muted}>Sample dashboard data</Text>}
 
-      <View style={styles.recordCard}>
-        <Text style={[styles.eyebrow, { color: tokens.zone.owned }]}>TURF CONTROLLED</Text>
-        <Text style={[styles.recordTitle, local.turfKpi]}>{turfAreaLabel(turf?.totalAreaSqm)}</Text>
-        <DashboardGrid tiles={tiles.progression} />
+      <HomeTurfCard points={turf && formatTurfPoints(turf.totalAreaSqm)} onPress={onOpenMap} />
+
+      <TutorialTarget id="home-start">
+        <HomeStartButton onPress={onStart} />
+      </TutorialTarget>
+
+      <View style={local.panel}>
+        <HomeSectionTitle onPaper>This week</HomeSectionTitle>
+        <DashboardGrid tiles={dashboardTiles(goal)} />
         {activeDays && <ActiveDaysCard card={activeDays} />}
+
+        {featured && <WeeklyGoalCard metric={featured} onPress={onOpenChallenges} />}
+        {goalState === 'empty' && (
+          <Guide
+            onPaper
+            local={local}
+            styles={styles}
+            variant="empty"
+            label="Choose a distance or active-minute goal when you are ready."
+            actionLabel="Set weekly goal"
+            onAction={onOpenProfile}
+          />
+        )}
+        {goalState === 'offline' && (
+          <Guide
+            onPaper
+            local={local}
+            styles={styles}
+            variant="offline"
+            label="Weekly progress is unavailable offline."
+            actionLabel="Try again"
+            onAction={reloadGoals}
+          />
+        )}
+        {goalState === 'configuration' && (
+          <Unavailable
+            onPaper
+            local={local}
+            styles={styles}
+            label="Weekly progress isn't available right now. Try again later."
+          />
+        )}
+        {goalState === 'error' && (
+          <Unavailable
+            onPaper
+            local={local}
+            styles={styles}
+            label="Weekly progress is unavailable."
+            actionLabel="Try again"
+            onAction={reloadGoals}
+          />
+        )}
       </View>
-
       {guidance.cue && <LoopCallout cue={guidance.cue} onDismiss={guidance.dismiss} />}
-
-      <DashboardGrid tiles={tiles.metrics} compact />
-
-      {/* The design's "Today's Challenge". Titled for what the number actually
-          is - a weekly goal the server is tracking - because Home has no
-          per-day challenge to read, and a challenge mid-window has no score
-          until the worker closes it (`play-model`). */}
-      {featured && (
-        <TodaysChallengeCard
-          title="This week's goal"
-          detail={`${featured.label}: ${featured.actual} of ${featured.goal}`}
-          progress={featured.progress}
-          progressLabel={`${featured.actual} / ${featured.goal}`}
-          onPress={onOpenChallenges}
-        />
-      )}
-      {goalState === 'empty' && (
-        <Guide
-          local={local}
-          styles={styles}
-          variant="empty"
-          label="Choose a distance or active-minute goal when you are ready."
-          actionLabel="Set weekly goal"
-          onAction={onOpenProfile}
-        />
-      )}
-      {goalState === 'offline' && (
-        <Guide
-          local={local}
-          styles={styles}
-          variant="offline"
-          label="Weekly progress is unavailable offline."
-          actionLabel="Try again"
-          onAction={reloadGoals}
-        />
-      )}
-      {goalState === 'configuration' && (
-        <Unavailable
-          local={local}
-          styles={styles}
-          label="Weekly progress isn't available right now. Try again later."
-        />
-      )}
-      {goalState === 'error' && (
-        <Unavailable
-          local={local}
-          styles={styles}
-          label="Weekly progress is unavailable."
-          actionLabel="Try again"
-          onAction={reloadGoals}
-        />
-      )}
       {(progressionState === 'offline' || progressionState === 'error') && (
         <Unavailable
           local={local}
@@ -462,107 +481,83 @@ export function HomeScreen({
         </Pressable>
       ) : null}
 
-      <View style={[styles.recordCard, styles.cardRow, local.coachCard]}>
-        <CrewMascot character="rho" accessibility={{ mode: 'decorative' }} size={44} />
-        <View style={styles.flexCopy}>
-          <Text style={[styles.eyebrow, { color: tokens.zone.owned }]}>RHO FIELD COACH</Text>
-          <Text style={styles.lead}>{RHO_TURF_TIP}</Text>
-        </View>
-      </View>
-
-      <TutorialTarget id="home-start">
-        <QuickActions
-          onAction={(action) => {
-            if (action === 'run') onStart();
-            else if (action === 'map') onOpenMap();
-            else onOpenSocial();
-          }}
+      {readyClaim && onOpenClaim ? (
+        <HomeLinkRow
+          icon="map"
+          title="Claim your loop"
+          detail="Your run is ready to review on the map."
+          accessibilityLabel="Claim your loop"
+          onPress={() => onOpenClaim(readyClaim)}
         />
-      </TutorialTarget>
+      ) : null}
 
-      <Pressable accessibilityRole="button" style={styles.recordCard} onPress={onOpenMap}>
-        <Text style={[styles.eyebrow, { color: tokens.text.danger }]}>GHOST RACES</Text>
-        <Text style={styles.cardTitle}>{homeGhostCard(turf?.ghostRacesLeft).title}</Text>
-        <Text style={styles.rowDetail}>{homeGhostCard(turf?.ghostRacesLeft).detail}</Text>
-      </Pressable>
-
-      <Pressable accessibilityRole="button" onPress={onChooseRoute}>
-        <Text style={local.chooseRoute}>Choose a route instead →</Text>
-      </Pressable>
-
-      <TutorialTarget id="home-quests" style={styles.sectionHeader}>
-        <Text accessibilityRole="header" style={styles.sectionTitle}>
-          Verified quests
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Explore verified quests"
-          onPress={onOpenQuests}
-        >
-          <Text style={styles.link}>View all</Text>
-        </Pressable>
-      </TutorialTarget>
-      {questState === 'loading' && (
-        <View style={local.questLoading}>
-          <LoopMascot variant="loading" accessibility={{ mode: 'decorative' }} size={48} />
-          <Text style={styles.muted}>Looking for verified quests.</Text>
-        </View>
-      )}
-      {questState === 'ready' &&
-        quests.slice(0, 3).map((quest) => (
+      <View style={local.quests}>
+        <TutorialTarget id="home-quests" style={local.questHeader}>
+          <HomeSectionTitle>Quests</HomeSectionTitle>
           <Pressable
-            key={quest.id}
             accessibilityRole="button"
-            accessibilityLabel={`Explore ${quest.title}, ${questDistanceLabel(quest.distanceMeters)}`}
+            accessibilityLabel="Explore quests"
             onPress={onOpenQuests}
-            style={({ pressed }) => [styles.historyRow, pressed && styles.buttonPressed]}
+            style={local.viewAll}
           >
-            <View style={styles.flexCopy}>
-              <Text style={styles.rowTitle}>{quest.title}</Text>
-              <Text style={styles.rowDetail}>
-                {questDistanceLabel(quest.distanceMeters)} · about {quest.estimatedActiveMinutes}{' '}
-                min · {quest.accessibility}
-              </Text>
-            </View>
-            <Text style={styles.chevron}>›</Text>
+            <Text style={local.viewAllText}>View all</Text>
           </Pressable>
-        ))}
-      {questState === 'empty' && (
-        <Guide
-          local={local}
-          styles={styles}
-          variant="empty"
-          label="No verified quests are available right now. You can explore or start a free activity."
-          actionLabel="Explore"
-          onAction={onOpenQuests}
-        />
-      )}
-      {questState === 'offline' && (
-        <Guide
-          local={local}
-          styles={styles}
-          variant="offline"
-          label="Verified quests are unavailable offline."
-          actionLabel="Try again"
-          onAction={reloadQuests}
-        />
-      )}
-      {questState === 'configuration' && (
-        <Unavailable
-          local={local}
-          styles={styles}
-          label="Quests aren't available right now. Try again later."
-        />
-      )}
-      {questState === 'error' && (
-        <Unavailable
-          local={local}
-          styles={styles}
-          label="Verified quests are unavailable."
-          actionLabel="Try again"
-          onAction={reloadQuests}
-        />
-      )}
+        </TutorialTarget>
+        {questState === 'loading' && (
+          <View style={local.questLoading}>
+            <LoopMascot variant="loading" accessibility={{ mode: 'decorative' }} size={48} />
+            <Text style={styles.muted}>Looking for quests.</Text>
+          </View>
+        )}
+        {questState === 'ready' &&
+          quests
+            .slice(0, 3)
+            .map((quest) => (
+              <HomeLinkRow
+                key={quest.id}
+                icon="flag"
+                title={quest.title}
+                questImage
+                onPress={dashboardPreviewEnabled ? onOpenQuests : () => onSelectQuest(quest)}
+              />
+            ))}
+        {questState === 'empty' && (
+          <Guide
+            local={local}
+            styles={styles}
+            variant="empty"
+            label="No quests are available right now. You can explore or start a free activity."
+            actionLabel="Explore"
+            onAction={onOpenQuests}
+          />
+        )}
+        {questState === 'offline' && (
+          <Guide
+            local={local}
+            styles={styles}
+            variant="offline"
+            label="Quests are unavailable offline."
+            actionLabel="Try again"
+            onAction={reloadQuests}
+          />
+        )}
+        {questState === 'configuration' && (
+          <Unavailable
+            local={local}
+            styles={styles}
+            label="Quests aren't available right now. Try again later."
+          />
+        )}
+        {questState === 'error' && (
+          <Unavailable
+            local={local}
+            styles={styles}
+            label="Quests are unavailable."
+            actionLabel="Try again"
+            onAction={reloadQuests}
+          />
+        )}
+      </View>
     </>
   );
 }
@@ -570,6 +565,7 @@ export function HomeScreen({
 function Guide({
   local,
   styles,
+  onPaper = false,
   variant,
   label,
   actionLabel,
@@ -577,6 +573,7 @@ function Guide({
 }: {
   local: ReturnType<typeof createStyles>;
   styles: ReturnType<typeof useAppStyles>;
+  onPaper?: boolean;
   variant: 'empty' | 'offline';
   label: string;
   actionLabel: string;
@@ -586,14 +583,14 @@ function Guide({
     <View style={local.guide}>
       <LoopMascot variant={variant} accessibility={{ mode: 'decorative' }} size={48} />
       <View style={styles.flexCopy}>
-        <Text style={styles.muted}>{label}</Text>
+        <Text style={[styles.muted, onPaper && local.paperCopy]}>{label}</Text>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={actionLabel}
           onPress={onAction}
           style={local.guideAction}
         >
-          <Text style={local.guideActionText}>{actionLabel}</Text>
+          <Text style={[local.guideActionText, onPaper && local.paperAction]}>{actionLabel}</Text>
         </Pressable>
       </View>
     </View>
@@ -603,19 +600,21 @@ function Guide({
 function Unavailable({
   local,
   styles,
+  onPaper = false,
   label,
   actionLabel,
   onAction
 }: {
   local: ReturnType<typeof createStyles>;
   styles: ReturnType<typeof useAppStyles>;
+  onPaper?: boolean;
   label: string;
   actionLabel?: string;
   onAction?: () => void;
 }) {
   return (
     <View style={local.unavailable}>
-      <Text style={styles.muted}>{label}</Text>
+      <Text style={[styles.muted, onPaper && local.paperCopy]}>{label}</Text>
       {actionLabel && onAction && (
         <Pressable
           accessibilityRole="button"
@@ -623,7 +622,7 @@ function Unavailable({
           onPress={onAction}
           style={local.guideAction}
         >
-          <Text style={local.guideActionText}>{actionLabel}</Text>
+          <Text style={[local.guideActionText, onPaper && local.paperAction]}>{actionLabel}</Text>
         </Pressable>
       )}
     </View>
@@ -632,16 +631,33 @@ function Unavailable({
 
 const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
   StyleSheet.create({
-    skeleton: { backgroundColor: t.background.surfaceInset, borderRadius: 18 },
     coachCard: { borderLeftColor: t.zone.owned, borderLeftWidth: 3, gap: 12 },
-    turfKpi: { fontSize: 42, letterSpacing: -0.5 },
-    chooseRoute: {
-      color: t.action.primary,
-      fontSize: 14,
-      fontWeight: '800',
-      marginTop: 10,
-      paddingVertical: 8
+    panel: {
+      backgroundColor: appPalette.paper,
+      borderColor: appPalette.paperLine,
+      borderWidth: 1,
+      borderRadius: 18,
+      marginTop: 14,
+      padding: 12
     },
+    paperCopy: { color: appPalette.mutedInk },
+    paperAction: { color: appPalette.ink, textDecorationLine: 'underline' },
+    quests: { marginTop: 16 },
+    questHeader: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: 8
+    },
+    viewAll: {
+      borderColor: t.text.secondary,
+      borderRadius: 10,
+      borderWidth: 1,
+      justifyContent: 'center',
+      minHeight: 44,
+      paddingHorizontal: 12
+    },
+    viewAllText: { color: t.text.primary, fontSize: 14, fontWeight: '700' },
     guide: { alignItems: 'center', flexDirection: 'row', gap: 12, marginTop: 12, minHeight: 64 },
     guideAction: {
       alignSelf: 'flex-start',
@@ -650,7 +666,7 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
       minHeight: 48,
       paddingHorizontal: 4
     },
-    guideActionText: { color: t.action.primary, fontSize: 14, fontWeight: '900' },
+    guideActionText: { color: appPalette.accent, fontSize: 14, fontWeight: '900' },
     unavailable: { marginTop: 12, minHeight: 64 },
     questLoading: {
       alignItems: 'center',

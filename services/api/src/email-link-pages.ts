@@ -8,7 +8,7 @@ import { unsubscribeByToken } from './campaign-routes.js';
 import { page, readTokenScript, securityHeaders } from './web-page.js';
 
 /**
- * Where the links in RunSphere's account emails land (M3.4, B7).
+ * Where the links in TURFR's account emails land (M3.4, B7).
  *
  * The worker (`email-delivery.ts`) links to `/verify-email`, `/reset-password`,
  * `/confirm-email-change` and `/unsubscribe` under `APP_BASE_URL`, which must be
@@ -22,9 +22,8 @@ import { page, readTokenScript, securityHeaders } from './web-page.js';
  * acts). The app can still complete each flow from a pasted link (M3.5).
  */
 
-const LINK_USED =
-  'This link has expired or was already used. Open RunSphere and ask for a new one.';
-const OFFLINE = "Couldn't reach RunSphere. Check your connection and try again.";
+const LINK_USED = 'This link has expired or was already used. Open TURFR and ask for a new one.';
+const OFFLINE = "Couldn't reach TURFR. Check your connection and try again.";
 const INCOMPLETE = 'This link is incomplete. Open the email again and tap the full link.';
 
 /** A page with one button that posts `{ token }` and reports the answer. */
@@ -76,14 +75,14 @@ const verifyEmailPage = confirmButtonPage({
   button: 'Confirm my email',
   endpoint: '/v1/account/email-verification/complete',
   answers: {
-    ok: 'Your email is confirmed. Head back to RunSphere: you can now add followers and safety contacts.'
+    ok: 'Your email is confirmed. Head back to TURFR: you can now add followers and safety contacts.'
   }
 });
 
 const confirmEmailChangePage = confirmButtonPage({
   title: 'Confirm your new email',
   intro:
-    'Tap the button to move your RunSphere account to this address. You will be signed out everywhere and can sign in again with it.',
+    'Tap the button to move your TURFR account to this address. You will be signed out everywhere and can sign in again with it.',
   button: 'Use this email',
   endpoint: '/v1/account/email-change/complete',
   answers: {
@@ -95,7 +94,7 @@ const confirmEmailChangePage = confirmButtonPage({
 // The answer comes from the API (`UNSUBSCRIBE_ANSWER`), so the page shows it as given.
 const unsubscribePage = page(
   'Unsubscribe',
-  `<p>Tap the button to stop RunSphere news and campaign emails. You will still get emails about
+  `<p>Tap the button to stop TURFR news and campaign emails. You will still get emails about
 your own account, like password resets.</p>
 <button type="button" id="confirm">Unsubscribe</button>`,
   `${readTokenScript}
@@ -170,7 +169,7 @@ form.addEventListener('submit', async (event) => {
     });
     if (response.ok) {
       form.hidden = true;
-      status.textContent = 'Your password is changed. Sign in to RunSphere with the new one.';
+      status.textContent = 'Your password is changed. Sign in to TURFR with the new one.';
     } else {
       submit.disabled = false;
       status.textContent = ${JSON.stringify(LINK_USED)};

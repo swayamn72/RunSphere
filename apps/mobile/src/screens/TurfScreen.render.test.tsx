@@ -159,10 +159,15 @@ const stubApi = (overrides: {
         }))
   }) as unknown as MobileApiClient;
 
-const renderTurf = async (api: MobileApiClient): Promise<ReactTestRenderer> => {
+const renderTurf = async (
+  api: MobileApiClient,
+  requestedRunId?: string
+): Promise<ReactTestRenderer> => {
   let renderer!: ReactTestRenderer;
   await act(async () => {
-    renderer = create(React.createElement(TurfScreen, { api }));
+    renderer = create(
+      React.createElement(TurfScreen, { api, ...(requestedRunId ? { requestedRunId } : {}) })
+    );
   });
   await act(async () => {
     await Promise.resolve();
@@ -389,6 +394,37 @@ describe('the turf map', () => {
     expect(byLabel(renderer, 'Claim ground from your last run')).toEqual([]);
   });
 
+  it('claims the run selected in Results even when a newer run can also claim', async () => {
+    const claimTerritory = vi.fn(() => Promise.resolve({ claimed: false, message: 'Try again.' }));
+    const activityStatus = vi.fn(async () => ({
+      status: 'derived',
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [0, 0],
+          [1, 1]
+        ]
+      }
+    }));
+    const api = {
+      ...stubApi({
+        runs: [
+          { id: 'newer', status: 'derived' },
+          { id: 'selected', status: 'derived' }
+        ],
+        claim: claimTerritory
+      }),
+      activityStatus
+    } as unknown as MobileApiClient;
+    const renderer = await renderTurf(api, 'selected');
+
+    expect(activityStatus).toHaveBeenCalledWith('selected');
+    expect(textOf(renderer)).toContain('This is the route visible after your privacy settings');
+    expect(claimTerritory).not.toHaveBeenCalled();
+    await press(renderer, 'Claim ground from this run');
+    expect(claimTerritory).toHaveBeenCalledWith('selected');
+  });
+
   it('shows the refusal in the server own words when a loop was not claimable', async () => {
     const api = {
       ...stubApi({ runs: [{ id: 'run-1', status: 'derived' }] }),
@@ -512,7 +548,7 @@ describe('the turf map', () => {
     const rendered = textOf(renderer);
 
     expect(rendered).toContain('Ravi');
-    expect(rendered).toContain('27.0 ha');
+    expect(rendered).toContain('2,700 Turf points');
     // A board has to say what it counts, or a rank is just a number.
     expect(rendered).toContain('Ground you lose stops counting');
   });

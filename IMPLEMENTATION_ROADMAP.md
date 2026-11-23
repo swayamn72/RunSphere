@@ -95,6 +95,10 @@ Rules for every task:
 | UX.12 | **Visual QA pass**: emulator screenshots of every tab and the run flow at high brightness and at 200% font scale; fix any truncation and overlap found                                                                                                                                                                                                                                       | Screenshot checklist committed under `docs/design/qa/`; no clipped text at 200% font scale                                                     |
 
 Order: UX.1 → UX.2 → (UX.3, UX.4); UX.5 → (UX.6, UX.7, UX.8); UX.9–UX.11 after UX.1; UX.12 last.
+The [TURFR mobile handoff](docs/plans/turfr-ui-rebrand.md) records the approved palette and remaining device checks.
+
+Ghost Race entry points are deferred until after the first launch. The launch picker offers Free run, Turf and Quest, and the mobile Map and guided tour omit Ghost Race actions.
+
 UX.10 is better after M2.4 (atomic ghost limit), so "races left this hour" is exact.
 
 ## Milestone 2.6 — Social identity and privacy controls (ADR-0014)
@@ -195,7 +199,7 @@ Tick tasks there and here as they land.
 
 | ID   | Task                                                                                                                                                                                                                                                                                         | Done when                                 |
 | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| M7.1 | Reconcile docs with code: rewrite `docs/pending-work.md` as one current list; fix the README and `architecture.md` scope; record the landing-tab decision                                                                                                                                    | Docs match `IMPLEMENTATION_STATUS.md`     |
+| M7.1 | Reconcile docs with code: use the roadmap and implementation status as the current work list; fix the README and `architecture.md` scope; record the landing-tab decision                                                                                                                    | Docs match `IMPLEMENTATION_STATUS.md`     |
 | M7.2 | 🟡 Role lookup extracted to `services/api/src/staff-roles.ts` (2026-11-21); unifying with the env allow-list waits on an owner decision (it changes who can open staff areas): Extract the shared `requireStaffRole` helper; unify staff authz (drop the env allow-list or map it to a role) | One implementation; route tests unchanged |
 | M7.3 | Split `territory-claim-routes.ts` into pipeline and service modules plus thin routes                                                                                                                                                                                                         | No behaviour change; tests pass           |
 | M7.4 | ✅ DONE 2026-11-20: Removed tracked `test-claim.ts`; `scratch/` stays ignored                                                                                                                                                                                                                | File gone                                 |

@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>RunSphere</string>
+	<string>TURFR</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -51,9 +51,9 @@
 	<key>NSLocationAlwaysUsageDescription</key>
 	<string>Allow $(PRODUCT_NAME) to access your location</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Allow RunSphere to use your location while you record an activity.</string>
+	<string>Allow TURFR to use your location while you record an activity.</string>
 	<key>NSMotionUsageDescription</key>
-	<string>Allow RunSphere to access motion and fitness data to improve activity estimates.</string>
+	<string>Allow TURFR to access motion and fitness data to improve activity estimates.</string>
 	<key>RCTMetroPort</key>
 	<string>$(RCT_METRO_PORT)</string>
 	<key>RCTNewArchEnabled</key>

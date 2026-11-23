@@ -58,7 +58,7 @@ export function RunChart({
   const title = kind === 'pace' ? 'Pace' : 'Elevation';
   return (
     <View>
-      <View style={styles.contactRow}>
+      <View style={styles.chartHeader}>
         <Text style={styles.runWeekTitle}>{title.toUpperCase()}</Text>
         <Text style={styles.runCardMeta} accessibilityLiveRegion="polite">
           {cursor?.scrub.label ?? 'Drag across to see any point'}

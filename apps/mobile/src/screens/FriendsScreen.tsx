@@ -371,9 +371,9 @@ export function FriendsScreen({
               onPress={() => void submitInvite()}
             />
             <Text style={styles.rowDetail}>
-              RunSphere answers the same way whether or not that address has an account, so nobody
-              can use this to find out who is registered. You will see them in your friends list
-              only if they accept.
+              TURFR answers the same way whether or not that address has an account, so nobody can
+              use this to find out who is registered. You will see them in your friends list only if
+              they accept.
             </Text>
           </View>
         </SettingsGroup>
@@ -444,7 +444,7 @@ export function FriendsScreen({
             </Text>
             <Text style={styles.noticeCopy}>
               {state === 'configuration'
-                ? 'RunSphere needs an API URL before friends can load.'
+                ? 'TURFR needs an API URL before friends can load.'
                 : 'Your friends, requests, and blocks could not load. Nothing was changed.'}
             </Text>
             {state !== 'configuration' && (

@@ -5,7 +5,7 @@ import React from 'react';
 ).IS_REACT_ACT_ENVIRONMENT = true;
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { darkTokens } from '@runsphere/ui';
+import { appPalette, darkTokens } from '@runsphere/ui';
 import type { Profile, ProgressionSummary, WeeklyGoalResponse } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { ApiFailure } from '../api-client.js';
@@ -17,6 +17,7 @@ vi.mock('react-native', async () => {
     ({ children, ...props }: Record<string, unknown>) =>
       React.createElement(name as React.ElementType, props, children as React.ReactNode);
   return {
+    AppState: { addEventListener: () => ({ remove: () => undefined }) },
     // Tour targets (M9 9.22) listen for rotation and the keyboard.
     Dimensions: { addEventListener: () => ({ remove: () => undefined }) },
     Keyboard: { addListener: () => ({ remove: () => undefined }) },
@@ -28,6 +29,7 @@ vi.mock('react-native', async () => {
   };
 });
 vi.mock('../components/Mascot', () => ({ LoopMascot: () => null }));
+vi.mock('../maps/MapSurface', () => ({ MapSurface: () => null }));
 vi.mock('../theme/theme', async () => (await import('../theme/theme-mock.js')).themeMock());
 
 const { HomeScreen } = await import('./HomeScreen.js');
@@ -92,18 +94,21 @@ const stubApi = (overrides: {
     getNotificationInbox: overrides.inbox ?? (() => Promise.resolve([]))
   }) as unknown as MobileApiClient;
 
-const renderHome = async (api: MobileApiClient): Promise<ReactTestRenderer> => {
+const renderHome = async (
+  api: MobileApiClient,
+  onOpenClaim?: (runId: string) => void
+): Promise<ReactTestRenderer> => {
   let renderer!: ReactTestRenderer;
   await act(async () => {
     renderer = create(
       <HomeScreen
         api={api}
+        {...(onOpenClaim ? { onOpenClaim } : {})}
         onStart={() => undefined}
-        onChooseRoute={() => undefined}
+        onSelectQuest={() => undefined}
         onOpenChallenges={() => undefined}
         onOpenQuests={() => undefined}
         onOpenMap={() => undefined}
-        onOpenSocial={() => undefined}
         onOpenNotifications={() => undefined}
         onOpenProfile={() => undefined}
         onSessionExpired={() => undefined}
@@ -151,16 +156,15 @@ describe('Home dashboard renders', () => {
     expect(text).toContain('MC');
   });
 
-  it('reports the served weekly figures and XP without inventing a tile', async () => {
+  it('reports the served Turf points and weekly figures', async () => {
     const text = renderedText(await renderHome(stubApi({})));
-    expect(text).toContain('TURF CONTROLLED');
-    expect(text).toContain('12,000 m²');
-    expect(text).toContain('DISTANCE');
+    expect(text).toContain('Turf points');
+    expect(text).toContain('120');
+    expect(text).toContain('this season');
+    expect(text).toContain('Distance');
     expect(text).toContain('3.2');
-    expect(text).toContain('ACTIVE TIME');
-    expect(text).toContain('TOTAL XP');
-    expect(text).toContain('1,240');
-    expect(text).toContain('LEVEL');
+    expect(text).toContain('Active time');
+
     // Figures the product does not measure never reach the grid.
     for (const absent of ['CALORIES', 'kcal', 'Day Streak', 'ZONES CAPTURED'])
       expect(text).not.toContain(absent);
@@ -168,7 +172,7 @@ describe('Home dashboard renders', () => {
 
   it('reads the active-days meter to TalkBack as one count and hides the pips', async () => {
     const renderer = await renderHome(stubApi({}));
-    expect(renderedText(renderer)).toContain('Active days this week');
+    expect(renderedText(renderer)).toContain('active days');
 
     const rows = hostsMatching(
       renderer,
@@ -183,7 +187,7 @@ describe('Home dashboard renders', () => {
     );
     expect(pips).toHaveLength(7);
     const fills = pips.map((pip) => resolvedStyle(pip.props['style'])['backgroundColor']);
-    expect(fills.filter((fill) => fill === darkTokens.action.primary)).toHaveLength(3);
+    expect(fills.filter((fill) => fill === appPalette.accent)).toHaveLength(3);
     // An inactive day is neutral, never an error or a warning (ADR-0005).
     expect(fills).not.toContain(darkTokens.status.error);
     expect(fills).not.toContain(darkTokens.status.warning);
@@ -202,8 +206,11 @@ describe('Home dashboard renders', () => {
 
   it('shows the weekly goal as the progress card, with a real bar', async () => {
     const renderer = await renderHome(stubApi({}));
-    expect(renderedText(renderer)).toContain("This week's goal");
-    const bars = hostsMatching(renderer, (props) => props['accessibilityRole'] === 'progressbar');
+    expect(renderedText(renderer)).toContain('Weekly goal');
+    const bars = hostsMatching(
+      renderer,
+      (props) => props['accessibilityLabel'] === 'Weekly goal progress'
+    );
     expect(bars).toHaveLength(1);
     expect(bars[0]?.props['accessibilityValue']).toMatchObject({ min: 0, max: 100 });
   });
@@ -211,20 +218,20 @@ describe('Home dashboard renders', () => {
   it('offers no progress card and no goal-relative claim when no target is configured', async () => {
     const renderer = await renderHome(stubApi({ goal: () => Promise.resolve(goalWithoutTargets) }));
     const text = renderedText(renderer);
-    expect(text).not.toContain("This week's goal");
+    expect(text).not.toContain('Weekly goal');
     expect(text).toContain('Choose a distance or active-minute goal when you are ready.');
     expect(
-      hostsMatching(renderer, (props) => props['accessibilityRole'] === 'progressbar')
+      hostsMatching(renderer, (props) => props['accessibilityLabel'] === 'Weekly goal progress')
     ).toHaveLength(0);
   });
 
-  it('omits the XP tile and the meter for a 503 rather than inventing a total', async () => {
+  it('omits the XP badge and the meter for a 503 rather than inventing a total', async () => {
     const renderer = await renderHome(
       stubApi({ progression: () => Promise.reject(new ApiFailure(503, 'unavailable')) })
     );
     const text = renderedText(renderer);
-    expect(text).not.toContain('TOTAL XP');
-    expect(text).not.toContain('Active days this week');
+    expect(text).not.toMatch(/\d\sXP/);
+    expect(text).not.toContain('active days');
     expect(text).not.toContain('1,240');
   });
 
@@ -247,15 +254,31 @@ describe('Home dashboard renders', () => {
     const text = renderedText(renderer);
     expect(text).toContain('Runner!');
     expect(text).not.toContain('Maya Chen');
-    expect(text).toContain('TOTAL XP');
   });
 
-  it('offers the three quick actions', async () => {
+  it('offers a primary run action without the route discovery card', async () => {
     const renderer = await renderHome(stubApi({}));
-    for (const label of ['Start Turf Run', 'Scout Map', 'Friends'])
-      expect(
-        hostsMatching(renderer, (props) => props['accessibilityLabel'] === label)
-      ).toHaveLength(1);
+    expect(renderedText(renderer)).toContain('Start a run');
+    expect(renderedText(renderer)).not.toContain('Find a loop');
+  });
+
+  it('offers a ready Turf run and sends its id to the claim flow', async () => {
+    const onOpenClaim = vi.fn();
+    const api = {
+      ...stubApi({}),
+      listActivities: async () => [
+        { id: 'free-run', status: 'derived', runMode: 'free' },
+        { id: 'completed-loop', status: 'derived', runMode: 'turf' }
+      ]
+    } as unknown as MobileApiClient;
+    const renderer = await renderHome(api, onOpenClaim);
+    const [action] = hostsMatching(
+      renderer,
+      (props) => props['accessibilityLabel'] === 'Claim your loop'
+    );
+    expect(renderedText(renderer)).toContain('Claim your loop');
+    await act(async () => (action?.props['onPress'] as () => void)());
+    expect(onOpenClaim).toHaveBeenCalledWith('completed-loop');
   });
 });
 

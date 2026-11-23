@@ -17,6 +17,7 @@ vi.mock('react-native', async () => {
 vi.mock('../components/styles', () => ({
   useAppStyles: () => new Proxy({}, { get: () => ({}) })
 }));
+vi.mock('../theme/theme', async () => (await import('../theme/theme-mock.js')).themeMock());
 
 const { RunModePicker } = await import('./RunModePicker.js');
 
@@ -32,19 +33,18 @@ const buttons = (renderer: ReactTestRenderer) =>
   );
 
 describe('run mode picker (M9 9.6)', () => {
-  it('shows four large cards that each say what the run does', async () => {
+  it('shows three large cards that each say what the run does', async () => {
     let renderer!: ReactTestRenderer;
     await act(async () => {
       renderer = create(<RunModePicker onPick={() => undefined} />);
     });
     expect(texts(renderer)).toEqual(
-      expect.arrayContaining(['Pick your run', 'Free run', 'Turf', 'Quest', 'Ghost Race'])
+      expect.arrayContaining(['Pick your run', 'Free run', 'Turf', 'Quest'])
     );
     expect(buttons(renderer).map((node) => node.props.accessibilityLabel)).toEqual([
       'Free run. Just run. Distance, time and pace.',
       'Turf. Close a loop to claim the ground inside it.',
-      'Quest. Pass every stop of a quest you’ve taken on.',
-      'Ghost Race. Race a rival’s loop to take their ground.'
+      'Quest. Pass every stop of a quest you’ve taken on.'
     ]);
   });
 
@@ -56,6 +56,6 @@ describe('run mode picker (M9 9.6)', () => {
     });
     for (const node of buttons(renderer))
       await act(async () => (node.props as { onPress: () => void }).onPress());
-    expect(onPick.mock.calls.map(([mode]) => mode)).toEqual(['free', 'turf', 'quest', 'ghost']);
+    expect(onPick.mock.calls.map(([mode]) => mode)).toEqual(['free', 'turf', 'quest']);
   });
 });

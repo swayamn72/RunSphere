@@ -43,7 +43,7 @@ export const deletionFailure = (error: unknown): DeletionFailure => {
       };
     if (error.kind === 'network' || error.kind === 'tls')
       return {
-        message: 'RunSphere could not be reached. Try again when connected.',
+        message: 'TURFR could not be reached. Try again when connected.',
         sessionExpired: false
       };
   }

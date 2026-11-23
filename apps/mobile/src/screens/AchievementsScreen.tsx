@@ -162,7 +162,7 @@ export function AchievementsScreen({
             </Text>
             <Text style={styles.noticeCopy}>
               {state === 'configuration'
-                ? 'RunSphere needs an API URL before achievements can load.'
+                ? 'TURFR needs an API URL before achievements can load.'
                 : 'Your achievements could not load. Nothing was changed.'}
             </Text>
             {state !== 'configuration' && (

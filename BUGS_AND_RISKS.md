@@ -234,7 +234,7 @@ reads; privacy-zone trimming on the server; safety-share reads gated on verified
 5. **Two staff authorization models** (env allow-list vs DB roles).
 6. **Two territory engines** (Turf live, H3 seasons dormant) with separate tables and jobs. Every
    sweep pays for the dormant one's checks, and readers get confused.
-7. **Documentation drift**: `pending-work.md` contains two contradictory versions, and architecture
+7. **Documentation drift**: Earlier backlog and handoff files have been retired. Architecture
    and README describe a much earlier state. Agents following the docs will do wrong work.
 8. **No deployment path**: no runtime manifest for the API, worker, Postgres or ML, and no secrets
    management, backups or migration strategy beyond auto-migrate.

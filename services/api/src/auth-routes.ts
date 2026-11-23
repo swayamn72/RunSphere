@@ -146,7 +146,7 @@ export const registerAuthRoutes = ({ routes, database, authSecret }: AuthRouteDe
       const { dateOfBirth, ageAssertion } = request.body;
       if (dateOfBirth !== undefined) {
         if (!isAdult(dateOfBirth, kolkataDate(new Date())))
-          return reply.code(400).send({ message: 'You need to be 18 or older to use RunSphere.' });
+          return reply.code(400).send({ message: 'You need to be 18 or older to use TURFR.' });
       } else if (ageAssertion !== true) {
         return reply.code(400).send({ message: 'Add your date of birth to continue.' });
       }

@@ -529,7 +529,7 @@ describe('the global board', () => {
 
     expect(rendered).toContain('You are not on the global board');
     expect(rendered).toContain('Never your route, pace, distance, or where you went');
-    expect(rendered).toContain('similar length of time on RunSphere');
+    expect(rendered).toContain('similar length of time on TURFR');
   });
 
   it('renders the served page with the division it was ranked in', async () => {
@@ -553,7 +553,7 @@ describe('the global board', () => {
     expect(rendered).toContain('200 min');
     expect(rendered).toContain('Maya (you)');
     expect(rendered).toContain('You are #2 with 120 min');
-    // A division is a length of time on RunSphere, never a pace or a place.
+    // A division is a length of time on TURFR, never a pace or a place.
     expect(rendered).toContain('how many weeks you have been active');
     // An entry is a rank, a name, and one number of minutes — nothing else.
     const labels = renderer.root

@@ -236,10 +236,8 @@ smaller one.
 
 ### Also needed
 
-- **A data steward and a review cadence.** `pending-work.md` 3.2 lists both as
-  unassigned. The 30-day revalidation rule needs somebody whose job it is.
-- **An admin surface.** `pending-work.md` §5 lists "Route suggestion path
-  dataset management — Not started". Routes are insertable by SQL today.
+- **A data steward and a review cadence.** Ownership and cadence still need to be assigned. The 30-day revalidation rule needs somebody whose job it is.
+- **An admin surface.** Route suggestion dataset management has no admin UI. Routes are insertable by SQL today.
 
 ---
 
@@ -256,7 +254,7 @@ smaller one.
   yet" rather than showing a switch that governs nothing.
 - **iOS push.** `expo-notifications` is configured for Android only; iOS needs
   an APNs key and its own entitlement, and is gated behind the Android v1 gates
-  anyway (`pending-work.md` §6).
+  (see the [launch plan](release-plan.md)).
 - **The ML services** (`docs/ml.md`, `services/ml`). Same treatment as push and
   email: built, tested on the TypeScript side, and honest about being
   unconfigured. `ML_SCORER_URL` unset means no call and no flag; nothing is

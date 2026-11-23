@@ -103,7 +103,7 @@ export const clubMemberRows = (
     )
     .map((member) => {
       const isSelf = member.profile.id === viewer.accountId;
-      const nameLabel = member.profile.displayName || 'RunSphere member';
+      const nameLabel = member.profile.displayName || 'TURFR member';
       const promotable = member.role === 'member' ? 'admin' : 'member';
       return {
         accountId: member.profile.id,
@@ -313,7 +313,7 @@ export interface ClubBoardRow {
 
 export const clubBoardRows = (entries: readonly ClubBoardEntry[]): readonly ClubBoardRow[] =>
   entries.map((entry) => {
-    const nameLabel = entry.profile.displayName || 'RunSphere member';
+    const nameLabel = entry.profile.displayName || 'TURFR member';
     const minutesLabel = minuteLabel(entry.cappedActiveMinutes);
     return {
       accountId: entry.profile.id,
@@ -446,7 +446,7 @@ export const clubChallengeStandingRows = (
   mode: ClubChallengeMode
 ): readonly ClubChallengeStandingRow[] =>
   entries.map((entry) => {
-    const nameLabel = entry.profile.displayName || 'RunSphere member';
+    const nameLabel = entry.profile.displayName || 'TURFR member';
     const label = scoreLabel(mode, entry.score);
     return {
       accountId: entry.profile.id,
@@ -469,7 +469,7 @@ export const canOpenClubChallenge = (role: ClubRole): boolean => canManageClubCh
  * appear in it.
  */
 export const CLUB_CHALLENGE_EXPLANATION =
-  'A club challenge ranks the members who joined it over one fixed window. It counts the same active minutes as the rest of RunSphere — pace, distance, and where you moved play no part.';
+  'A club challenge ranks the members who joined it over one fixed window. It counts the same active minutes as the rest of TURFR — pace, distance, and where you moved play no part.';
 
 /**
  * Said before joining, because joining is retroactive within the window: it is
@@ -509,4 +509,4 @@ export const CLUB_CHALLENGE_CANCEL_CONSEQUENCE =
 
 /** The message the share sheet sends for a club invite code. */
 export const clubShareMessage = (clubName: string, inviteCode: string): string =>
-  `Join ${clubName} on RunSphere. Open Social > Clubs > Join and enter ${inviteCode}.`;
+  `Join ${clubName} on TURFR. Open Social > Clubs > Join and enter ${inviteCode}.`;

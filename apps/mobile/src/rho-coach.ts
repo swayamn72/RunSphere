@@ -18,7 +18,12 @@ export type RhoMoment =
       readonly loopReady?: boolean;
       readonly gpsWeak?: boolean;
     }
-  | { readonly moment: 'post-run'; readonly status: 'saved-offline' | 'checking' | 'counted' };
+  | {
+      readonly moment: 'post-run';
+      readonly status: 'saved-offline' | 'checking' | 'counted';
+      /** The run could claim ground (Turf, Ghost Race, pre-mode). A Free or Quest run can't. */
+      readonly claims?: boolean;
+    };
 
 export interface RhoCue {
   readonly speaker: 'Rho';
@@ -51,7 +56,9 @@ export const rhoCue = (state: RhoMoment): RhoCue | undefined => {
       if (state.status === 'saved-offline')
         return cue("Run saved. It'll upload when you're back online.");
       if (state.status === 'checking') return cue('Run saved. Your totals show up in a moment.');
-      return cue('Nice and steady. Same loop next time keeps the ground yours.');
+      return state.claims === false
+        ? cue("Nice and steady. That one's in your log.")
+        : cue('Nice and steady. Same loop next time keeps the ground yours.');
   }
 };
 
@@ -69,7 +76,8 @@ export const allRhoLines = (): string[] => {
     { moment: 'mid-run', loopGapMetres: 240 },
     { moment: 'post-run', status: 'saved-offline' },
     { moment: 'post-run', status: 'checking' },
-    { moment: 'post-run', status: 'counted' }
+    { moment: 'post-run', status: 'counted' },
+    { moment: 'post-run', status: 'counted', claims: false }
   ];
   return states.flatMap((state) => {
     const line = rhoCue(state);

@@ -18,10 +18,30 @@
 
 ## 2. Store listing
 
+- **App name:** TURFR.
+- **App icon:** [TURFR Play icon](assets/turfr-play-icon.png), 512 × 512 PNG.
+- **Short description:** Run your neighbourhood, track your progress, and claim ground.
 - **Category:** Health & Fitness.
 - **Privacy policy URL:** `https://<api-host>/privacy` (served by the API, `services/api/src/legal-pages.ts`).
 - **Account deletion URL:** `https://<api-host>/account/delete`.
 - **Contact email:** a monitored address. Use the grievance officer's (`GRIEVANCE_OFFICER_EMAIL`).
+
+### Listing description
+
+Take TURFR on your next run. Track your distance, moving time and pace, and see how your runs add up each week.
+
+Want to play for ground? Run a closed loop, review your route, and claim the area inside it from the Turf map. Explore reviewed loops or run a quest. Choose a Free run any time to focus on your own progress.
+
+See your past runs and splits in your run log. Choose who can see your runs in Privacy & visibility.
+
+### Screenshot order
+
+Capture these on the TURFR Android build using a demo account and reviewed or synthetic routes.
+
+1. Home with weekly progress and a reviewed loop.
+2. Turf map with a selected territory and its available action.
+3. A confirmed claim and the territory it added.
+4. Run detail with a visible route, distance, moving time and pace.
 
 ## 3. App content forms
 
@@ -87,7 +107,7 @@ does not use Health Connect and doesn't read heart rate, body measurements or me
   "Recording your run", shows the whole time.
 - **Impact if unavailable:** a run stops recording as soon as the phone locks, so distance, route
   and Turf claims are wrong or missing.
-- **Video (record on a real device, ~30 s):** open RunSphere → Run → Start → show the "Recording your
+- **Video (record on a real device, ~30 s):** open TURFR → Run → Start → show the "Recording your
   run" notification → lock the screen → unlock → show the route kept growing → Finish → show the
   notification is gone.
 

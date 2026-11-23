@@ -14,6 +14,13 @@ describe('Rho field-coach cues (UX.8)', () => {
     expect(rhoCue({ moment: 'post-run', status: 'checking' })?.message).toMatch(/saved/i);
   });
 
+  it('only mentions keeping ground after a run that could claim it (found on a phone)', () => {
+    expect(rhoCue({ moment: 'post-run', status: 'counted' })?.message).toMatch(/ground/);
+    expect(rhoCue({ moment: 'post-run', status: 'counted', claims: false })?.message).not.toMatch(
+      /ground/
+    );
+  });
+
   it('stays quiet mid-run when there is nothing useful to say', () => {
     expect(rhoCue({ moment: 'mid-run' })).toBeUndefined();
     expect(rhoCue({ moment: 'mid-run', loopGapMetres: Number.NaN })).toBeUndefined();

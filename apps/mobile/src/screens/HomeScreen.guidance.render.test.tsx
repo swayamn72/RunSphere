@@ -26,6 +26,7 @@ vi.mock('react-native', async () => {
   };
 });
 vi.mock('../components/Mascot', () => ({ LoopMascot: () => null }));
+vi.mock('../maps/MapSurface', () => ({ MapSurface: () => null }));
 vi.mock('../theme/theme', async () => (await import('../theme/theme-mock.js')).themeMock());
 
 const { HomeScreen } = await import('./HomeScreen.js');
@@ -76,11 +77,10 @@ const renderHome = async (): Promise<ReactTestRenderer> => {
       <HomeScreen
         api={stubApi()}
         onStart={() => undefined}
-        onChooseRoute={() => undefined}
+        onSelectQuest={() => undefined}
         onOpenChallenges={() => undefined}
         onOpenQuests={() => undefined}
         onOpenMap={() => undefined}
-        onOpenSocial={() => undefined}
         onOpenNotifications={() => undefined}
         onOpenProfile={() => undefined}
         onSessionExpired={() => undefined}

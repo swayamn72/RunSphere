@@ -17,7 +17,7 @@ export const page = (title: string, body: string, script: string): string => `<!
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex">
-<title>${title} · RunSphere</title>
+<title>${title} · TURFR</title>
 <style>
   body { font-family: system-ui, sans-serif; max-width: 34rem; margin: 3rem auto; padding: 0 1rem;
          line-height: 1.5; color: #12201a; background: #f6faf7; }

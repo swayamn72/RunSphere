@@ -4,8 +4,7 @@ import {
   activeDaysPresentation,
   dashboardTiles,
   greetingPresentation,
-  timeOfDay,
-  QUICK_ACTIONS
+  timeOfDay
 } from './home-dashboard-model.js';
 
 const profile = (displayName: string): Profile =>
@@ -76,7 +75,7 @@ describe('active days meter', () => {
       })
     );
     expect(card?.value).toBe('3');
-    expect(card?.caption).toBe('Active days this week');
+    expect(card?.caption).toBe('active days');
     expect(card?.pips).toHaveLength(7);
     expect(card?.pips.filter((pip) => pip.active)).toHaveLength(3);
     expect(card?.pips.slice(0, 3).every((pip) => pip.active)).toBe(true);
@@ -97,7 +96,7 @@ describe('active days meter', () => {
         }
       })
     );
-    expect(one?.caption).toBe('Active day this week');
+    expect(one?.caption).toBe('active day');
     const over = activeDaysPresentation(
       progression({
         weeklyConsistency: {
@@ -119,36 +118,20 @@ describe('active days meter', () => {
 
 describe('dashboard tiles', () => {
   it('reports the server figures with grouped thousands', () => {
-    const tiles = dashboardTiles(goal, progression({ level: { level: 8, xpInLevel: 40 } }));
-    expect(tiles.map((tile) => tile.key)).toEqual(['distance', 'active-minutes', 'xp', 'level']);
+    const tiles = dashboardTiles(goal);
+    expect(tiles.map((tile) => tile.key)).toEqual(['distance', 'active-minutes']);
     expect(tiles.find((tile) => tile.key === 'distance')?.value).toBe('56.3');
     expect(tiles.find((tile) => tile.key === 'active-minutes')?.value).toBe('1,240');
-    expect(tiles.find((tile) => tile.key === 'xp')?.value).toBe('1,240');
-    expect(tiles.find((tile) => tile.key === 'level')?.value).toBe('8');
   });
 
   it('omits a tile rather than reporting zero for a source that has not loaded', () => {
-    expect(dashboardTiles(undefined, undefined)).toEqual([]);
-    expect(dashboardTiles(goal, undefined).map((tile) => tile.key)).toEqual([
-      'distance',
-      'active-minutes'
-    ]);
-    // An unpublished level band is unknown, not level 1.
-    expect(dashboardTiles(goal, progression()).map((tile) => tile.key)).not.toContain('level');
+    expect(dashboardTiles(undefined)).toEqual([]);
+    expect(dashboardTiles(goal).map((tile) => tile.key)).toEqual(['distance', 'active-minutes']);
   });
 
   it('never presents a figure the product does not measure', () => {
-    const labels = dashboardTiles(goal, progression({ level: { level: 8, xpInLevel: 40 } })).map(
-      (tile) => tile.label
-    );
+    const labels = dashboardTiles(goal).map((tile) => tile.label);
     for (const absent of ['CALORIES', 'KCAL', 'STREAK', 'ZONES CAPTURED', 'RUNS'])
       expect(labels).not.toContain(absent);
-  });
-});
-
-describe('quick actions', () => {
-  it('offers the three fixed actions in order, each with a distinct glyph', () => {
-    expect(QUICK_ACTIONS.map((action) => action.key)).toEqual(['run', 'map', 'social']);
-    expect(new Set(QUICK_ACTIONS.map((action) => action.glyph)).size).toBe(3);
   });
 });

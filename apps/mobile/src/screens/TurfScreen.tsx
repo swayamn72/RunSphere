@@ -1,3 +1,8 @@
+import { ProgressionBadge } from '../components/ProgressionBadge';
+import { NavigationIcon } from '../components/NavigationIcon';
+import Svg, { Path } from 'react-native-svg';
+import { linesFromGeometry } from './run-detail-layout-model';
+import { routeThumbnailPath } from './run-log-model';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -51,6 +56,7 @@ import { seasonDaysLeft } from './home-progression-model';
 import { selectedCheckpointLayers } from './explore-model';
 import {
   dashboardPreviewEnabled,
+  previewProgression,
   previewClaimHistory,
   previewClaims,
   previewGhostTrace,
@@ -108,6 +114,7 @@ import { gameWorld } from '../theme/game-world';
  * to work out what a map of their neighbourhood with names on it is recording.
  */
 export interface TurfScreenProps {
+  requestedRunId?: string;
   readonly api: MobileApiClient;
   readonly accountId?: string;
   readonly onOpenRun?: () => void;
@@ -136,6 +143,7 @@ const SELF_RING = SELF_COLOUR;
 
 export function TurfScreen({
   api,
+  requestedRunId,
   accountId,
   onOpenRun,
   onOpenQuest,
@@ -190,6 +198,28 @@ export function TurfScreen({
   const [zoneFilter, setZoneFilter] = useState<ZoneFilter>('all');
   const [search, setSearch] = useState('');
   const [claimableRunId, setClaimableRunId] = useState<string>();
+  const [claimRoute, setClaimRoute] = useState<{ id: string; path?: string }>();
+  useEffect(() => {
+    if (!claimableRunId || claimableRunId !== requestedRunId) return;
+    let active = true;
+    const inspectRun = async () => {
+      try {
+        const detail = await api.activityStatus(claimableRunId);
+        const outline =
+          detail.status === 'derived'
+            ? routeThumbnailPath(linesFromGeometry(detail.geometry) ?? null, 80)
+            : null;
+        if (active)
+          setClaimRoute({ id: claimableRunId, ...(outline?.path ? { path: outline.path } : {}) });
+      } catch {
+        if (active) setClaimRoute({ id: claimableRunId });
+      }
+    };
+    void inspectRun();
+    return () => {
+      active = false;
+    };
+  }, [api, claimableRunId, requestedRunId]);
   const [claiming, setClaiming] = useState(false);
   const [clusters, setClusters] = useState<readonly TerritoryCluster[]>([]);
   const [history, setHistory] = useState<TerritoryClaimHistoryResponse>();
@@ -364,12 +394,20 @@ export function TurfScreen({
       setFeed(activity.data);
       setEvents(eventList.data);
       if (leaderboard) setBoard(leaderboard);
-      setClaimableRunId(pickClaimableRun(runs));
+      const candidate = pickClaimableRun(runs, requestedRunId);
+      setClaimableRunId(candidate);
+      if (requestedRunId && !candidate) {
+        const alreadyClaimed = runs.some(
+          (run) => run.id === requestedRunId && run.territoryClaimed
+        );
+        if (!alreadyClaimed)
+          setNotice('This run has no claim ready. Check your run log for its latest status.');
+      }
     } catch {
       // The map is the point of the screen; a failed sidebar must not take it
       // down with it.
     }
-  }, [api]);
+  }, [api, requestedRunId]);
 
   useEffect(() => {
     if (!dashboardPreviewEnabled) void loadMine();
@@ -507,6 +545,8 @@ export function TurfScreen({
     setNotice('Turn on location access to see yourself on the map.');
   };
 
+  const hudProgression = dashboardPreviewEnabled ? previewProgression : progression;
+
   // A full page rather than a taller sheet: the story of a piece of ground is
   // the point of this screen, and it does not belong squeezed under a map.
   // The confirmation is a screen of its own rather than a sheet over the
@@ -535,6 +575,11 @@ export function TurfScreen({
   if (showDetail && chosen)
     return (
       <View style={[styles.root, styles.detailFrame]}>
+        {hudProgression && (
+          <View style={styles.detailStatus}>
+            <ProgressionBadge summary={hudProgression} turf />
+          </View>
+        )}
         <TerritoryDetailScreen
           claim={chosen}
           history={history}
@@ -547,18 +592,7 @@ export function TurfScreen({
       </View>
     );
 
-  const level = dashboardPreviewEnabled ? 4 : progression?.level?.level;
-  const xp = dashboardPreviewEnabled ? 1240 : progression?.totalXp;
-  const xpInLevel = dashboardPreviewEnabled ? 90 : progression?.level?.xpInLevel;
-  const nextLevelAt = dashboardPreviewEnabled ? 1400 : progression?.level?.nextLevelAt;
-  const xpPercent =
-    xp !== undefined &&
-    xpInLevel !== undefined &&
-    nextLevelAt !== undefined &&
-    nextLevelAt > xp - xpInLevel
-      ? Math.max(0, Math.min(100, Math.round((100 * xpInLevel) / (nextLevelAt - xp + xpInLevel))))
-      : undefined;
-  const activeDays = dashboardPreviewEnabled ? 3 : progression?.weeklyConsistency?.activeDays;
+  const activeDays = hudProgression?.weeklyConsistency?.activeDays;
   const playerName = dashboardPreviewEnabled ? 'Maya Chen' : (profile?.displayName ?? 'Runner');
   const avatarKey = dashboardPreviewEnabled ? 'loop-1' : profile?.cosmetic?.avatarKey;
   const ghost = chosen && onGhostRace ? ghostOffer(chosen, summary?.ghostRacesLeft) : undefined;
@@ -753,7 +787,7 @@ export function TurfScreen({
                   style={styles.pinAnchor}
                 >
                   {/*
-                    RunSphere has no uploaded profile photos — identity is a
+                    TURFR has no uploaded profile photos — identity is a
                     cosmetic key — so a pin shows the crew mascot that key maps
                     to. Drawn locally, so no image host ever learns who is on
                     this map and the map issues no request of its own.
@@ -892,7 +926,7 @@ export function TurfScreen({
               style={styles.playerPill}
               disabled={!onOpenProfile}
               accessibilityRole={onOpenProfile ? 'button' : 'text'}
-              accessibilityLabel={`${playerName}${level === undefined ? '' : `, level ${level}`}${xp === undefined ? '' : `, ${xp} experience points`}${activeDays === undefined ? '' : `, ${activeDays} active days this week`}`}
+              accessibilityLabel={`${playerName}${activeDays === undefined ? '' : `, ${activeDays} active days this week`}`}
               onPress={onOpenProfile}
             >
               <View style={styles.avatarRing}>
@@ -906,36 +940,23 @@ export function TurfScreen({
                 <Text numberOfLines={1} style={styles.hudLabel}>
                   {playerName}
                 </Text>
-                {level !== undefined && (
-                  <Text style={styles.hudDetail}>
-                    LVL {level}
-                    {xp === undefined ? '' : ` · ${xp.toLocaleString()} XP`}
-                  </Text>
-                )}
                 {activeDays !== undefined && (
                   <Text style={styles.hudDetail}>
                     🔥 {activeDays} active {activeDays === 1 ? 'day' : 'days'} this week
                   </Text>
                 )}
-                {xpPercent !== undefined && (
-                  <View
-                    accessibilityRole="progressbar"
-                    accessibilityLabel="Progress to next level"
-                    accessibilityValue={{ min: 0, max: 100, now: xpPercent }}
-                    style={styles.xpTrack}
-                  >
-                    <View style={[styles.xpFill, { width: `${xpPercent}%` }]} />
-                  </View>
-                )}
               </View>
             </Pressable>
-            <View
-              style={styles.seasonPill}
-              accessible
-              accessibilityLabel={`Season resets in ${seasonDaysLeft(new Date())} days`}
-            >
-              <Text style={styles.hudDetail}>SEASON</Text>
-              <Text style={styles.hudLabel}>{seasonDaysLeft(new Date())}d left</Text>
+            <View style={styles.hudStatus}>
+              <ProgressionBadge summary={hudProgression} turf />
+              <View
+                style={styles.seasonPill}
+                accessible
+                accessibilityLabel={`Season resets in ${seasonDaysLeft(new Date())} days`}
+              >
+                <Text style={styles.hudDetail}>SEASON</Text>
+                <Text style={styles.hudLabel}>{seasonDaysLeft(new Date())}d left</Text>
+              </View>
             </View>
           </View>
           <View style={styles.tools}>
@@ -946,7 +967,10 @@ export function TurfScreen({
               onPress={searchOpen ? closeSearch : () => setSearchOpen(true)}
               style={[styles.control, search !== '' && styles.controlActive]}
             >
-              <Text style={styles.controlText}>{searchOpen ? '×' : '⌕'}</Text>
+              <NavigationIcon
+                name={searchOpen ? 'close' : 'search'}
+                color={tokens.map.controlText}
+              />
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -958,7 +982,7 @@ export function TurfScreen({
                 (filtersOpen || zoneFilter !== 'all') && styles.controlActive
               ]}
             >
-              <Text style={styles.toolText}>☷</Text>
+              <NavigationIcon name="layers" color={gameWorld.hud.tool} />
             </Pressable>
             {providerUrl && (
               <Pressable
@@ -968,7 +992,7 @@ export function TurfScreen({
                 onPress={() => void recenter()}
                 style={[styles.control, following && styles.controlActive]}
               >
-                <Text style={styles.controlText}>◎</Text>
+                <NavigationIcon name="locate" color={tokens.map.controlText} />
               </Pressable>
             )}
             <Pressable
@@ -978,7 +1002,7 @@ export function TurfScreen({
               onPress={() => setMapInfoOpen((open) => !open)}
               style={styles.control}
             >
-              <Text style={styles.toolText}>ⓘ</Text>
+              <NavigationIcon name="info" color={gameWorld.hud.tool} />
             </Pressable>
             {onOpenSettings && (
               <Pressable
@@ -987,7 +1011,7 @@ export function TurfScreen({
                 onPress={onOpenSettings}
                 style={styles.control}
               >
-                <Text style={styles.toolText}>⚙</Text>
+                <NavigationIcon name="settings" color={gameWorld.hud.tool} />
               </Pressable>
             )}
           </View>
@@ -1111,8 +1135,7 @@ export function TurfScreen({
                 </Text>
                 {notEnoughRuns ? (
                   <Text style={styles.helper}>
-                    Run a few more times and RunSphere can estimate which territories are within
-                    reach.
+                    Run a few more times and TURFR can estimate which territories are within reach.
                   </Text>
                 ) : recommendations.length === 0 ? (
                   <Text style={styles.helper}>
@@ -1374,13 +1397,41 @@ export function TurfScreen({
               </View>
             ) : null}
 
-            {claimableRunId && (summary?.claimCount ?? 0) === 0 ? (
+            {claimableRunId && claimableRunId === requestedRunId ? (
+              <View style={styles.claimPreview}>
+                {claimRoute?.id === claimableRunId && claimRoute.path ? (
+                  <Svg width={64} height={64} viewBox="0 0 80 80" accessible={false}>
+                    <Path
+                      d={claimRoute.path}
+                      fill="none"
+                      stroke={gameWorld.hud.tool}
+                      strokeWidth={3}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </Svg>
+                ) : null}
+                <View style={styles.claimPreviewCopy}>
+                  <Text style={styles.hudLabel}>Your loop</Text>
+                  <Text style={styles.helper}>
+                    {claimRoute?.id !== claimableRunId
+                      ? 'Loading your route…'
+                      : claimRoute.path
+                        ? 'This is the route visible after your privacy settings are applied.'
+                        : 'A route preview is unavailable.'}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+            {claimableRunId && (requestedRunId || (summary?.claimCount ?? 0) === 0) ? (
               <Text style={styles.helper}>{CLAIM_PUBLISHES_NOTICE}</Text>
             ) : null}
             {claimableRunId ? (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Claim ground from your last run"
+                accessibilityLabel={
+                  requestedRunId ? 'Claim ground from this run' : 'Claim ground from your last run'
+                }
                 disabled={claiming}
                 onPress={() =>
                   void (async () => {
@@ -1411,7 +1462,11 @@ export function TurfScreen({
                 style={styles.primary}
               >
                 <Text style={styles.primaryText}>
-                  {claiming ? 'Claiming…' : 'Claim ground from your last run'}
+                  {claiming
+                    ? 'Claiming…'
+                    : requestedRunId
+                      ? 'Claim ground from this run'
+                      : 'Claim ground from your last run'}
                 </Text>
               </Pressable>
             ) : null}
@@ -1549,7 +1604,7 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
     tools: { alignSelf: 'flex-start', flexDirection: 'row', gap: 8 },
     hudHeader: {
       flexDirection: 'row',
-      alignItems: 'center',
+      alignItems: 'flex-start',
       justifyContent: 'space-between',
       gap: 12,
       paddingRight: typeof __DEV__ !== 'undefined' && __DEV__ ? 56 : 0
@@ -1577,6 +1632,8 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       borderColor: gameWorld.hud.progress,
       backgroundColor: gameWorld.hud.avatar
     },
+    hudStatus: { alignItems: 'flex-end', gap: 6, flexShrink: 1 },
+    detailStatus: { paddingHorizontal: 16, paddingVertical: 4 },
     seasonPill: {
       alignItems: 'center',
       backgroundColor: gameWorld.hud.glass,
@@ -1586,16 +1643,10 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       paddingHorizontal: 12,
       paddingVertical: 7
     },
+    claimPreview: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    claimPreviewCopy: { flex: 1 },
     hudLabel: { color: gameWorld.hud.text, fontSize: 14, fontWeight: '900' },
     hudDetail: { color: gameWorld.hud.detail, fontSize: 10, fontWeight: '800' },
-    xpTrack: {
-      height: 3,
-      marginTop: 3,
-      backgroundColor: gameWorld.hud.track,
-      borderRadius: 3,
-      overflow: 'hidden'
-    },
-    xpFill: { height: '100%', backgroundColor: gameWorld.hud.progress },
     toolText: { color: gameWorld.hud.tool, fontSize: 20, fontWeight: '800' },
     filterStatus: {
       alignSelf: 'flex-start',

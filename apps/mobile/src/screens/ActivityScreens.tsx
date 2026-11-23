@@ -487,7 +487,7 @@ export function ActivityRecording({
   onChange: (session: ActivitySession | undefined) => void;
   onExit: () => void;
   /** Opens the Map, where a Turf or Ghost Race run's ground is claimed. */
-  onOpenMap?: () => void;
+  onOpenMap?: (runId: string) => void;
   sync: ReturnType<typeof createActivitySyncCoordinator>;
 }) {
   const styles = useAppStyles();
@@ -802,7 +802,7 @@ export function ActivityRecording({
           <Text style={styles.noticeCopy}>{formatLastClear(status.lastUsableAt, now)}</Text>
           {(status.state === 'weak' || status.state === 'gap') && (
             <Text style={styles.noticeCopy}>
-              Move to open sky, keep RunSphere open, and wait for a clear fix. We will start a new
+              Move to open sky, keep TURFR open, and wait for a clear fix. We will start a new
               segment without filling the gap.
             </Text>
           )}
@@ -883,7 +883,7 @@ export function ActivityDetail({
   session: ActivitySession;
   sync: ReturnType<typeof createActivitySyncCoordinator>;
   onExit: () => void;
-  onOpenMap?: () => void;
+  onOpenMap?: (runId: string) => void;
 }) {
   const styles = useAppStyles();
   const [current, setCurrent] = useState(session);
@@ -960,9 +960,8 @@ export function ActivityDetail({
     await sync.delete(current);
     if (mounted.current) onExit();
   };
-  const localPace = current.distanceMeters
-    ? formatDuration(Math.round(current.durationSeconds / (current.distanceMeters / 1_000)))
-    : '—';
+  // m:ss per km, as everywhere else (a phone showed 00:02:45 here).
+  const localPace = calculatedPace(current);
   const terminalRejected = presentation.state === 'rejected';
   const terminalDeleted = presentation.state === 'deleted';
   const canSync = presentation.state === 'pending' && !terminalRemoteStatus(current.remoteStatus);
@@ -976,6 +975,8 @@ export function ActivityDetail({
   const guidance = useLoopGuidance(guidanceCandidates);
   const canRefresh =
     Boolean(current.remoteId) && !['rejected', 'deleted'].includes(current.remoteStatus ?? '');
+  const runId = current.remoteId;
+  const openClaim = onOpenMap && runId ? () => onOpenMap(runId) : undefined;
   return (
     <View style={styles.recordCard}>
       <Text style={styles.eyebrow}>
@@ -984,7 +985,7 @@ export function ActivityDetail({
           : terminalRejected
             ? 'SAVED PRIVATELY'
             : terminalDeleted
-              ? 'DELETED ON RUNSPHERE'
+              ? 'DELETED ON TURFR'
               : 'RUN CHECK'}
       </Text>
       <Text style={styles.recordTitle}>
@@ -1036,7 +1037,7 @@ export function ActivityDetail({
           <Text style={styles.noticeIcon}>i</Text>
           <View style={styles.flexCopy}>
             <Text style={styles.noticeTitle}>
-              {terminalDeleted ? 'Deleted on RunSphere' : 'Saved privately'}
+              {terminalDeleted ? 'Deleted on TURFR' : 'Saved privately'}
             </Text>
             <Text style={styles.noticeCopy}>
               {terminalDeleted
@@ -1050,7 +1051,7 @@ export function ActivityDetail({
       {presentation.state === 'validated' && (
         <Text
           style={styles.privateNote}
-        >{`Rho: ${rhoCue({ moment: 'post-run', status: 'counted' })?.message ?? ''}`}</Text>
+        >{`Rho: ${rhoCue({ moment: 'post-run', status: 'counted', claims: canClaim(hudModeOf(current.runStart)) })?.message ?? ''}`}</Text>
       )}
       {presentation.state === 'validated' && (
         <View style={styles.notice} accessibilityLiveRegion="polite">
@@ -1060,7 +1061,7 @@ export function ActivityDetail({
             <Text style={styles.noticeCopy}>
               {presentation.detail.summary!.privacyTrimmed
                 ? 'Start, finish, and route fragments inside saved privacy zones were removed.'
-                : "Your route shows here once it's ready to share safely."}
+                : 'None of your route is near your privacy zones, so it is kept whole.'}
             </Text>
           </View>
         </View>
@@ -1068,8 +1069,8 @@ export function ActivityDetail({
       {presentation.state === 'validated' && countedNext(hudModeOf(current.runStart)) ? (
         <Text style={styles.privateNote}>{countedNext(hudModeOf(current.runStart))}</Text>
       ) : null}
-      {presentation.state === 'validated' && canClaim(hudModeOf(current.runStart)) && onOpenMap ? (
-        <PrimaryButton label="Claim it on the Map" onPress={onOpenMap} />
+      {presentation.state === 'validated' && canClaim(hudModeOf(current.runStart)) && openClaim ? (
+        <PrimaryButton label="Claim it on the Map" onPress={openClaim} />
       ) : null}
       {canSync && (
         <PrimaryButton
@@ -1373,9 +1374,7 @@ function ActivityResults({
   const styles = useAppStyles();
   const mode = hudModeOf(session.runStart);
   const copy = resultCopy(mode);
-  const pace = session.distanceMeters
-    ? formatDuration(Math.round(session.durationSeconds / (session.distanceMeters / 1000)))
-    : '—';
+  const pace = calculatedPace(session);
   return (
     <View style={styles.recordCard}>
       <Text style={styles.eyebrow}>{`${MODE_LABEL[mode]} · LOCAL RESULT`}</Text>

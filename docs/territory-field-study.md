@@ -49,8 +49,7 @@ fill in a cell map is a safety problem wearing a research badge.
 
 Model the eligible public-space cells in the candidate MMR cluster at the
 season's pinned resolution. This depends on the public-space eligibility dataset
-that **does not exist yet** — it is the first blocker in
-[`HANDOFF.md`](HANDOFF.md), and this step cannot start without it.
+that **does not exist yet**. See the [implementation roadmap](../IMPLEMENTATION_ROADMAP.md) for launch gates.
 
 Record: total eligible cells, cells within 2 km of each candidate division's
 enrolled centroid, and the modelled cells-per-participant at 100, 175, and 250

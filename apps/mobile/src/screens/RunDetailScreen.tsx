@@ -9,6 +9,7 @@ import Animated, {
   useSharedValue
 } from 'react-native-reanimated';
 import Svg, { Circle, Path } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ActivityMetrics } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { useAppStyles } from '../components/styles';
@@ -50,11 +51,15 @@ export function RunDetailScreen({
   dragHandlers,
   progress,
   reduceMotion,
-  api
-}: RunDetailSlotProps & { api: RunDetailApi }) {
+  api,
+  status
+}: RunDetailSlotProps & { api: RunDetailApi; status?: ReactNode }) {
   const styles = useAppStyles();
   const { tokens } = useAppTheme();
   const { width, height } = useWindowDimensions();
+  // The overlay is absolutely placed, so it ignores the shell's safe area: the
+  // header clears the status bar itself (found on a phone).
+  const insets = useSafeAreaInsets();
   const card = runCard(run.item);
   const areaHeight = Math.round(height * ROUTE_AREA_SHARE);
   const contentWidth = width - 36;
@@ -140,8 +145,9 @@ export function RunDetailScreen({
 
   return (
     <View style={styles.flexCopy}>
-      <View {...dragHandlers} style={styles.runDetailHeader}>
+      <View {...dragHandlers} style={[styles.runDetailHeader, { paddingTop: insets.top + 8 }]}>
         <View style={styles.runDetailGrabber} />
+        {status}
         <View style={styles.contactRow}>
           <View style={styles.flexCopy}>
             <Text style={styles.eyebrow}>{card.badge ?? 'RUN'}</Text>

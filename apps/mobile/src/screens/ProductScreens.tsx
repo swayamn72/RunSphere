@@ -42,7 +42,7 @@ import { NotificationsScreen } from './NotificationsScreen';
 import { ProfileIdentityScreen } from './ProfileIdentityScreen';
 import type { NotificationTarget } from './notifications-model';
 import { profileInitials, profileNameLabel } from './profile-model';
-import { AchievementStrip, LevelCard, ProfileIdentityHead, ProfileStats } from './ProfileOverview';
+import { AchievementStrip, ProfileIdentityHead, ProfileStats } from './ProfileOverview';
 import { RunLogSection } from './RunLogSection';
 import { useOpenRun } from './RunDetailHost';
 import {
@@ -50,7 +50,6 @@ import {
   FAIR_PLAY_PRIVACY,
   profileStatCells
 } from './profile-overview-model';
-import { progressionPresentation } from './home-progression-model';
 import {
   DELETION_DONE_MESSAGE,
   DELETION_DONE_TITLE,
@@ -281,7 +280,7 @@ export function ProfileScreen({
             .catch(() =>
               Alert.alert(
                 'Unable to log out',
-                'RunSphere could not clear all local account data. Please try again.'
+                'TURFR could not clear all local account data. Please try again.'
               )
             )
       }
@@ -372,7 +371,6 @@ export function ProfileScreen({
         <ClubsScreen api={api} accountId={accountId} onSessionExpired={onLogoutComplete} />
       </>
     );
-  const overview = progression ? progressionPresentation(progression, profile) : undefined;
   const settingsView = (
     <>
       <SettingsGroup title="Goals & activity">
@@ -557,16 +555,10 @@ export function ProfileScreen({
         name={profileNameLabel(profile?.displayName)}
         initials={profileInitials(profile?.displayName)}
         {...(handle ? { handle } : {})}
+        {...(profile?.cosmetic.tier ? { tier: profile.cosmetic.tier } : {})}
         onEdit={() => setScreen('identity')}
         onOpenSettings={() => setScreen('settings')}
       />
-      {overview && (
-        <LevelCard
-          totalXpLabel={overview.totalXpLabel}
-          level={overview.level}
-          tierLabel={overview.tierLabel}
-        />
-      )}
       <ProfileStats cells={profileStatCells(overviewTurf)} />
       <AchievementStrip
         medallions={achievementMedallions(progression?.achievements ?? [])}
@@ -987,8 +979,7 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
         />
       </SettingsGroup>
       <Text style={styles.safetyFooter}>
-        RunSphere is not an emergency service. Contact local services if you are in immediate
-        danger.
+        TURFR is not an emergency service. Contact local services if you are in immediate danger.
       </Text>
     </>
   );

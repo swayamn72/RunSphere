@@ -43,12 +43,16 @@ import {
  */
 export function RoutePreviewScreen({
   api,
+  preferredRouteId,
+  onPreviewChange,
   onUseRoute,
   onStartWithout,
   onBack,
   onSessionExpired
 }: {
   api: MobileApiClient;
+  preferredRouteId?: string;
+  onPreviewChange?: (card: RoutePreviewCard | undefined) => void;
   onUseRoute: (guide: RouteGuide) => void;
   onStartWithout: () => void;
   onBack: () => void;
@@ -68,6 +72,7 @@ export function RoutePreviewScreen({
   const [permission, setPermission] = useState<LocationPermissionState>('idle');
   const mounted = useRef(true);
   const generation = useRef(0);
+  const preferredRoute = useRef(preferredRouteId);
 
   useEffect(() => {
     mounted.current = true;
@@ -117,8 +122,14 @@ export function RoutePreviewScreen({
         if (!mounted.current || request !== generation.current) return;
 
         const nextCards = routePreviewCards(response.data);
+        const preferredIndex = nextCards.findIndex(
+          (candidate) => candidate.suggestion.id === preferredRoute.current
+        );
+        preferredRoute.current = undefined;
         setCards(nextCards);
-        setSelected((previous) => clampSelectedIndex(nextCards.length, previous));
+        setSelected((previous) =>
+          preferredIndex >= 0 ? preferredIndex : clampSelectedIndex(nextCards.length, previous)
+        );
         setReason(targetReasonMessage(response));
         setNote(response.note);
         setTarget(response.targetDistanceMetres);
@@ -144,6 +155,10 @@ export function RoutePreviewScreen({
   }, [load]);
 
   const card = cards[selected];
+  useEffect(() => {
+    if (state === 'ready' || state === 'empty')
+      onPreviewChange?.(state === 'ready' ? card : undefined);
+  }, [card, onPreviewChange, state]);
   const layers = useMemo(() => (card ? routePreviewLayers(card.suggestion) : []), [card]);
   const centre = useMemo(() => (card ? loopCentre(card.suggestion) : undefined), [card]);
 
@@ -201,8 +216,8 @@ export function RoutePreviewScreen({
           <Text style={styles.sectionTitle}>Route ideas need a rough location</Text>
           <Text style={styles.lead}>
             {permission === 'blocked'
-              ? 'Location is turned off for RunSphere. Turn it on in Settings to see reviewed routes near you.'
-              : 'RunSphere asks for an approximate location once, to find reviewed routes nearby. It is not stored.'}
+              ? 'Location is turned off for TURFR. Turn it on in Settings to see reviewed routes near you.'
+              : 'TURFR asks for an approximate location once, to find reviewed routes nearby. It is not stored.'}
           </Text>
           {permission !== 'blocked' && (
             <PrimaryButton label="Find routes near me" onPress={() => void load()} />

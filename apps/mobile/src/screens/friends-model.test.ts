@@ -118,7 +118,7 @@ describe('rows', () => {
 
   it('keeps an account with no display name addressable', () => {
     const rows = friendRows([{ ...profile('a', ''), displayName: '' }]);
-    expect(rows[0]!.nameLabel).toBe('RunSphere member');
+    expect(rows[0]!.nameLabel).toBe('TURFR member');
   });
 
   it('labels a request by who is waiting on an answer', () => {

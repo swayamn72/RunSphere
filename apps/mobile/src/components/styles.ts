@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { StyleSheet } from 'react-native';
 import type { SemanticTokens } from '@runsphere/ui';
-import { radius } from '@runsphere/ui';
+import { appPalette, radius } from '@runsphere/ui';
 import { useAppTheme } from '../theme/theme';
 
 export const createAppStyles = (t: SemanticTokens) =>
@@ -191,8 +191,8 @@ export const createAppStyles = (t: SemanticTokens) =>
 
     statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
     statTile: {
-      backgroundColor: t.background.surface,
-      borderColor: t.border.subtle,
+      backgroundColor: appPalette.paper,
+      borderColor: appPalette.paperLine,
       borderRadius: radius.control,
       borderWidth: 1,
       flexGrow: 1,
@@ -201,19 +201,19 @@ export const createAppStyles = (t: SemanticTokens) =>
     },
     statTileHead: { alignItems: 'center', flexDirection: 'row', gap: 9 },
     statTileLabel: {
-      color: t.text.secondary,
+      color: appPalette.mutedInk,
       fontSize: 10,
       fontWeight: '800',
       letterSpacing: 0.4
     },
     statTileValue: {
-      color: t.text.primary,
+      color: appPalette.ink,
       fontSize: 21,
       fontWeight: '900',
       letterSpacing: -0.6,
       marginTop: 8
     },
-    statTileSuffix: { color: t.text.secondary, fontSize: 12, fontWeight: '800' },
+    statTileSuffix: { color: appPalette.mutedInk, fontSize: 12, fontWeight: '800' },
 
     /* ---------------------------------------------------------------- *
      * Progress
@@ -806,6 +806,13 @@ export const createAppStyles = (t: SemanticTokens) =>
     },
     splitBar: { backgroundColor: t.action.primary, borderRadius: 3, height: 6 },
     runDeleteArea: { marginTop: 24 },
+    chartHeader: {
+      alignItems: 'baseline',
+      flexDirection: 'row',
+      gap: 12,
+      justifyContent: 'space-between',
+      marginTop: 8
+    },
     /** A run in the profile run log (M9 9.15): route line left, numbers right. */
     runCard: {
       alignItems: 'center',

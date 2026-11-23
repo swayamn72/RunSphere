@@ -2,8 +2,7 @@
  * RunSphere's semantic visual system. Screens consume these roles rather than
  * deriving colors from a palette or inverting a scheme at runtime.
  *
- * Tactical Night uses dark slate surfaces and distinct accents for actions,
- * territory ownership, and run guidance.
+ * Charcoal surfaces, lime actions, and warm paper for reading.
  */
 export interface SemanticTokens {
   readonly background: {
@@ -22,7 +21,7 @@ export interface SemanticTokens {
     /**
      * Rose for *text* (errors, destructive labels, rival headings). The brand
      * rose `#F43F5E` stays for zones, lines and fills, but as text it is
-     * 4.34:1 on raised cards, just under AA; this shade passes on every
+     * below AA on raised cards, but this shade passes on every
      * surface.
      */
     readonly danger: string;
@@ -80,35 +79,48 @@ export interface SemanticTokens {
   };
 }
 
+export const appPalette = {
+  canvas: '#101010',
+  panel: '#1B1B1B',
+  raised: '#252525',
+  border: '#404040',
+  mapLine: '#626262',
+  accent: '#C9F44A',
+  paper: '#F4F2ED',
+  paperLine: '#D5D2CB',
+  ink: '#101010',
+  mutedInk: '#474541'
+} as const;
+
 export const darkTokens: SemanticTokens = {
   background: {
-    canvas: '#090D16',
-    surface: '#111827',
-    surfaceRaised: '#182235',
-    surfaceInset: '#0D1320'
+    canvas: appPalette.canvas,
+    surface: appPalette.panel,
+    surfaceRaised: appPalette.raised,
+    surfaceInset: '#151515'
   },
   text: {
-    primary: '#F8FAFC',
-    secondary: '#94A3B8',
-    inverse: '#090D16',
-    disabled: '#64748B',
-    tertiary: '#94A3B8',
-    onAccent: '#090D16',
-    danger: '#F54B67'
+    primary: appPalette.paper,
+    secondary: '#B8B5AE',
+    inverse: appPalette.canvas,
+    disabled: '#77746E',
+    tertiary: '#B8B5AE',
+    onAccent: appPalette.canvas,
+    danger: '#FA6078'
   },
-  border: { subtle: '#1E293B', strong: '#475569', focus: '#00E5FF' },
+  border: { subtle: appPalette.border, strong: '#72706B', focus: appPalette.accent },
   action: {
-    primary: '#22C55E',
-    primaryPressed: '#20B955',
-    secondary: '#182235',
-    selected: '#22C55E',
-    disabled: '#253246',
+    primary: appPalette.accent,
+    primaryPressed: '#B4DA38',
+    secondary: appPalette.raised,
+    selected: appPalette.accent,
+    disabled: '#363533',
     danger: '#BE123C',
     dangerPressed: '#9F1239'
   },
   status: {
     info: '#00E5FF',
-    success: '#22C55E',
+    success: appPalette.accent,
     warning: '#F59E0B',
     error: '#F43F5E',
     pending: '#F59E0B'
@@ -121,24 +133,24 @@ export const darkTokens: SemanticTokens = {
     gold: '#FFC861'
   },
   zone: {
-    owned: '#00E5FF',
-    ownedFill: '#00E5FF2E',
+    owned: appPalette.accent,
+    ownedFill: '#C9F44A2E',
     rival: '#F43F5E',
     rivalFill: '#F43F5E2E',
     neutral: '#F59E0B',
     neutralFill: '#F59E0B2E'
   },
-  route: { line: '#00E5FF', fill: '#00E5FF33', water: '#13263D' },
-  checkpoint: { fill: '#22C55E', text: '#090D16', outline: '#F8FAFC' },
-  map: { control: '#111827', controlText: '#F8FAFC', scrim: '#090D16E8' },
-  scrim: { subtle: '#090D1666', strong: '#090D16D9' },
+  route: { line: appPalette.accent, fill: '#C9F44A33', water: '#202527' },
+  checkpoint: { fill: appPalette.accent, text: appPalette.canvas, outline: appPalette.paper },
+  map: { control: appPalette.panel, controlText: appPalette.paper, scrim: '#101010E8' },
+  scrim: { subtle: '#10101066', strong: '#101010D9' },
   mascot: {
-    body: '#182235',
-    outline: '#64748B',
-    orbit: '#00E5FF',
-    pointer: '#00E5FF',
-    eye: '#F8FAFC',
-    beacon: '#00E5FF'
+    body: appPalette.raised,
+    outline: '#77746E',
+    orbit: appPalette.accent,
+    pointer: appPalette.accent,
+    eye: appPalette.paper,
+    beacon: appPalette.accent
   }
 };
 

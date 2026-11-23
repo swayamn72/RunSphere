@@ -230,18 +230,18 @@ export const renderTransactional = (
   switch (kind) {
     case 'email_verification':
       return {
-        subject: 'Confirm your RunSphere email',
-        text: `Confirm this address to finish setting up RunSphere.\n\n${link('/verify-email')}\n\nThe link works for 24 hours. If you did not create a RunSphere account, ignore this message and nothing will happen.`
+        subject: 'Confirm your TURFR email',
+        text: `Confirm this address to finish setting up TURFR.\n\n${link('/verify-email')}\n\nThe link works for 24 hours. If you did not create a TURFR account, ignore this message and nothing will happen.`
       };
     case 'password_reset':
       return {
-        subject: 'Reset your RunSphere password',
-        text: `Use this link to set a new RunSphere password.\n\n${link('/reset-password')}\n\nThe link works for one hour and can be used once. If you did not ask to reset your password, ignore this message — your current password still works.`
+        subject: 'Reset your TURFR password',
+        text: `Use this link to set a new TURFR password.\n\n${link('/reset-password')}\n\nThe link works for one hour and can be used once. If you did not ask to reset your password, ignore this message — your current password still works.`
       };
     case 'change_verify':
       return {
-        subject: 'Confirm your new RunSphere email',
-        text: `Confirm this address to finish moving your RunSphere account to it.\n\n${link('/confirm-email-change')}\n\nThe link works for 24 hours. Until you use it, your account keeps its current address.`
+        subject: 'Confirm your new TURFR email',
+        text: `Confirm this address to finish moving your TURFR account to it.\n\n${link('/confirm-email-change')}\n\nThe link works for 24 hours. Until you use it, your account keeps its current address.`
       };
     case 'change_alert_old':
       return {
@@ -249,16 +249,16 @@ export const renderTransactional = (
         // is to tell somebody their account is being moved, and an urgent
         // message with a link in it is exactly what a phishing attempt looks
         // like. It points at an app they already have.
-        subject: 'Your RunSphere email is being changed',
-        text: `Somebody asked to move your RunSphere account to ${context.newEmail ?? 'a new address'}.\n\nIf that was you, no action is needed — confirm it from the new address.\n\nIf it was not, open RunSphere and change your password now. The move is not complete until the new address is confirmed.`
+        subject: 'Your TURFR email is being changed',
+        text: `Somebody asked to move your TURFR account to ${context.newEmail ?? 'a new address'}.\n\nIf that was you, no action is needed — confirm it from the new address.\n\nIf it was not, open TURFR and change your password now. The move is not complete until the new address is confirmed.`
       };
     case 'deletion_verify':
       return {
-        subject: 'Confirm your RunSphere deletion request',
+        subject: 'Confirm your TURFR deletion request',
         // ADR-0012: erasure follows confirmation without a waiting period, so
         // the copy must not promise one, nor a way to cancel that no longer
         // exists. It says plainly that confirming is final.
-        text: `Confirm this request to permanently delete your RunSphere account.\n\n${link('/confirm-deletion')}\n\nThe link works for 24 hours. Once you confirm, you are signed out everywhere and your account, runs, territory, and social data are erased within minutes. This cannot be undone. If you did not ask for this, ignore this message and nothing will happen.`
+        text: `Confirm this request to permanently delete your TURFR account.\n\n${link('/confirm-deletion')}\n\nThe link works for 24 hours. Once you confirm, you are signed out everywhere and your account, runs, territory, and social data are erased within minutes. This cannot be undone. If you did not ask for this, ignore this message and nothing will happen.`
       };
   }
 };

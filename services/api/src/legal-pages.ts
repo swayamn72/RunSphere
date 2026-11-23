@@ -30,7 +30,7 @@ const contactBlock = (contact: LegalContact): string => {
     ? `<a href="mailto:${escapeHtml(contact.grievanceOfficerEmail)}">${escapeHtml(contact.grievanceOfficerEmail)}</a>`
     : TO_BE_NAMED;
   return `<h2>Contact and grievance officer</h2>
-<p>RunSphere is run by ${operator}.</p>
+<p>TURFR is run by ${operator}.</p>
 <p>Grievance officer: ${officer}, ${email}. We acknowledge a complaint within 24 hours and resolve it
 within 15 days. Questions about your data, or a request you couldn't complete in the app, go to the
 same address.</p>`;
@@ -42,8 +42,8 @@ force. Version ${LEGAL_POLICY_VERSION}.</p>`
   : `<p class="note">Version ${LEGAL_POLICY_VERSION}.</p>`;
 
 const privacyBody = (contact: LegalContact): string => `${draftBanner}
-<p>This notice explains what RunSphere collects when you use the app, why, who else sees it, how
-long we keep it, and how you control it. RunSphere is for adults (18 or older) in India.</p>
+<p>This notice explains what TURFR collects when you use the app, why, who else sees it, how
+long we keep it, and how you control it. TURFR is for adults (18 or older) in India.</p>
 
 <h2>What we collect and why</h2>
 <ul>
@@ -88,7 +88,7 @@ the same privacy settings.</li>
 <li>Global leaderboards are off until you turn them on, and show only scores.</li>
 <li>Club members see club results, never your route or location.</li>
 <li>If you share a run with a safety contact, they see a rough area (at least 500 m across), at
-least 15 minutes late, and only until the run ends or you stop sharing. RunSphere is not an
+least 15 minutes late, and only until the run ends or you stop sharing. TURFR is not an
 emergency service.</li>
 </ul>
 
@@ -117,7 +117,7 @@ that no longer identify you.</li>
 <li><strong>Delete it:</strong> open a run and tap Delete activity to delete that run, or delete
 your whole account in the app (Profile → Settings → Data → Delete account) or at
 <a href="/account/delete">/account/delete</a>, which erases all your runs too.</li>
-<li><strong>Withdraw consent:</strong> turn off location for RunSphere in Android settings (you can
+<li><strong>Withdraw consent:</strong> turn off location for TURFR in Android settings (you can
 still browse), turn off leaderboards, safety sharing and news emails in the app, or delete your
 account. Withdrawing doesn't undo what was done before.</li>
 <li><strong>Nominate someone</strong> to use these rights for you if you die or can't act: write to
@@ -138,16 +138,16 @@ on.</p>
 ${contactBlock(contact)}`;
 
 const termsBody = (contact: LegalContact): string => `${draftBanner}
-<p>These terms are an agreement between you and the operator of RunSphere. By creating an account
+<p>These terms are an agreement between you and the operator of TURFR. By creating an account
 you accept them and the <a href="${LEGAL_PAGES.communityGuidelines}">community guidelines</a>. Our
 <a href="${LEGAL_PAGES.privacy}">privacy notice</a> explains how we handle your data.</p>
 
-<h2>Who can use RunSphere</h2>
+<h2>Who can use TURFR</h2>
 <p>You must be 18 or older and give true details at sign-up. One account per person. Keep your
 password to yourself; you are responsible for what happens on your account.</p>
 
 <h2>Run safely</h2>
-<p>RunSphere is a game and a training tool, not medical advice and not an emergency service. Check
+<p>TURFR is a game and a training tool, not medical advice and not an emergency service. Check
 with a doctor before starting a new exercise routine. Obey traffic rules, never trespass to claim
 ground, and stay aware of your surroundings. Don't use the app in a way that puts you or others at
 risk.</p>
@@ -164,7 +164,7 @@ no money value and can't be sold or exchanged. We may change, reset or end games
 
 <h2>What you post</h2>
 <p>You own your username, display name, club names and other things you add. You let us show them
-in RunSphere so the app works. They must follow the community guidelines. We may remove content or
+in TURFR so the app works. They must follow the community guidelines. We may remove content or
 restrict accounts that break the rules, and we act on valid orders from Indian courts and
 authorities.</p>
 
@@ -173,7 +173,7 @@ authorities.</p>
 repeatedly breaks these terms; where possible we tell you why and how to appeal.</p>
 
 <h2>Our responsibility</h2>
-<p>We work to keep RunSphere available and accurate, but GPS and maps are not always exact and the
+<p>We work to keep TURFR available and accurate, but GPS and maps are not always exact and the
 service may sometimes be unavailable. To the extent the law allows, we aren't responsible for
 indirect losses from using the app. Nothing here limits rights you have under Indian consumer
 law.</p>
@@ -183,7 +183,7 @@ law.</p>
 ${contactBlock(contact)}`;
 
 const guidelinesBody = (contact: LegalContact): string => `${draftBanner}
-<p>RunSphere works when everyone feels safe on the road and on the map. These rules apply to your
+<p>TURFR works when everyone feels safe on the road and on the map. These rules apply to your
 username, display name, club names and descriptions, challenge names, and how you treat others.</p>
 
 <h2>Be decent</h2>

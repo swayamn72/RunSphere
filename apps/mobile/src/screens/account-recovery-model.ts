@@ -31,7 +31,7 @@ export const passwordProblem = (password: string, confirm: string): string | und
 
 /** Shown after asking, whether or not the address has an account (nothing is confirmed). */
 export const RESET_REQUESTED_NOTICE =
-  "If that address has a RunSphere account, we've emailed a link. It works for an hour.";
+  "If that address has a TURFR account, we've emailed a link. It works for an hour.";
 export const EMAIL_CHANGE_REQUESTED_NOTICE =
   "We've emailed a link to the new address. Open it there, or paste it here.";
 export const BAD_LINK_NOTICE = "That doesn't look like the link or code from the email.";

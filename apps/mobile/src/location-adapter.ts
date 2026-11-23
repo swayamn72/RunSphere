@@ -40,7 +40,7 @@ export const nativeLocationAdapter: LocationAdapter = {
 export const RUN_LOCATION_TASK = 'runsphere-run-location';
 export const RUN_SERVICE_NOTIFICATION = {
   notificationTitle: 'Recording your run',
-  notificationBody: 'RunSphere is recording your route. Pause or finish in the app to stop.',
+  notificationBody: 'TURFR is recording your route. Pause or finish in the app to stop.',
   killServiceOnDestroy: true
 } as const;
 

@@ -1,20 +1,15 @@
-import { useState } from 'react';
+import { appPalette } from '@runsphere/ui';
 import { Pressable, Text, View } from 'react-native';
 import { SettingsButton } from '../components/SettingsButton';
 import { useAppStyles } from '../components/styles';
 import { useAppTheme } from '../theme/theme';
-import type { LevelPresentation } from './home-progression-model';
-import {
-  XP_INFO_COPY,
-  type AchievementMedallion,
-  type ProfileStatCell
-} from './profile-overview-model';
+import { type AchievementMedallion, type ProfileStatCell } from './profile-overview-model';
 
 /**
- * The profile overview: identity, cosmetic level band, weekly figures, and the
+ * The profile overview: identity, weekly figures, and the
  * achievements the server has awarded.
  *
- * All four are renderers over presentation objects. Nothing here derives a
+ * These are renderers over presentation objects. Nothing here derives a
  * number, which is what keeps the "no lifetime totals, no ranking" rule in
  * `profile-overview-model` from having to be restated per view.
  */
@@ -22,6 +17,7 @@ export function ProfileIdentityHead({
   name,
   initials,
   handle,
+  tier,
   onEdit,
   onOpenSettings
 }: {
@@ -29,6 +25,7 @@ export function ProfileIdentityHead({
   initials: string;
   /** The @username, once loaded (ADR-0014). */
   handle?: string;
+  tier?: string;
   onEdit: () => void;
   onOpenSettings: () => void;
 }) {
@@ -48,68 +45,9 @@ export function ProfileIdentityHead({
           {name}
         </Text>
         {handle ? <Text style={styles.profileHandle}>{`@${handle}`}</Text> : null}
+        {tier && <Text style={styles.profileHandle}>{tier}</Text>}
       </View>
       <SettingsButton onPress={onOpenSettings} />
-    </View>
-  );
-}
-
-/**
- * The cosmetic level band (ADR-0005).
- *
- * `level` is undefined when no progression rule is published, in which case the
- * XP total is shown on its own — a level 1 would be invented, and the bar has
- * no band to fill.
- */
-export function LevelCard({
-  totalXpLabel,
-  level,
-  tierLabel
-}: {
-  totalXpLabel: string;
-  level: LevelPresentation | undefined;
-  tierLabel: string | undefined;
-}) {
-  const styles = useAppStyles();
-  const [showXpInfo, setShowXpInfo] = useState(false);
-  return (
-    <View style={styles.card}>
-      <View style={styles.cardRow}>
-        <View style={styles.flexCopy}>
-          <Text style={styles.cardTitle}>
-            {level ? `${level.levelLabel} · ${totalXpLabel}` : totalXpLabel}
-          </Text>
-          {level && <Text style={styles.rowDetail}>{level.xpInLevelLabel}</Text>}
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="How XP works"
-          accessibilityState={{ expanded: showXpInfo }}
-          hitSlop={8}
-          onPress={() => setShowXpInfo((shown) => !shown)}
-        >
-          <Text style={styles.headerButtonGlyph}>{'ⓘ'}</Text>
-        </Pressable>
-        {tierLabel && <Text style={styles.badge}>{tierLabel.toUpperCase()}</Text>}
-      </View>
-      {level?.progress !== undefined && (
-        <View style={styles.challengeProgress}>
-          <View
-            accessibilityLabel={level.progressAccessibilityLabel}
-            accessibilityRole="progressbar"
-            accessibilityValue={{
-              min: 0,
-              max: 100,
-              now: level.progress,
-              text: `${level.progress}% of this level`
-            }}
-            style={styles.progressTrack}
-          >
-            <View style={[styles.progressFill, { width: `${level.progress}%` }]} />
-          </View>
-        </View>
-      )}
-      {showXpInfo && <Text style={styles.settingsHint}>{XP_INFO_COPY}</Text>}
     </View>
   );
 }
@@ -126,7 +64,9 @@ export function ProfileStats({ cells }: { cells: readonly ProfileStatCell[] }) {
         {cells.map((cell) => (
           <View key={cell.key} style={styles.statTile}>
             <Text style={styles.statTileValue}>{cell.value}</Text>
-            <Text style={styles.metricCellLabel}>{cell.label}</Text>
+            <Text style={[styles.metricCellLabel, { color: appPalette.mutedInk }]}>
+              {cell.label}
+            </Text>
           </View>
         ))}
       </View>

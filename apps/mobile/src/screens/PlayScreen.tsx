@@ -1,3 +1,4 @@
+import { appPalette } from '@runsphere/ui';
 import { seasonCountdown } from './home-progression-model';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -1437,17 +1438,19 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
     chipTextSelected: { color: t.text.onAccent },
     standingRow: {
       alignItems: 'center',
-      borderTopColor: t.border.subtle,
+      backgroundColor: appPalette.paper,
+      borderTopColor: appPalette.paperLine,
       borderTopWidth: 1,
       flexDirection: 'row',
       gap: 12,
       minHeight: 52,
+      paddingHorizontal: 12,
       paddingVertical: 8
     },
-    standingSelf: { backgroundColor: t.background.surfaceInset },
-    rank: { color: t.text.secondary, fontSize: 14, fontWeight: '900', minWidth: 24 },
-    standingName: { color: t.text.primary, flex: 1, fontSize: 15, fontWeight: '800' },
-    standingScore: { color: t.status.success, fontSize: 15, fontWeight: '900' },
+    standingSelf: { backgroundColor: appPalette.paperLine },
+    rank: { color: appPalette.mutedInk, fontSize: 14, fontWeight: '900', minWidth: 24 },
+    standingName: { color: appPalette.ink, flex: 1, fontSize: 15, fontWeight: '800' },
+    standingScore: { color: appPalette.ink, fontSize: 15, fontWeight: '900' },
     guide: { alignItems: 'center', flexDirection: 'row', gap: 12, marginTop: 16, minHeight: 64 },
     guideAction: {
       alignSelf: 'flex-start',

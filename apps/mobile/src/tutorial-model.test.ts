@@ -13,15 +13,8 @@ import {
 } from './tutorial-model.js';
 
 describe('guided tour (M9 9.21)', () => {
-  it('walks Run → modes → Map → Ghost Race → Quests → your runs', () => {
-    expect(TOUR_STEPS.map((step) => step.id)).toEqual([
-      'run',
-      'modes',
-      'map',
-      'ghost',
-      'quests',
-      'runs'
-    ]);
+  it('walks Run → modes → Map → Quests → your runs', () => {
+    expect(TOUR_STEPS.map((step) => step.id)).toEqual(['run', 'modes', 'map', 'quests', 'runs']);
     expect(new Set(TOUR_STEPS.map((step) => step.id)).size).toBe(TOUR_STEPS.length);
   });
 
@@ -30,7 +23,7 @@ describe('guided tour (M9 9.21)', () => {
     expect(state).toEqual({ index: 0 });
     state = tourReducer(state, 'next');
     expect(tourStep(state)?.id).toBe('modes');
-    expect(tourProgress(state)).toBe('Step 2 of 6');
+    expect(tourProgress(state)).toBe('Step 2 of 5');
     expect(tourReducer(state, 'skip')).toBe('done');
     expect(tourReducer({ index: TOUR_STEPS.length - 1 }, 'next')).toBe('done');
     expect(tourReducer('done', 'next')).toBe('done');

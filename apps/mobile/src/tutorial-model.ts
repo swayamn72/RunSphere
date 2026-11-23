@@ -43,8 +43,8 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: 'modes',
     targetId: 'home-start',
     tab: 'Home',
-    title: 'Four ways to run',
-    rhoLine: 'Free run, Turf, Quest or Ghost Race. Pick one before you start.',
+    title: 'Three ways to run',
+    rhoLine: 'Free run, Turf or Quest. Pick one before you start.',
     placement: 'below'
   },
   {
@@ -53,14 +53,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     tab: 'Map',
     title: 'Your ground',
     rhoLine: 'Close a loop on a Turf run and the ground inside is yours on the map.',
-    placement: 'above'
-  },
-  {
-    id: 'ghost',
-    targetId: 'tab-map',
-    tab: 'Map',
-    title: 'Race a ghost',
-    rhoLine: 'Tap a rival’s ground to race their loop. Their ghost runs it with you.',
     placement: 'above'
   },
   {
@@ -96,7 +88,7 @@ export const tourReducer = (state: TourState, action: TourAction): TourState => 
 export const tourStep = (state: TourState): TourStep | undefined =>
   state === 'done' ? undefined : TOUR_STEPS[state.index];
 
-/** "Step 2 of 6", for the bubble and for TalkBack. */
+/** "Step 2 of 5", for the bubble and for TalkBack. */
 export const tourProgress = (state: TourState): string =>
   state === 'done' ? '' : `Step ${state.index + 1} of ${TOUR_STEPS.length}`;
 

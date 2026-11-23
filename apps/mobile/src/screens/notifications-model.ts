@@ -44,7 +44,7 @@ export const NOTIFICATION_KIND_LABEL: Readonly<Record<NotificationKind, string>>
   quest: 'Quest',
   streak: 'Streak',
   account: 'Account',
-  system: 'RunSphere'
+  system: 'TURFR'
 };
 
 /**

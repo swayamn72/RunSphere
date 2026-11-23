@@ -1,5 +1,7 @@
 # M9 — Independent run modes, run metrics, run log and detail, guided tour
 
+> **First-launch scope:** Ghost Race is deferred. The Run picker offers Free run, Turf and Quest. The Map and territory detail have no race actions, and the guided tour skips Ghost Race. The design and completed implementation below are retained for future work. The API, saved Ghost Race history and privacy opt-out remain supported.
+
 > Written 2026-11-22 with the owner. This is the working plan for the 15-day closed beta that starts
 > 2026-11-23. Each task is one small PR: branch from `main`, lint, typecheck, affected tests (PostGIS
 > suites against `runsphere_test` when DB code changes), fast-forward merge, push, and tick the task

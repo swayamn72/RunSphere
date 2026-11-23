@@ -2,7 +2,7 @@ import type { Profile, ProgressionSummary, WeeklyGoalResponse } from '@runsphere
 
 /**
  * Presentation for the Home dashboard: the greeting, the active-days meter,
- * and the four summary tiles.
+ * and the weekly summary tiles.
  *
  * Every number here is copied from a server response. Two absences are
  * deliberate rather than oversights:
@@ -86,7 +86,7 @@ export const activeDaysPresentation = (
   const active = Math.max(0, Math.min(DAYS_IN_WEEK, consistency.activeDays));
   return {
     value: `${active}`,
-    caption: active === 1 ? 'Active day this week' : 'Active days this week',
+    caption: active === 1 ? 'active day' : 'active days',
     pips: Array.from({ length: DAYS_IN_WEEK }, (_, index) => ({
       index,
       active: index < active
@@ -97,12 +97,9 @@ export const activeDaysPresentation = (
   };
 };
 
-/** A tile in the 2x2 summary grid. */
+/** A tile in the weekly summary grid. */
 export interface DashboardTile {
-  readonly key: string;
-  readonly glyph: string;
-  /** Named hue role, resolved to a token by the screen. */
-  readonly hue: 'accent' | 'violet' | 'amber' | 'azure';
+  readonly key: 'distance' | 'active-minutes';
   readonly label: string;
   readonly value: string;
   readonly suffix?: string;
@@ -113,79 +110,22 @@ export interface DashboardTile {
  * its source has not loaded, so the grid never reports 0 km for "still
  * loading".
  */
-export const dashboardTiles = (
-  goal: WeeklyGoalResponse | undefined,
-  progression: ProgressionSummary | undefined
-): readonly DashboardTile[] => {
+export const dashboardTiles = (goal: WeeklyGoalResponse | undefined): readonly DashboardTile[] => {
   const tiles: DashboardTile[] = [];
   if (goal)
     tiles.push(
       {
         key: 'distance',
-        glyph: '◈',
-        hue: 'accent',
-        label: 'DISTANCE',
+        label: 'Distance',
         value: (goal.distanceMeters.actual / 1000).toFixed(1),
         suffix: 'km'
       },
       {
         key: 'active-minutes',
-        glyph: '◷',
-        hue: 'azure',
-        label: 'ACTIVE TIME',
+        label: 'Active time',
         value: grouped(goal.activeMinutes.actual),
         suffix: 'min'
       }
     );
-  if (progression) {
-    tiles.push({
-      key: 'xp',
-      glyph: '✦',
-      hue: 'amber',
-      label: 'TOTAL XP',
-      value: grouped(progression.totalXp)
-    });
-    // Levels are published in a progression rule; an absent one means the
-    // band is unknown, not level 1.
-    if (progression.level)
-      tiles.push({
-        key: 'level',
-        glyph: '▲',
-        hue: 'violet',
-        label: 'LEVEL',
-        value: `${progression.level.level}`
-      });
-  }
   return tiles;
 };
-
-export const tacticalDashboardTiles = (
-  goal: WeeklyGoalResponse | undefined,
-  progression: ProgressionSummary | undefined,
-  zonesCarved?: number
-) => ({
-  progression: dashboardTiles(undefined, progression),
-  metrics: [
-    ...dashboardTiles(goal, undefined),
-    {
-      key: 'carved',
-      glyph: '+',
-      hue: 'amber',
-      label: 'ZONES CARVED',
-      value: zonesCarved?.toString() ?? '—'
-    }
-  ] satisfies DashboardTile[]
-});
-
-export interface QuickAction {
-  readonly key: 'run' | 'map' | 'social';
-  readonly label: string;
-  readonly glyph: string;
-}
-
-/** The three actions the dashboard offers, in the order the design fixes them. */
-export const QUICK_ACTIONS: readonly QuickAction[] = [
-  { key: 'run', label: 'Start Turf Run', glyph: '▶' },
-  { key: 'map', label: 'Scout Map', glyph: '◉' },
-  { key: 'social', label: 'Friends', glyph: '◎' }
-];

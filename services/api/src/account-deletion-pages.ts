@@ -6,7 +6,7 @@ import { page, readTokenScript, securityHeaders } from './web-page.js';
  *
  * Google Play requires apps that support account creation to let people
  * request deletion from the web as well as in the app, so somebody who has
- * uninstalled RunSphere, or lost the phone, can still have their data erased.
+ * uninstalled TURFR, or lost the phone, can still have their data erased.
  * The JSON endpoints already exist (`/v1/account/deletion-request` and
  * `/complete`); these two pages are the human front door to them, and the
  * second is where the confirmation email's link lands.
@@ -33,8 +33,8 @@ account was deleted is kept to prevent abuse, and an address that bounced or com
 do-not-email list. Deletion cannot be undone.</p>`;
 
 const requestPage = page(
-  'Delete your RunSphere account',
-  `<p>Enter the email address of your RunSphere account. If an account exists, we will email a link
+  'Delete your TURFR account',
+  `<p>Enter the email address of your TURFR account. If an account exists, we will email a link
 to confirm the deletion. The link works for 24 hours.</p>
 ${erasureSummary}
 <p class="note">You can also delete your account in the app: Profile → Settings → Data → Delete
@@ -64,7 +64,7 @@ form.addEventListener('submit', async (event) => {
         ? 'If an account exists for that address, a confirmation link is on its way.'
         : 'Something went wrong. Please try again.';
   } catch {
-    status.textContent = 'Could not reach RunSphere. Check your connection and try again.';
+    status.textContent = 'Could not reach TURFR. Check your connection and try again.';
   } finally {
     submit.disabled = false;
   }
@@ -73,7 +73,7 @@ form.addEventListener('submit', async (event) => {
 
 const confirmPage = page(
   'Confirm account deletion',
-  `<p>Press the button below to permanently delete your RunSphere account. You will be signed out
+  `<p>Press the button below to permanently delete your TURFR account. You will be signed out
 everywhere and your data will be erased within minutes.</p>
 ${erasureSummary}
 <button type="button" id="confirm" class="danger">Delete my account permanently</button>`,
@@ -101,7 +101,7 @@ button.addEventListener('click', async () => {
     }
   } catch {
     button.disabled = false;
-    status.textContent = 'Could not reach RunSphere. Check your connection and try again.';
+    status.textContent = 'Could not reach TURFR. Check your connection and try again.';
   }
 });`
 );
