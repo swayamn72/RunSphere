@@ -8,14 +8,21 @@ import {
   QuestListResponseSchema,
   QuestNotFoundResponseSchema,
   QuestParamsSchema,
+  StaffQuestListResponseSchema,
+  StaffQuestSchema,
+  StaffQuestTimeLimitRequestSchema,
   WeeklyGoalRequestSchema,
   WeeklyGoalResponseSchema,
   type QuestParams,
+  type StaffQuest,
+  type StaffQuestTimeLimitRequest,
   type WeeklyGoalRequest
 } from '@runsphere/contracts';
+import { canOperateCompetitions } from '@runsphere/domain';
 import type { Database } from '@runsphere/db';
 import { requireAccount } from './auth-routes.js';
 import { abandonQuest, acceptQuest, myQuests } from './quest-core.js';
+import { staffRoles } from './staff-roles.js';
 
 /**
  * The weekly goal's progress for the Asia/Kolkata week containing `now`
@@ -172,15 +179,16 @@ export const registerQuestRoutes = ({ routes, database, authSecret }: QuestRoute
         open_hours: unknown;
         checkpoint_count: string;
         map_position?: [number, number] | null;
+        time_limit_minutes: number | null;
       }>(
         `SELECT quest.id, quest.title, quest.distance_meters, quest.estimated_active_minutes, quest.accessibility,
-           quest.open_hours, count(link.checkpoint_id)::text AS checkpoint_count,
+           quest.open_hours, quest.time_limit_minutes, count(link.checkpoint_id)::text AS checkpoint_count,
            ((array_agg(ST_AsGeoJSON(ST_PointOnSurface(checkpoint.geometry))::jsonb ORDER BY link.position))[1])->'coordinates' AS map_position
          FROM published_quest_versions quest
          JOIN quest_version_checkpoints link ON link.quest_version_id = quest.id
          JOIN curated_checkpoints checkpoint ON checkpoint.id = link.checkpoint_id
          GROUP BY quest.id, quest.title, quest.distance_meters, quest.estimated_active_minutes,
-           quest.accessibility, quest.open_hours, quest.published_at
+           quest.accessibility, quest.open_hours, quest.time_limit_minutes, quest.published_at
          ORDER BY quest.published_at DESC LIMIT 100`
       );
       return {
@@ -192,7 +200,8 @@ export const registerQuestRoutes = ({ routes, database, authSecret }: QuestRoute
           accessibility: quest.accessibility,
           openHours: quest.open_hours,
           checkpointCount: Number(quest.checkpoint_count),
-          ...(quest.map_position ? { mapPosition: quest.map_position } : {})
+          ...(quest.map_position ? { mapPosition: quest.map_position } : {}),
+          ...(quest.time_limit_minutes ? { timeLimitMinutes: quest.time_limit_minutes } : {})
         }))
       };
     }
@@ -221,9 +230,12 @@ export const registerQuestRoutes = ({ routes, database, authSecret }: QuestRoute
         open_hours: unknown;
         source_reviewed_at: Date | string;
         checkpoints: unknown;
+        time_limit_minutes: number | null;
+        map_position: [number, number] | null;
       }>(
         `SELECT quest.id, quest.title, quest.distance_meters, quest.estimated_active_minutes, quest.accessibility,
-           quest.open_hours, quest.source_reviewed_at,
+           quest.open_hours, quest.source_reviewed_at, quest.time_limit_minutes,
+           ((array_agg(ST_AsGeoJSON(ST_PointOnSurface(checkpoint.geometry))::jsonb ORDER BY link.position))[1])->'coordinates' AS map_position,
            jsonb_agg(jsonb_build_object('id', checkpoint.id, 'kind', checkpoint.checkpoint_kind,
              'title', checkpoint.title, 'geometry', ST_AsGeoJSON(checkpoint.geometry)::jsonb,
              'geometryVersion', checkpoint.geometry_version,
@@ -233,7 +245,8 @@ export const registerQuestRoutes = ({ routes, database, authSecret }: QuestRoute
          JOIN quest_version_checkpoints link ON link.quest_version_id = quest.id
          JOIN curated_checkpoints checkpoint ON checkpoint.id = link.checkpoint_id
          WHERE quest.id = $1
-         GROUP BY quest.id`,
+         GROUP BY quest.id, quest.title, quest.distance_meters, quest.estimated_active_minutes,
+           quest.accessibility, quest.open_hours, quest.source_reviewed_at, quest.time_limit_minutes`,
         [request.params.questId]
       );
       const quest = quests.rows[0];
@@ -247,9 +260,96 @@ export const registerQuestRoutes = ({ routes, database, authSecret }: QuestRoute
             openHours: quest.open_hours,
             checkpointCount: Array.isArray(quest.checkpoints) ? quest.checkpoints.length : 0,
             checkpoints: quest.checkpoints,
-            sourceReviewedAt: new Date(quest.source_reviewed_at).toISOString()
+            sourceReviewedAt: new Date(quest.source_reviewed_at).toISOString(),
+            ...(quest.map_position ? { mapPosition: quest.map_position } : {}),
+            ...(quest.time_limit_minutes ? { timeLimitMinutes: quest.time_limit_minutes } : {})
           }
         : reply.code(404).send({ message: 'Quest not found' });
+    }
+  );
+
+  /**
+   * Quests for the console's Quests area, published or not, with their time
+   * limits. Gated like competitions: season_operator or admin. Reads are
+   * audited like every staff read.
+   */
+  routes.get(
+    '/v1/staff/quests',
+    {
+      schema: {
+        tags: ['staff'],
+        headers: ActivityAuthorizationHeadersSchema,
+        response: {
+          200: StaffQuestListResponseSchema,
+          401: ErrorResponseSchema,
+          403: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+      if (!canOperateCompetitions(await staffRoles(database, accountId)))
+        return reply.code(403).send({ message: 'Managing quests needs a staff role' });
+      const rows = await database.query<StaffQuestRow>(
+        `${STAFF_QUEST_SELECT}
+         GROUP BY quest.id ORDER BY quest.published_at DESC NULLS LAST, quest.title LIMIT 200`
+      );
+      await database.query(
+        `INSERT INTO staff_audit_events (staff_account_id, action, target_type, target_count)
+         VALUES ($1, 'quest.listed', 'quest', $2)`,
+        [accountId, rows.rows.length]
+      );
+      return { data: rows.rows.map(staffQuestFrom) };
+    }
+  );
+
+  /**
+   * Set or clear a quest's time limit. It applies to quest runs checked after
+   * the change, so a run already uploaded keeps the rule it was checked under.
+   */
+  routes.put<{ Params: QuestParams; Body: StaffQuestTimeLimitRequest }>(
+    '/v1/staff/quests/:questId/time-limit',
+    {
+      schema: {
+        tags: ['staff'],
+        headers: ActivityAuthorizationHeadersSchema,
+        params: QuestParamsSchema,
+        body: StaffQuestTimeLimitRequestSchema,
+        response: {
+          200: StaffQuestSchema,
+          401: ErrorResponseSchema,
+          403: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          503: ErrorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      if (!database) return reply.code(503).send({ message: 'Service unavailable' });
+      const accountId = requireAccount(request, reply, authSecret);
+      if (!accountId) return;
+      if (!canOperateCompetitions(await staffRoles(database, accountId)))
+        return reply.code(403).send({ message: 'Managing quests needs a staff role' });
+      if (!UUID.test(request.params.questId))
+        return reply.code(404).send({ message: 'Quest not found' });
+      const updated = await database.query(
+        'UPDATE quest_versions SET time_limit_minutes = $2 WHERE id = $1 RETURNING id',
+        [request.params.questId, request.body.timeLimitMinutes]
+      );
+      if (!updated.rows[0]) return reply.code(404).send({ message: 'Quest not found' });
+      await database.query(
+        `INSERT INTO staff_audit_events (staff_account_id, action, target_type, target_count)
+         VALUES ($1, 'quest.time_limit_set', 'quest', 1)`,
+        [accountId]
+      );
+      const row = await database.query<StaffQuestRow>(
+        `${STAFF_QUEST_SELECT} WHERE quest.id = $1 GROUP BY quest.id`,
+        [request.params.questId]
+      );
+      return staffQuestFrom(row.rows[0]!);
     }
   );
 
@@ -303,3 +403,30 @@ export const registerQuestRoutes = ({ routes, database, authSecret }: QuestRoute
     }
   );
 };
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+interface StaffQuestRow {
+  id: string;
+  title: string;
+  estimated_active_minutes: number;
+  time_limit_minutes: number | null;
+  published: boolean;
+  checkpoint_count: string;
+}
+
+const STAFF_QUEST_SELECT = `SELECT quest.id, quest.title, quest.estimated_active_minutes,
+     quest.time_limit_minutes,
+     (quest.published_at IS NOT NULL AND quest.unpublished_at IS NULL) AS published,
+     count(link.checkpoint_id)::text AS checkpoint_count
+   FROM quest_versions quest
+   LEFT JOIN quest_version_checkpoints link ON link.quest_version_id = quest.id`;
+
+const staffQuestFrom = (row: StaffQuestRow): StaffQuest => ({
+  id: row.id,
+  title: row.title,
+  checkpointCount: Number(row.checkpoint_count),
+  estimatedActiveMinutes: Number(row.estimated_active_minutes),
+  timeLimitMinutes: row.time_limit_minutes,
+  published: row.published
+});

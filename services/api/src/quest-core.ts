@@ -13,6 +13,10 @@ import { assessRunIntegrity, type ClaimPoint } from '@runsphere/domain';
  * - **Place and area checkpoints:** the trace passes within 30 m.
  * - **Route checkpoints:** the trace covers at least 80% of the path's length,
  *   within 30 m of it, so running past one end doesn't count as the corridor.
+ * - **Time limit:** when staff set one (`quest_versions.time_limit_minutes`),
+ *   every stop must be passed within that many minutes of the run's first
+ *   point (`withinTimeLimit`). One run, one go: stops passed on separate runs
+ *   never add up.
  * - Only derived runs that pass the integrity check, and only quests that are
  *   still published with no retired checkpoint (`published_quest_versions`).
  *
@@ -153,6 +157,22 @@ export const questsCompletedCount = async (
   );
 
 /**
+ * The part of a run that counts toward a quest with a time limit: the points
+ * from the run's first point up to `limitMinutes` later. Every stop has to be
+ * passed inside that window, so cutting the trace there is the whole rule. The
+ * clock runs from the start of the run, pauses included, because the limit is
+ * how long the runner has from setting off. No limit keeps every point.
+ */
+export const withinTimeLimit = <T extends { at: Date }>(
+  points: readonly T[],
+  limitMinutes: number | null
+): T[] => {
+  if (!limitMinutes || points.length === 0) return [...points];
+  const deadline = points[0]!.at.getTime() + limitMinutes * 60_000;
+  return points.filter((point) => point.at.getTime() <= deadline);
+};
+
+/**
  * The worker's hook after a run is derived: complete any open quest this run
  * satisfies. Returns the quest ids completed now. Idempotent: a retried event
  * finds them already completed and records nothing new.
@@ -181,8 +201,14 @@ export const completeQuestsForActivity = async (
   const onlyQuest = mode === 'quest' ? run.rows[0]!.quest_version_id : null;
   if (mode === 'quest' && !onlyQuest) return [];
 
-  const open = await database.query<{ quest_id: string; title: string; accepted_at: Date }>(
-    `SELECT acceptance.quest_version_id AS quest_id, quest.title, acceptance.accepted_at
+  const open = await database.query<{
+    quest_id: string;
+    title: string;
+    accepted_at: Date;
+    time_limit_minutes: number | null;
+  }>(
+    `SELECT acceptance.quest_version_id AS quest_id, quest.title, acceptance.accepted_at,
+       quest.time_limit_minutes
      FROM quest_acceptances acceptance
      JOIN published_quest_versions quest ON quest.id = acceptance.quest_version_id
      WHERE acceptance.account_id = $1 AND acceptance.abandoned_at IS NULL
@@ -208,7 +234,10 @@ export const completeQuestsForActivity = async (
 
   const completed: string[] = [];
   for (const quest of open.rows) {
-    const after = points.filter((point) => point.at >= quest.accepted_at);
+    const after = withinTimeLimit(
+      points.filter((point) => point.at >= quest.accepted_at),
+      quest.time_limit_minutes
+    );
     if (after.length < 2) continue;
     const trace = JSON.stringify({
       type: 'LineString',

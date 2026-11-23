@@ -70,10 +70,36 @@ export const QuestSummarySchema = Type.Object(
         Type.Number({ minimum: -90, maximum: 90 })
       ])
     ),
+    /**
+     * Minutes from the start of the quest run to pass every stop, set by staff.
+     * Absent when the quest has no limit.
+     */
+    timeLimitMinutes: Type.Optional(Type.Integer({ minimum: 1, maximum: 600 })),
     /** @deprecated Compatibility-only field; v1 API responses never include XP. */
     rewardXp: Type.Optional(Type.Integer({ minimum: 0 }))
   },
   { $id: 'QuestSummary' }
+);
+/** A quest as staff see it in the console's Quests area. */
+export const StaffQuestSchema = Type.Object(
+  {
+    id: Type.String({ minLength: 1 }),
+    title: Type.String({ minLength: 1 }),
+    checkpointCount: Type.Integer({ minimum: 0 }),
+    estimatedActiveMinutes: Type.Integer({ minimum: 1 }),
+    timeLimitMinutes: Type.Union([Type.Integer({ minimum: 1, maximum: 600 }), Type.Null()]),
+    published: Type.Boolean()
+  },
+  Strict
+);
+export const StaffQuestListResponseSchema = Type.Object(
+  { data: Type.Array(StaffQuestSchema) },
+  Strict
+);
+/** Set or clear (null) a quest's time limit. */
+export const StaffQuestTimeLimitRequestSchema = Type.Object(
+  { timeLimitMinutes: Type.Union([Type.Integer({ minimum: 1, maximum: 600 }), Type.Null()]) },
+  Strict
 );
 export const QuestCheckpointSchema = Type.Object(
   {
@@ -707,6 +733,8 @@ export type StaffReviewItem = Static<typeof StaffReviewItemSchema>;
 export type StaffReviewQueueResponse = Static<typeof StaffReviewQueueResponseSchema>;
 export type QuestSummary = Static<typeof QuestSummarySchema>;
 export type QuestDetail = Static<typeof QuestDetailSchema>;
+export type StaffQuest = Static<typeof StaffQuestSchema>;
+export type StaffQuestTimeLimitRequest = Static<typeof StaffQuestTimeLimitRequestSchema>;
 export type WeeklyGoalRequest = Static<typeof WeeklyGoalRequestSchema>;
 export type WeeklyGoalResponse = Static<typeof WeeklyGoalResponseSchema>;
 export type QuestParams = Static<typeof QuestParamsSchema>;

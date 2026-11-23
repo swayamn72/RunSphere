@@ -44,7 +44,8 @@ const checkpoint = async (kind: 'area' | 'route', geometry: object): Promise<str
   const row = await db.query<{ id: string }>(
     `INSERT INTO curated_checkpoints (stable_key, title, checkpoint_kind, geometry, open_hours,
        provenance, reviewed_at)
-     VALUES ($1, $2, $3, ST_SetSRID(ST_GeomFromGeoJSON($4), 4326), '{}'::jsonb, '{}'::jsonb, now())
+     VALUES ($1, $2, $3, ST_SetSRID(ST_GeomFromGeoJSON($4), 4326),
+       '{"timezone":"Asia/Kolkata","schedule":"Daily","status":"open"}'::jsonb, '{}'::jsonb, now())
      RETURNING id`,
     [`quest-test-${randomUUID()}`, `Test ${kind}`, kind, JSON.stringify(geometry)]
   );
@@ -78,7 +79,8 @@ const publishedQuest = async (): Promise<string> => {
     `INSERT INTO quest_versions (quest_key, version, title, distance_meters,
        estimated_active_minutes, accessibility, open_hours, provenance, source_reviewed_at,
        published_at)
-     VALUES ($1, 1, 'Riverside test loop', 600, 6, 'step-free', '{}'::jsonb, '{}'::jsonb, now(), now())
+     VALUES ($1, 1, 'Riverside test loop', 600, 6, 'step-free',
+       '{"timezone":"Asia/Kolkata","schedule":"Daily","status":"open"}'::jsonb, '{}'::jsonb, now(), now())
      RETURNING id`,
     [`quest-test-${randomUUID()}`]
   );
@@ -260,5 +262,102 @@ describePostgis('quest lifecycle (M6.3)', () => {
       headers: as(me.token)
     });
     expect(unknown.statusCode).toBe(404);
+  });
+
+  it('completes a timed quest only when every stop is passed within the limit', async () => {
+    // The covering run reaches the end of the path about 2.5 minutes in.
+    const accept = async () => {
+      const questId = await publishedQuest();
+      const me = await runner();
+      await app.inject({
+        method: 'POST',
+        url: `/v1/quests/${questId}/accept`,
+        headers: as(me.token)
+      });
+      return { questId, me };
+    };
+
+    const tight = await accept();
+    await db.query('UPDATE quest_versions SET time_limit_minutes = 1 WHERE id = $1', [
+      tight.questId
+    ]);
+    const slow = await run(tight.me.id, AREA_LNG - 0.0002, ROUTE_TO + 0.0001, Date.now() + 60_000);
+    expect(await completeQuestsForActivity(db, slow)).toEqual([]);
+
+    const roomy = await accept();
+    await db.query('UPDATE quest_versions SET time_limit_minutes = 3 WHERE id = $1', [
+      roomy.questId
+    ]);
+    const inTime = await run(
+      roomy.me.id,
+      AREA_LNG - 0.0002,
+      ROUTE_TO + 0.0001,
+      Date.now() + 60_000
+    );
+    expect(await completeQuestsForActivity(db, inTime)).toEqual([roomy.questId]);
+
+    const listed = await app.inject({ method: 'GET', url: `/v1/quests/${roomy.questId}` });
+    expect(listed.json()).toMatchObject({ timeLimitMinutes: 3 });
+  });
+
+  it('lets a season operator set and clear a time limit, and nobody else', async () => {
+    const questId = await publishedQuest();
+    const plain = await runner();
+    const denied = await app.inject({
+      method: 'PUT',
+      url: `/v1/staff/quests/${questId}/time-limit`,
+      headers: as(plain.token),
+      payload: { timeLimitMinutes: 15 }
+    });
+    expect(denied.statusCode).toBe(403);
+
+    const operator = await runner();
+    await db.query(
+      `INSERT INTO staff_role_assignments (account_id, role) VALUES ($1, 'season_operator')`,
+      [operator.id]
+    );
+    const set = await app.inject({
+      method: 'PUT',
+      url: `/v1/staff/quests/${questId}/time-limit`,
+      headers: as(operator.token),
+      payload: { timeLimitMinutes: 15 }
+    });
+    expect(set.statusCode).toBe(200);
+    expect(set.json()).toMatchObject({ id: questId, timeLimitMinutes: 15, published: true });
+
+    const list = await app.inject({
+      method: 'GET',
+      url: '/v1/staff/quests',
+      headers: as(operator.token)
+    });
+    expect(list.statusCode).toBe(200);
+    expect((list.json() as { data: { id: string }[] }).data.map((q) => q.id)).toContain(questId);
+
+    const cleared = await app.inject({
+      method: 'PUT',
+      url: `/v1/staff/quests/${questId}/time-limit`,
+      headers: as(operator.token),
+      payload: { timeLimitMinutes: null }
+    });
+    expect(cleared.json()).toMatchObject({ timeLimitMinutes: null });
+    const publicView = await app.inject({ method: 'GET', url: `/v1/quests/${questId}` });
+    expect(publicView.json()).not.toHaveProperty('timeLimitMinutes');
+
+    const missing = await app.inject({
+      method: 'PUT',
+      url: '/v1/staff/quests/not-a-quest/time-limit',
+      headers: as(operator.token),
+      payload: { timeLimitMinutes: 10 }
+    });
+    expect(missing.statusCode).toBe(404);
+    const audited = await db.query(
+      `SELECT action FROM staff_audit_events WHERE staff_account_id = $1 ORDER BY created_at`,
+      [operator.id]
+    );
+    expect(audited.rows.map((row: { action: string }) => row.action)).toEqual([
+      'quest.time_limit_set',
+      'quest.listed',
+      'quest.time_limit_set'
+    ]);
   });
 });

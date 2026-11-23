@@ -80,7 +80,7 @@ APK exists and `aapt` isn't on PATH. Run `vitest run` directly to test only the 
 - Multi-statement writes go through `withTransaction` from `@runsphere/db`.
 - Async side effects go through `outbox_events` (claimed with `FOR UPDATE SKIP LOCKED`, `attempts`,
   `failed_at`) and are processed by the worker. Make consumers idempotent (dedupe keys or `ON CONFLICT`).
-- Migrations: add a new `infra/postgres/migrations/NNN_*.sql` (next is `057`). Never edit an applied
+- Migrations: add a new `infra/postgres/migrations/NNN_*.sql` (next is `058`). Never edit an applied
   migration. Use `IF NOT EXISTS`; there are no down-migrations, so document rollback in the file header.
   Run `pnpm verify:migrations`.
 - Domain logic belongs in `packages/domain` (pure, unit-tested). Only `h3-indexer.ts` may import `h3-js`.
