@@ -129,8 +129,17 @@ export function TutorialOverlay({
   const h = useSharedValue(ring?.height ?? 0);
   const pulse = useSharedValue(1);
 
+  // The ring is a fresh object every render, so the glide depends on its
+  // numbers rather than the object, or it would restart on each render.
+  const ringX = ring?.x;
+  const ringY = ring?.y;
+  const ringWidth = ring?.width;
+  const ringHeight = ring?.height;
   useEffect(() => {
-    const to = ring ?? { x: width / 2, y: height / 2, width: 0, height: 0 };
+    const to =
+      ringX === undefined || ringY === undefined
+        ? { x: width / 2, y: height / 2, width: 0, height: 0 }
+        : { x: ringX, y: ringY, width: ringWidth ?? 0, height: ringHeight ?? 0 };
     const move = (value: number) =>
       reduceMotion
         ? value
@@ -139,7 +148,7 @@ export function TutorialOverlay({
     y.value = move(to.y);
     w.value = move(to.width);
     h.value = move(to.height);
-  }, [ring?.x, ring?.y, ring?.width, ring?.height, width, height, reduceMotion, x, y, w, h]);
+  }, [ringX, ringY, ringWidth, ringHeight, width, height, reduceMotion, x, y, w, h]);
 
   useEffect(() => {
     pulse.value = reduceMotion

@@ -16,6 +16,28 @@ export default tseslint.config(
     }
   },
   /**
+   * Node scripts (data imports, seeding, CI checks, scratch experiments) run
+   * in Node, not the app, so they get Node's globals. Listed here rather than
+   * pulled from the `globals` package to keep the toolchain as it is.
+   */
+  {
+    files: ['**/*.mjs', 'scratch/**/*.js'],
+    languageOptions: {
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        Buffer: 'readonly',
+        URL: 'readonly',
+        URLSearchParams: 'readonly',
+        fetch: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearInterval: 'readonly'
+      }
+    }
+  },
+  /**
    * Metro resolver shims are CommonJS by necessity.
    *
    * Metro reads them through its own `resolveRequest` hook rather than the
@@ -23,10 +45,17 @@ export default tseslint.config(
    * honours here — which the default ESM globals would flag as undefined.
    */
   {
-    files: ['apps/mobile/src/shims/**/*.js', '**/*.cjs'],
+    files: [
+      'apps/mobile/src/shims/**/*.js',
+      '**/*.cjs',
+      // Expo/Metro/Babel load these config files with `require` in Node.
+      '**/metro.config.js',
+      '**/babel.config.js'
+    ],
     languageOptions: {
       sourceType: 'commonjs',
       globals: { module: 'writable', require: 'readonly', __dirname: 'readonly' }
-    }
+    },
+    rules: { '@typescript-eslint/no-require-imports': 'off' }
   }
 );
