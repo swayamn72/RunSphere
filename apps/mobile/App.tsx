@@ -649,7 +649,6 @@ function RunSphereApp() {
         {...(claimRunId ? { requestedRunId: claimRunId } : {})}
         {...(accountId ? { accountId } : {})}
         onOpenRun={() => openActivity('map')}
-        onOpenQuest={setSelectedQuest}
         onOpenProfile={() => {
           setProfileEntry('profile');
           setActiveTab('Profile');
@@ -721,16 +720,21 @@ function RunSphereApp() {
           // TalkBack while the tour is over it (found on a phone, M9 9.29).
           importantForAccessibility={tour || runOpen ? 'no-hide-descendants' : 'auto'}
         >
-          {accountId && content.type !== HomeScreen && content.type !== TurfScreen && (
-            <ScreenProgression
-              key={accountId}
-              api={apiClient}
-              refreshKey={`${activeTab}:${focus}:${activityRoute.screen}:${recording?.state ?? ''}`}
-            />
-          )}
+          {accountId &&
+            content.type !== HomeScreen &&
+            content.type !== TurfScreen &&
+            content.type !== QuestDetailScreen && (
+              <ScreenProgression
+                key={accountId}
+                api={apiClient}
+                refreshKey={`${activeTab}:${focus}:${activityRoute.screen}:${recording?.state ?? ''}`}
+              />
+            )}
           {shell === 'tab-scroll' ? (
             <TabScrollShell>{content}</TabScrollShell>
           ) : shell === 'tab-map' ? (
+            <FocusedFlexShell fullBleed>{content}</FocusedFlexShell>
+          ) : shell === 'focused-map' ? (
             <FocusedFlexShell fullBleed>{content}</FocusedFlexShell>
           ) : shell === 'focused-scroll' ? (
             <FocusedScrollShell>{content}</FocusedScrollShell>

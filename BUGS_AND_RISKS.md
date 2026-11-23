@@ -186,6 +186,19 @@ Was:
   the recorder's real table (`canTransition`, exported). Verified on the phone: the stuck run
   uploaded and counted, and history loads.
 
+### B21 — Opening any real quest failed, and quests opened as a broken card on the turf map (S2, Fixed 2026-11-24)
+
+- `GET /v1/quests/:questId` grouped by `quest.id` over the `published_quest_versions` view.
+  Postgres only infers grouped columns from a table's primary key, not a view's, so every request
+  failed (500) and the app showed "Checkpoint details unavailable". No test called the route.
+- On the phone, a quest pin on the turf map opened a small card with a stray line and no way in,
+  and the quest list put a map and a sheet inside a scroll view, which rendered broken.
+- Fix: the detail query groups by every selected column, and the lifecycle suite now calls it.
+  A quest opens on its own dark map (`QuestDetailScreen`, `quest-map-model.ts`) with its stops and
+  a suggested order. The turf map no longer shows quests, and the quest list is a plain list.
+- Still open: the suggested route is straight lines between stops, not street routing. It is
+  labelled as a suggested order, and the stops can be passed in any order.
+
 ### Integration run (2026-11-20, isolated `runsphere_test` database, `CI=true`)
 
 All migrations apply cleanly. **Every PostGIS suite passes with nothing skipped**: API 568/568,

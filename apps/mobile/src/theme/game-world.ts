@@ -63,7 +63,10 @@ export const gameWorld = {
     markerEdge: '#362717',
     halo: '#ffca5833',
     rim: '#ffe596',
-    core: '#4b351b'
+    core: '#4b351b',
+    /** A stop the live run has passed, and the number's ink on a stop. */
+    passed: appPalette.accent,
+    ink: '#101010'
   },
   badge: {
     crown: '#ffdb78',

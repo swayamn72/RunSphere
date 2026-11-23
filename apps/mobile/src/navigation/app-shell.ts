@@ -1,6 +1,6 @@
 import type { ActivityRoute, FocusedSurface } from '../activity-flow';
 
-export type AppShell = 'tab-scroll' | 'tab-map' | 'focused-scroll' | 'focused-flex';
+export type AppShell = 'tab-scroll' | 'tab-map' | 'focused-scroll' | 'focused-flex' | 'focused-map';
 
 /** Selects scroll/flex ownership from the explicit activity route. */
 export const selectAppShell = ({
@@ -25,6 +25,10 @@ export const selectAppShell = ({
   mapInteractive: boolean;
 }): AppShell => {
   if (hasRecording && liveInteractive) return 'focused-flex';
+  // A quest opens on its own map, edge to edge, with its stops and nothing
+  // else: it owns its gestures, and its back button is the way out.
+  if (hasSelectedQuest && !hasRecording && focus !== 'route-preview' && activityRoute === 'idle')
+    return 'focused-map';
   if (
     hasRecording ||
     hasSelectedQuest ||

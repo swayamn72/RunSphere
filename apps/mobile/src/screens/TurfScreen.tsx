@@ -29,8 +29,6 @@ import {
 import type {
   Profile,
   ProgressionSummary,
-  QuestDetail,
-  QuestSummary,
   TerritoryClaim,
   TerritoryClaimActivityItem,
   TerritoryClaimBounds,
@@ -53,14 +51,12 @@ import { TerritoryDetailScreen } from './TerritoryDetailScreen';
 import { GhostRaceSheet } from './GhostRaceSheet';
 import { RunnerProfileSheet } from './RunnerProfileSheet';
 import { seasonDaysLeft } from './home-progression-model';
-import { selectedCheckpointLayers } from './explore-model';
 import {
   dashboardPreviewEnabled,
   previewProgression,
   previewClaimHistory,
   previewClaims,
-  previewGhostTrace,
-  previewTurfQuests
+  previewGhostTrace
 } from './dashboard-preview';
 import { ghostOffer, type GhostRun } from './ghost-race-model';
 import { ghostRaceHint } from './run-mode-model';
@@ -118,7 +114,6 @@ export interface TurfScreenProps {
   readonly api: MobileApiClient;
   readonly accountId?: string;
   readonly onOpenRun?: () => void;
-  readonly onOpenQuest?: (quest: QuestSummary) => void;
   readonly onOpenProfile?: () => void;
   readonly onOpenSettings?: () => void;
   /**
@@ -146,7 +141,6 @@ export function TurfScreen({
   requestedRunId,
   accountId,
   onOpenRun,
-  onOpenQuest,
   onOpenProfile,
   onOpenSettings,
   onGhostRace,
@@ -165,10 +159,6 @@ export function TurfScreen({
   const [searchOpen, setSearchOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [mapInfoOpen, setMapInfoOpen] = useState(false);
-  const [questPins, setQuestPins] = useState<readonly QuestSummary[]>([]);
-  const [selectedQuest, setSelectedQuest] = useState<QuestSummary>();
-  const [questDetail, setQuestDetail] = useState<QuestDetail>();
-  const [questUnavailable, setQuestUnavailable] = useState(false);
   const [viewport, setViewport] = useState<TerritoryClaimBounds>();
   const visited = useTurfExploration(accountId, dashboardPreviewEnabled);
   const [profile, setProfile] = useState<Profile>();
@@ -273,7 +263,7 @@ export function TurfScreen({
   }, []);
 
   useEffect(() => {
-    if (!searchOpen && !mapInfoOpen && !selected && !selectedQuest && !filtersOpen) return;
+    if (!searchOpen && !mapInfoOpen && !selected && !filtersOpen) return;
     const listener = BackHandler.addEventListener('hardwareBackPress', () => {
       if (searchOpen) closeSearch();
       else if (mapInfoOpen) setMapInfoOpen(false);
@@ -281,21 +271,11 @@ export function TurfScreen({
       else if (ghostClaimId) setGhostClaimId(undefined);
       else if (showDetail) setShowDetail(false);
       else if (selected) setSelected(undefined);
-      else if (selectedQuest) setSelectedQuest(undefined);
       else return false;
       return true;
     });
     return () => listener.remove();
-  }, [
-    closeSearch,
-    filtersOpen,
-    ghostClaimId,
-    mapInfoOpen,
-    searchOpen,
-    selected,
-    selectedQuest,
-    showDetail
-  ]);
+  }, [closeSearch, filtersOpen, ghostClaimId, mapInfoOpen, searchOpen, selected, showDetail]);
 
   useEffect(() => {
     if (dashboardPreviewEnabled) return;
@@ -316,42 +296,6 @@ export function TurfScreen({
       active = false;
     };
   }, [api]);
-
-  useEffect(() => {
-    if (dashboardPreviewEnabled) return;
-    let active = true;
-    void Promise.resolve()
-      .then(() => api.listQuests())
-      .then((value) => {
-        if (active) setQuestPins(value);
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, [api]);
-
-  useEffect(() => {
-    setQuestDetail(undefined);
-    setQuestUnavailable(false);
-    if (!selectedQuest) return;
-    if (dashboardPreviewEnabled) {
-      setQuestDetail(previewTurfQuests.find((quest) => quest.id === selectedQuest.id));
-      return;
-    }
-    let active = true;
-    void api
-      .getQuest(selectedQuest.id)
-      .then((detail) => {
-        if (active) setQuestDetail(detail);
-      })
-      .catch(() => {
-        if (active) setQuestUnavailable(true);
-      });
-    return () => {
-      active = false;
-    };
-  }, [api, selectedQuest]);
 
   useEffect(() => {
     mounted.current = true;
@@ -480,10 +424,6 @@ export function TurfScreen({
     () => fogFeatures(clustered ? undefined : viewport, visited),
     [clustered, viewport, visited]
   );
-  const questLayers = useMemo(
-    () => selectedCheckpointLayers(questDetail?.id === selectedQuest?.id ? questDetail : undefined),
-    [questDetail, selectedQuest]
-  );
   const showGrid = !clustered && (dashboardPreviewEnabled || zoom >= 15.5);
   const gridFeatures = useMemo(
     () => claimGridFeatures(showGrid ? visibleClaims : []),
@@ -598,7 +538,6 @@ export function TurfScreen({
   const ghost = chosen && onGhostRace ? ghostOffer(chosen, summary?.ghostRacesLeft) : undefined;
   const selectClaim = (id: string) => {
     setMapInfoOpen(false);
-    setSelectedQuest(undefined);
     setSelected(id);
   };
 
@@ -842,60 +781,6 @@ export function TurfScreen({
                   </Marker>
                 )
             )}
-            {questLayers.map((layer) => (
-              <GeoJSONSource key={layer.id} id={`turf-${layer.id}`} data={layer.data}>
-                {layer.kind === 'circle' ? (
-                  <Layer
-                    id={`turf-${layer.id}-points`}
-                    type="circle"
-                    paint={{
-                      'circle-color': gameWorld.quest.marker,
-                      'circle-radius': 5,
-                      'circle-stroke-color': gameWorld.quest.markerEdge,
-                      'circle-stroke-width': 2
-                    }}
-                  />
-                ) : (
-                  <Layer
-                    id={`turf-${layer.id}-trail`}
-                    type="line"
-                    paint={{
-                      'line-color': gameWorld.quest.marker,
-                      'line-width': 4,
-                      'line-dasharray': [1, 1.8]
-                    }}
-                  />
-                )}
-              </GeoJSONSource>
-            ))}
-            {!clustered &&
-              (dashboardPreviewEnabled ? previewTurfQuests : questPins).map((quest) => {
-                if (!quest.mapPosition || quest.openHours.status === 'closed') return null;
-                const select = () => {
-                  setSelected(undefined);
-                  setMapInfoOpen(false);
-                  setSelectedQuest(quest);
-                };
-                return (
-                  <Marker
-                    key={quest.id}
-                    id={`quest-${quest.id}`}
-                    lngLat={quest.mapPosition}
-                    onPress={select}
-                  >
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`Quest: ${quest.title}`}
-                      onPress={select}
-                      style={styles.questBeacon}
-                    >
-                      <View style={styles.questBeaconCore}>
-                        <Text style={styles.questGlyph}>✦</Text>
-                      </View>
-                    </Pressable>
-                  </Marker>
-                );
-              })}
             {position && (
               <Marker id="turf-player" lngLat={position.center}>
                 <PlayerBeacon
@@ -1229,7 +1114,7 @@ export function TurfScreen({
             {mapNote ? <Text style={styles.helper}>{mapNote}</Text> : null}
           </ScrollView>
         </View>
-      ) : chosen || selectedQuest || claimableRunId || notice || celebration ? (
+      ) : chosen || claimableRunId || notice || celebration ? (
         <View style={styles.sheet}>
           <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetContent}>
             {notice && !celebration ? (
@@ -1274,53 +1159,6 @@ export function TurfScreen({
               </View>
             ) : null}
 
-            {selectedQuest && (
-              <View style={styles.card}>
-                <View style={styles.cardHeader}>
-                  <View style={styles.playerCopy}>
-                    <Text style={styles.questAccent}>QUEST</Text>
-                    <Text accessibilityRole="header" style={styles.title}>
-                      {selectedQuest.title}
-                    </Text>
-                  </View>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Close quest preview"
-                    onPress={() => setSelectedQuest(undefined)}
-                    style={styles.smallButton}
-                  >
-                    <Text style={styles.toolText}>×</Text>
-                  </Pressable>
-                </View>
-                <Text style={styles.body}>
-                  {(selectedQuest.distanceMeters / 1000).toFixed(1)} km ·{' '}
-                  {selectedQuest.estimatedActiveMinutes} min · {selectedQuest.checkpointCount}{' '}
-                  {selectedQuest.checkpointCount === 1 ? 'checkpoint' : 'checkpoints'}
-                </Text>
-                {questDetail?.id === selectedQuest.id ? (
-                  questDetail.checkpoints.map((checkpoint) => (
-                    <Text key={checkpoint.id} style={styles.helper}>
-                      {checkpoint.title}
-                    </Text>
-                  ))
-                ) : (
-                  <Text style={styles.helper}>
-                    {questUnavailable
-                      ? 'Checkpoint details are unavailable.'
-                      : 'Loading checkpoints…'}
-                  </Text>
-                )}
-                {!dashboardPreviewEnabled && onOpenQuest && (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => onOpenQuest(selectedQuest)}
-                    style={[styles.primary, styles.lineageAction]}
-                  >
-                    <Text style={styles.hudLabel}>Open quest</Text>
-                  </Pressable>
-                )}
-              </View>
-            )}
             {chosen ? (
               <View style={styles.card}>
                 <View style={styles.cardHeader}>
@@ -1761,26 +1599,6 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       gap: 8
     },
     cardActions: { flexDirection: 'row', gap: 8, marginTop: 5 },
-    questBeacon: {
-      width: 46,
-      height: 46,
-      borderRadius: 23,
-      backgroundColor: gameWorld.quest.halo,
-      alignItems: 'center',
-      justifyContent: 'center'
-    },
-    questBeaconCore: {
-      width: 31,
-      height: 31,
-      borderRadius: 16,
-      borderWidth: 2,
-      borderColor: gameWorld.quest.rim,
-      backgroundColor: gameWorld.quest.core,
-      alignItems: 'center',
-      justifyContent: 'center'
-    },
-    questGlyph: { color: gameWorld.quest.rim, fontSize: 19, fontWeight: '900' },
-    questAccent: { color: gameWorld.quest.rim, fontSize: 11, fontWeight: '900' },
     smallButton: { minWidth: 44, minHeight: 44, justifyContent: 'center', alignItems: 'center' },
     ghostAction: { flex: 1, backgroundColor: gameWorld.action.ghost },
     ghostActionText: { color: gameWorld.action.ghostText, fontSize: 15, fontWeight: '900' },

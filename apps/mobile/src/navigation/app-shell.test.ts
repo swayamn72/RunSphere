@@ -54,4 +54,18 @@ describe('app shell selection', () => {
     expect(isTabBarVisible('focused-scroll')).toBe(false);
     expect(isTabBarVisible('focused-flex')).toBe(false);
   });
+
+  it('opens a selected quest on its own edge-to-edge map without the tab bar', () => {
+    const shell = selectAppShell({ ...standard, hasSelectedQuest: true, mapInteractive: false });
+    expect(shell).toBe('focused-map');
+    expect(isTabBarVisible(shell)).toBe(false);
+    expect(
+      selectAppShell({
+        ...standard,
+        hasSelectedQuest: true,
+        hasRecording: true,
+        mapInteractive: false
+      })
+    ).toBe('focused-scroll');
+  });
 });

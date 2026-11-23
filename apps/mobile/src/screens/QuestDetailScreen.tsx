@@ -1,22 +1,32 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { QuestDetail, QuestSummary } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
-import { PrimaryButton, Stat } from '../components/primitives';
+import { PrimaryButton } from '../components/primitives';
 import { QuestProgressCard } from './QuestProgressCard';
+import { QuestStopMarkers } from './QuestStopMarkers';
 import { MapSurface } from '../maps/MapSurface';
 import { useAppTheme } from '../theme/theme';
+import { gameWorld } from '../theme/game-world';
+import { detailStateFor, shouldDrawSelectedGeometry, type QuestDetailState } from './explore-model';
 import {
-  detailStateFor,
-  selectedCheckpointLayers,
-  selectedDetailInitialCenter,
-  shouldDrawSelectedGeometry,
-  type QuestDetailState
-} from './explore-model';
+  SUGGESTED_ROUTE_NOTE,
+  questBounds,
+  questMapLayers,
+  questStops,
+  timeLimitLabel,
+  type QuestStop
+} from './quest-map-model';
 import { QUEST_START_HINT, questRunStart, type QuestProgress } from './quest-progress-model';
+import { dashboardPreviewEnabled, previewTurfQuests } from './dashboard-preview';
 import type { RunStart } from '../run-start';
 
-/** Detail loads exactly once for an explicit list selection. It never preloads catalog details. */
+/**
+ * A quest opens on its own map: its stops, numbered in a suggested order, and
+ * a dashed line round them, with no turf drawn. Opened from a pin on the Map
+ * tab or a quest in the list. Detail loads exactly once for that quest; the
+ * catalog is never preloaded.
+ */
 export function QuestDetailScreen({
   api,
   quest,
@@ -29,12 +39,21 @@ export function QuestDetailScreen({
   /** Called with a quest run for this quest; only offered once it's taken on. */
   onStart: (start: RunStart) => void;
 }) {
-  const { tokens } = useAppTheme();
-  const [detail, setDetail] = useState<QuestDetail>();
+  const { tokens, reduceMotion } = useAppTheme();
+  // Sample quests (preview mode) have no account behind them to take on or run.
+  const sample = useMemo(
+    () =>
+      dashboardPreviewEnabled
+        ? previewTurfQuests.find((entry) => entry.id === quest.id)
+        : undefined,
+    [quest.id]
+  );
+  const [detail, setDetail] = useState<QuestDetail | undefined>(sample);
   const [progress, setProgress] = useState<QuestProgress>();
   const start = questRunStart(quest.id, progress);
   const [error, setError] = useState<unknown>();
   useEffect(() => {
+    if (sample) return;
     let active = true;
     void api
       .getQuest(quest.id)
@@ -43,168 +62,172 @@ export function QuestDetailScreen({
     return () => {
       active = false;
     };
-  }, [api, quest.id]);
+  }, [api, quest.id, sample]);
 
   const state = detailStateFor(quest, detail, error);
-  const layers = useMemo(
-    () => (shouldDrawSelectedGeometry(state) ? selectedCheckpointLayers(detail) : []),
-    [detail, state]
+  const drawn = shouldDrawSelectedGeometry(state) ? detail : undefined;
+  const from = detail?.mapPosition ?? quest.mapPosition;
+  const timeLimit = timeLimitLabel(detail?.timeLimitMinutes ?? quest.timeLimitMinutes);
+  const stops = useMemo(() => (drawn ? questStops(drawn.checkpoints, from) : []), [drawn, from]);
+  const layers = useMemo(() => questMapLayers(drawn, from ? { from } : {}), [drawn, from]);
+  const bounds = useMemo(
+    () => (drawn ? questBounds(drawn.checkpoints, from) : undefined),
+    [drawn, from]
   );
-  const initialCenter = useMemo(
-    () => (shouldDrawSelectedGeometry(state) ? selectedDetailInitialCenter(detail) : undefined),
-    [detail, state]
-  );
+
   return (
     <View style={styles.root}>
-      <View style={styles.header}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Back to quests" onPress={onBack}>
-          <Text style={[styles.back, { color: tokens.text.primary }]}>‹</Text>
-        </Pressable>
-      </View>
-      <Text accessibilityRole="header" style={[styles.title, { color: tokens.text.primary }]}>
-        {quest.title}
-      </Text>
-      <Text style={[styles.copy, { color: tokens.text.secondary }]}>
-        Pass every stop on one run, in any order. TURFR checks your run when it's uploaded; there's
-        nothing to tap at each stop.
-      </Text>
-      <View style={[styles.stats, { backgroundColor: tokens.background.surface }]}>
-        <Stat
-          label="DISTANCE"
-          value={(quest.distanceMeters / 1000).toFixed(1)}
-          suffix="km"
-          detail="Published"
-        />
-        <Stat
-          label="TIME"
-          value={`${quest.estimatedActiveMinutes}`}
-          suffix="min"
-          detail="Active time"
-        />
-        <Stat label="STOPS" value={`${quest.checkpointCount}`} detail="Reviewed" />
-      </View>
       <View style={styles.map}>
         <MapSurface
-          accessibilityLabel={`Display-only checkpoint geometry for ${quest.title}`}
+          // Remount once the stops arrive, so the camera fits them: the fit is
+          // applied when the map's style loads.
+          key={bounds ? 'stops' : 'waiting'}
+          accessibilityLabel={`Map of ${quest.title} with its stops`}
           localLayers={layers}
-          {...(initialCenter ? { initialCenter } : {})}
-        />
+          world
+          showAttribution={false}
+          {...(from ? { initialCenter: from } : {})}
+          {...(bounds
+            ? { fitBounds: { bounds, padding: 48, duration: reduceMotion ? 0 : 400 } }
+            : {})}
+        >
+          <QuestStopMarkers stops={stops} />
+        </MapSurface>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          onPress={onBack}
+          style={[styles.back, { backgroundColor: tokens.map.control }]}
+        >
+          <Text style={[styles.backText, { color: tokens.map.controlText }]}>‹</Text>
+        </Pressable>
       </View>
-      <DetailContent quest={quest} detail={detail} state={state} />
-      <QuestProgressCard api={api} questId={quest.id} onProgress={setProgress} />
-      {start ? (
-        <PrimaryButton label="Start this quest" onPress={() => onStart(start)} />
-      ) : (
-        progress &&
-        progress !== 'taken' && (
+      <ScrollView
+        style={[styles.panel, { backgroundColor: tokens.background.canvas }]}
+        contentContainerStyle={styles.panelContent}
+      >
+        <Text style={[styles.eyebrow, { color: tokens.text.secondary }]}>QUEST</Text>
+        <Text accessibilityRole="header" style={[styles.title, { color: tokens.text.primary }]}>
+          {quest.title}
+        </Text>
+        <Text style={[styles.facts, { color: tokens.text.secondary }]}>
+          {(quest.distanceMeters / 1000).toFixed(1)} km · {quest.estimatedActiveMinutes} min ·{' '}
+          {quest.checkpointCount} {quest.checkpointCount === 1 ? 'stop' : 'stops'}
+        </Text>
+        {timeLimit ? (
+          <Text style={[styles.copy, { color: tokens.text.primary }]}>{timeLimit}</Text>
+        ) : null}
+        <StopList quest={quest} stops={stops} state={state} />
+        {sample ? (
           <Text style={[styles.copy, { color: tokens.text.secondary }]}>
-            {QUEST_START_HINT[progress]}
+            Sample quest. Pick a real one from the quest list to run it.
           </Text>
-        )
-      )}
+        ) : (
+          <>
+            <QuestProgressCard api={api} questId={quest.id} onProgress={setProgress} />
+            {start ? (
+              <PrimaryButton label="Start this quest" onPress={() => onStart(start)} />
+            ) : (
+              progress &&
+              progress !== 'taken' && (
+                <Text style={[styles.copy, { color: tokens.text.secondary }]}>
+                  {QUEST_START_HINT[progress]}
+                </Text>
+              )
+            )}
+          </>
+        )}
+      </ScrollView>
     </View>
   );
 }
 
-function DetailContent({
+function StopList({
   quest,
-  detail,
+  stops,
   state
 }: {
   quest: QuestSummary;
-  detail: QuestDetail | undefined;
+  stops: readonly QuestStop[];
   state: QuestDetailState;
 }) {
   const { tokens } = useAppTheme();
-  if (state === 'loading')
+  const message =
+    state === 'loading'
+      ? 'Loading the stops…'
+      : state === 'offline'
+        ? "You're offline. The stops show once you're back."
+        : state === 'unavailable'
+          ? "This quest isn't available any more. Pick another from the list."
+          : state === 'error'
+            ? "Couldn't load the stops. Go back and try another quest."
+            : undefined;
+  if (message)
     return (
-      <DetailState
-        title="Loading checkpoint geometry"
-        copy="Only this selected quest is being requested."
-      />
-    );
-  if (state === 'offline')
-    return (
-      <DetailState
-        title="Checkpoint details are offline"
-        copy="The selected quest summary remains available."
-      />
-    );
-  if (state === 'unavailable')
-    return (
-      <DetailState
-        title="Quest unavailable"
-        copy="This quest is no longer available. Return to the quest list for alternatives."
-      />
-    );
-  if (state === 'closed')
-    return (
-      <DetailState
-        title="Quest currently closed"
-        copy={`Published hours: ${quest.openHours.schedule}. Browse other quests or start a free activity.`}
-      />
-    );
-  if (state === 'error')
-    return (
-      <DetailState
-        title="Checkpoint details unavailable"
-        copy="Return to the quest list and choose another quest."
-      />
+      <Text
+        accessibilityLiveRegion="polite"
+        style={[styles.copy, { color: tokens.text.secondary }]}
+      >
+        {message}
+      </Text>
     );
   return (
-    <View
-      style={[
-        styles.checkpoints,
-        { backgroundColor: tokens.background.surface, borderColor: tokens.border.subtle }
-      ]}
-      accessibilityRole="list"
-    >
-      <Text style={[styles.checkpointHeading, { color: tokens.text.primary }]}>
-        Checkpoint details
-      </Text>
-      {detail?.checkpoints.map((checkpoint) => (
-        <View
-          key={checkpoint.id}
-          style={[styles.checkpoint, { borderColor: tokens.border.subtle }]}
-        >
-          <Text style={[styles.checkpointTitle, { color: tokens.text.primary }]}>
-            {checkpoint.title}
-          </Text>
-          <Text style={[styles.checkpointCopy, { color: tokens.text.secondary }]}>
-            {checkpoint.accessibility} · {checkpoint.openHours.status} ·{' '}
-            {checkpoint.openHours.schedule}
-          </Text>
+    <View accessibilityRole="list" style={styles.stops}>
+      {state === 'closed' && (
+        <Text style={[styles.copy, { color: tokens.text.secondary }]}>
+          {`Closed right now. Open hours: ${quest.openHours.schedule}.`}
+        </Text>
+      )}
+      <Text style={[styles.copy, { color: tokens.text.secondary }]}>{SUGGESTED_ROUTE_NOTE}</Text>
+      {stops.map((stop) => (
+        <View key={stop.id} style={styles.stop}>
+          <View style={styles.stopNumber}>
+            <Text style={styles.stopNumberText}>{stop.number}</Text>
+          </View>
+          <Text style={[styles.stopTitle, { color: tokens.text.primary }]}>{stop.title}</Text>
         </View>
       ))}
-    </View>
-  );
-}
-
-function DetailState({ title, copy }: { title: string; copy: string }) {
-  const { tokens } = useAppTheme();
-  return (
-    <View
-      style={[styles.state, { backgroundColor: tokens.background.surfaceInset }]}
-      accessibilityLiveRegion="polite"
-    >
-      <Text style={[styles.checkpointTitle, { color: tokens.text.primary }]}>{title}</Text>
-      <Text style={[styles.checkpointCopy, { color: tokens.text.secondary }]}>{copy}</Text>
+      <Text style={[styles.small, { color: tokens.text.secondary }]}>
+        The dashed line joins the stops; follow the streets between them. TURFR checks your run when
+        it's uploaded, so there's nothing to tap at each stop.
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { gap: 12, paddingBottom: 8 },
-  header: { alignItems: 'center', flexDirection: 'row', gap: 12 },
-  back: { fontSize: 38, fontWeight: '500', lineHeight: 36 },
-  title: { fontSize: 30, fontWeight: '900', letterSpacing: -1 },
+  root: { flex: 1 },
+  map: { flex: 1, minHeight: 260 },
+  back: {
+    alignItems: 'center',
+    borderRadius: 22,
+    height: 44,
+    justifyContent: 'center',
+    left: 16,
+    position: 'absolute',
+    top: 12,
+    width: 44
+  },
+  backText: { fontSize: 32, fontWeight: '500', lineHeight: 34 },
+  panel: { flexGrow: 0, maxHeight: '52%' },
+  panelContent: { gap: 10, padding: 20, paddingBottom: 28 },
+  eyebrow: { fontSize: 11, fontWeight: '900', letterSpacing: 1.2 },
+  title: { fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
+  facts: { fontSize: 14, fontWeight: '700' },
   copy: { fontSize: 14, lineHeight: 20 },
-  stats: { borderRadius: 16, flexDirection: 'row', padding: 14 },
-  map: { height: 220, overflow: 'hidden' },
-  checkpoints: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
-  checkpointHeading: { fontSize: 16, fontWeight: '900', padding: 14 },
-  checkpoint: { borderTopWidth: 1, padding: 14 },
-  checkpointTitle: { fontSize: 15, fontWeight: '800' },
-  checkpointCopy: { fontSize: 12, lineHeight: 18, marginTop: 4 },
-  state: { borderRadius: 16, gap: 4, padding: 14 }
+  small: { fontSize: 12, lineHeight: 17 },
+  stops: { gap: 8 },
+  stop: { alignItems: 'center', flexDirection: 'row', gap: 12 },
+  stopNumber: {
+    alignItems: 'center',
+    backgroundColor: gameWorld.quest.marker,
+    borderColor: gameWorld.quest.markerEdge,
+    borderRadius: 14,
+    borderWidth: 2,
+    height: 28,
+    justifyContent: 'center',
+    width: 28
+  },
+  stopNumberText: { color: gameWorld.quest.ink, fontSize: 13, fontWeight: '900' },
+  stopTitle: { flex: 1, fontSize: 15, fontWeight: '800' }
 });

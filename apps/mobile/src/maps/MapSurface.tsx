@@ -1,15 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Camera,
   Map,
   type CameraRef,
   type LngLat,
+  type StyleSpecification,
   type ViewStateChangeEvent
 } from '@maplibre/maplibre-react-native';
 import { AppState, Pressable, StyleSheet, Text, View, type AppStateStatus } from 'react-native';
 import { useAppTheme } from '../theme/theme';
 import { LocalGeoJsonLayers, type LocalGeoJsonLayer } from './LocalGeoJsonLayers';
 import { mapProductCopy, resolveMapRenderPlan } from './map-config';
+import { turfWorldStyle } from './turf-world-style';
 import {
   adjustMapZoom,
   applyNativeCameraState,
@@ -57,6 +59,13 @@ export interface MapSurfaceProps {
   readonly onStyleReady?: () => void;
   /** Hide the zoom and recenter buttons, for a map that only shows a route. */
   readonly showControls?: boolean;
+  /** Map children drawn over the local layers, such as a quest's numbered stop markers. */
+  readonly children?: ReactNode;
+  /**
+   * Draw the app's dark game-world basemap (the Turf map's look) instead of
+   * the provider's own style. Falls back to the provider style if it can't load.
+   */
+  readonly world?: boolean;
 }
 
 /**
@@ -77,7 +86,9 @@ export function MapSurface({
   showAttribution = true,
   fitBounds,
   onStyleReady,
-  showControls = true
+  showControls = true,
+  children,
+  world = false
 }: MapSurfaceProps) {
   const { tokens, reduceMotion } = useAppTheme();
   const providerConfig = useMemo(() => resolveMapRenderPlan(), []);
@@ -89,6 +100,27 @@ export function MapSurface({
   const [mapInstance, setMapInstance] = useState(0);
   const cameraRef = useRef<CameraRef>(null);
   const appliedRecenterRequest = useRef<number | undefined>(undefined);
+  const providerUrl = providerConfig.kind === 'provider' ? providerConfig.provider.styleUrl : '';
+  // `undefined` while the dark style loads, `null` once it failed (use the provider's).
+  const [worldStyle, setWorldStyle] = useState<StyleSpecification | null | undefined>(
+    world ? undefined : null
+  );
+  useEffect(() => {
+    if (!world || !providerUrl) {
+      setWorldStyle(null);
+      return;
+    }
+    const controller = new AbortController();
+    void fetch(providerUrl, { signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : undefined))
+      .then((style: StyleSpecification | undefined) => {
+        if (!controller.signal.aborted) setWorldStyle((style && turfWorldStyle(style)) ?? null);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setWorldStyle(null);
+      });
+    return () => controller.abort();
+  }, [providerUrl, world]);
   const hasStartedFollowing = useRef(false);
 
   useEffect(() => {
@@ -214,12 +246,13 @@ export function MapSurface({
 
   return (
     <View style={[styles.root, { backgroundColor: tokens.background.surfaceInset }]}>
-      {showMap && providerConfig.kind === 'provider' ? (
+      {showMap && providerConfig.kind === 'provider' && worldStyle === undefined ? null : showMap &&
+        providerConfig.kind === 'provider' ? (
         <Map
-          key={mapInstance}
+          key={`${mapInstance}-${worldStyle ? 'world' : 'provider'}`}
           accessibilityLabel={accessibilityLabel}
           style={StyleSheet.absoluteFill}
-          mapStyle={providerConfig.provider.styleUrl}
+          mapStyle={worldStyle ?? providerConfig.provider.styleUrl}
           attribution={false}
           logo={false}
           compass={false}
@@ -236,13 +269,16 @@ export function MapSurface({
             }
             onStyleReady?.();
           }}
-          onDidFailLoadingMap={() =>
-            setLifecycle((current) => transitionMapLifecycle(current, 'style-failed'))
-          }
+          onDidFailLoadingMap={() => {
+            // A dark style that won't load falls back to the provider's own.
+            if (worldStyle) setWorldStyle(null);
+            else setLifecycle((current) => transitionMapLifecycle(current, 'style-failed'));
+          }}
           onRegionDidChange={onRegionChanged}
         >
           <Camera ref={cameraRef} initialViewState={initialViewState} />
           <LocalGeoJsonLayers layers={localLayers} tokens={tokens} />
+          {children}
         </Map>
       ) : (
         <FallbackSurface

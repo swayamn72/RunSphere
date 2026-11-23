@@ -13,7 +13,11 @@ import { LoopMascot } from '../components/Mascot';
 import { useAppStyles } from '../components/styles';
 import { useLoopGuidance } from '../components/useLoopGuidance';
 import type { LoopGuidanceCue } from '../loop-guidance';
-import { dashboardPreviewEnabled, previewProgression } from './dashboard-preview';
+import {
+  dashboardPreviewEnabled,
+  previewProgression,
+  previewTurfQuests
+} from './dashboard-preview';
 import { useAppTheme } from '../theme/theme';
 import { appPalette } from '@runsphere/ui';
 import {
@@ -82,26 +86,8 @@ const homePreview = {
     cosmetic: { avatarKey: 'loop-1', tier: 'Trailkeeper' },
     activityVisibility: 'private'
   },
-  quests: [
-    {
-      id: 'preview-carter-road',
-      title: 'Carter Road Promenade',
-      distanceMeters: 2400,
-      estimatedActiveMinutes: 18,
-      accessibility: 'step-free',
-      openHours: { timezone: 'Asia/Kolkata', schedule: 'Daily', status: 'open' },
-      checkpointCount: 3
-    },
-    {
-      id: 'preview-bandra-fort',
-      title: 'Bandra Fort Loop',
-      distanceMeters: 3200,
-      estimatedActiveMinutes: 25,
-      accessibility: 'mixed',
-      openHours: { timezone: 'Asia/Kolkata', schedule: 'Daylight hours', status: 'open' },
-      checkpointCount: 4
-    }
-  ],
+  // The same multi-stop sample quests the quest map opens in preview.
+  quests: previewTurfQuests,
   questState: 'ready'
 } satisfies Omit<HomeRemoteData, 'reloadGoals' | 'reloadQuests' | 'reloadProgression'>;
 
@@ -518,7 +504,7 @@ export function HomeScreen({
                 icon="flag"
                 title={quest.title}
                 questImage
-                onPress={dashboardPreviewEnabled ? onOpenQuests : () => onSelectQuest(quest)}
+                onPress={() => onSelectQuest(quest)}
               />
             ))}
         {questState === 'empty' && (

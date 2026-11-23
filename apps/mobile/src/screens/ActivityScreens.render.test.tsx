@@ -74,6 +74,8 @@ vi.mock('../components/primitives', async () => {
     Stat: () => null
   };
 });
+// The quest stop pins are MapLibre markers, which cannot load here.
+vi.mock('./QuestStopMarkers', () => ({ QuestStopMarkers: () => null }));
 vi.mock('../maps/MapSurface', async () => {
   const React = await import('react');
   return {

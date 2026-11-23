@@ -1,18 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FAILURE_COPY } from '../failure-copy';
-import * as Location from 'expo-location';
-import { AppState, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
-import type { LngLat } from '@maplibre/maplibre-react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { QuestSummary } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { LoopCallout } from '../components/LoopCallout';
 import { useLoopGuidance } from '../components/useLoopGuidance';
 import type { LoopGuidanceCue } from '../loop-guidance';
-import { MapListSheet } from '../maps/MapListSheet';
-import { MapSurface } from '../maps/MapSurface';
-import type { MapSheetState } from '../maps/map-model';
-import { getLocationPermissionState, type LocationPermissionState } from '../location-permission';
 import { useAppTheme } from '../theme/theme';
+import { dashboardPreviewEnabled, previewTurfQuests } from './dashboard-preview';
 import {
   acceptsCatalogResponse,
   catalogErrorStateFor,
@@ -27,6 +22,11 @@ import {
   type QuestTimeFilter
 } from './explore-model';
 
+/**
+ * The quest list. A plain list rather than a map with a sheet over it: a quest
+ * opens on its own map with just its stops (`QuestDetailScreen`), so a map
+ * here would show nothing until one is picked, and the turf map stays turf.
+ */
 export function ExploreScreen({
   api,
   onSelectQuest,
@@ -48,14 +48,6 @@ export function ExploreScreen({
   const [quests, setQuests] = useState<readonly QuestSummary[]>([]);
   const [catalogState, setCatalogState] = useState<QuestCatalogState>('loading');
   const [filters, setFilters] = useState<QuestFilters>(initialQuestFilters);
-  const [sheetState, setSheetState] = useState<MapSheetState>('half');
-  const [permission, setPermission] = useState<LocationPermissionState>('idle');
-  const [recenterBusy, setRecenterBusy] = useState(false);
-  const [recenterMessage, setRecenterMessage] = useState<string>();
-  const [recenterRequest, setRecenterRequest] = useState<{
-    readonly id: number;
-    readonly coordinate: LngLat;
-  }>();
   const requestGeneration = useRef(0);
 
   // Memoised so the mount effect below can depend on it honestly. Both deps
@@ -67,7 +59,7 @@ export function ExploreScreen({
     requestGeneration.current = plan.generation;
     setCatalogState('loading');
     try {
-      const next = await api.listQuests();
+      const next = dashboardPreviewEnabled ? previewTurfQuests : await api.listQuests();
       if (!acceptsCatalogResponse(plan, requestGeneration.current)) return;
       setQuests(next);
       setCatalogState(catalogStateFor(next));
@@ -85,127 +77,37 @@ export function ExploreScreen({
     };
   }, [load]);
 
-  const reconcilePermission = async () => {
-    const current = await Location.getForegroundPermissionsAsync();
-    setPermission(getLocationPermissionState(current));
-  };
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void reconcilePermission();
-    });
-    return () => subscription.remove();
-  }, []);
-
-  const requestRecenter = async () => {
-    if (recenterBusy || permission === 'blocked') return;
-    setRecenterBusy(true);
-    setRecenterMessage(undefined);
-    try {
-      const current = await Location.getForegroundPermissionsAsync();
-      const currentState = getLocationPermissionState(current);
-      if (currentState === 'blocked') {
-        setPermission('blocked');
-        return;
-      }
-      const response =
-        currentState === 'granted' ? current : await Location.requestForegroundPermissionsAsync();
-      const nextState = getLocationPermissionState(response);
-      setPermission(nextState);
-      if (nextState !== 'granted') return;
-      const position = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced
-      });
-      setRecenterRequest((currentRequest) => ({
-        id: (currentRequest?.id ?? 0) + 1,
-        coordinate: [position.coords.longitude, position.coords.latitude]
-      }));
-    } catch {
-      setRecenterMessage(
-        'Current location could not be read. Map browsing and the verified list remain available.'
-      );
-    } finally {
-      setRecenterBusy(false);
-    }
-  };
-
   const visibleQuests = filterQuests(quests, filters);
-  const isList = sheetState === 'list';
   return (
     <View style={styles.root}>
-      {!isList && (
-        <View style={styles.map} importantForAccessibility="no-hide-descendants">
-          <MapSurface
-            accessibilityLabel="Explore map. Quest locations are shown only after selecting a quest."
-            {...(permission === 'blocked' || recenterBusy
-              ? {}
-              : { onRequestRecenter: () => void requestRecenter() })}
-            recenterEnabled={permission !== 'blocked' && !recenterBusy}
-            {...(recenterRequest ? { recenterRequest } : {})}
-          />
-        </View>
-      )}
-      <View style={[styles.sheetOverlay, isList && styles.listOverlay]}>
-        <MapListSheet state={sheetState} onStateChange={setSheetState} title="Quests">
-          <View style={styles.content}>
-            <View style={styles.sheetHeader}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Go back"
-                onPress={onBack}
-                style={[
-                  styles.backButton,
-                  { backgroundColor: tokens.background.surface, borderColor: tokens.border.subtle }
-                ]}
-              >
-                <Text style={[styles.backGlyph, { color: tokens.text.primary }]}>‹</Text>
-              </Pressable>
-              <Text style={[styles.eyebrow, { color: tokens.status.success }]}>QUESTS</Text>
-            </View>
-            <Text accessibilityRole="header" style={[styles.title, { color: tokens.text.primary }]}>
-              Choose from the list
-            </Text>
-            <Text style={[styles.copy, { color: tokens.text.secondary }]}>
-              Browse reviewed public places first. Selecting one loads its checkpoint geometry; this
-              catalog does not use your location, pace, or proximity.
-            </Text>
-            <QuestFiltersBar filters={filters} onChange={setFilters} />
-            {permission === 'denied' && (
-              <Notice>
-                Location was not shared. Recenter can request it again when you choose.
-              </Notice>
-            )}
-            {permission === 'blocked' && <PermissionBlocked />}
-            {recenterMessage && <Notice>{recenterMessage}</Notice>}
-            <QuestCatalog
-              state={catalogState}
-              quests={visibleQuests}
-              hasCatalog={quests.length > 0}
-              onRetry={() => void load()}
-              onSelectQuest={onSelectQuest}
-              onStart={onStart}
-            />
-          </View>
-        </MapListSheet>
+      <View style={styles.header}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          onPress={onBack}
+          style={[
+            styles.backButton,
+            { backgroundColor: tokens.background.surface, borderColor: tokens.border.subtle }
+          ]}
+        >
+          <Text style={[styles.backGlyph, { color: tokens.text.primary }]}>‹</Text>
+        </Pressable>
+        <Text accessibilityRole="header" style={[styles.title, { color: tokens.text.primary }]}>
+          Quests
+        </Text>
       </View>
-    </View>
-  );
-}
-
-function PermissionBlocked() {
-  const { tokens } = useAppTheme();
-  return (
-    <View style={[styles.notice, { backgroundColor: tokens.background.surfaceInset }]}>
-      <Text style={[styles.noticeCopy, { color: tokens.text.secondary }]}>
-        Location is blocked for recentering. Browsing and quest details remain available.
+      <Text style={[styles.copy, { color: tokens.text.secondary }]}>
+        Pick a quest to see its stops on a map. Pass every stop on one run to finish it.
       </Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Open location settings"
-        onPress={() => void Linking.openSettings()}
-        style={styles.settingsButton}
-      >
-        <Text style={[styles.settings, { color: tokens.action.primary }]}>Open settings</Text>
-      </Pressable>
+      <QuestFiltersBar filters={filters} onChange={setFilters} />
+      <QuestCatalog
+        state={catalogState}
+        quests={visibleQuests}
+        hasCatalog={quests.length > 0}
+        onRetry={() => void load()}
+        onSelectQuest={onSelectQuest}
+        onStart={onStart}
+      />
     </View>
   );
 }
@@ -312,14 +214,13 @@ function QuestCatalog({
     [state]
   );
   const guidance = useLoopGuidance(guidanceCandidates);
-  if (state === 'loading')
-    return <SheetState title="Loading quests" copy="Finding quests near you." />;
+  if (state === 'loading') return <SheetState title="Loading quests" copy="One moment." />;
   if (state === 'offline')
     return (
       <SheetState
         title="You're offline"
-        copy="Quest summaries could not refresh. Try again when connected."
-        action="Retry catalog"
+        copy="Quests show once you're back online."
+        action="Try again"
         onPress={onRetry}
       />
     );
@@ -329,8 +230,8 @@ function QuestCatalog({
     return (
       <SheetState
         title="Quests unavailable"
-        copy="The map and free activity remain available."
-        action="Retry catalog"
+        copy="Couldn't load quests. You can still start a free run."
+        action="Try again"
         onPress={onRetry}
       />
     );
@@ -347,19 +248,14 @@ function QuestCatalog({
       </>
     );
   if (!quests.length && hasCatalog)
-    return (
-      <SheetState
-        title="No quests match these filters"
-        copy="Try another opening status, accessibility, or active-time band."
-      />
-    );
+    return <SheetState title="No quests match these filters" copy="Try another filter." />;
   return (
     <View style={styles.cards} accessibilityRole="list">
       {quests.map((quest) => (
         <Pressable
           key={quest.id}
           accessibilityRole="button"
-          accessibilityLabel={`Select ${quest.title}`}
+          accessibilityLabel={`Open ${quest.title}`}
           onPress={() => onSelectQuest(quest)}
           style={[
             styles.card,
@@ -377,9 +273,11 @@ function QuestCatalog({
             · {quest.accessibility}
           </Text>
           <Text style={[styles.cardCopy, { color: tokens.text.secondary }]}>
-            {quest.checkpointCount} reviewed checkpoints · {quest.openHours.schedule}
+            {quest.checkpointCount} {quest.checkpointCount === 1 ? 'stop' : 'stops'} ·{' '}
+            {quest.openHours.schedule}
+            {quest.timeLimitMinutes ? ` · finish within ${quest.timeLimitMinutes} min` : ''}
           </Text>
-          <Text style={[styles.select, { color: tokens.action.primary }]}>Select quest</Text>
+          <Text style={[styles.select, { color: tokens.action.primary }]}>Open quest</Text>
         </Pressable>
       ))}
     </View>
@@ -423,27 +321,9 @@ function SheetState({
     </View>
   );
 }
-function Notice({ children }: { children: string }) {
-  const { tokens } = useAppTheme();
-  return (
-    <Text
-      style={[
-        styles.notice,
-        { backgroundColor: tokens.background.surfaceInset, color: tokens.status.warning }
-      ]}
-    >
-      {children}
-    </Text>
-  );
-}
-
 const styles = StyleSheet.create({
-  root: { flex: 1, minHeight: 560 },
-  map: { bottom: 0, left: 0, position: 'absolute', right: 0, top: 0 },
-  sheetOverlay: { bottom: 0, left: 0, position: 'absolute', right: 0, top: 250 },
-  listOverlay: { top: 0 },
-  content: { gap: 10, paddingTop: 8 },
-  sheetHeader: { alignItems: 'center', flexDirection: 'row', gap: 12 },
+  root: { gap: 12 },
+  header: { alignItems: 'center', flexDirection: 'row', gap: 12 },
   backButton: {
     alignItems: 'center',
     borderRadius: 20,
@@ -453,9 +333,8 @@ const styles = StyleSheet.create({
     width: 40
   },
   backGlyph: { fontSize: 26, lineHeight: 28 },
-  eyebrow: { fontSize: 11, fontWeight: '900', letterSpacing: 1.3 },
-  title: { fontSize: 25, fontWeight: '900', letterSpacing: -0.8 },
-  copy: { fontSize: 13, lineHeight: 19 },
+  title: { fontSize: 28, fontWeight: '900', letterSpacing: -0.8 },
+  copy: { fontSize: 14, lineHeight: 20 },
   filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   filter: {
     borderRadius: 16,
@@ -464,10 +343,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 12
   },
-  notice: { borderRadius: 12, fontSize: 12, lineHeight: 18, padding: 12 },
-  noticeCopy: { flex: 1, fontSize: 12, lineHeight: 18 },
-  settingsButton: { alignSelf: 'flex-start', minHeight: 48, justifyContent: 'center' },
-  settings: { fontSize: 13, fontWeight: '900' },
   cards: { gap: 8 },
   card: { borderRadius: 16, borderWidth: 1, minHeight: 96, padding: 14 },
   cardHeader: {

@@ -38,7 +38,9 @@ export interface LocalGeoJsonLayer {
     | 'drawn-route'
     | 'route-head'
     | 'route-start'
-    | 'route-finish';
+    | 'route-finish'
+    | 'quest-route'
+    | 'quest-stop';
   /**
    * `drawn-route` only: a `line-gradient` expression over `line-progress`
    * (M9 9.18). The source then turns on `lineMetrics`, which gradients need.
@@ -131,6 +133,38 @@ export function LocalGeoJsonLayers({
                 'circle-radius-transition': { duration: 260, delay: 0 },
                 'circle-stroke-color': gameWorld.route.markerRim,
                 'circle-stroke-width': layer.visible === false ? 0 : 2
+              }}
+            />
+          ) : layer.kind === 'quest-route' ? (
+            // A suggested order, not directions: dashed so it never reads as
+            // a street-accurate line (`quest-map-model.ts`).
+            <Layer
+              id={`${layer.id}-layer`}
+              type="line"
+              layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+              paint={{
+                'line-color': gameWorld.quest.marker,
+                'line-width': 4,
+                'line-opacity': 0.95,
+                'line-dasharray': [1.5, 1.2]
+              }}
+            />
+          ) : layer.kind === 'quest-stop' ? (
+            // A route or area stop's own shape; turns the passed colour once
+            // the live run has covered it.
+            <Layer
+              id={`${layer.id}-layer`}
+              type="line"
+              layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+              paint={{
+                'line-color': [
+                  'case',
+                  ['get', 'passed'],
+                  gameWorld.quest.passed,
+                  gameWorld.quest.rim
+                ],
+                'line-width': 6,
+                'line-opacity': 0.9
               }}
             />
           ) : layer.kind === 'run-glow' ? (

@@ -25,57 +25,93 @@ export const previewProgression: ProgressionSummary = {
   level: { level: 4, xpInLevel: 90, nextLevelAt: 1400 }
 };
 
-export const previewTurfQuests: readonly QuestDetail[] = [
-  {
-    id: 'sample-river',
-    title: 'River Bend Run',
-    route: [
-      [72.8749, 19.0746],
-      [72.8756, 19.0755],
-      [72.876, 19.0761]
-    ]
-  },
-  {
-    id: 'sample-kurla',
-    title: 'Kurla Morning Loop',
-    route: [
-      [72.8808, 19.0726],
-      [72.8814, 19.0736],
-      [72.8822, 19.0742]
-    ]
-  },
-  {
-    id: 'sample-north',
-    title: 'Jarimari Checkpoint',
-    route: [
-      [72.8788, 19.0827],
-      [72.8779, 19.0833],
-      [72.8774, 19.0842]
-    ]
-  }
-].map(({ id, title, route }) => {
+/**
+ * Sample quests with several stops each — places, and one stretch of route —
+ * so the quest map shows numbered stops and a suggested way round them.
+ */
+type SampleStop =
+  { title: string; at: Coordinate } | { title: string; route: readonly Coordinate[] };
+
+export const previewTurfQuests: readonly QuestDetail[] = (
+  [
+    {
+      id: 'sample-river',
+      title: 'River Bend Run',
+      start: [72.8749, 19.0746],
+      distanceMeters: 2100,
+      minutes: 14,
+      stops: [
+        { title: 'Riverside steps', at: [72.8756, 19.0755] },
+        {
+          title: 'Run the river path',
+          route: [
+            [72.8762, 19.0766],
+            [72.8771, 19.0777],
+            [72.8778, 19.0789]
+          ]
+        },
+        { title: 'Footbridge', at: [72.8768, 19.0801] },
+        { title: 'Banyan corner', at: [72.8744, 19.0786] }
+      ]
+    },
+    {
+      id: 'sample-kurla',
+      title: 'Kurla Morning Loop',
+      start: [72.8808, 19.0726],
+      distanceMeters: 1800,
+      minutes: 12,
+      stops: [
+        { title: 'Market gate', at: [72.8822, 19.0742] },
+        { title: 'Temple lane', at: [72.8841, 19.0731] },
+        { title: 'Station road', at: [72.8828, 19.0712] }
+      ]
+    },
+    {
+      id: 'sample-north',
+      title: 'Jarimari Checkpoint',
+      start: [72.8788, 19.0827],
+      distanceMeters: 1600,
+      minutes: 11,
+      stops: [
+        { title: 'Hill steps', at: [72.8779, 19.0839] },
+        { title: 'Water tank', at: [72.8797, 19.0852] },
+        { title: 'Lookout', at: [72.8812, 19.0838] }
+      ]
+    }
+  ] satisfies {
+    id: string;
+    title: string;
+    start: Coordinate;
+    distanceMeters: number;
+    minutes: number;
+    stops: SampleStop[];
+  }[]
+).map(({ id, title, start, distanceMeters, minutes, stops }) => {
   const openHours = { timezone: 'Asia/Kolkata', schedule: 'Daily', status: 'open' as const };
   return {
     id,
     title,
-    distanceMeters: 1350,
-    estimatedActiveMinutes: 12,
+    distanceMeters,
+    estimatedActiveMinutes: minutes,
     accessibility: 'mixed',
     openHours,
-    checkpointCount: 1,
-    mapPosition: route[0] as Coordinate,
+    checkpointCount: stops.length,
+    mapPosition: start,
+    // One sample carries a time limit, to show how a timed quest reads.
+    ...(id === 'sample-river' ? { timeLimitMinutes: 20 } : {}),
     sourceReviewedAt: '2026-11-01T00:00:00Z',
-    checkpoints: [
-      {
-        id: `${id}-route`,
-        kind: 'route',
-        title: 'Follow the checkpoint route',
-        geometry: { type: 'LineString', coordinates: route },
-        geometryVersion: 1,
-        accessibility: 'mixed',
-        openHours
-      }
-    ]
+    checkpoints: stops.map((stop, index) => ({
+      id: `${id}-stop-${index + 1}`,
+      kind: 'route' in stop ? ('route' as const) : ('place' as const),
+      title: stop.title,
+      geometry:
+        'route' in stop
+          ? { type: 'LineString', coordinates: stop.route.map((p) => [...p]) }
+          : { type: 'Point', coordinates: [...stop.at] },
+      geometryVersion: 1,
+      accessibility: 'mixed',
+      openHours
+    }))
   };
 });
 

@@ -80,6 +80,8 @@ import {
   resultCopy
 } from './run-mode-hud-model';
 import { questStopRows, questStopsLine } from './quest-stops-model';
+import { liveQuestPins, questMapLayers, questSecondsLeft, questTimeLine } from './quest-map-model';
+import { QuestStopMarkers } from './QuestStopMarkers';
 import { runMetricsPanel, type RunMetricsPanel } from './run-metrics-preview-model';
 
 export function ActivityPreparation({
@@ -622,6 +624,40 @@ export function ActivityRecording({
     () => (panels.questStops && quest ? questStopRows(quest.checkpoints, samples) : undefined),
     [panels.questStops, quest, samples]
   );
+  // The quest's stops on the live map (display only, as the list above). The
+  // suggested path is re-planned from where you are through only the stops
+  // still to go, so a passed stop drops out of it and turns into a tick.
+  const passedKey = (stops ?? [])
+    .filter((stop) => stop.passed)
+    .map((stop) => stop.id)
+    .join(',');
+  const passedStops = useMemo(() => new Set(passedKey ? passedKey.split(',') : []), [passedKey]);
+  const questHere = center ?? quest?.mapPosition;
+  const questPins = useMemo(
+    () =>
+      panels.questStops && quest ? liveQuestPins(quest.checkpoints, passedStops, questHere) : [],
+    [panels.questStops, passedStops, quest, questHere]
+  );
+  const questLayers = useMemo(
+    () =>
+      panels.questStops && quest
+        ? questMapLayers(quest, {
+            ...(questHere ? { from: questHere } : {}),
+            passed: passedStops,
+            showStart: false
+          })
+        : [],
+    [panels.questStops, passedStops, quest, questHere]
+  );
+  // The quest's time limit runs from the run's first point, pauses included,
+  // the same way the server checks it.
+  const questStartMs = samples[0] ? Date.parse(samples[0].recordedAt) : undefined;
+  const questTime = panels.questStops
+    ? questTimeLine(
+        questSecondsLeft(quest?.timeLimitMinutes, questStartMs, now),
+        Boolean(stops?.length) && stops!.every((stop) => stop.passed)
+      )
+    : null;
   const [loopBright, setLoopBright] = useState(true);
   const loopReady = loop?.ready === true;
   useEffect(() => {
@@ -632,6 +668,7 @@ export function ActivityRecording({
   const layers = useMemo(() => {
     const liveRoute = liveRouteLayers(samples);
     return [
+      ...questLayers,
       ...routeGuideLayers(guide),
       ...ghostLayers(ghost, elapsedSeconds),
       ...liveRoute.map((layer) => ({
@@ -644,7 +681,7 @@ export function ActivityRecording({
         ? [{ ...loop.layer, opacity: !reduceMotion && loop.ready && !loopBright ? 0.5 : 1 }]
         : [])
     ];
-  }, [elapsedSeconds, ghost, guide, loop, loopBright, reduceMotion, samples]);
+  }, [elapsedSeconds, ghost, guide, loop, loopBright, questLayers, reduceMotion, samples]);
   const ghostStatus = useMemo(
     () => (ghost ? ghostCard(ghost, elapsedSeconds, current.distanceMeters) : undefined),
     [current.distanceMeters, elapsedSeconds, ghost]
@@ -688,6 +725,7 @@ export function ActivityRecording({
     <View style={styles.liveScreen}>
       <MapSurface
         localLayers={layers}
+        world={panels.questStops}
         accessibilityLabel="Private activity route stored only on this device."
         {...(center ? { initialCenter: center, liveCenter: center, initialFollow: true } : {})}
         recenterEnabled={Boolean(center)}
@@ -699,7 +737,9 @@ export function ActivityRecording({
           setCameraMode('follow');
         }}
         {...(recenterRequest ? { recenterRequest } : {})}
-      />
+      >
+        <QuestStopMarkers stops={questPins} passed={passedStops} />
+      </MapSurface>
       {/* The run's own title bar, so the screen says what it is without the
           tab bar that is deliberately hidden while recording. */}
       <View style={styles.liveTitleBar} pointerEvents="none">
@@ -738,6 +778,7 @@ export function ActivityRecording({
         {panels.questStops ? (
           <View accessibilityLiveRegion="polite">
             <Text style={styles.rowDetail}>{questStopsLine(stops ?? [])}</Text>
+            {questTime ? <Text style={styles.rowDetail}>{questTime}</Text> : null}
             {stops?.map((stop) => (
               <Text
                 key={stop.id}
