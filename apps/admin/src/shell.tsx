@@ -54,15 +54,19 @@ import {
   type TerritoryWeekRow,
   getTradeFlags,
   getTurfConcentration,
+  getStaffQuests,
+  setQuestTimeLimit,
   reviewTradeFlag
 } from './api.js';
 import { TurfArea } from './turf-area.js';
+import { QuestsArea } from './quests-area.js';
 import { canModerate, canOperateCompetitions } from '@runsphere/domain';
 import type {
   CampaignSummary,
   CompetitionSummary,
   EmailTemplate,
   StaffAppeal,
+  StaffQuest,
   StaffReport,
   StaffSanction,
   TerritoryConcentrationReport,
@@ -104,6 +108,7 @@ export function AdminShell() {
   const [rules, setRules] = useState<RuleVersion[]>([]);
   const [turfConcentration, setTurfConcentration] = useState<TerritoryConcentrationReport>();
   const [tradeFlags, setTradeFlags] = useState<readonly TerritoryTradeFlag[]>();
+  const [quests, setQuests] = useState<readonly StaffQuest[]>([]);
   const [tradeFlagNote, setTradeFlagNote] = useState<string>();
 
   const run = async (work: () => Promise<unknown>, success?: string) => {
@@ -142,6 +147,7 @@ export function AdminShell() {
         setCompletedDeletions(queue.completedDeletions);
       }
       if (next === 'seasons') setSeasons((await getTerritorySeasons(token)).data);
+      if (next === 'quests') setQuests((await getStaffQuests(token)).data);
       if (next === 'data') setRules((await getRuleVersions(token)).data);
       if (next === 'turf') {
         // Each part loads only for the role its route admits.
@@ -513,6 +519,21 @@ export function AdminShell() {
                   const queue = await reviewTradeFlag(accessToken, flagId, { outcome, note });
                   setTradeFlags(queue.data);
                 }, 'Review recorded.')
+              }
+            />
+          ) : null}
+
+          {area === 'quests' ? (
+            <QuestsArea
+              quests={quests}
+              loading={loading}
+              onSetLimit={(questId, minutes) =>
+                void run(async () => {
+                  const saved = await setQuestTimeLimit(accessToken, questId, minutes);
+                  setQuests((current) =>
+                    current.map((quest) => (quest.id === saved.id ? saved : quest))
+                  );
+                }, 'Time limit saved.')
               }
             />
           ) : null}

@@ -8,6 +8,7 @@ import type {
   EmailTemplate,
   StaffAppeal,
   StaffReport,
+  StaffQuest,
   StaffSanction,
   TerritorySeasonView
 } from '@runsphere/contracts';
@@ -342,6 +343,17 @@ export const rollBackTerritoryWeek = (
  * a trade flag is a question for a moderator, never an automatic verdict, so
  * the review always carries a note.
  */
+export const getStaffQuests = (accessToken: string) =>
+  authed<{ data: StaffQuest[] }>(accessToken, '/v1/staff/quests');
+
+export const setQuestTimeLimit = (accessToken: string, questId: string, minutes: number | null) =>
+  json<StaffQuest>(
+    accessToken,
+    `/v1/staff/quests/${encodeURIComponent(questId)}/time-limit`,
+    'PUT',
+    { timeLimitMinutes: minutes }
+  );
+
 export const getTurfConcentration = (accessToken: string) =>
   authed<TerritoryConcentrationReport>(accessToken, '/v1/staff/territory/concentration');
 

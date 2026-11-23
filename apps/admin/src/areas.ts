@@ -20,6 +20,7 @@ export type AreaKey =
   | 'moderation'
   | 'competitions'
   | 'turf'
+  | 'quests'
   | 'seasons'
   | 'campaigns'
   | 'privacy'
@@ -82,6 +83,13 @@ export const AREAS: readonly AreaDefinition[] = [
     permitted: (roles) => canModerate(roles) || canOperateCompetitions(roles),
     roleNote:
       'Trade flags: moderator or admin (/v1/staff/territory/trade-flags). Concentration: season_operator or admin (/v1/staff/territory/concentration). Events need a map drawing tool and are not here yet.'
+  },
+  {
+    key: 'quests',
+    title: 'Quests',
+    summary: 'How long a runner has to pass every stop on a quest run.',
+    permitted: canOperateCompetitions,
+    roleNote: 'season_operator or admin, matching /v1/staff/quests.'
   },
   {
     key: 'seasons',
