@@ -1056,7 +1056,19 @@ export function ActivityDetail({
         <Text style={styles.privateNote}>{fallbackNote(current.refusedRunMode)}</Text>
       ) : null}
       <ActivityDetailMap presentation={presentation} localSamples={localSamples} />
-      {presentation.state === 'validated' ? (
+      {metricsPanel ? (
+        <SummaryMetrics
+          distance={metricsPanel.headline.distanceKm}
+          time={metricsPanel.headline.movingTime}
+          timeLabel="Moving time"
+          pace={metricsPanel.headline.pace}
+          provenance={
+            presentation.state === 'validated'
+              ? 'Verified run totals'
+              : 'Recorded on your device. Run check pending.'
+          }
+        />
+      ) : presentation.state === 'validated' ? (
         <SummaryMetrics
           distance={(presentation.detail.summary!.distanceMeters / 1_000).toFixed(2)}
           time={formatDuration(presentation.detail.summary!.durationSeconds)}
@@ -1321,11 +1333,13 @@ function ActivityDetailMap({
 function SummaryMetrics({
   distance,
   time,
+  timeLabel = 'Time',
   pace,
   provenance
 }: {
   distance: string;
   time: string;
+  timeLabel?: string;
   pace: string;
   provenance: string;
 }) {
@@ -1339,7 +1353,7 @@ function SummaryMetrics({
         </View>
         <View style={styles.metricCell}>
           <Text style={styles.metricCellValue}>{time}</Text>
-          <Text style={styles.metricCellLabel}>Time</Text>
+          <Text style={styles.metricCellLabel}>{timeLabel}</Text>
         </View>
         <View style={styles.metricCell}>
           <Text style={styles.metricCellValue}>{pace}</Text>
@@ -1351,7 +1365,7 @@ function SummaryMetrics({
   );
 }
 
-/** Moving time, climb, best km and the km splits; the phone's until the server's arrive. */
+/** Elapsed, climb, best km, best efforts and the km splits; the phone's until the server's arrive. */
 function RunSplits({ panel }: { panel: RunMetricsPanel }) {
   const styles = useAppStyles();
   return (
@@ -1364,6 +1378,24 @@ function RunSplits({ panel }: { panel: RunMetricsPanel }) {
           </View>
         ))}
       </View>
+      {panel.efforts.length ? (
+        <View accessibilityLabel="Best efforts" style={styles.effortBlock}>
+          <Text accessibilityRole="header" style={styles.effortTitle}>
+            Best efforts
+          </Text>
+          {panel.efforts.map((effort) => (
+            <View
+              key={effort.label}
+              style={styles.splitRow}
+              accessible
+              accessibilityLabel={`${effort.label} in ${effort.value}`}
+            >
+              <Text style={styles.splitLabel}>{effort.label}</Text>
+              <Text style={styles.splitValue}>{effort.value}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
       {panel.splits.map((split) => (
         <View
           key={split.label}

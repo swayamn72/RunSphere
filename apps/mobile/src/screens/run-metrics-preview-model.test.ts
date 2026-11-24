@@ -6,6 +6,7 @@ import {
   METRICS_CHECKING_NOTE,
   METRICS_DEVICE_NOTE,
   clock,
+  effortTime,
   metricsPointsFromSamples,
   paceClock,
   runMetricsPanel
@@ -47,7 +48,10 @@ const serverMetrics: ActivityMetrics = {
     }
   ],
   fastestSplitKm: 1,
-  bestEfforts: [],
+  bestEfforts: [
+    { key: '400m', distanceMeters: 400, seconds: 117.4 },
+    { key: '1k', distanceMeters: 1_000, seconds: 297.6 }
+  ],
   elevation: { gainMeters: 7.4, lossMeters: 2.6, maxMeters: 17, minMeters: 10 },
   paceSeries: [],
   elevationSeries: []
@@ -77,22 +81,36 @@ describe('runMetricsPanel (M9 9.12)', () => {
     expect(panel.splits.map((split) => split.label)).toEqual(['Km 1', 'Last 0.50 km']);
     expect(panel.splits[0]!.pace).toBe('5:00');
     expect(panel.splits[0]!.climb).toMatch(/^\+\d+ m$/);
-    expect(panel.stats.map((stat) => stat.label)).toEqual(['Moving time', 'Climb', 'Best km']);
+    expect(panel.stats.map((stat) => stat.label)).toEqual(['Elapsed', 'Climb', 'Best km']);
     expect(panel.stats[0]!.value).toBe('00:07:30');
+    expect(panel.headline).toEqual({ distanceKm: '1.50', movingTime: '00:07:30', pace: '5:00' });
   });
 
   it('switches to the server’s numbers once the run counts', () => {
     const panel = runMetricsPanel(counted(serverMetrics), samples)!;
     expect(panel).toMatchObject({ source: 'server', note: null });
     expect(panel.stats).toEqual([
-      { label: 'Moving time', value: '00:07:35' },
+      { label: 'Elapsed', value: '00:07:40' },
       { label: 'Climb', value: '7 m' },
       { label: 'Best km', value: '4:58' }
+    ]);
+    expect(panel.efforts).toEqual([
+      { label: '400 m', value: '1:57' },
+      { label: '1 km', value: '4:58' }
     ]);
     expect(panel.splits).toEqual([
       { label: 'Km 1', pace: '4:58', climb: '+7 m', fastest: true },
       { label: 'Last 0.52 km', pace: '5:02', climb: '−3 m', fastest: false }
     ]);
+  });
+
+  it('leads with moving time and moving pace, so a stop does not slow the pace', () => {
+    // 455 s moving over 1.52 km is 4:59/km; over the 460 s elapsed it would be 5:03.
+    expect(runMetricsPanel(counted(serverMetrics), samples)!.headline).toEqual({
+      distanceKm: '1.52',
+      movingTime: '00:07:35',
+      pace: '4:59'
+    });
   });
 
   it('keeps the phone’s numbers for a counted run the server has none for, saying so', () => {
@@ -117,7 +135,7 @@ describe('runMetricsPanel (M9 9.12)', () => {
   it('leaves climb out when the phone recorded no altitude', () => {
     const flat = samples.map((sample) => ({ ...sample, altitude: null }));
     const panel = runMetricsPanel({ state: 'pending' }, flat)!;
-    expect(panel.stats.map((stat) => stat.label)).toEqual(['Moving time', 'Best km']);
+    expect(panel.stats.map((stat) => stat.label)).toEqual(['Elapsed', 'Best km']);
     expect(panel.splits[0]!.climb).toBeNull();
   });
 
@@ -130,5 +148,7 @@ describe('runMetricsPanel (M9 9.12)', () => {
     expect(clock(3_725)).toBe('01:02:05');
     expect(paceClock(299.6)).toBe('5:00');
     expect(paceClock(null)).toBe('—');
+    expect(effortTime(297.6)).toBe('4:58');
+    expect(effortTime(3_725)).toBe('1:02:05');
   });
 });

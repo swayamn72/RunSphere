@@ -852,6 +852,15 @@ export const createAppStyles = (t: SemanticTokens) =>
       paddingVertical: 8
     },
     splitLabel: { color: t.text.primary, fontSize: 14, fontWeight: '700' },
+    effortBlock: { marginBottom: 12 },
+    effortTitle: {
+      color: t.text.secondary,
+      fontSize: 12,
+      fontWeight: '800',
+      letterSpacing: 0.5,
+      marginBottom: 4,
+      marginTop: 12
+    },
     splitValue: { color: t.text.secondary, fontSize: 14, fontVariant: ['tabular-nums'] },
     sectionHeader: {
       alignItems: 'center',

@@ -33,13 +33,47 @@ export interface RunMetricsSplitRow {
   fastest: boolean;
 }
 
+/**
+ * The three numbers a runner reads first. Time and pace are *moving* time and
+ * pace: a run with a five-minute stop at a signal showed 5:43/km here against
+ * 5:14/km on run detail, for the same run.
+ */
+export interface RunMetricsHeadline {
+  distanceKm: string;
+  movingTime: string;
+  pace: string;
+}
+
 export interface RunMetricsPanel {
   source: 'device' | 'server';
   /** Shown under the panel; null once the server's numbers are in. */
   note: string | null;
+  headline: RunMetricsHeadline;
   stats: RunMetricsStat[];
+  /** This run's fastest stretch over each standard distance it covered. */
+  efforts: RunMetricsStat[];
   splits: RunMetricsSplitRow[];
+  /** The numbers behind the panel, for the share card. */
+  metrics: ActivityMetrics;
 }
+
+const EFFORT_LABEL: Readonly<Record<ActivityMetrics['bestEfforts'][number]['key'], string>> = {
+  '400m': '400 m',
+  '1k': '1 km',
+  '1mile': '1 mile',
+  '5k': '5 km',
+  '10k': '10 km',
+  half: 'Half marathon'
+};
+
+/** `25:00`, or `1:02:05` past the hour: a best effort is a time, not a clock. */
+export const effortTime = (seconds: number): string => {
+  const whole = Math.round(seconds);
+  const hours = Math.floor(whole / 3_600);
+  const minutes = Math.floor((whole % 3_600) / 60);
+  const rest = (whole % 60).toString().padStart(2, '0');
+  return hours ? `${hours}:${minutes.toString().padStart(2, '0')}:${rest}` : `${minutes}:${rest}`;
+};
 
 /** The samples as the server receives them: every fix, so both sides drop the same ones. */
 export const metricsPointsFromSamples = (samples: readonly LocationSample[]): RunMetricsPoint[] =>
@@ -77,14 +111,24 @@ const panelFrom = (
 ): RunMetricsPanel | null => {
   if (metrics.distanceMeters <= 0 || metrics.splits.length === 0) return null;
   const fastest = metrics.splits.find((split) => split.km === metrics.fastestSplitKm);
-  const stats: RunMetricsStat[] = [{ label: 'Moving time', value: clock(metrics.movingSeconds) }];
+  const stats: RunMetricsStat[] = [{ label: 'Elapsed', value: clock(metrics.elapsedSeconds) }];
   if (metrics.elevation)
     stats.push({ label: 'Climb', value: `${Math.round(metrics.elevation.gainMeters)} m` });
   if (fastest) stats.push({ label: 'Best km', value: paceClock(fastest.paceSecondsPerKm) });
   return {
     source,
     note,
+    headline: {
+      distanceKm: (metrics.distanceMeters / 1_000).toFixed(2),
+      movingTime: clock(metrics.movingSeconds),
+      pace: paceClock(metrics.movingPaceSecondsPerKm)
+    },
     stats,
+    efforts: metrics.bestEfforts.map((effort) => ({
+      label: EFFORT_LABEL[effort.key],
+      value: effortTime(effort.seconds)
+    })),
+    metrics,
     splits: metrics.splits.map((split) => ({
       label: split.partial
         ? `Last ${(split.distanceMeters / 1_000).toFixed(2)} km`
