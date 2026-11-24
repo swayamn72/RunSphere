@@ -7,29 +7,29 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0FF981EF2DFC51D52E6153D6 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 0A63F0BE7A7CAB7712D7D7B7 /* PrivacyInfo.xcprivacy */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
-		28F3029A262F7F7B264F3EC4 /* libPods-RunSphere.a in Frameworks */ = {isa = PBXBuildFile; fileRef = B5BE233A7B36E95BC78A3FA4 /* libPods-RunSphere.a */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		A7F1016235AA3F095E83242E /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA062DC4033349BFDD7D34DD /* ExpoModulesProvider.swift */; };
+		583E2DA1F8C74501A20EC39C /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 5AB27DE25E0443CBAECE5C70 /* PrivacyInfo.xcprivacy */; };
+		6E8EFDF50BBBFFF74F5EC667 /* libPods-TURFR.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DE447446258A049450AAB49 /* libPods-TURFR.a */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
+		DE77ACCA90B3878AF8574A7B /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C2B1E3C6DCDBB5F5FB6402F /* ExpoModulesProvider.swift */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		0A63F0BE7A7CAB7712D7D7B7 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = RunSphere/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		0E738983F70316244CAC30CC /* Pods-RunSphere.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunSphere.debug.xcconfig"; path = "Target Support Files/Pods-RunSphere/Pods-RunSphere.debug.xcconfig"; sourceTree = "<group>"; };
-		13B07F961A680F5B00A75B9A /* RunSphere.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RunSphere.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = RunSphere/Images.xcassets; sourceTree = "<group>"; };
-		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = RunSphere/Info.plist; sourceTree = "<group>"; };
-		9BFEAE2B2495BAC4300C6B5D /* Pods-RunSphere.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunSphere.release.xcconfig"; path = "Target Support Files/Pods-RunSphere/Pods-RunSphere.release.xcconfig"; sourceTree = "<group>"; };
-		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = RunSphere/SplashScreen.storyboard; sourceTree = "<group>"; };
-		B5BE233A7B36E95BC78A3FA4 /* libPods-RunSphere.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-RunSphere.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		13B07F961A680F5B00A75B9A /* TURFR.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TURFR.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = TURFR/Images.xcassets; sourceTree = "<group>"; };
+		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = TURFR/Info.plist; sourceTree = "<group>"; };
+		1C2B1E3C6DCDBB5F5FB6402F /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-TURFR/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		3C6A1EC1170B6184B6F08839 /* Pods-TURFR.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-TURFR.release.xcconfig"; path = "Target Support Files/Pods-TURFR/Pods-TURFR.release.xcconfig"; sourceTree = "<group>"; };
+		5AB27DE25E0443CBAECE5C70 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = PrivacyInfo.xcprivacy; path = TURFR/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		5DE447446258A049450AAB49 /* libPods-TURFR.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-TURFR.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		99CD8AE317A08CAFB141579A /* Pods-TURFR.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-TURFR.debug.xcconfig"; path = "Target Support Files/Pods-TURFR/Pods-TURFR.debug.xcconfig"; sourceTree = "<group>"; };
+		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = TURFR/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		EA062DC4033349BFDD7D34DD /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-RunSphere/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
-		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = RunSphere/AppDelegate.swift; sourceTree = "<group>"; };
-		F11748442D0722820044C1D9 /* RunSphere-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "RunSphere-Bridging-Header.h"; path = "RunSphere/RunSphere-Bridging-Header.h"; sourceTree = "<group>"; };
+		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = TURFR/AppDelegate.swift; sourceTree = "<group>"; };
+		F11748442D0722820044C1D9 /* TURFR-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "TURFR-Bridging-Header.h"; path = "TURFR/TURFR-Bridging-Header.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -37,60 +37,34 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				28F3029A262F7F7B264F3EC4 /* libPods-RunSphere.a in Frameworks */,
+				6E8EFDF50BBBFFF74F5EC667 /* libPods-TURFR.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		13B07FAE1A68108700A75B9A /* RunSphere */ = {
+		13B07FAE1A68108700A75B9A /* TURFR */ = {
 			isa = PBXGroup;
 			children = (
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
-				F11748442D0722820044C1D9 /* RunSphere-Bridging-Header.h */,
+				F11748442D0722820044C1D9 /* TURFR-Bridging-Header.h */,
 				BB2F792B24A3F905000567C9 /* Supporting */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				0A63F0BE7A7CAB7712D7D7B7 /* PrivacyInfo.xcprivacy */,
+				5AB27DE25E0443CBAECE5C70 /* PrivacyInfo.xcprivacy */,
 			);
-			name = RunSphere;
+			name = TURFR;
 			sourceTree = "<group>";
 		};
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				B5BE233A7B36E95BC78A3FA4 /* libPods-RunSphere.a */,
+				5DE447446258A049450AAB49 /* libPods-TURFR.a */,
 			);
 			name = Frameworks;
-			sourceTree = "<group>";
-		};
-		49F3B2AA939A6F2EBD87A4FB /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				0E738983F70316244CAC30CC /* Pods-RunSphere.debug.xcconfig */,
-				9BFEAE2B2495BAC4300C6B5D /* Pods-RunSphere.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
-			sourceTree = "<group>";
-		};
-		65DA821363D121D95082639A /* ExpoModulesProviders */ = {
-			isa = PBXGroup;
-			children = (
-				801DB7E86D2A3165860733BC /* RunSphere */,
-			);
-			name = ExpoModulesProviders;
-			sourceTree = "<group>";
-		};
-		801DB7E86D2A3165860733BC /* RunSphere */ = {
-			isa = PBXGroup;
-			children = (
-				EA062DC4033349BFDD7D34DD /* ExpoModulesProvider.swift */,
-			);
-			name = RunSphere;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -103,12 +77,12 @@
 		83CBB9F61A601CBA00E9B192 = {
 			isa = PBXGroup;
 			children = (
-				13B07FAE1A68108700A75B9A /* RunSphere */,
+				13B07FAE1A68108700A75B9A /* TURFR */,
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				49F3B2AA939A6F2EBD87A4FB /* Pods */,
-				65DA821363D121D95082639A /* ExpoModulesProviders */,
+				FD8422B4DBD214DBE323301D /* Pods */,
+				AFB6C6BA83DFEBA487FF5C37 /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -118,9 +92,25 @@
 		83CBBA001A601CBA00E9B192 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				13B07F961A680F5B00A75B9A /* RunSphere.app */,
+				13B07F961A680F5B00A75B9A /* TURFR.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		A0FBDAD715A6E589B98A2794 /* TURFR */ = {
+			isa = PBXGroup;
+			children = (
+				1C2B1E3C6DCDBB5F5FB6402F /* ExpoModulesProvider.swift */,
+			);
+			name = TURFR;
+			sourceTree = "<group>";
+		};
+		AFB6C6BA83DFEBA487FF5C37 /* ExpoModulesProviders */ = {
+			isa = PBXGroup;
+			children = (
+				A0FBDAD715A6E589B98A2794 /* TURFR */,
+			);
+			name = ExpoModulesProviders;
 			sourceTree = "<group>";
 		};
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
@@ -129,36 +119,47 @@
 				BB2F792C24A3F905000567C9 /* Expo.plist */,
 			);
 			name = Supporting;
-			path = RunSphere/Supporting;
+			path = TURFR/Supporting;
+			sourceTree = "<group>";
+		};
+		FD8422B4DBD214DBE323301D /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				99CD8AE317A08CAFB141579A /* Pods-TURFR.debug.xcconfig */,
+				3C6A1EC1170B6184B6F08839 /* Pods-TURFR.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		13B07F861A680F5B00A75B9A /* RunSphere */ = {
+		13B07F861A680F5B00A75B9A /* TURFR */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "RunSphere" */;
+			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "TURFR" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				CA86469F7F4EB4EF7916246E /* [Expo] Configure project */,
+				B8A29FDEE3E60F711B8385C1 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				FF117E742986AC0D2CBBA6FB /* [MapLibre React Native] Remove MapLibre.xcframework-ios.signature */,
-				B3FA42C0FA6788B4B2E3A113 /* [CP] Embed Pods Frameworks */,
+				3AECAD30C10C457487D2135B /* [Expo Dev Launcher] Strip Local Network Keys for Release */,
+				E0C444DBE2A39CF88B59A400 /* [MapLibre React Native] Remove MapLibre.xcframework-ios.signature */,
+				A5BC3FF72CDF2B9A12DB3805 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
-			name = RunSphere;
+			name = TURFR;
 			packageProductDependencies = (
-				91B5C977B464AA9B80200EEB /* MapLibre */,
+				569E104E55D4696292D2F121 /* MapLibre */,
 			);
-			productName = RunSphere;
-			productReference = 13B07F961A680F5B00A75B9A /* RunSphere.app */;
+			productName = TURFR;
+			productReference = 13B07F961A680F5B00A75B9A /* TURFR.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -174,7 +175,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "RunSphere" */;
+			buildConfigurationList = 83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "TURFR" */;
 			compatibilityVersion = "Xcode 3.2";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -184,13 +185,13 @@
 			);
 			mainGroup = 83CBB9F61A601CBA00E9B192;
 			packageReferences = (
-				C2A9F5C1EA632E898EE0D85B /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */,
+				7A73671CD57067AFBD3821B7 /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */,
 			);
 			productRefGroup = 83CBBA001A601CBA00E9B192 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				13B07F861A680F5B00A75B9A /* RunSphere */,
+				13B07F861A680F5B00A75B9A /* TURFR */,
 			);
 		};
 /* End PBXProject section */
@@ -203,7 +204,7 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				0FF981EF2DFC51D52E6153D6 /* PrivacyInfo.xcprivacy in Resources */,
+				583E2DA1F8C74501A20EC39C /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -242,12 +243,26 @@
 			outputFileListPaths = (
 			);
 			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-RunSphere-checkManifestLockResult.txt",
+				"$(DERIVED_FILE_DIR)/Pods-TURFR-checkManifestLockResult.txt",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
+		};
+		3AECAD30C10C457487D2135B /* [Expo Dev Launcher] Strip Local Network Keys for Release */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "[Expo Dev Launcher] Strip Local Network Keys for Release";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Strip dev-launcher-specific local network permission keys from non-Debug builds\n# This only removes _expo._tcp Bonjour services and the dev-launcher usage description.\n# Other Bonjour services and custom descriptions are preserved for production use.\n\nif [ \"$CONFIGURATION\" != \"Debug\" ]; then\n  PLIST_PATH=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n  if [ -f \"$PLIST_PATH\" ]; then\n    # Check if NSBonjourServices exists\n    if /usr/libexec/PlistBuddy -c \"Print :NSBonjourServices\" \"$PLIST_PATH\" >/dev/null 2>&1; then\n      # Get the count of services\n      COUNT=$(/usr/libexec/PlistBuddy -c \"Print :NSBonjourServices\" \"$PLIST_PATH\" 2>/dev/null | grep \"^    \" | wc -l | tr -d ' ')\n\n      # Remove _expo._tcp\n      for ((i=COUNT-1; i>=0; i--)); do\n        SERVICE=$(/usr/libexec/PlistBuddy -c \"Print :NSBonjourServices:$i\" \"$PLIST_PATH\" 2>/dev/null || echo \"\")\n        if echo \"$SERVICE\" | grep -q \"_expo._tcp\"; then\n          /usr/libexec/PlistBuddy -c \"Delete :NSBonjourServices:$i\" \"$PLIST_PATH\" 2>/dev/null || true\n        fi\n      done\n\n      # If the array is now empty, remove it entirely\n      REMAINING=$(/usr/libexec/PlistBuddy -c \"Print :NSBonjourServices\" \"$PLIST_PATH\" 2>/dev/null | grep \"^    \" | wc -l | tr -d ' ')\n      if [ \"$REMAINING\" -eq \"0\" ]; then\n        /usr/libexec/PlistBuddy -c \"Delete :NSBonjourServices\" \"$PLIST_PATH\" 2>/dev/null || true\n      fi\n    fi\n\n    # Only delete the description if it matches the dev-launcher default text\n    DESC=$(/usr/libexec/PlistBuddy -c \"Print :NSLocalNetworkUsageDescription\" \"$PLIST_PATH\" 2>/dev/null || echo \"\")\n    if echo \"$DESC\" | grep -q \"Expo Dev Launcher\"; then\n      /usr/libexec/PlistBuddy -c \"Delete :NSLocalNetworkUsageDescription\" \"$PLIST_PATH\" 2>/dev/null || true\n    fi\n  fi\nfi\n";
 		};
 		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -255,7 +270,7 @@
 			files = (
 			);
 			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-RunSphere/Pods-RunSphere-resources.sh",
+				"${PODS_ROOT}/Target Support Files/Pods-TURFR/Pods-TURFR-resources.sh",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXApplication/ExpoApplication_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/EXConstants.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/ExpoConstants_privacy.bundle",
@@ -263,6 +278,7 @@
 				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoNotifications/ExpoNotifications_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoSystemUI/ExpoSystemUI_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoTaskManager/ExpoTaskManager_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/RNSVG/RNSVGFilters.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/React-Core_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/React-cxxreact/React-cxxreact_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/React-timing/React-timing_privacy.bundle",
@@ -278,6 +294,7 @@
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoNotifications_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoSystemUI_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoTaskManager_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RNSVGFilters.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-Core_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-cxxreact_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-timing_privacy.bundle",
@@ -286,16 +303,16 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-RunSphere/Pods-RunSphere-resources.sh\"\n";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-TURFR/Pods-TURFR-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		B3FA42C0FA6788B4B2E3A113 /* [CP] Embed Pods Frameworks */ = {
+		A5BC3FF72CDF2B9A12DB3805 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-RunSphere/Pods-RunSphere-frameworks.sh",
+				"${PODS_ROOT}/Target Support Files/Pods-TURFR/Pods-TURFR-frameworks.sh",
 				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ExpoFileSystem/ExpoFileSystem.framework/ExpoFileSystem",
 				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ExpoFont/ExpoFont.framework/ExpoFont",
 				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ExpoLocation/ExpoLocation.framework/ExpoLocation",
@@ -320,10 +337,10 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-RunSphere/Pods-RunSphere-frameworks.sh\"\n";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-TURFR/Pods-TURFR-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		CA86469F7F4EB4EF7916246E /* [Expo] Configure project */ = {
+		B8A29FDEE3E60F711B8385C1 /* [Expo] Configure project */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -334,20 +351,20 @@
 			inputPaths = (
 				"$(SRCROOT)/.xcode.env",
 				"$(SRCROOT)/.xcode.env.local",
-				"$(SRCROOT)/RunSphere/RunSphere.entitlements",
-				"$(SRCROOT)/Pods/Target Support Files/Pods-RunSphere/expo-configure-project.sh",
+				"$(SRCROOT)/TURFR/TURFR.entitlements",
+				"$(SRCROOT)/Pods/Target Support Files/Pods-TURFR/expo-configure-project.sh",
 			);
 			name = "[Expo] Configure project";
 			outputFileListPaths = (
 			);
 			outputPaths = (
-				"$(SRCROOT)/Pods/Target Support Files/Pods-RunSphere/ExpoModulesProvider.swift",
+				"$(SRCROOT)/Pods/Target Support Files/Pods-TURFR/ExpoModulesProvider.swift",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-RunSphere/expo-configure-project.sh\"\n";
+			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-TURFR/expo-configure-project.sh\"\n";
 		};
-		FF117E742986AC0D2CBBA6FB /* [MapLibre React Native] Remove MapLibre.xcframework-ios.signature */ = {
+		E0C444DBE2A39CF88B59A400 /* [MapLibre React Native] Remove MapLibre.xcframework-ios.signature */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -374,7 +391,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				A7F1016235AA3F095E83242E /* ExpoModulesProvider.swift in Sources */,
+				DE77ACCA90B3878AF8574A7B /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -383,18 +400,18 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 0E738983F70316244CAC30CC /* Pods-RunSphere.debug.xcconfig */;
+			baseConfigurationReference = 99CD8AE317A08CAFB141579A /* Pods-TURFR.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = RunSphere/RunSphere.entitlements;
+				CODE_SIGN_ENTITLEMENTS = TURFR/TURFR.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
 					"FB_SONARKIT_ENABLED=1",
 				);
-				INFOPLIST_FILE = RunSphere/Info.plist;
+				INFOPLIST_FILE = TURFR/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -409,8 +426,8 @@
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
 				PRODUCT_BUNDLE_IDENTIFIER = com.runsphere.app;
-				PRODUCT_NAME = RunSphere;
-				SWIFT_OBJC_BRIDGING_HEADER = "RunSphere/RunSphere-Bridging-Header.h";
+				PRODUCT_NAME = TURFR;
+				SWIFT_OBJC_BRIDGING_HEADER = "TURFR/TURFR-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -420,13 +437,13 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 9BFEAE2B2495BAC4300C6B5D /* Pods-RunSphere.release.xcconfig */;
+			baseConfigurationReference = 3C6A1EC1170B6184B6F08839 /* Pods-TURFR.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = RunSphere/RunSphere.entitlements;
+				CODE_SIGN_ENTITLEMENTS = TURFR/TURFR.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				INFOPLIST_FILE = RunSphere/Info.plist;
+				INFOPLIST_FILE = TURFR/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -441,8 +458,8 @@
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
 				PRODUCT_BUNDLE_IDENTIFIER = com.runsphere.app;
-				PRODUCT_NAME = RunSphere;
-				SWIFT_OBJC_BRIDGING_HEADER = "RunSphere/RunSphere-Bridging-Header.h";
+				PRODUCT_NAME = TURFR;
+				SWIFT_OBJC_BRIDGING_HEADER = "TURFR/TURFR-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 				VERSIONING_SYSTEM = "apple-generic";
@@ -513,7 +530,7 @@
 					"-DRCT_REMOVE_LEGACY_ARCH=1",
 				);
 				PODFILE_DIR = "$(SRCROOT)";
-				REACT_NATIVE_PATH = "${PODS_ROOT}/../../../../node_modules/.pnpm/react-native@0.86.3_@babel+core@7.29.7_@types+react@19.2.14_react@19.2.3/node_modules/react-native";
+				REACT_NATIVE_PATH = "${PODS_ROOT}/../../../../node_modules/.pnpm/react-native@0.86.3_@babel+core@7.29.7_@react-native+metro-config@0.86.3_@babel+core@7._7085890747de376bc4c924382e585daa/node_modules/react-native";
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
 				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
@@ -577,7 +594,7 @@
 					"-DRCT_REMOVE_LEGACY_ARCH=1",
 				);
 				PODFILE_DIR = "$(SRCROOT)";
-				REACT_NATIVE_PATH = "${PODS_ROOT}/../../../../node_modules/.pnpm/react-native@0.86.3_@babel+core@7.29.7_@types+react@19.2.14_react@19.2.3/node_modules/react-native";
+				REACT_NATIVE_PATH = "${PODS_ROOT}/../../../../node_modules/.pnpm/react-native@0.86.3_@babel+core@7.29.7_@react-native+metro-config@0.86.3_@babel+core@7._7085890747de376bc4c924382e585daa/node_modules/react-native";
 				SDKROOT = iphoneos;
 				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
 				USE_HERMES = true;
@@ -588,7 +605,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "RunSphere" */ = {
+		13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "TURFR" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				13B07F941A680F5B00A75B9A /* Debug */,
@@ -597,7 +614,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "RunSphere" */ = {
+		83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "TURFR" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				83CBBA201A601CBA00E9B192 /* Debug */,
@@ -609,7 +626,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		C2A9F5C1EA632E898EE0D85B /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */ = {
+		7A73671CD57067AFBD3821B7 /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/maplibre/maplibre-gl-native-distribution";
 			requirement = {
@@ -620,9 +637,9 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		91B5C977B464AA9B80200EEB /* MapLibre */ = {
+		569E104E55D4696292D2F121 /* MapLibre */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = C2A9F5C1EA632E898EE0D85B /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */;
+			package = 7A73671CD57067AFBD3821B7 /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */;
 			productName = MapLibre;
 		};
 /* End XCSwiftPackageProductDependency section */
