@@ -60,6 +60,7 @@ describe('map render interaction', () => {
       renderer = create(
         <MapSurface
           accessibilityLabel="Private map"
+          world={false}
           initialFollow
           liveCenter={[72.877, 19.076]}
           recenterEnabled
@@ -89,5 +90,38 @@ describe('map render interaction', () => {
       recenter!.props.onPress();
     });
     expect(onRequestRecenter).toHaveBeenCalledTimes(1);
+  });
+
+  it('draws the dark game-world style by default, and the provider style if it cannot load', async () => {
+    const provider = {
+      version: 8,
+      sources: {},
+      layers: [
+        { id: 'road_primary', type: 'line', source: 'osm', 'source-layer': 'transportation' }
+      ]
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, json: async () => provider }))
+    );
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(<MapSurface accessibilityLabel="Run map" />);
+    });
+    const themed = renderer.root.findByType('Map' as React.ElementType);
+    // A style object, not the provider's URL: the world style was built from it.
+    expect(typeof themed.props.mapStyle).toBe('object');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: false, json: async () => undefined }))
+    );
+    await act(async () => {
+      renderer = create(<MapSurface accessibilityLabel="Run map" />);
+    });
+    expect(renderer.root.findByType('Map' as React.ElementType).props.mapStyle).toBe(
+      'https://maps.example/style.json'
+    );
+    vi.unstubAllGlobals();
   });
 });

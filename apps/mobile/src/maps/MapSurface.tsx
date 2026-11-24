@@ -64,6 +64,8 @@ export interface MapSurfaceProps {
   /**
    * Draw the app's dark game-world basemap (the Turf map's look) instead of
    * the provider's own style. Falls back to the provider style if it can't load.
+   * On by default: a plain white street map on a run or a run's detail read as
+   * a different app from the Turf map it sits beside.
    */
   readonly world?: boolean;
 }
@@ -88,7 +90,7 @@ export function MapSurface({
   onStyleReady,
   showControls = true,
   children,
-  world = false
+  world = true
 }: MapSurfaceProps) {
   const { tokens, reduceMotion } = useAppTheme();
   const providerConfig = useMemo(() => resolveMapRenderPlan(), []);

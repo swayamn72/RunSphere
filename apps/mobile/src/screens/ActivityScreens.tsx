@@ -725,7 +725,6 @@ export function ActivityRecording({
     <View style={styles.liveScreen}>
       <MapSurface
         localLayers={layers}
-        world={panels.questStops}
         accessibilityLabel="Private activity route stored only on this device."
         {...(center ? { initialCenter: center, liveCenter: center, initialFollow: true } : {})}
         recenterEnabled={Boolean(center)}
