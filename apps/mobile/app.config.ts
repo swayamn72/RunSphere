@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
 import type { ExpoConfig } from 'expo/config';
+import { withInfoPlist, type ConfigPlugin } from 'expo/config-plugins';
 
 /**
  * Firebase's own config, which carries the sender id FCM addresses this
@@ -23,6 +24,33 @@ const resolveGoogleServicesFile = (): string | undefined => {
 };
 
 const googleServicesFile = resolveGoogleServicesFile();
+
+/**
+ * iOS counterpart of `resolveGoogleServicesFile`: `GoogleService-Info.plist`
+ * is copied during `expo prebuild --platform ios`, and a missing file aborts
+ * it after `ios/` has been cleared. Absent means push delivery is absent,
+ * nothing else.
+ */
+const resolveGoogleServiceInfoPlist = (): string | undefined => {
+  const configured = process.env.GOOGLE_SERVICE_INFO_PLIST ?? './GoogleService-Info.plist';
+  const path = isAbsolute(configured) ? configured : resolve(__dirname, configured);
+  return existsSync(path) ? configured : undefined;
+};
+
+const googleServiceInfoPlist = resolveGoogleServiceInfoPlist();
+
+/**
+ * `expo-location` always writes a motion-activity purpose string, and the
+ * pre-iOS 11 "Always" one, even though nothing reads motion data (the Android
+ * `ACTIVITY_RECOGNITION` permission is blocked for the same reason). Dropping
+ * them keeps the permission surface, and the App Review questions, minimal.
+ */
+const withoutUnusedIosPurposeStrings: ConfigPlugin = (expoConfig) =>
+  withInfoPlist(expoConfig, (modConfig) => {
+    delete modConfig.modResults.NSMotionUsageDescription;
+    delete modConfig.modResults.NSLocationAlwaysUsageDescription;
+    return modConfig;
+  });
 
 const config: ExpoConfig = {
   name: 'TURFR',
@@ -71,9 +99,50 @@ const config: ExpoConfig = {
     ]
   },
   ios: {
-    bundleIdentifier: 'com.runsphere.app'
+    bundleIdentifier: 'com.runsphere.app',
+    icon: './assets/ios-icon.png',
+    // Incremented per App Store Connect upload; `eas.json` auto-increments it
+    // for the production profile.
+    buildNumber: '1',
+    // Phone-only at launch: the layouts are designed and checked at phone
+    // widths, and an iPad build would be reviewed as a stretched phone app.
+    supportsTablet: false,
+    ...(googleServiceInfoPlist ? { googleServicesFile: googleServiceInfoPlist } : {}),
+    infoPlist: {
+      // The only cryptography is OS-provided (SQLCipher, TLS, SecureStore),
+      // which is exempt under Apple's standard-encryption rule. Declared so
+      // each TestFlight upload skips the export-compliance prompt. Revisit
+      // before adding any custom cipher.
+      ITSAppUsesNonExemptEncryption: false,
+      // Raw-HTTP fetches are limited to local development; production API and
+      // map origins must be HTTPS (see `.env.example`).
+      NSAppTransportSecurity: { NSAllowsLocalNetworking: true }
+    },
+    // Required-reason API declarations for the app's own code. Expo's modules
+    // ship their own manifests; Xcode merges them into the app's privacy report.
+    privacyManifests: {
+      NSPrivacyTracking: false,
+      NSPrivacyCollectedDataTypes: [],
+      NSPrivacyAccessedAPITypes: [
+        {
+          NSPrivacyAccessedAPIType: 'NSPrivacyAccessedAPICategoryFileTimestamp',
+          NSPrivacyAccessedAPITypeReasons: ['C617.1']
+        },
+        {
+          NSPrivacyAccessedAPIType: 'NSPrivacyAccessedAPICategoryUserDefaults',
+          NSPrivacyAccessedAPITypeReasons: ['CA92.1']
+        },
+        {
+          NSPrivacyAccessedAPIType: 'NSPrivacyAccessedAPICategorySystemBootTime',
+          NSPrivacyAccessedAPITypeReasons: ['35F9.1']
+        }
+      ]
+    }
   },
   plugins: [
+    // Listed first: config mods run in reverse order, so this one sees the
+    // Info.plist after `expo-location` has written its keys.
+    withoutUnusedIosPurposeStrings,
     'expo-secure-store',
     [
       'expo-local-authentication',
@@ -91,7 +160,13 @@ const config: ExpoConfig = {
         // A location foreground service keeps a run recording with the screen
         // locked, started from the Start tap, without ACCESS_BACKGROUND_LOCATION
         // (still blocked below). Adds FOREGROUND_SERVICE(_LOCATION) (M8 C.3).
-        isAndroidForegroundServiceEnabled: true
+        isAndroidForegroundServiceEnabled: true,
+        // iOS equivalent: the `location` background mode keeps a started run
+        // recording with the screen locked, under When-In-Use permission only
+        // (the blue status pill shows). No "Always" permission is requested.
+        isIosBackgroundLocationEnabled: true,
+        locationAlwaysAndWhenInUsePermission:
+          'Allow TURFR to keep recording your run while your screen is locked.'
       }
     ],
     ['@maplibre/maplibre-react-native', { android: { nativeVariant: 'opengl' } }],

@@ -31,6 +31,25 @@ No Firebase config is committed (see `app.config.ts`). Without `google-services.
 
 The activity recorder enables SQLCipher through the Expo SQLite plugin, so regenerate Android before assembling after this setting changes; SQLCipher affects every Expo SQLite database in the app, and each must set its key before any access.
 
+## iOS
+
+`ios/` is generated from `app.config.ts` by `pnpm prebuild:ios` and committed, like `android/`. Unlike Android it carries **no hand-edits**, so prebuild is safe to re-run and the `iOS` workflow fails if the committed project drifts from the config. Run it whenever Expo native settings change, then `pod install` in `ios/`.
+
+Requirements: macOS, Xcode 16+ (built with 27.2), CocoaPods, and an Apple Developer account for devices and TestFlight.
+
+```sh
+pnpm --filter @runsphere/mobile prebuild:ios      # regenerate ios/ (only after config changes)
+cd apps/mobile/ios && pod install
+pnpm --filter @runsphere/mobile ios               # build and run in the Simulator
+pnpm --filter @runsphere/mobile ios:build:simulator   # CLI build, no signing (what CI runs)
+```
+
+- **Bundle id** `com.runsphere.app`, iOS 16.4+, iPhone only, dark UI.
+- **Background recording:** the `location` background mode (When-In-Use permission, no "Always") is the iOS counterpart of Android's foreground service. `NSMotionUsageDescription` is stripped on purpose; nothing reads motion data.
+- **Push:** `GoogleService-Info.plist` is optional and untracked; `app.config.ts` omits it when absent, same as `google-services.json`. APNs also needs the Push Notifications capability and an APNs key uploaded to Firebase/EAS.
+- **Signing and release:** `eas build -p ios --profile production`, then `eas submit -p ios`. Set `ascAppId` in `eas.json` first. Free Apple IDs cannot use the location background mode on devices reliably; use a paid team.
+- **Not yet verified on hardware:** run recording with the screen locked, SQLCipher, biometric prompt and push delivery. Check these on a physical iPhone before TestFlight.
+
 ## Prerequisites
 
 - Node 24 LTS and pnpm 10.12.1
