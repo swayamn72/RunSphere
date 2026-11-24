@@ -1,0 +1,50 @@
+{
+  "quests": [
+    {
+      "key": "dev-kurla-loop",
+      "version": 1,
+      "title": "Kurla Morning Loop",
+      "distanceMeters": 1000,
+      "estimatedActiveMinutes": 7,
+      "accessibility": "mixed",
+      "openHours": { "timezone": "Asia/Kolkata", "schedule": "Any time", "status": "open" },
+      "reviewedAt": "2026-11-24T00:00:00.000Z",
+      "provenance": {
+        "source": "local-development",
+        "note": "Test quest for a dev database only. Matches scripts/data/dev-quest-route.mjs. Never import into production."
+      },
+      "checkpoints": [
+        {
+          "key": "dev-kurla-market-gate",
+          "title": "Market gate",
+          "kind": "area",
+          "geometry": { "type": "Point", "coordinates": [72.8822, 19.0742] },
+          "openHours": { "timezone": "Asia/Kolkata", "schedule": "Any time", "status": "open" },
+          "accessibility": "mixed",
+          "provenance": { "source": "local-development" },
+          "reviewedAt": "2026-11-24T00:00:00.000Z"
+        },
+        {
+          "key": "dev-kurla-temple-lane",
+          "title": "Temple lane",
+          "kind": "area",
+          "geometry": { "type": "Point", "coordinates": [72.8841, 19.0731] },
+          "openHours": { "timezone": "Asia/Kolkata", "schedule": "Any time", "status": "open" },
+          "accessibility": "mixed",
+          "provenance": { "source": "local-development" },
+          "reviewedAt": "2026-11-24T00:00:00.000Z"
+        },
+        {
+          "key": "dev-kurla-station-road",
+          "title": "Station road",
+          "kind": "area",
+          "geometry": { "type": "Point", "coordinates": [72.8828, 19.0712] },
+          "openHours": { "timezone": "Asia/Kolkata", "schedule": "Any time", "status": "open" },
+          "accessibility": "mixed",
+          "provenance": { "source": "local-development" },
+          "reviewedAt": "2026-11-24T00:00:00.000Z"
+        }
+      ]
+    }
+  ]
+}

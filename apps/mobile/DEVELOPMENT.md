@@ -59,6 +59,18 @@ pnpm --filter @runsphere/mobile android:assemble:debug
 
 The output is `android/app/build/outputs/apk/debug/app-debug.apk`. No ABI filters are configured, so the debug APK supports ARM and x86_64 emulator/device targets.
 
+## Testing a quest end to end
+
+`EXPO_PUBLIC_HOME_PREVIEW=true` shows sample data, and sample quests can't be started. To run a real
+quest on an emulator:
+
+1. Set `EXPO_PUBLIC_HOME_PREVIEW=false` in `apps/mobile/.env`.
+2. Import the dev quest into your **dev** database (never production):
+   `DATABASE_URL=... node scripts/data/import-reviewed-quests.mjs scripts/data/dev-quests.json`
+3. Set `EXPO_PUBLIC_SYNTHETIC_LOCATION=true` and put the line printed by
+   `node scripts/data/dev-quest-route.mjs` in `apps/mobile/.env`. It is a ~1 km run through every stop.
+4. Restart Metro with `--clear`, take on "Kurla Morning Loop", start a run, and let the replay finish.
+
 ## Public preview CORS
 
 The API reads `CORS_ALLOWED_ORIGINS` as a comma-separated allowlist. When a public admin preview is exposed, set its exact origin before starting the API, for example:
