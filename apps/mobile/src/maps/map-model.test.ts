@@ -6,6 +6,8 @@ import {
   decimateCoordinates,
   initialMapCameraState,
   startingView,
+  startFollowing,
+  FOLLOW_ZOOM,
   recenterMap,
   resetCompass,
   shouldAnimateCamera,
@@ -85,5 +87,16 @@ describe('where a map opens', () => {
     const view = startingView(undefined, undefined);
     expect(view.center).toEqual([72.8777, 19.076]);
     expect(view.zoom).toBeGreaterThanOrEqual(10);
+  });
+});
+
+describe('following you on a run', () => {
+  it('closes in to street level, and keeps a closer zoom the runner chose', () => {
+    expect(startFollowing(initialMapCameraState)).toEqual({
+      mode: 'follow',
+      zoom: FOLLOW_ZOOM,
+      bearing: 0
+    });
+    expect(startFollowing({ ...initialMapCameraState, zoom: 18 }).zoom).toBe(18);
   });
 });

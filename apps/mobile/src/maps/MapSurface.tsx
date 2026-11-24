@@ -21,6 +21,8 @@ import {
   recenterMap,
   resetCompass,
   startingView,
+  startFollowing,
+  FOLLOW_ZOOM,
   transitionMapLifecycle,
   type MapCameraState,
   type MapLifecycleState
@@ -218,9 +220,7 @@ export function MapSurface({
     if (!liveCenter || !initialFollow || hasStartedFollowing.current) return;
     hasStartedFollowing.current = true;
     cameraMode.current = 'follow';
-    setCamera((current) =>
-      current.mode === 'follow' ? current : { ...current, mode: 'follow' as const }
-    );
+    setCamera((current) => startFollowing(current));
   }, [initialFollow, liveCenter]);
 
   // Local live centers never enter provider configuration. They only update the native
@@ -244,7 +244,12 @@ export function MapSurface({
     fallbackState === 'offline' || lifecycle === 'offline'
       ? mapProductCopy('offline')
       : mapProductCopy('unavailable');
-  const initialViewState = startingView(initialCenter, liveCenter);
+  const startView = startingView(initialCenter, liveCenter);
+  // A map that follows you opens at street level wherever it starts.
+  const initialViewState =
+    initialFollow && (initialCenter ?? liveCenter)
+      ? { ...startView, zoom: FOLLOW_ZOOM }
+      : startView;
 
   return (
     <View style={[styles.root, { backgroundColor: tokens.background.surfaceInset }]}>

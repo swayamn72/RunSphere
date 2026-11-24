@@ -46,6 +46,20 @@ export const enterFreePan = (camera: MapCameraState): MapCameraState => ({
   mode: 'free-pan'
 });
 
+/**
+ * Street level, for a map that follows you on a run: close enough to see the
+ * next turn and a quest stop 200 m away. City zoom (11–12) put the whole of
+ * Mumbai on screen and the runner was a dot.
+ */
+export const FOLLOW_ZOOM = 16;
+
+/** Start following you, closing in to street level if the map is further out. */
+export const startFollowing = (camera: MapCameraState): MapCameraState => ({
+  ...camera,
+  mode: 'follow',
+  zoom: Math.max(camera.zoom, FOLLOW_ZOOM)
+});
+
 export const recenterMap = (camera: MapCameraState): MapCameraState => ({
   ...camera,
   mode: 'follow'
