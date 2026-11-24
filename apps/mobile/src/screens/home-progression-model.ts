@@ -1,3 +1,4 @@
+import { turfPointsLabel, DEFAULT_CLAIM_RULE } from '@runsphere/domain';
 import type { Profile, ProgressionSummary } from '@runsphere/contracts';
 import { AuthFailure } from '../auth-failure';
 import { ApiFailure } from '../api-client';
@@ -175,9 +176,9 @@ export const progressionStatusMessage = (state: ProgressionCardState): string =>
 };
 
 export const turfAreaLabel = (areaSqm: number | undefined): string =>
-  areaSqm === undefined ? '—' : `${grouped(areaSqm)} m²`;
+  areaSqm === undefined ? '—' : turfPointsLabel(areaSqm);
 
-export const RHO_TURF_TIP = 'Close a loop around at least 5,000 m² to claim open ground.';
+export const RHO_TURF_TIP = `Close a loop worth at least ${turfPointsLabel(DEFAULT_CLAIM_RULE.minAreaSqm)} to claim open ground.`;
 
 const DAY_MS = 86_400_000;
 const IST_OFFSET_MS = 19_800_000;

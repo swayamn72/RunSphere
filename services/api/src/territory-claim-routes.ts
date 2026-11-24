@@ -75,7 +75,8 @@ import {
   type MlPoint,
   type MlRunFeatures,
   type NotificationCopy,
-  type RunIntegrityVerdict
+  type RunIntegrityVerdict,
+  turfPointsLabel
 } from '@runsphere/domain';
 import { verifyAccessToken } from './auth.js';
 import { ghostRaceAccess } from './ghost-race-access.js';
@@ -240,7 +241,7 @@ const polygonGeoJson = (ring: ClaimRing): string =>
  * because time is no longer what was compared.
  */
 const claimMessage = (carved: number, defended: number, carvedAreaSqm: number): string => {
-  const ground = `${Math.round(carvedAreaSqm).toLocaleString('en-IN')} m²`;
+  const ground = turfPointsLabel(carvedAreaSqm);
   if (carved === 0 && defended === 0) return 'Ground claimed. Nobody held it before you.';
   if (carved === 0)
     return `Ground claimed around ${defended === 1 ? 'a claim' : `${defended} claims`} you did not beat. What was already held stayed held.`;

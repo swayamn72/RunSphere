@@ -42,8 +42,8 @@ describe('Home progression model', () => {
   });
 
   it('formats server-reported area and distinguishes unavailable from zero', () => {
-    expect(turfAreaLabel(5000)).toBe('5,000 m²');
-    expect(turfAreaLabel(0)).toBe('0 m²');
+    expect(turfAreaLabel(5000)).toBe('50 Turf points');
+    expect(turfAreaLabel(0)).toBe('0 Turf points');
     expect(turfAreaLabel(undefined)).toBe('—');
   });
 

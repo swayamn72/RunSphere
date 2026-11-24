@@ -238,7 +238,7 @@ describe('the turf map', () => {
     // ADR-0011: this map names holders. The pin is the reversal made visible.
     const pins = byLabel(
       renderer,
-      'Ravi holds 9.0 ha in 10:00. Beat that time to take it. Held for at least seven days.'
+      'Ravi holds 900 Turf points in 10:00. Beat that time to take it. Held for at least seven days.'
     );
     expect(pins.length).toBeGreaterThan(0);
   });
@@ -249,7 +249,7 @@ describe('the turf map', () => {
 
     const [pin] = byLabel(
       renderer,
-      'Ravi holds 9.0 ha in 10:00. Beat that time to take it. Held for at least seven days.'
+      'Ravi holds 900 Turf points in 10:00. Beat that time to take it. Held for at least seven days.'
     );
     await act(async () => {
       (pin!.props as { onPress: () => void }).onPress();
@@ -271,7 +271,7 @@ describe('the turf map', () => {
 
     const [pin] = byLabel(
       renderer,
-      'Your ground, 9.0 ha, held in 10:00. Held for at least seven days.'
+      'Your ground, 900 Turf points, held in 10:00. Held for at least seven days.'
     );
     await act(async () => {
       (pin!.props as { onPress: () => void }).onPress();

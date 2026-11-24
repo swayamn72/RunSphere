@@ -1,5 +1,10 @@
 import type { RunLogItem } from '@runsphere/contracts';
-import { kolkataDate, kolkataDateStart, weeklyPeriodStart } from '@runsphere/domain';
+import {
+  kolkataDate,
+  kolkataDateStart,
+  weeklyPeriodStart,
+  turfPointsLabel
+} from '@runsphere/domain';
 import { MODE_LABEL } from './run-mode-hud-model';
 import type { Lines } from './route-draw-model';
 
@@ -77,10 +82,8 @@ export const paceLabel = (secondsPerKm: number | null): string => {
   return `${Math.floor(whole / 60)}:${(whole % 60).toString().padStart(2, '0')} /km`;
 };
 
-export const areaLabel = (squareMetres: number): string =>
-  squareMetres >= 100_000
-    ? `${(squareMetres / 1_000_000).toFixed(2)} km²`
-    : `${Math.round(squareMetres).toLocaleString('en-IN')} m²`;
+/** Ground a run took, in Turf points. */
+export const areaLabel = (squareMetres: number): string => turfPointsLabel(squareMetres);
 
 /** One line on what the mode came to. Factual, never a judgement (`docs/voice.md`). */
 export const resultLine = (item: RunLogItem): string | null => {

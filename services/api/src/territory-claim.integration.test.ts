@@ -731,8 +731,8 @@ describePostgis('territory claims on real PostGIS', () => {
 
         const [notice] = await noticesFor(account);
         expect(notice?.body).toContain('Coda ran through your ground');
-        expect(notice?.body).toMatch(/They took [\d,]+ m²/);
-        expect(notice?.body).toMatch(/You still hold [\d,]+ m²/);
+        expect(notice?.body).toMatch(/They took [\d,]+ Turf points?/);
+        expect(notice?.body).toMatch(/You still hold [\d,]+ Turf points?/);
         expect(notice?.deep_link).toBe(`runsphere://turf/claim/${first.claim.id}`);
         expect(notice?.dedupe_key).toBe(`carve:${inner}:${first.claim.id}`);
         // The challenger is not told about their own run.

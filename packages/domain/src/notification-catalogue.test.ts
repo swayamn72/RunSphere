@@ -181,11 +181,11 @@ describe('what a body may never contain', () => {
 describe('the copy screens.md specifies', () => {
   it('says who took how much, and what is left', () => {
     expect(everyType.CARVE_SUCCESS.body).toBe(
-      'Mira ran through your ground in Bandra. They took 8,400 m². You still hold 23,000 m².'
+      'Mira ran through your ground in Bandra. They took 84 Turf points. You still hold 230 Turf points.'
     );
   });
 
-  it('says the whole claim went, rather than that 0 m² is still held', () => {
+  it('says the whole claim went, rather than that 0 Turf points are still held', () => {
     // A wipe-out is the same event, and screens.md's copy assumes a partial.
     const rendered = carveSuccess({
       claimId: CLAIM,
@@ -196,7 +196,7 @@ describe('the copy screens.md specifies', () => {
     });
 
     expect(rendered.body).toBe(
-      'Mira ran through your ground in Bandra. They took 31,400 m² — all of it.'
+      'Mira ran through your ground in Bandra. They took 314 Turf points — all of it.'
     );
     expect(rendered.body).not.toContain('still hold');
   });
@@ -212,7 +212,7 @@ describe('the copy screens.md specifies', () => {
     });
 
     expect(rendered.body).toBe(
-      'Mira ran through your ground. They took 8,400 m². You still hold 23,000 m².'
+      'Mira ran through your ground. They took 84 Turf points. You still hold 230 Turf points.'
     );
     expect(rendered.body).not.toMatch(/undefined|null/);
   });
@@ -224,12 +224,14 @@ describe('the copy screens.md specifies', () => {
   });
 
   it('matches the season and week wording already in use', () => {
-    expect(everyType.WEEKLY_RANK.body).toBe('Week summary: Rank #4 in Mumbai · 31,400 m² held.');
+    expect(everyType.WEEKLY_RANK.body).toBe(
+      'Week summary: Rank #4 in Mumbai · 314 Turf points held.'
+    );
     expect(everyType.SEASON_ENDED.body).toBe(
-      'Season ended. Final rank: #4 in Mumbai. Peak: 42,000 m². New season starts now.'
+      'Season ended. Final rank: #4 in Mumbai. Peak: 420 Turf points. New season starts now.'
     );
     expect(everyType.SEASON_ENDING_3D.body).toBe(
-      'Season ends in 3 days. You hold rank #4 with 31,400 m². Keep running.'
+      'Season ends in 3 days. You hold rank #4 with 314 Turf points. Keep running.'
     );
     // Says what is true, not what screens.md hardcoded: the job is
     // state-driven, so it can fire with less time left than three days.
@@ -341,11 +343,11 @@ describe('honesty about what is not built', () => {
 
 describe('area formatting', () => {
   it('groups the way the rest of the app does', () => {
-    expect(formatAreaSqm(31_400)).toBe('31,400 m²');
-    expect(formatAreaSqm(1_963.27)).toBe('1,963 m²');
+    expect(formatAreaSqm(31_400)).toBe('314 Turf points');
+    expect(formatAreaSqm(1_963.27)).toBe('19 Turf points');
   });
 
   it('never reports negative ground', () => {
-    expect(formatAreaSqm(-5)).toBe('0 m²');
+    expect(formatAreaSqm(-5)).toBe('0 Turf points');
   });
 });

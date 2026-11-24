@@ -1,3 +1,4 @@
+import { turfPointsLabel } from './turf-points.js';
 import type { NotificationKind } from '@runsphere/contracts';
 import { seasonEndedMessage, weeklyRankMessage } from './territory-claim-season.js';
 
@@ -93,9 +94,8 @@ export const safeName = (name: string | undefined): string => {
     : trimmed;
 };
 
-/** `31,400 m²`, in the grouping the rest of the app uses (ADR-0006, en-IN). */
-export const formatAreaSqm = (areaSqm: number): string =>
-  `${Math.round(Math.max(0, areaSqm)).toLocaleString('en-IN')} m²`;
+/** Ground as a runner reads it: `314 Turf points` (see `turf-points.ts`). */
+export const formatAreaSqm = (areaSqm: number): string => turfPointsLabel(areaSqm);
 
 /** `" in Bandra"`, or nothing at all when the area has no geocode yet. */
 const inArea = (areaName: string | undefined): string => (areaName ? ` in ${areaName}` : '');

@@ -1,3 +1,4 @@
+import { turfPointsLabel } from './turf-points.js';
 import { kolkataDate } from './gamification.js';
 import { seasonMonthFor } from './territory-claim.js';
 
@@ -218,8 +219,7 @@ export const seasonEndedMessage = (summary: {
   cityTag?: string;
 }): string => {
   const where = summary.cityTag ? ` in ${summary.cityTag}` : '';
-  const area = Math.round(summary.peakAreaSqm).toLocaleString('en-IN');
-  return `Season ended. Final rank: #${summary.rank}${where}. Peak: ${area} m². New season starts now.`;
+  return `Season ended. Final rank: #${summary.rank}${where}. Peak: ${turfPointsLabel(summary.peakAreaSqm)}. New season starts now.`;
 };
 
 /** What a runner is told on a Monday. Same rules as above. */
@@ -229,6 +229,5 @@ export const weeklyRankMessage = (summary: {
   cityTag?: string;
 }): string => {
   const where = summary.cityTag ? ` in ${summary.cityTag}` : '';
-  const area = Math.round(summary.totalAreaSqm).toLocaleString('en-IN');
-  return `Week summary: Rank #${summary.rank}${where} · ${area} m² held.`;
+  return `Week summary: Rank #${summary.rank}${where} · ${turfPointsLabel(summary.totalAreaSqm)} held.`;
 };

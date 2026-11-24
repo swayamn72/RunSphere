@@ -48,10 +48,10 @@ describe('run log cards (M9 9.15)', () => {
       time: '26:00',
       pace: '4:58 /km',
       badge: 'TURF RUN',
-      result: 'Claimed 48,200 m²'
+      result: 'Claimed 482 Turf points'
     });
     expect(runCard(item()).accessibilityLabel).toBe(
-      'Tue 17 Nov · 6:15, 5.23 km, 26:00, 4:58 /km, turf run, Claimed 48,200 m²'
+      'Tue 17 Nov · 6:15, 5.23 km, 26:00, 4:58 /km, turf run, Claimed 482 Turf points'
     );
   });
 
@@ -72,7 +72,7 @@ describe('run log cards (M9 9.15)', () => {
     expect(
       runCard(item({ runMode: 'ghost', result: { ghostWon: true, claimedAreaSqm: 250_000 } }))
         .result
-    ).toBe('Won the Ghost Race · 0.25 km²');
+    ).toBe('Won the Ghost Race · 2,500 Turf points');
     expect(runCard(item({ runMode: 'ghost', result: { ghostWon: false } })).result).toBe(
       'Raced a ghost'
     );
@@ -154,7 +154,7 @@ describe('labels', () => {
     expect(durationLabel(3_725)).toBe('1:02:05');
     expect(durationLabel(59)).toBe('0:59');
     expect(paceLabel(359.6)).toBe('6:00 /km');
-    expect(areaLabel(99_999)).toBe('99,999 m²');
+    expect(areaLabel(99_999)).toBe('999 Turf points');
   });
 
   it('explains an empty section for you, and for someone else', () => {

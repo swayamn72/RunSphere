@@ -134,7 +134,7 @@ describe('run detail layout (M9 9.19)', () => {
     const shown = texts(renderer);
     expect(shown).toEqual(
       expect.arrayContaining([
-        'Claimed 48,200 m²',
+        'Claimed 482 Turf points',
         'Moving time',
         'Elapsed',
         'Best km',

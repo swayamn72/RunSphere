@@ -408,7 +408,7 @@ describePostgis('the Turf season loop on real PostGIS', () => {
         [alice]
       );
       expect(inbox.rows).toHaveLength(1);
-      expect(inbox.rows[0]!.body).toContain('90,000');
+      expect(inbox.rows[0]!.body).toContain('900 Turf points');
       expect(inbox.rows[0]!.body).toContain('#1');
     });
 
@@ -654,7 +654,7 @@ describePostgis('the three-day season warning', () => {
     expect(notice?.body).toContain('Season ends in 2 days');
     // Alice holds more, so she is #1 in Mumbai.
     expect(notice?.body).toContain('rank #1');
-    expect(notice?.body).toContain('40,000 m²');
+    expect(notice?.body).toContain('400 Turf points');
     expect(notice?.deep_link).toBe(`runsphere://turf/season/${SEASON}`);
     expect((await noticeFor(bob))?.body).toContain('rank #2');
   });
@@ -670,7 +670,7 @@ describePostgis('the three-day season warning', () => {
 
     await processTerritorySeasonEnding({ db }, daysBeforeClose(2));
 
-    // The copy is "You hold rank #N with Xm²", which is not a sentence you can
+    // The copy is "You hold rank #N with X Turf points", which is not a sentence you can
     // write for carol.
     expect(await countNotices(carol)).toBe(0);
   });

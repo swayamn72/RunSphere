@@ -109,7 +109,7 @@ describe('the territory detail page', () => {
   it('shows the statistics the page promises', async () => {
     const renderer = await render({ claim: claim(), history: history(), onBack: () => {} });
 
-    expect(byLabel(renderer, 'AREA: 48.2 ha').length).toBeGreaterThan(0);
+    expect(byLabel(renderer, 'AREA: 4,820 Turf points').length).toBeGreaterThan(0);
     expect(byLabel(renderer, 'RECORD: 27:42').length).toBeGreaterThan(0);
     expect(byLabel(renderer, 'LOOP: 5.1 km').length).toBeGreaterThan(0);
     // Battles and defences are real counts now that failed challenges are

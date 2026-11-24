@@ -1,3 +1,4 @@
+import { turfPointsLabel, DEFAULT_CLAIM_RULE } from '@runsphere/domain';
 import type { ActivityDetailResponse, ActivityLifecycleStatus } from '@runsphere/contracts';
 import type { FeatureCollection, GeoJsonProperties, Geometry, Position } from 'geojson';
 import type { ActivitySession } from '../activity-recorder-core';
@@ -137,7 +138,7 @@ export const activityHistoryLabel = (remoteStatus: ActivityLifecycleStatus | und
 };
 
 export const CLAIM_CHECKLIST = [
-  'Close a loop around at least 5,000 m².',
+  `Close a loop worth at least ${turfPointsLabel(DEFAULT_CLAIM_RULE.minAreaSqm)}.`,
   "Beat a rival's pace to carve into their turf.",
   'Longer loops can earn up to 15% Effort Grace when challenging a rival.'
 ] as const;

@@ -63,6 +63,7 @@ import { ghostRaceHint } from './run-mode-model';
 import { CLAIM_PUBLISHES_NOTICE, FIRST_CLAIM_PRIVACY_PROMPT } from '@runsphere/domain';
 import {
   TIER_HINT,
+  formatArea,
   isContested,
   activeEvents,
   efficiencyLabel,
@@ -1179,7 +1180,7 @@ export function TurfScreen({
                   </Pressable>
                 </View>
                 <Text style={styles.body}>
-                  {Math.round(chosen.areaSqm).toLocaleString()} m² · {chosen.captureCount}{' '}
+                  {formatArea(chosen.areaSqm)} · {chosen.captureCount}{' '}
                   {chosen.captureCount === 1 ? 'capture' : 'captures'}
                 </Text>
                 <Text style={styles.helper}>

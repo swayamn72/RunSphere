@@ -209,7 +209,7 @@ describe('what a runner is told', () => {
 
     expect(message).toContain('#4');
     expect(message).toContain('Mumbai');
-    expect(message).toContain('48,200');
+    expect(message).toContain('482 Turf points');
     expect(message).toContain('New season starts now');
     // No coordinates, no route, no named rival (`screens.md` push rules).
     expect(message).not.toMatch(/\d+\.\d{4}/);
@@ -227,7 +227,7 @@ describe('what a runner is told', () => {
     const message = weeklyRankMessage({ rank: 2, totalAreaSqm: 31_400, cityTag: 'Mumbai' });
 
     expect(message).toContain('#2');
-    expect(message).toContain('31,400');
+    expect(message).toContain('314 Turf points');
     expect(message).not.toMatch(/keep|harder|should|must/i);
   });
 });

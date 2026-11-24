@@ -16,7 +16,7 @@ const award = (id: string, achievementKey: string, awardedAt: string): Achieveme
 describe('profile stat cells', () => {
   it('shows confirmed area and leaves unsupported totals unavailable', () => {
     expect(profileStatCells({ claimCount: 2, totalAreaSqm: 12000, lostCount: 1 })).toEqual([
-      { key: 'held', label: 'Turf held', value: '12,000 m²' },
+      { key: 'held', label: 'Turf held', value: '120 Turf points' },
       { key: 'carved', label: 'Zones carved', value: '—' },
       { key: 'defenses', label: 'Successful defenses', value: '—' },
       { key: 'streak', label: 'Best streak', value: '—' }

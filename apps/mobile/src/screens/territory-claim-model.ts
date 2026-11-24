@@ -1,3 +1,4 @@
+import { turfPointsLabel, formatTurfPoints as domainTurfPoints } from '@runsphere/domain';
 import type { FeatureCollection, MultiPolygon, Polygon } from 'geojson';
 import type {
   TerritoryClaim,
@@ -140,11 +141,8 @@ export const formatLoopTime = (seconds: number): string => {
   return `${minutes}:${String(safe % 60).padStart(2, '0')}`;
 };
 
-/** Area in the unit a person can picture: hectares until it is square kilometres. */
-export const formatArea = (areaSqm: number): string => {
-  if (areaSqm >= 1_000_000) return `${(areaSqm / 1_000_000).toFixed(1)} km²`;
-  return `${(areaSqm / 10_000).toFixed(1)} ha`;
-};
+/** Ground as a runner reads it, in Turf points (`@runsphere/domain` turf-points). */
+export const formatArea = (areaSqm: number): string => turfPointsLabel(areaSqm);
 
 /**
  * One avatar per claim, at its centroid.
@@ -215,8 +213,7 @@ export const boundsFrom = (
 });
 
 /** Display units for held ground. Ranking uses the exact area from the API. */
-export const formatTurfPoints = (areaSqm: number): string =>
-  areaSqm > 0 && areaSqm < 100 ? '<1' : Math.floor(areaSqm / 100).toLocaleString('en-IN');
+export const formatTurfPoints = domainTurfPoints;
 
 /** The reader's standing, in a line. Ground held, never a rank. */
 export const summaryLine = (summary: TerritoryClaimSummary | undefined): string => {

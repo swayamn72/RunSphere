@@ -149,9 +149,9 @@ describe('the avatar pins', () => {
     ]);
 
     expect(rival?.accessibilityLabel).toBe(
-      'Ravi holds 9.0 ha in 10:00. Beat that time to take it.'
+      'Ravi holds 900 Turf points in 10:00. Beat that time to take it.'
     );
-    expect(mine?.accessibilityLabel).toBe('Your ground, 9.0 ha, held in 10:00.');
+    expect(mine?.accessibilityLabel).toBe('Your ground, 900 Turf points, held in 10:00.');
   });
 });
 
@@ -163,8 +163,8 @@ describe('wording a time and an area', () => {
   });
 
   it('uses the unit somebody can picture', () => {
-    expect(formatArea(90_000)).toBe('9.0 ha');
-    expect(formatArea(2_500_000)).toBe('2.5 km²');
+    expect(formatArea(90_000)).toBe('900 Turf points');
+    expect(formatArea(2_500_000)).toBe('25,000 Turf points');
   });
 });
 
@@ -353,7 +353,9 @@ describe('what a territory card says', () => {
   });
 
   it('states what it takes to run it and how hard it has been fought over', () => {
-    expect(territoryFacts(claim())).toBe('9.0 ha · 1.2 km loop · record 10:00 · never taken');
+    expect(territoryFacts(claim())).toBe(
+      '900 Turf points · 1.2 km loop · record 10:00 · never taken'
+    );
     expect(territoryFacts(claim({ captureCount: 5 }))).toContain('changed hands 5 times');
   });
 
