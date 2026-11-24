@@ -97,6 +97,14 @@ vi.mock('expo-blur', async () => {
       React.createElement('BlurTargetView', props, children as never)
   };
 });
+// Native share-image modules: a test checks what is captured and shared, not the pixels.
+vi.mock('react-native-view-shot', () => ({
+  captureRef: vi.fn(async () => 'file:///tmp/run.png')
+}));
+vi.mock('expo-sharing', () => ({
+  isAvailableAsync: vi.fn(async () => true),
+  shareAsync: vi.fn(async () => undefined)
+}));
 vi.mock('react-native-worklets', () => ({
   scheduleOnRN: (fn: (...args: unknown[]) => unknown, ...args: unknown[]) => fn(...args),
   runOnJS: (fn: (...args: unknown[]) => unknown) => fn

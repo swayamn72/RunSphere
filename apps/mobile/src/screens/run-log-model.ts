@@ -1,6 +1,7 @@
 import type { RunLogItem } from '@runsphere/contracts';
 import { kolkataDate, kolkataDateStart, weeklyPeriodStart } from '@runsphere/domain';
 import { MODE_LABEL } from './run-mode-hud-model';
+import type { Lines } from './route-draw-model';
 
 /**
  * The Runs section on a profile (M9 9.15): counted runs as cards, grouped by
@@ -102,7 +103,7 @@ export const resultLine = (item: RunLogItem): string | null => {
  * longitude is scaled by the cosine of latitude so a square loop stays square.
  */
 export const routeThumbnailPath = (
-  route: RunLogItem['route'],
+  route: RunLogItem['route'] | Lines | undefined,
   size = 64,
   padding = 6
 ): RouteThumbnail | null => {

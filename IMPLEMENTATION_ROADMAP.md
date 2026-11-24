@@ -196,6 +196,16 @@ Tick tasks there and here as they land.
 | E. Guided tour with blur, spotlight and animated Rho                                        | 9.21–9.25 | ✅ 9.21–9.25 done (device check pending)                      |
 | F. Privacy, legal and release checks (same build as C)                                      | 9.26–9.29 | 🟡 9.26–9.28 done; 9.29 emulator pass done, phone checks left |
 
+V1 launch polish (2026-11-24):
+
+- ✅ Every map uses the dark TURFR style (free runs showed the plain white map).
+- ✅ Clubs held back for v1 behind `CLUBS_ENABLED` (`apps/mobile/src/launch-features.ts`); code stays.
+- ✅ Finish screen leads with moving time and moving pace, and shows this run's best efforts.
+- 🟡 Share a run as an image (route line only, no map) from the finish screen and run detail. Needs
+  an app rebuild (`react-native-view-shot`, `expo-sharing`) and a phone check.
+- Pace zones on run detail (pace bands against the runner's own usual pace).
+- All-time best efforts across runs.
+
 ## Milestone 7 — Housekeeping (any time, low risk)
 
 | ID   | Task                                                                                                                                                                                                                                                                                         | Done when                                 |

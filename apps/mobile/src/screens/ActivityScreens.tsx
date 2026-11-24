@@ -3,6 +3,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Linking, Pressable, Text, View } from 'react-native';
 import type { LngLat } from '@maplibre/maplibre-react-native';
 import type { Geometry } from 'geojson';
+import { linesFromGeometry } from './run-detail-layout-model';
+import { runShareCard } from './run-share-model';
+import { RunShareSheet } from './RunShareSheet';
 import { activityRecorder } from '../activity-recorder.native';
 import { type ActivitySession, type RecordingState } from '../activity-recorder-core';
 import { recordingLocationAdapter, runRecordingLocationAdapter } from '../location-adapter';
@@ -944,6 +947,20 @@ export function ActivityDetail({
     () => runMetricsPanel(presentation, localSamples),
     [presentation, localSamples]
   );
+  // Only a counted run is shared, and with the route the server returns, so the
+  // image never shows a part of the route the runner chose to hide.
+  const shareCard = useMemo(
+    () =>
+      presentation.state === 'validated' && metricsPanel
+        ? runShareCard({
+            metrics: metricsPanel.metrics,
+            startedAt: current.startedAt,
+            lines: linesFromGeometry(presentation.detail.geometry)
+          })
+        : null,
+    [presentation, metricsPanel, current.startedAt]
+  );
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -1083,6 +1100,21 @@ export function ActivityDetail({
           provenance="Recorded on your device. Run check pending."
         />
       )}
+      {shareCard ? (
+        <>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Share your run as an image"
+            onPress={() => setShareOpen(true)}
+            style={styles.secondaryButton}
+          >
+            <Text style={styles.secondaryText}>Share your run</Text>
+          </Pressable>
+          {shareOpen ? (
+            <RunShareSheet card={shareCard} visible onClose={() => setShareOpen(false)} />
+          ) : null}
+        </>
+      ) : null}
       {metricsPanel ? <RunSplits panel={metricsPanel} /> : null}
       {(terminalRejected || terminalDeleted) && (
         <View style={styles.notice} accessibilityLiveRegion="polite">

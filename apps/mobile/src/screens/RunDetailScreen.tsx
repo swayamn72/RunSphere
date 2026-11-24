@@ -18,6 +18,8 @@ import { useAppTheme } from '../theme/theme';
 import type { RunDetailSlotProps } from './RunDetailHost';
 import { RunDetailMap } from './RunDetailMap';
 import { RunChart } from './RunCharts';
+import { RunShareSheet } from './RunShareSheet';
+import { runShareCard } from './run-share-model';
 import { SECTION_RISE, SECTION_STAGGER_MS } from './run-detail-model';
 import {
   DELETE_CONFIRM,
@@ -70,6 +72,7 @@ export function RunDetailScreen({
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [notice, setNotice] = useState('');
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     if (!run.owner) return;
@@ -93,6 +96,28 @@ export function RunDetailScreen({
 
   const lines = useMemo(() => fullLines ?? run.item.route ?? [], [fullLines, run.item.route]);
   const line = routeThumbnailPath(run.item.route, 100, 12);
+  // Your own runs only, from the server's numbers when they are in and the log's
+  // otherwise. The route is the one the server returns, already trimmed.
+  const shareCard = useMemo(
+    () =>
+      run.owner
+        ? runShareCard({
+            metrics: metrics ?? {
+              distanceMeters: run.item.distanceMeters,
+              movingSeconds: run.item.movingSeconds ?? run.item.durationSeconds,
+              movingPaceSecondsPerKm: run.item.paceSecondsPerKm,
+              elevation:
+                run.item.elevationGainMeters === null
+                  ? null
+                  : { gainMeters: run.item.elevationGainMeters }
+            },
+            startedAt: run.item.startedAt,
+            startedOn: run.item.startedOn,
+            lines
+          })
+        : null,
+    [run.owner, run.item, metrics, lines]
+  );
   const scroll = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler((event) => {
     scroll.value = event.contentOffset.y;
@@ -308,6 +333,24 @@ export function RunDetailScreen({
                     <Text style={styles.splitValue}>{effort.value}</Text>
                   </View>
                 ))}
+              </View>
+            )
+          : null}
+
+        {shareCard
+          ? section(
+              <View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Share your run as an image"
+                  onPress={() => setShareOpen(true)}
+                  style={styles.secondaryButton}
+                >
+                  <Text style={styles.secondaryText}>Share your run</Text>
+                </Pressable>
+                {shareOpen ? (
+                  <RunShareSheet card={shareCard} visible onClose={() => setShareOpen(false)} />
+                ) : null}
               </View>
             )
           : null}
