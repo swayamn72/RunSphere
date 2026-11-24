@@ -41,7 +41,7 @@ export const REPORT_REASONS_IN_ORDER: readonly ReportReason[] = [
  * for an answer that would breach the other account's privacy to give.
  */
 export const REPORT_CONSEQUENCE_HINT =
-  'A report goes to our moderators and covers what someone published — a name, a profile, a club. You will not hear the outcome, because it concerns someone else’s account. Blocking is separate and stays available.';
+  'A report goes to our moderators and covers what someone published, like a name or a profile. You will not hear the outcome, because it concerns someone else’s account. Blocking is separate and stays available.';
 
 export const REPORT_ACKNOWLEDGED_NOTICE =
   'Report sent. Our moderators will look at it. You can also block this account.';
@@ -64,7 +64,7 @@ export const SANCTION_KIND_LABEL: Readonly<Record<SanctionKind, string>> = {
 export const SANCTION_KIND_EFFECT: Readonly<Record<SanctionKind, string>> = {
   warning: 'Nothing has changed about your account. This is on your record.',
   social_suspension:
-    'Boards, clubs, challenges, and competitions are paused for you. Recording, your history, and your export are untouched.',
+    'Boards, challenges, and competitions are paused for you. Recording, your history, and your export are untouched.',
   account_suspension: 'Your account cannot be used while this applies.'
 };
 

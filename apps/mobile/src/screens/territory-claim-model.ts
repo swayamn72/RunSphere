@@ -14,6 +14,7 @@ import type {
 import { darkTokens, ownerPalette } from '@runsphere/ui';
 import { crewCharacters, type CrewCharacter } from '../crew';
 import { ApiFailure } from '../api-client';
+import { CLUBS_ENABLED } from '../launch-features';
 
 /**
  * The turf map as the app draws it (Phase 5, milestone 5.1; ADR-0011).
@@ -41,8 +42,17 @@ export const OWNER_PALETTE = ownerPalette;
 export const SELF_COLOUR = darkTokens.zone.owned;
 export const CONTESTED_COLOUR = darkTokens.zone.neutral;
 
+/**
+ * Ground that has changed hands more than once. The server reports club ground
+ * as `club_controlled` instead, so with clubs held back for v1 its capture
+ * count decides, the same as anybody else's.
+ */
+export const isContested = (claim: Pick<TerritoryClaim, 'status' | 'captureCount'>): boolean =>
+  claim.status === 'contested' ||
+  (!CLUBS_ENABLED && claim.status === 'club_controlled' && claim.captureCount > 1);
+
 const turfColour = (claim: TerritoryClaim): string => {
-  if (claim.status === 'contested') return CONTESTED_COLOUR;
+  if (isContested(claim)) return CONTESTED_COLOUR;
   return claim.owner.isSelf ? SELF_COLOUR : darkTokens.zone.rival;
 };
 
@@ -312,9 +322,9 @@ export const crewForAvatar = (avatarKey: string): CrewCharacter => {
 
 /** How a territory's state is worded on the card. */
 export const statusLabel = (claim: TerritoryClaim): string => {
-  if (claim.status === 'club_controlled')
+  if (claim.status === 'club_controlled' && CLUBS_ENABLED)
     return claim.club ? `Held for ${claim.club.name}` : 'Club ground';
-  return claim.status === 'contested' ? 'Contested ground' : 'Held';
+  return isContested(claim) ? 'Contested ground' : 'Held';
 };
 
 /**
@@ -505,7 +515,7 @@ export const filterClaims = (
   return claims.filter((claim) => {
     if (filter === 'mine' && !claim.owner.isSelf) return false;
     if (filter === 'rivals' && claim.owner.isSelf) return false;
-    if (filter === 'contested' && claim.status !== 'contested') return false;
+    if (filter === 'contested' && !isContested(claim)) return false;
     if (!needle) return true;
     return (
       normalize(claim.owner.displayName).includes(needle) ||

@@ -37,7 +37,7 @@ describe('reporting', () => {
   });
 
   it('says what a report covers and that no outcome comes back', () => {
-    expect(REPORT_CONSEQUENCE_HINT).toContain('a name, a profile, a club');
+    expect(REPORT_CONSEQUENCE_HINT).toContain('like a name or a profile');
     expect(REPORT_CONSEQUENCE_HINT).toContain('will not hear the outcome');
     // Blocking and reporting answer different needs, and both stay available.
     expect(REPORT_CONSEQUENCE_HINT).toContain('Blocking is separate');

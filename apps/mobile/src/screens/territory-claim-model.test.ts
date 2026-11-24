@@ -343,7 +343,13 @@ describe('what a territory card says', () => {
       statusLabel(
         claim({ status: 'club_controlled', club: { id: 'c1', name: 'Somaiya Run Club' } })
       )
-    ).toBe('Held for Somaiya Run Club');
+    ).toBe('Held');
+    // Clubs are held back for v1: club ground reads by how often it changed hands.
+    expect(
+      statusLabel(
+        claim({ status: 'club_controlled', captureCount: 3, club: { id: 'c1', name: 'X' } })
+      )
+    ).toBe('Contested ground');
   });
 
   it('states what it takes to run it and how hard it has been fought over', () => {

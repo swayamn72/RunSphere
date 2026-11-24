@@ -132,6 +132,8 @@ APK exists and `aapt` isn't on PATH. Run `vitest run` directly to test only the 
   AA contrast.
 - **Admin areas:** `apps/admin/src/areas.ts` gates each area with the API's own role predicates; new
   areas get their own component file (e.g. `turf-area.tsx`) with a `renderToStaticMarkup` test.
+- **Held back for v1:** `apps/mobile/src/launch-features.ts`. Clubs are off (`CLUBS_ENABLED`): hidden
+  on every screen, but the code and API stay. Gate new club UI on it.
 
 ## Local pitfalls (Windows checkout)
 

@@ -63,6 +63,7 @@ import { ghostRaceHint } from './run-mode-model';
 import { CLAIM_PUBLISHES_NOTICE, FIRST_CLAIM_PRIVACY_PROMPT } from '@runsphere/domain';
 import {
   TIER_HINT,
+  isContested,
   activeEvents,
   efficiencyLabel,
   eventFeatures,
@@ -430,8 +431,7 @@ export function TurfScreen({
     [showGrid, visibleClaims]
   );
   const hasPulse =
-    !clustered &&
-    visibleClaims.some((claim) => claim.status === 'contested' || claim.revengeAvailable);
+    !clustered && visibleClaims.some((claim) => isContested(claim) || claim.revengeAvailable);
   useEffect(() => {
     if (!hasPulse || reduceMotion || showDetail || ghostClaimId) return;
     const timer = setInterval(() => setPulseBright((bright) => !bright), 1050);

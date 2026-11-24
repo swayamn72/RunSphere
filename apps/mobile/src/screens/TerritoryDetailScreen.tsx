@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { TerritoryClaim, TerritoryClaimHistoryResponse } from '@runsphere/contracts';
 import { CrewMascot } from '../components/CrewMascot';
 import { useAppTheme } from '../theme/theme';
+import { CLUBS_ENABLED } from '../launch-features';
 import {
   crewForAvatar,
   formatArea,
@@ -89,7 +90,9 @@ export function TerritoryDetailScreen({
           {claim.owner.isSelf ? 'Your ground' : `${claim.owner.displayName}’s ground`}
         </Text>
         <Text style={[styles.status, { color: colour }]}>
-          {claim.club ? `${statusLabel(claim)} · ${claim.club.name}` : statusLabel(claim)}
+          {claim.club && CLUBS_ENABLED
+            ? `${statusLabel(claim)} · ${claim.club.name}`
+            : statusLabel(claim)}
         </Text>
       </View>
 

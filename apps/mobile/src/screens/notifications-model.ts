@@ -8,6 +8,7 @@ import type {
 import { AuthFailure } from '../auth-failure';
 import type { FocusedSurface } from '../activity-flow';
 import type { Tab } from '../navigation/types';
+import { CLUBS_ENABLED } from '../launch-features';
 
 /**
  * The notification inbox and its delivery preferences (milestone 2.9).
@@ -190,15 +191,9 @@ export const unreadBadgeLabel = (unreadCount: number): string | undefined => {
 };
 
 /** Categories in the order the settings list presents them. */
-export const NOTIFICATION_CATEGORY_ORDER: readonly NotificationCategory[] = [
-  'friends',
-  'challenges',
-  'clubs',
-  'competitions',
-  'territory',
-  'progress',
-  'account'
-];
+export const NOTIFICATION_CATEGORY_ORDER: readonly NotificationCategory[] = (
+  ['friends', 'challenges', 'clubs', 'competitions', 'territory', 'progress', 'account'] as const
+).filter((category) => CLUBS_ENABLED || category !== 'clubs');
 
 export const NOTIFICATION_CATEGORY_LABEL: Readonly<Record<NotificationCategory, string>> = {
   friends: 'Friend requests',

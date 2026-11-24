@@ -12,7 +12,7 @@ export interface CrewCharacterMeta {
 export const crewCharacterMeta: Readonly<Record<CrewCharacter, CrewCharacterMeta>> = {
   rho: { name: 'Rho', role: 'The steady one - shows up and runs, most days.' },
   mira: { name: 'Mira', role: 'The scout - quests and checkpoint discovery.' },
-  coda: { name: 'Coda', role: 'The connector - friends, challenges, and clubs.' },
+  coda: { name: 'Coda', role: 'The connector - friends and challenges.' },
   bram: { name: 'Bram', role: 'The ground holder - territory and defending it.' }
 };
 

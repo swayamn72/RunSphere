@@ -188,7 +188,9 @@ describe('categories', () => {
     for (const kind of Object.keys(NOTIFICATION_KIND_LABEL) as NotificationKind[]) {
       expect(NOTIFICATION_KIND_LABEL[kind]).toBeTruthy();
       const category = NOTIFICATION_CATEGORY_BY_KIND[kind];
-      expect(NOTIFICATION_CATEGORY_ORDER).toContain(category);
+      // Clubs are held back for v1 (`launch-features.ts`), so their switch is too.
+      if (category === 'clubs') expect(NOTIFICATION_CATEGORY_ORDER).not.toContain(category);
+      else expect(NOTIFICATION_CATEGORY_ORDER).toContain(category);
     }
   });
 

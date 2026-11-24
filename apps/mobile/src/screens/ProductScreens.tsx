@@ -38,6 +38,7 @@ import { coordinateLogout } from '../logout-coordinator';
 import { homeErrorState, type HomeRemoteState, weeklyGoalState } from './home-state';
 import { AchievementsScreen } from './AchievementsScreen';
 import { ClubsScreen } from './ClubsScreen';
+import { CLUBS_ENABLED } from '../launch-features';
 import { NotificationsScreen } from './NotificationsScreen';
 import { ProfileIdentityScreen } from './ProfileIdentityScreen';
 import type { NotificationTarget } from './notifications-model';
@@ -364,7 +365,7 @@ export function ProfileScreen({
   // Clubs have no tab in the five-tab bar, but ground can be held for one
   // (`TerritoryClaim.club`), so the screen that manages them has to be
   // reachable from somewhere. Settings is that somewhere.
-  if (screen === 'clubs')
+  if (screen === 'clubs' && CLUBS_ENABLED)
     return (
       <>
         <BackHeader label="CLUBS" onBack={() => setScreen('settings')} />
@@ -407,7 +408,9 @@ export function ProfileScreen({
           value="Inbox and delivery"
           onPress={() => setScreen('notifications')}
         />
-        <Setting label="Clubs" value="Create or join one" onPress={() => setScreen('clubs')} />
+        {CLUBS_ENABLED ? (
+          <Setting label="Clubs" value="Create or join one" onPress={() => setScreen('clubs')} />
+        ) : null}
         <Text style={styles.settingsHint}>
           Friends see your display name, and your runs as you choose in Privacy & visibility. Manage
           friends and requests from the Social tab.
@@ -582,7 +585,7 @@ export function ProfileScreen({
       </View>
       <Setting
         label="Settings"
-        value="Goals, clubs, privacy, data"
+        value={CLUBS_ENABLED ? 'Goals, clubs, privacy, data' : 'Goals, privacy, data'}
         onPress={() => setScreen('settings')}
       />
     </>

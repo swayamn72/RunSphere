@@ -217,13 +217,13 @@ describe('the territory detail page', () => {
     });
   });
 
-  it('names the club when ground is held for one', async () => {
+  it('does not name the club while clubs are held back for v1', async () => {
     const renderer = await render({
       claim: claim({ status: 'club_controlled', club: { id: 'c', name: 'Somaiya Run Club' } }),
       history: history(),
       onBack: () => {}
     });
 
-    expect(textOf(renderer)).toContain('Somaiya Run Club');
+    expect(textOf(renderer)).not.toContain('Somaiya Run Club');
   });
 });
