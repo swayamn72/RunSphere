@@ -126,7 +126,7 @@ describe('the ghost race confirmation', () => {
 
     expect(shown).toContain("Race Mira's ghost");
     expect(shown).toContain('Mira covered 1.0 km of this loop in 2:40.');
-    expect(shown).toContain('Recorded on 2026-09-04.');
+    expect(shown).toContain('Run on 2026-09-04.');
   });
 
   it('states the trim and that no rule changes, every time', async () => {

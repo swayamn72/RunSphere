@@ -35,7 +35,7 @@ export const activityHistoryMetric = (
 ): { readonly distanceMeters: number; readonly detail: string } => {
   if (fetchedDetail?.status === 'derived' && fetchedDetail.summary)
     return { distanceMeters: fetchedDetail.summary.distanceMeters, detail: 'Counted distance' };
-  return { distanceMeters: session.distanceMeters, detail: 'Recorded distance' };
+  return { distanceMeters: session.distanceMeters, detail: 'Distance on your phone' };
 };
 
 const validPosition = (position: unknown): position is Position =>

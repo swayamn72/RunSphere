@@ -94,7 +94,7 @@ export const resultCopy = (mode: HudMode): ResultCopy => {
   if (mode === 'free')
     return {
       title: 'Run done',
-      lead: 'Saved on this device. Your totals update once your run is checked.'
+      lead: 'Saved on your phone. Your totals update once your run is checked.'
     };
   if (mode === 'quest')
     return { title: 'Quest run done', lead: 'Save it and we’ll check every stop once it’s in.' };

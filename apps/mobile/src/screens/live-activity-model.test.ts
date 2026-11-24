@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  GPS_LABEL,
+  PANEL_SWIPE_DISTANCE,
   classifyLiveGps,
+  panelOpenAfterSwipe,
   liveLoopFeedback,
   liveRouteGeometry,
   liveRouteLayers
@@ -100,5 +103,20 @@ describe('Live activity model', () => {
     expect(classifyLiveGps({ state: 'paused', samples: [usable], now: Date.now() }).state).toBe(
       'paused'
     );
+  });
+});
+
+describe('the run panel', () => {
+  it('hides on a drag down, comes back on a drag up, and ignores a short drag', () => {
+    expect(panelOpenAfterSwipe(true, PANEL_SWIPE_DISTANCE + 1)).toBe(false);
+    expect(panelOpenAfterSwipe(false, -(PANEL_SWIPE_DISTANCE + 1))).toBe(true);
+    expect(panelOpenAfterSwipe(true, 10)).toBe(true);
+    expect(panelOpenAfterSwipe(false, -10)).toBe(false);
+  });
+
+  it('names every GPS state in two plain words', () => {
+    for (const label of Object.values(GPS_LABEL))
+      expect(label.split(' ').length).toBeLessThanOrEqual(2);
+    expect(GPS_LABEL.strong).toBe('GPS good');
   });
 });

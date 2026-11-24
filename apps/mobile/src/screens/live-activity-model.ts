@@ -157,6 +157,26 @@ export const classifyLiveGps = ({
   return { state: 'strong', lastUsableAt: lastUsable.recordedAt, message: 'GPS is clear.' };
 };
 
+/** The GPS chip under the run's title: two words a runner reads at a glance. */
+export const GPS_LABEL: Readonly<Record<LiveGpsState, string>> = {
+  acquiring: 'Finding GPS',
+  strong: 'GPS good',
+  weak: 'GPS weak',
+  gap: 'GPS lost',
+  recovered: 'GPS back',
+  paused: 'Paused'
+};
+
+/** How far a finger has to drag the run panel before it opens or closes. */
+export const PANEL_SWIPE_DISTANCE = 40;
+
+/**
+ * The run panel after a drag: down hides it to a strip so the map fills the
+ * screen, up brings it back, and a short drag changes nothing.
+ */
+export const panelOpenAfterSwipe = (open: boolean, dy: number): boolean =>
+  dy > PANEL_SWIPE_DISTANCE ? false : dy < -PANEL_SWIPE_DISTANCE ? true : open;
+
 export const formatProvisionalDistance = (meters: number): string =>
   `${(meters / 1_000).toFixed(2)} km`;
 
@@ -170,11 +190,11 @@ export const formatProvisionalDuration = (seconds: number): string =>
     .padStart(2, '0')}`;
 
 export const formatLastClear = (recordedAt: string | undefined, now: number): string => {
-  if (!recordedAt) return 'No clear fix yet';
+  if (!recordedAt) return 'Waiting for GPS';
   const seconds = Math.max(0, Math.floor((now - Date.parse(recordedAt)) / 1_000));
   return seconds < 60
-    ? `Last clear fix ${seconds}s ago`
-    : `Last clear fix ${Math.floor(seconds / 60)}m ago`;
+    ? `Last clear signal ${seconds}s ago`
+    : `Last clear signal ${Math.floor(seconds / 60)}m ago`;
 };
 
 export const provisionalPace = (

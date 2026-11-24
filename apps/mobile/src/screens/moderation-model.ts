@@ -64,7 +64,7 @@ export const SANCTION_KIND_LABEL: Readonly<Record<SanctionKind, string>> = {
 export const SANCTION_KIND_EFFECT: Readonly<Record<SanctionKind, string>> = {
   warning: 'Nothing has changed about your account. This is on your record.',
   social_suspension:
-    'Boards, challenges, and competitions are paused for you. Recording, your history, and your export are untouched.',
+    'Boards, challenges, and competitions are paused for you. You can still run, and your history and export are untouched.',
   account_suspension: 'Your account cannot be used while this applies.'
 };
 

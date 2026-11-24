@@ -1,6 +1,6 @@
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Linking, Pressable, Text, View } from 'react-native';
+import { AppState, Linking, PanResponder, Pressable, Text, View } from 'react-native';
 import type { LngLat } from '@maplibre/maplibre-react-native';
 import type { Geometry } from 'geojson';
 import { linesFromGeometry } from './run-detail-layout-model';
@@ -57,6 +57,7 @@ import { useAppStyles } from '../components/styles';
 import { useAppTheme } from '../theme/theme';
 import { MapSurface } from '../maps/MapSurface';
 import {
+  GPS_LABEL,
   classifyLiveGps,
   formatLastClear,
   formatProvisionalDistance,
@@ -64,6 +65,7 @@ import {
   latestUsableSample,
   liveRouteLayers,
   liveLoopFeedback,
+  panelOpenAfterSwipe,
   provisionalPace
 } from './live-activity-model';
 import { ROUTE_GUIDE_CAPTION, routeGuideLayers, type RouteGuide } from './route-preview-model';
@@ -202,7 +204,7 @@ export function ActivityPreparation({
     } catch {
       if (mounted.current) {
         setPermission('failure');
-        setMessage('Recording could not start. No route or distance was created. Try again.');
+        setMessage("Your run couldn't start. Nothing was saved. Try again.");
       }
     } finally {
       activationStarted.current = false;
@@ -238,7 +240,7 @@ export function ActivityPreparation({
           cleanup();
           starting.current = false;
           setMessage(
-            'We did not get three clear fixes in 30 seconds. No route or distance was created.'
+            "Couldn't get a clear GPS signal in 30 seconds. Nothing was saved. Try again outside."
           );
         }
       }, ACQUISITION_TIMEOUT_MS);
@@ -310,7 +312,7 @@ export function ActivityPreparation({
         starting.current = false;
         setMessage(
           next === 'approximate'
-            ? 'Recording needs precise location. No route or distance was created.'
+            ? 'TURFR needs precise location to map your run. Nothing was saved.'
             : 'Location was not granted. No route or distance was created.'
         );
         return;
@@ -361,7 +363,7 @@ export function ActivityPreparation({
       {copy.points.map((item) => (
         <Text key={item} style={styles.lead}>{`• ${item}`}</Text>
       ))}
-      <Text style={styles.privateNote}>Your phone confirms it is you before recording starts.</Text>
+      <Text style={styles.privateNote}>Your phone checks it’s you before the run starts.</Text>
       {originLabel && <Text style={styles.privateNote}>Started from {originLabel}</Text>}
       {guide && livePanels(mode).routeGuide && (
         <Text style={styles.privateNote}>
@@ -414,7 +416,7 @@ export function ActivityPreparation({
         <PrimaryButton
           // Stable, because the visible label changes three times while this
           // one control works and a screen reader must not hear a rename.
-          accessibilityLabel="Start recording"
+          accessibilityLabel="Start run"
           label={
             verifying
               ? 'Confirming it is you…'
@@ -505,6 +507,18 @@ export function ActivityRecording({
   const [cameraMode, setCameraMode] = useState<'follow' | 'free-pan'>('follow');
   const [recenterRequest, setRecenterRequest] = useState<{ id: number; coordinate: LngLat }>();
   const [subscriptionError, setSubscriptionError] = useState<string>();
+  // The panel under the map: open by default, dragged down to see the whole map.
+  const [panelOpen, setPanelOpen] = useState(true);
+  const panelDrag = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, gesture) =>
+          Math.abs(gesture.dy) > 8 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+        onPanResponderRelease: (_event, gesture) =>
+          setPanelOpen((open) => panelOpenAfterSwipe(open, gesture.dy))
+      }),
+    []
+  );
   const mounted = useRef(true);
   const refreshGeneration = useRef(0);
   const sessionRef = useRef({ id: session.id, accountId });
@@ -728,7 +742,7 @@ export function ActivityRecording({
     <View style={styles.liveScreen}>
       <MapSurface
         localLayers={layers}
-        accessibilityLabel="Private activity route stored only on this device."
+        accessibilityLabel="Map of your run"
         {...(center ? { initialCenter: center, liveCenter: center, initialFollow: true } : {})}
         recenterEnabled={Boolean(center)}
         onEnterFreePan={() => setCameraMode('free-pan')}
@@ -750,7 +764,7 @@ export function ActivityRecording({
         </Text>
         <View
           accessible
-          accessibilityLabel={`GPS ${status.state === 'strong' ? 'clear' : status.state}. ${status.message}`}
+          accessibilityLabel={`${GPS_LABEL[status.state]}. ${status.message}`}
           style={styles.liveGpsRow}
         >
           <View
@@ -759,13 +773,24 @@ export function ActivityRecording({
               { backgroundColor: tokens.status[status.state === 'strong' ? 'success' : 'warning'] }
             ]}
           />
-          <Text style={styles.liveGpsText}>
-            {status.state === 'strong' ? 'GPS tracking' : `GPS ${status.state}`}
-          </Text>
+          <Text style={styles.liveGpsText}>{GPS_LABEL[status.state]}</Text>
         </View>
       </View>
       <View style={styles.liveOverlay}>
-        {loop && (
+        {/* Drag down to hide the panel and see the whole map; drag up or tap
+            to bring it back. Distance, time and pace stay in view either way. */}
+        <Pressable
+          {...panelDrag.panHandlers}
+          accessibilityRole="button"
+          accessibilityLabel={panelOpen ? 'Hide run details' : 'Show run details'}
+          accessibilityState={{ expanded: panelOpen }}
+          hitSlop={12}
+          onPress={() => setPanelOpen((open) => !open)}
+          style={styles.liveHandleArea}
+        >
+          <View style={styles.liveHandle} />
+        </Pressable>
+        {panelOpen && loop && (
           <Text
             accessibilityLiveRegion="polite"
             style={[
@@ -776,8 +801,8 @@ export function ActivityRecording({
             {`Rho: ${rhoCue({ moment: 'mid-run', loopReady: loop.ready, loopGapMetres: loop.gap })?.message ?? ''}`}
           </Text>
         )}
-        <Text style={styles.eyebrow}>{`${MODE_LABEL[mode]} · PRIVATE ON THIS DEVICE`}</Text>
-        {panels.questStops ? (
+        {panelOpen ? <Text style={styles.eyebrow}>{MODE_LABEL[mode]}</Text> : null}
+        {panelOpen && panels.questStops ? (
           <View accessibilityLiveRegion="polite">
             <Text style={styles.rowDetail}>{questStopsLine(stops ?? [])}</Text>
             {questTime ? <Text style={styles.rowDetail}>{questTime}</Text> : null}
@@ -792,10 +817,10 @@ export function ActivityRecording({
             ))}
           </View>
         ) : null}
-        {guide ? (
+        {panelOpen && guide ? (
           <Text style={styles.rowDetail}>{`${guide.name} · ${ROUTE_GUIDE_CAPTION}`}</Text>
         ) : null}
-        {ghostStatus ? (
+        {panelOpen && ghostStatus ? (
           // Announced politely rather than assertively: it changes every five
           // seconds, and a screen reader interrupting a run to say somebody is
           // four seconds ahead is worse than saying nothing.
@@ -831,59 +856,62 @@ export function ActivityRecording({
             <Text style={styles.metricCellLabel}>Pace /km</Text>
           </View>
         </View>
-        <Text style={styles.provisional}>LIVE ESTIMATE</Text>
-        <Text style={styles.privateNote}>
-          {cameraMode === 'follow'
-            ? 'Following your private local route'
-            : 'Free pan — recording continues privately'}
-        </Text>
-        <View accessibilityLiveRegion="polite" style={styles.liveStatus}>
-          <Text style={styles.noticeTitle}>
-            {status.state === 'strong' ? 'GPS clear' : status.state.toUpperCase()}
-          </Text>
-          <Text style={styles.noticeCopy}>{status.message}</Text>
-          <Text style={styles.noticeCopy}>{formatLastClear(status.lastUsableAt, now)}</Text>
-          {(status.state === 'weak' || status.state === 'gap') && (
-            <Text style={styles.noticeCopy}>
-              Move to open sky, keep TURFR open, and wait for a clear fix. We will start a new
-              segment without filling the gap.
-            </Text>
-          )}
-        </View>
-        {subscriptionError && (
+        {panelOpen && cameraMode !== 'follow' ? (
+          <Text style={styles.privateNote}>Tap the locate button to follow you again.</Text>
+        ) : null}
+        {/* Only when there is something to do about it: a good signal is
+            already the green dot under the title. */}
+        {panelOpen && status.state !== 'strong' && status.state !== 'paused' ? (
+          <View accessibilityLiveRegion="polite" style={styles.liveStatus}>
+            <Text style={styles.noticeTitle}>{GPS_LABEL[status.state]}</Text>
+            <Text style={styles.noticeCopy}>{status.message}</Text>
+            {status.state === 'weak' || status.state === 'gap' ? (
+              <>
+                <Text style={styles.noticeCopy}>{formatLastClear(status.lastUsableAt, now)}</Text>
+                <Text style={styles.noticeCopy}>
+                  Head for open sky and keep TURFR open. Your route picks up when the signal is
+                  back.
+                </Text>
+              </>
+            ) : null}
+          </View>
+        ) : null}
+        {panelOpen && subscriptionError && (
           <View accessibilityLiveRegion="polite" style={styles.liveStatus}>
             <Text style={styles.noticeCopy}>{subscriptionError}</Text>
           </View>
         )}
-        {current.state === 'paused' ? (
+        {panelOpen && current.state === 'paused' ? (
           <>
             <Text style={styles.noticeCopy}>
               {recoveredPause
-                ? 'Recovered activity: recording remains paused until you explicitly resume.'
-                : 'Activity paused. Resume when you are ready.'}
+                ? "Your run is still paused. Resume when you're ready."
+                : "Run paused. Resume when you're ready."}
             </Text>
-            <PrimaryButton label="Resume activity" onPress={() => void transition('resumed')} />
+            <PrimaryButton label="Resume run" onPress={() => void transition('resumed')} />
           </>
-        ) : (
+        ) : panelOpen ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Pause activity"
+            accessibilityLabel="Pause run"
             onPress={() => void transition('paused')}
             style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonPressed]}
           >
-            <Text style={styles.secondaryText}>Pause activity</Text>
+            <Text style={styles.secondaryText}>Pause run</Text>
           </Pressable>
-        )}
+        ) : null}
         {/* Ending a run is the one destructive-feeling action on this screen,
             and the design gives it the weight to match. */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Finish activity"
-          onPress={() => void finish()}
-          style={({ pressed }) => [styles.dangerButton, pressed && styles.buttonPressed]}
-        >
-          <Text style={styles.dangerText}>End run</Text>
-        </Pressable>
+        {panelOpen ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="End run"
+            onPress={() => void finish()}
+            style={({ pressed }) => [styles.dangerButton, pressed && styles.buttonPressed]}
+          >
+            <Text style={styles.dangerText}>End run</Text>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
@@ -1049,11 +1077,11 @@ export function ActivityDetail({
         {presentation.state === 'validated'
           ? 'Your run counts.'
           : terminalRejected
-            ? 'Activity saved privately.'
+            ? 'Run saved privately.'
             : terminalDeleted
-              ? 'Activity deleted.'
+              ? 'Run deleted.'
               : current.state === 'failed'
-                ? 'Sync paused.'
+                ? 'Not sent yet.'
                 : VERIFYING_RUN_TITLE}
       </Text>
       {guidance.cue && <LoopCallout cue={guidance.cue} onDismiss={guidance.dismiss} />}
@@ -1066,7 +1094,7 @@ export function ActivityDetail({
             : terminalDeleted
               ? 'This run was deleted from your account.'
               : current.state === 'failed'
-                ? 'Sync paused. Refresh to try again.'
+                ? 'Not sent yet. Refresh to try again.'
                 : pendingCopy(hudModeOf(current.runStart))}
       </Text>
       {fallbackNote(current.refusedRunMode) ? (
@@ -1082,7 +1110,7 @@ export function ActivityDetail({
           provenance={
             presentation.state === 'validated'
               ? 'Verified run totals'
-              : 'Recorded on your device. Run check pending.'
+              : "Saved on your phone. We're still checking your run."
           }
         />
       ) : presentation.state === 'validated' ? (
@@ -1158,7 +1186,7 @@ export function ActivityDetail({
       ) : null}
       {canSync && (
         <PrimaryButton
-          label={current.state === 'failed' ? 'Retry sync' : 'Sync now'}
+          label={current.state === 'failed' ? 'Try again' : 'Send now'}
           onPress={() => void retry()}
         />
       )}
@@ -1170,7 +1198,7 @@ export function ActivityDetail({
         </Pressable>
       )}
       <Pressable accessibilityRole="button" onPress={() => void remove()}>
-        <Text style={[styles.textButton, styles.destructive]}>Delete activity</Text>
+        <Text style={[styles.textButton, styles.destructive]}>Delete run</Text>
       </Pressable>
       <Pressable accessibilityRole="button" onPress={onExit}>
         <Text style={styles.textButton}>Back to home</Text>
@@ -1255,7 +1283,7 @@ export function ActivityHistory({
   return (
     <View style={styles.history}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Activity history</Text>
+        <Text style={styles.sectionTitle}>Your runs</Text>
         <Pressable accessibilityRole="button" onPress={() => void refresh()}>
           <Text style={styles.link}>{loading ? 'Refreshing…' : 'Refresh'}</Text>
         </Pressable>
@@ -1264,7 +1292,7 @@ export function ActivityHistory({
         <View style={[styles.notice, styles.warningNotice]} accessibilityLiveRegion="polite">
           <Text style={styles.noticeIcon}>!</Text>
           <View style={styles.flexCopy}>
-            <Text style={styles.noticeTitle}>History is offline</Text>
+            <Text style={styles.noticeTitle}>You’re offline</Text>
             <Text style={styles.noticeCopy}>{error}</Text>
           </View>
         </View>
@@ -1273,7 +1301,7 @@ export function ActivityHistory({
         <View style={styles.notice} accessibilityLiveRegion="polite">
           <Text style={styles.noticeIcon}>⌁</Text>
           <View style={styles.flexCopy}>
-            <Text style={styles.noticeTitle}>No activities yet</Text>
+            <Text style={styles.noticeTitle}>No runs yet</Text>
             <Text style={styles.noticeCopy}>
               Runs on this phone show here. Once they count, they’re in Runs above too.
             </Text>
@@ -1296,7 +1324,7 @@ export function ActivityHistory({
               </Text>
               <Text style={styles.rowDetail}>
                 {item.state === 'failed' && !item.remoteStatus
-                  ? 'Sync paused. Refresh to try again.'
+                  ? 'Not sent yet. Refresh to try again.'
                   : `${activityHistoryLabel(item.remoteStatus)} · ${metric.detail}`}
               </Text>
             </View>
@@ -1344,9 +1372,7 @@ function ActivityDetailMap({
     <View style={stylesForResultMap.container}>
       <MapSurface
         localLayers={activeRoute}
-        accessibilityLabel={
-          isDerived ? 'Your checked private run route.' : 'Locally recorded activity route.'
-        }
+        accessibilityLabel={isDerived ? 'Your checked private run route.' : 'Your run route.'}
         initialCenter={activeCenter as LngLat}
         recenterEnabled={false}
         showAttribution
@@ -1501,9 +1527,9 @@ function ActivityResults({
           <Text style={styles.metricCellLabel}>Pace /km</Text>
         </View>
       </View>
-      <PrimaryButton label="Save activity" onPress={onQueue} />
+      <PrimaryButton label="Save run" onPress={onQueue} />
       <Pressable onPress={onDiscard}>
-        <Text style={styles.textButton}>Discard local activity</Text>
+        <Text style={styles.textButton}>Discard this run</Text>
       </Pressable>
     </View>
   );

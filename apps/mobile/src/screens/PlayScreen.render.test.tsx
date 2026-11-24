@@ -679,8 +679,8 @@ describe('scheduled competitions', () => {
     );
     const rendered = renderedText(renderer);
 
-    expect(rendered).toContain('Provisional result');
-    expect(rendered).toContain('provisional until 2026-09-16T00:00:00.000Z');
+    expect(rendered).toContain('Not final yet');
+    expect(rendered).toContain('can still change until 2026-09-16T00:00:00.000Z');
     expect(rendered).toContain('Ravi');
     expect(rendered).toContain('Maya (you)');
   });

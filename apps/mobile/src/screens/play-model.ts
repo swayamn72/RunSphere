@@ -289,7 +289,7 @@ export const COMPETITION_STATUS_LABEL: Readonly<Record<CompetitionStatus, string
   draft: 'Draft',
   published: 'Announced',
   open: 'Running',
-  closed: 'Provisional result',
+  closed: 'Not final yet',
   finalized: 'Final result',
   cancelled: 'Cancelled'
 };
@@ -401,7 +401,7 @@ export const competitionProvisionalNotice = (
   competition: CompetitionSummary
 ): string | undefined =>
   competition.status === 'closed'
-    ? `These results are provisional until ${competition.disputeEndsAt ?? 'the dispute period ends'}.`
+    ? `These results can still change until ${competition.disputeEndsAt ?? 'the dispute period ends'}.`
     : undefined;
 
 export const competitionFailureNotice = (error: unknown): string => {

@@ -512,7 +512,7 @@ export function HomeScreen({
             local={local}
             styles={styles}
             variant="empty"
-            label="No quests are available right now. You can explore or start a free activity."
+            label="No quests are available right now. You can explore or start a free run."
             actionLabel="Explore"
             onAction={onOpenQuests}
           />

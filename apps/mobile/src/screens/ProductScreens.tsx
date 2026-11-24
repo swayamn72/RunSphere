@@ -263,29 +263,33 @@ export function ProfileScreen({
     }
   };
   const confirmLogout = () =>
-    Alert.alert('Log out', 'This clears local secure tokens and queued activity metadata.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Log out',
-        style: 'destructive',
-        onPress: () =>
-          void coordinateLogout({
-            api,
-            auth: authStorage,
-            queue: activityQueue,
-            ...(accountId
-              ? { recorder: { clear: () => activityRecorder.clearAccount(accountId) } }
-              : {})
-          })
-            .then(onLogoutComplete)
-            .catch(() =>
-              Alert.alert(
-                'Unable to log out',
-                'TURFR could not clear all local account data. Please try again.'
+    Alert.alert(
+      'Log out',
+      "You'll be signed out on this phone, and runs that haven't been sent yet are cleared.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Log out',
+          style: 'destructive',
+          onPress: () =>
+            void coordinateLogout({
+              api,
+              auth: authStorage,
+              queue: activityQueue,
+              ...(accountId
+                ? { recorder: { clear: () => activityRecorder.clearAccount(accountId) } }
+                : {})
+            })
+              .then(onLogoutComplete)
+              .catch(() =>
+                Alert.alert(
+                  'Unable to log out',
+                  'TURFR could not clear all local account data. Please try again.'
+                )
               )
-            )
-      }
-    ]);
+        }
+      ]
+    );
   const requestExport = async () => {
     try {
       const exportResult = await api.exportAccount();
@@ -374,13 +378,13 @@ export function ProfileScreen({
     );
   const settingsView = (
     <>
-      <SettingsGroup title="Goals & activity">
+      <SettingsGroup title="Goals & runs">
         <Setting
           label="Weekly progress"
           value="Set your own pace"
           onPress={() => setScreen('goals')}
         />
-        <Setting label="Activity history" value="Listed above, on this device" disabled />
+        <Setting label="Your runs" value="Listed above, on this phone" disabled />
         <Setting
           label="Achievements"
           value="Cosmetic only"
@@ -518,7 +522,7 @@ export function ProfileScreen({
           value="Generate a private copy"
           onPress={() => void requestExport()}
         />
-        <Setting label="Log out" value="Clear this device" onPress={confirmLogout} />
+        <Setting label="Log out" value="Clear this phone" onPress={confirmLogout} />
         <Setting
           label="Delete account"
           value="Permanent"
@@ -768,7 +772,7 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
   const [contactEmail, setContactEmail] = useState('');
   const [contacts, setContacts] = useState<readonly SafetyContactResponse[]>([]);
   const [state, setState] = useState<RemoteState>('loading');
-  const [shareStatus, setShareStatus] = useState('Off by default for every activity');
+  const [shareStatus, setShareStatus] = useState('Off by default for every run');
   const loadContacts = useCallback(async () => {
     try {
       const next = await api.listSafetyContacts();
@@ -878,7 +882,7 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
       <BackHeader label="SETTINGS" onBack={onBack} />
       <Text style={styles.homeTitle}>Safety & privacy</Text>
       <Text style={styles.mvpLabel}>MVP · ANDROID V1</Text>
-      <SettingsGroup title="Activity privacy">
+      <SettingsGroup title="Run privacy">
         <View style={styles.settingStack}>
           <Text style={styles.rowTitle}>Fixed-center privacy zone</Text>
           <Text style={styles.rowDetail}>
@@ -917,7 +921,7 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
         <SharedWithYou api={api} />
         <Text style={styles.settingsHint}>
           Safety invitations require verified, trusted accounts. A contact never receives exact
-          coordinates, exact route, or access to past activities.
+          coordinates, exact route, or access to past runs.
         </Text>
         <TextInput
           accessibilityLabel="Safety contact email"
@@ -977,7 +981,7 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
       <SettingsGroup title="Permissions & data">
         <Setting
           label="Precise location"
-          value="While recording only"
+          value="Only while you run"
           onPress={() => void Linking.openSettings()}
         />
       </SettingsGroup>

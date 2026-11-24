@@ -59,7 +59,7 @@ export const validateInviteEmail = (raw: string): InviteValidation => {
  * registered; saying "not found" would leak the opposite.
  */
 export const INVITE_RECORDED_NOTICE =
-  'Request recorded. If that address belongs to a TURFR account that can receive it, it will appear in their requests. You will see them in your friends list once they accept.';
+  'Done. If that address belongs to a TURFR account that can receive it, it will appear in their requests. You will see them in your friends list once they accept.';
 
 export const inviteFailureNotice = (error: unknown): string => {
   if (error instanceof ApiFailure && error.status === 429)
@@ -74,7 +74,7 @@ export const inviteFailureNotice = (error: unknown): string => {
     if (error.kind === 'configuration')
       return "Friend requests aren't available right now. Try again later.";
   }
-  return 'That request could not be recorded. Nothing was sent.';
+  return 'That request didn’t go through. Nothing was sent.';
 };
 
 export const respondFailureNotice = (error: unknown): string => {

@@ -28,6 +28,7 @@ vi.mock('react-native', async () => {
   return {
     AppState: { addEventListener: () => ({ remove: vi.fn() }) },
     Linking: { openSettings: vi.fn() },
+    PanResponder: { create: () => ({ panHandlers: {} }) },
     Pressable: native('Pressable'),
     Text: native('Text'),
     View: native('View')
@@ -148,7 +149,7 @@ describe('activity render lifecycle regressions', () => {
     // the visible label changes.
     const finish = renderer.root
       .findAllByType('Pressable' as React.ElementType)
-      .find((node) => node.props['accessibilityLabel'] === 'Finish activity');
+      .find((node) => node.props['accessibilityLabel'] === 'End run');
     expect(finish).toBeDefined();
     await act(async () => {
       finish!.props.onPress();
@@ -386,7 +387,7 @@ describe('activity render lifecycle regressions', () => {
 
     it('shows a Free run as stats only, even when a ghost is handed in', async () => {
       const renderer = await renderLive({ mode: 'free' }, { ghost });
-      expect(text(renderer)).toContain('FREE RUN · PRIVATE ON THIS DEVICE');
+      expect(text(renderer)).toContain('FREE RUN');
       expect(text(renderer)).toContain('Distance');
       expect(text(renderer)).not.toContain('Ravi');
       expect(text(renderer)).not.toMatch(/stops passed/);
@@ -394,7 +395,7 @@ describe('activity render lifecycle regressions', () => {
 
     it('shows the ghost card only on a Ghost Race', async () => {
       const renderer = await renderLive({ mode: 'ghost', ghostClaimId: 'claim-1' }, { ghost });
-      expect(text(renderer)).toContain('GHOST RACE · PRIVATE ON THIS DEVICE');
+      expect(text(renderer)).toContain('GHOST RACE');
       expect(text(renderer)).toContain('Ravi');
     });
 
@@ -427,10 +428,24 @@ describe('activity render lifecycle regressions', () => {
         ]
       };
       const renderer = await renderLive({ mode: 'quest', questId: 'quest-1' }, { quest });
-      expect(text(renderer)).toContain('QUEST RUN · PRIVATE ON THIS DEVICE');
+      expect(text(renderer)).toContain('QUEST RUN');
       expect(text(renderer)).toContain('1 of 2 stops passed · any order');
       expect(text(renderer)).toContain('✓ Gate');
       expect(text(renderer)).toContain('○ Pier');
+
+      // Dragged or tapped down, the panel keeps the numbers and hides the rest.
+      const handle = renderer.root
+        .findAllByType('Pressable' as React.ElementType)
+        .find((node) => node.props['accessibilityLabel'] === 'Hide run details')!;
+      await act(async () => handle.props.onPress());
+      expect(text(renderer)).not.toContain('○ Pier');
+      expect(text(renderer)).not.toContain('End run');
+      expect(text(renderer)).toContain('Distance');
+      const show = renderer.root
+        .findAllByType('Pressable' as React.ElementType)
+        .find((node) => node.props['accessibilityLabel'] === 'Show run details')!;
+      await act(async () => show.props.onPress());
+      expect(text(renderer)).toContain('End run');
     });
 
     it.each([

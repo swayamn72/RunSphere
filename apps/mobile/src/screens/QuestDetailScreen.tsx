@@ -188,8 +188,8 @@ function StopList({
         </View>
       ))}
       <Text style={[styles.small, { color: tokens.text.secondary }]}>
-        The dashed line joins the stops; follow the streets between them. TURFR checks your run when
-        it's uploaded, so there's nothing to tap at each stop.
+        The dashed line joins the stops; follow the streets between them. TURFR checks your run once
+        you finish, so there's nothing to tap at each stop.
       </Text>
     </View>
   );

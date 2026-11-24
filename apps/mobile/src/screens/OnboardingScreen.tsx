@@ -386,21 +386,21 @@ export function Onboarding({
                 <Text style={styles.mapShield}>✓</Text>
               </View>
               <Text style={styles.eyebrow}>YOU’RE IN CONTROL</Text>
-              <Text style={styles.onboardingTitle}>Set up your activity map.</Text>
+              <Text style={styles.onboardingTitle}>Set up your run map.</Text>
               <Text style={styles.lead}>
-                Precise location records your run. GPS points are encrypted on this device, then
-                uploaded to TURFR to check the run when you choose to sync. Uploaded raw GPS is kept
-                for up to 30 days, and route maps are trimmed around your saved privacy zones.
+                Precise location records your run. GPS points are encrypted on your phone, then sent
+                to TURFR to check the run. The GPS points you send are kept for up to 30 days, and
+                route maps are trimmed around your saved privacy zones.
               </Text>
               <PermissionCard
                 icon="⌖"
                 title="Precise location"
-                detail="While recording; encrypted locally and uploaded only to validate a saved activity"
+                detail="While you run; encrypted on your phone and sent only to check a saved run"
                 badge="Required"
               />
               <PermissionCard
                 icon="⌁"
-                title="Screen-off recording"
+                title="Track with the screen off"
                 detail="During a run, a notification shows while TURFR records with your screen locked. It stops when you pause or finish."
                 badge="During runs"
               />
@@ -421,7 +421,7 @@ export function Onboarding({
               </View>
               <Text style={styles.privateNote}>
                 Change who sees your runs any time in Privacy & visibility. Declining location still
-                lets you browse TURFR, but recording runs and nearby quests stay unavailable.
+                lets you browse TURFR, but mapping runs and nearby quests won’t work.
               </Text>
               {state.location !== 'granted' ? (
                 <PrimaryButton label="Allow location" onPress={() => void requestLocation()} />
@@ -443,8 +443,8 @@ export function Onboarding({
               <Text style={styles.eyebrow}>LOCATION IS OFF</Text>
               <Text style={styles.onboardingTitle}>You can keep browsing.</Text>
               <Text style={styles.lead}>
-                Without location, activity recording and nearby quests are unavailable. Background
-                location is optional and only requested when you choose screen-lock recording.
+                Without location, TURFR can’t map your runs or show nearby quests. Background
+                location is optional, and we only ask when you choose to track with the screen off.
               </Text>
               {state.location === 'blocked' && (
                 <Text style={styles.privateNote}>
@@ -461,7 +461,7 @@ export function Onboarding({
                 accessibilityRole="button"
                 onPress={() => dispatch({ type: 'continueWithoutLocation' })}
               >
-                <Text style={styles.textButton}>Continue without activity mapping</Text>
+                <Text style={styles.textButton}>Continue without run mapping</Text>
               </Pressable>
             </>
           )}

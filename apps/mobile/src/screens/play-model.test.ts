@@ -414,9 +414,7 @@ describe('scheduled competitions', () => {
 
   it('names each state in the words a member reads', () => {
     expect(competitionRows([summary({ status: 'open' })])[0]?.statusLabel).toBe('Running');
-    expect(competitionRows([summary({ status: 'closed' })])[0]?.statusLabel).toBe(
-      'Provisional result'
-    );
+    expect(competitionRows([summary({ status: 'closed' })])[0]?.statusLabel).toBe('Not final yet');
     expect(competitionRows([summary({ status: 'finalized' })])[0]?.statusLabel).toBe(
       'Final result'
     );

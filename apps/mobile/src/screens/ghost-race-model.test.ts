@@ -165,7 +165,7 @@ describe('what the confirmation says', () => {
   });
 
   it('states the date, because a three-week-old ghost is a different offer', () => {
-    expect(ghostConfirmation(response()).recorded).toBe('Recorded on 2026-09-04.');
+    expect(ghostConfirmation(response()).recorded).toBe('Run on 2026-09-04.');
   });
 
   it('repeats both notes rather than summarising them', () => {

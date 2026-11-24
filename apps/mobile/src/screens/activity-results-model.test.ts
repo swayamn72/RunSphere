@@ -76,7 +76,7 @@ describe('activity Results presentation', () => {
     const session = { distanceMeters: 300, remoteStatus: 'derived' as const };
     expect(activityHistoryMetric(session, undefined)).toEqual({
       distanceMeters: 300,
-      detail: 'Recorded distance'
+      detail: 'Distance on your phone'
     });
     expect(activityHistoryMetric(session, derived)).toEqual({
       distanceMeters: 1_000,

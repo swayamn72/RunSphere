@@ -57,7 +57,9 @@ describe('a sanction as the account reads it', () => {
     expect(row?.kindLabel).toBe('Sharing paused');
     expect(row?.statusLabel).toBe('In force');
     expect(row?.endsLabel).toBe('Ends 2026-09-08');
-    expect(row?.effectLabel).toContain('Recording, your history, and your export are untouched');
+    expect(row?.effectLabel).toContain(
+      'You can still run, and your history and export are untouched'
+    );
     expect(row?.statement).toBe('Your display name impersonated another member.');
   });
 

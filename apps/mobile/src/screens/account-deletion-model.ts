@@ -20,7 +20,7 @@ export const DELETION_RETENTION_NOTE =
 
 export const DELETION_DONE_TITLE = 'Account deleted';
 export const DELETION_DONE_MESSAGE =
-  'Your account is being erased and this device has been cleared.';
+  'Your account is being erased and this phone has been cleared.';
 
 /** The button stays disabled until a password has been typed and nothing is in flight. */
 export const canSubmitDeletion = (password: string, submitting: boolean): boolean =>
@@ -38,7 +38,7 @@ export const deletionFailure = (error: unknown): DeletionFailure => {
       return { message: 'That password is not right. Try again.', sessionExpired: false };
     if (error.kind === 'invalid-credentials')
       return {
-        message: 'Your session has ended. Sign in again to delete your account.',
+        message: 'You’ve been signed out. Sign in again to delete your account.',
         sessionExpired: true
       };
     if (error.kind === 'network' || error.kind === 'tls')

@@ -236,7 +236,7 @@ export const ghostConfirmation = (response: GhostTraceResponse): GhostConfirmati
   pace: `${response.owner.displayName} covered ${(response.distanceMetres / 1_000).toFixed(1)} km of this loop in ${clock(response.durationSeconds)}.`,
   // Date only, and said plainly: a three-week-old ghost is a different
   // proposition from yesterday's, and the sheet should not hide which it is.
-  recorded: `Recorded on ${response.recordedOn}.`,
+  recorded: `Run on ${response.recordedOn}.`,
   privacyNote: response.privacyNote,
   rulesNote: response.rulesNote
 });

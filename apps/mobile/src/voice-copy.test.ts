@@ -15,6 +15,12 @@ const SRC = join(__dirname);
 
 const SYSTEM_WORDS =
   /\b(server|servers|deployment|configured|configuration|validated|validation|derivation|derived|provenance|canonical|policy version|payload|eligible)\b/i;
+/**
+ * App-internal words that leaked into screens (2026-11-24): a runner runs,
+ * pauses and ends a run; they don't record an activity, sync, or free pan.
+ */
+const APP_JARGON =
+  /\b(activity|activities|free[ -]pan|clear fix|gps fix|segment|segments|locally|local route|provisional|sync|synced|syncing|explicitly|queued|metadata)\b/i;
 const SHAMING =
   /\b(you failed|too slow|you missed|push harder|don't be lazy|you're behind|beat them|slowest)\b/i;
 
@@ -61,12 +67,11 @@ const copyIn = (file: string): { text: string; line: number }[] => {
   };
   const visit = (node: ts.Node) => {
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) add(node, node.text);
-    else if (ts.isTemplateExpression(node))
-      add(
-        node,
-        [node.head.text, ...node.templateSpans.map((span) => span.literal.text)].join(' … ')
-      );
-    else if (ts.isJsxText(node)) add(node, node.text);
+    else if (ts.isTemplateExpression(node)) {
+      const parts = [node.head.text, ...node.templateSpans.map((span) => span.literal.text)];
+      // An id built from a template (`activity-${time}-${n}`) has no space of its own.
+      if (/\s/.test(parts.join(''))) add(node, parts.join(' … '));
+    } else if (ts.isJsxText(node)) add(node, node.text);
     ts.forEachChild(node, visit);
   };
   visit(source);
@@ -89,6 +94,10 @@ describe('app copy follows docs/voice.md', () => {
 
   it('uses runner words, not system words (rule 3)', () => {
     expect(violations(SYSTEM_WORDS)).toEqual([]);
+  });
+
+  it('says run, not activity, and keeps app-internal words off screens', () => {
+    expect(violations(APP_JARGON)).toEqual([]);
   });
 
   it('never shames pace or effort (rule 6, Rho)', () => {

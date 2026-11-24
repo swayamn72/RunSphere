@@ -1059,6 +1059,14 @@ export const createAppStyles = (t: SemanticTokens) =>
       padding: 18,
       paddingBottom: 26
     },
+    /** The grab bar on the run panel: drag it down to see the whole map. */
+    liveHandleArea: { alignItems: 'center', marginTop: -8, paddingBottom: 4, paddingTop: 2 },
+    liveHandle: {
+      backgroundColor: t.border.subtle,
+      borderRadius: 3,
+      height: 5,
+      width: 44
+    },
     liveStatus: {
       backgroundColor: t.background.surfaceInset,
       borderRadius: radius.chip,

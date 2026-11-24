@@ -346,7 +346,7 @@ export function TurfScreen({
           (run) => run.id === requestedRunId && run.territoryClaimed
         );
         if (!alreadyClaimed)
-          setNotice('This run has no claim ready. Check your run log for its latest status.');
+          setNotice('This run has no claim ready. Check your runs to see where it’s at.');
       }
     } catch {
       // The map is the point of the screen; a failed sidebar must not take it
