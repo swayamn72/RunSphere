@@ -286,7 +286,9 @@ function QuestCatalog({
             {quest.openHours.schedule}
             {quest.timeLimitMinutes ? ` · finish within ${quest.timeLimitMinutes} min` : ''}
           </Text>
-          <Text style={[styles.select, { color: tokens.action.primary }]}>Open quest</Text>
+          <View style={styles.cardChevron}>
+            <Chevron direction="forward" size={18} color={tokens.text.secondary} />
+          </View>
         </Pressable>
       ))}
     </View>
@@ -345,8 +347,15 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, fontWeight: '700', letterSpacing: -0.8 },
   copy: { fontSize: 14, lineHeight: 20 },
   // One scrolling row: wrapped chips pushed the list down by a second line.
-  filters: { flexDirection: 'row', gap: space.sm, paddingVertical: space.xs },
-  filtersScroll: { flexGrow: 0, marginTop: space.xs },
+  filters: {
+    flexDirection: 'row',
+    gap: space.sm,
+    paddingHorizontal: space.xl,
+    paddingVertical: space.xs
+  },
+  // Bleeds to the screen edge so the row reads as scrollable, not cut off.
+  filtersScroll: { flexGrow: 0, marginHorizontal: -space.xl, marginTop: space.xs },
+  cardChevron: { bottom: space.lg, position: 'absolute', right: space.lg },
   filter: {
     borderRadius: radius.card,
     borderWidth: 1,

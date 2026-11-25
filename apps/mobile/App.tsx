@@ -683,6 +683,11 @@ function RunSphereApp() {
           accountId={accountId}
           initialScreen={profileEntry}
           onLogoutComplete={finishSession}
+          history={
+            accountId && (
+              <ActivityHistory accountId={accountId} sync={activitySync} onOpen={setRecording} />
+            )
+          }
           status={
             accountId && (
               <ScreenProgression
@@ -701,9 +706,6 @@ function RunSphereApp() {
             setActiveTab(NOTIFICATION_TARGET_TAB[target]);
           }}
         />
-        {accountId && (
-          <ActivityHistory accountId={accountId} sync={activitySync} onOpen={setRecording} />
-        )}
       </>
     );
 

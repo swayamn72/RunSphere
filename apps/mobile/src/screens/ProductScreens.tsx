@@ -127,6 +127,7 @@ export function ProfileScreen({
   onReplayTour,
   onNavigate,
   status,
+  history,
   initialScreen = 'profile'
 }: {
   api: MobileApiClient;
@@ -138,6 +139,8 @@ export function ProfileScreen({
   onNavigate?: (target: NotificationTarget) => void;
   /** The level and XP chip, shown on the overview only (component plan §4.1). */
   status?: React.ReactNode;
+  /** The on-this-phone activity list, shown under the overview only, not under every sub-screen. */
+  history?: React.ReactNode;
   /**
    * Opens straight onto one of the sub-screens. The dashboard's bell arrives
    * here on `notifications`, so the inbox is one tap away rather than three.
@@ -567,6 +570,7 @@ export function ProfileScreen({
             }
           : {})}
       />
+      {history}
     </>
   );
 }
@@ -898,17 +902,19 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
           Safety invitations require verified, trusted accounts. A contact never receives exact
           coordinates, exact route, or access to past activities.
         </Text>
-        <TextInput
-          accessibilityLabel="Safety contact email"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          value={contactEmail}
-          onChangeText={setContactEmail}
-          style={styles.input}
-          placeholder="contact@example.com"
-          placeholderTextColor={tokens.text.secondary}
-        />
-        <PrimaryButton label="Invite verified contact" onPress={() => void invite()} />
+        <View style={styles.settingStack}>
+          <TextInput
+            accessibilityLabel="Safety contact email"
+            autoCapitalize="none"
+            keyboardType="email-address"
+            value={contactEmail}
+            onChangeText={setContactEmail}
+            style={styles.input}
+            placeholder="contact@example.com"
+            placeholderTextColor={tokens.text.secondary}
+          />
+          <PrimaryButton label="Invite verified contact" onPress={() => void invite()} />
+        </View>
         {state === 'loading' && <Text style={styles.privateNote}>Loading safety contacts…</Text>}
         {state === 'offline' && (
           <ErrorState copy="Safety contacts are unavailable offline." onRetry={loadContacts} />

@@ -1,7 +1,7 @@
 # Frontend reconstruction: audit, design-system plan, checklist
 
 Status: **Phase 1 (audit) and Phase 2 (architecture) done 2026-11-25. Decisions are in
-[ADR-0016](../adr/0016-design-system-light-default.md). Phase 3 (foundation) done. Phase 4 (admin) done. Phase 5 (mobile) mostly done. Phase 6 (device theme pass) partly done: see the Phase 6 log at the end.** No application
+[ADR-0016](../adr/0016-design-system-light-default.md). Phase 3 (foundation) done. Phase 4 (admin) done. Phases 3 to 8 are done, with the gaps listed in [frontend-reconstruction-final-report.md](frontend-reconstruction-final-report.md) (Android and physical devices were never run).** No application
 source has changed yet. Baseline: commit `6e73766`
 (branch `feat/ios-app`).
 
@@ -370,7 +370,7 @@ Verified by running the real app in the iOS Simulator (iPhone 17 Pro, dev client
 - [x] Map / Turf (dark island unchanged, confirmed on device)
 - [x] Onboarding (light, seen on device: sign-in, privacy step, run-visibility step)
 - [x] **Accepted by the product owner on 2026-11-25 without device verification** (only testing was pending). Not looked at on a device: quest detail, route preview, activity recording/results, run detail and charts (chart line now uses `text.accent`), clubs, friends, notifications, privacy zones, achievements, account recovery, the guided tour in dark. They draw through the shared `useAppStyles` roles and the guard tests prove no colour literals, but nobody has seen them.
-- [ ] Spacing (still open, not a testing item): ~400 literal padding/margin/gap values and ~100 `borderRadius` literals are **not** consolidated. Radius literals are often half a circle's size, so a blind snap would break avatars and dots; spacing needs a visual pass screen by screen.
+- [x] Spacing and radius: every value that matches a token is written as one and a guard test enforces it. Off-scale values (3, 5, 6, 7, 10, 13, 14, 15, 18...) remain literal by decision. Radius literals are often half a circle's size, so a blind snap would break avatars and dots; spacing needs a visual pass screen by screen.
 
 Findings from the device (kept for the owner):
 
@@ -381,8 +381,8 @@ Findings from the device (kept for the owner):
 ### Verification
 
 - [x] Theme verification: admin checked by eye on every area in both themes; mobile checked on the screens listed above, the rest **accepted by the owner without device verification (2026-11-25)**; map and live run stay dark in both; status bars; no flash on launch or reload
-- [ ] Monorepo checks green; no test weakened
-- [ ] Final report
+- [x] Monorepo checks green; no test weakened (lint, typecheck and tests pass; two admin assertions were adapted to new markup, and the Playwright specs gained one click to open dialogs)
+- [x] Final report: [frontend-reconstruction-final-report.md](frontend-reconstruction-final-report.md)
 
 ## 10. Phase 6 log (2026-11-25, iOS Simulator, iPhone 17 Pro)
 
