@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
-import { PanResponder, Text, View } from 'react-native';
+import { PanResponder, View } from 'react-native';
+import { Text } from '../components/Text';
 import Svg, { Line, Path } from 'react-native-svg';
 import type { ActivityMetrics } from '@runsphere/contracts';
 import { useAppStyles } from '../components/styles';

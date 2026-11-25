@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FAILURE_COPY } from '../failure-copy';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import type { QuestSummary } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { LoopCallout } from '../components/LoopCallout';
@@ -183,7 +184,7 @@ function FilterTab({
       ]}
     >
       <Text
-        style={{ color: active ? tokens.text.onAccent : tokens.text.secondary, fontWeight: '800' }}
+        style={{ color: active ? tokens.text.onAccent : tokens.text.secondary, fontWeight: '700' }}
       >
         {label}
       </Text>
@@ -315,7 +316,7 @@ function SheetState({
           onPress={onPress}
           style={[styles.actionButton, { backgroundColor: tokens.action.primary }]}
         >
-          <Text style={{ color: tokens.text.onAccent, fontWeight: '900' }}>{action}</Text>
+          <Text style={{ color: tokens.text.onAccent, fontWeight: '700' }}>{action}</Text>
         </Pressable>
       )}
     </View>
@@ -332,8 +333,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 40
   },
-  backGlyph: { fontSize: 26, lineHeight: 28 },
-  title: { fontSize: 28, fontWeight: '900', letterSpacing: -0.8 },
+  backGlyph: { fontSize: 28, lineHeight: 28 },
+  title: { fontSize: 28, fontWeight: '700', letterSpacing: -0.8 },
   copy: { fontSize: 14, lineHeight: 20 },
   filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   filter: {
@@ -351,10 +352,10 @@ const styles = StyleSheet.create({
     gap: 8,
     justifyContent: 'space-between'
   },
-  cardTitle: { flex: 1, fontSize: 16, fontWeight: '900' },
-  status: { fontSize: 10, fontWeight: '900', letterSpacing: 0.7 },
+  cardTitle: { flex: 1, fontSize: 15, fontWeight: '700' },
+  status: { fontSize: 11, fontWeight: '700', letterSpacing: 0.7 },
   cardCopy: { fontSize: 12, lineHeight: 18, marginTop: 4 },
-  select: { fontSize: 13, fontWeight: '900', marginTop: 10 },
+  select: { fontSize: 13, fontWeight: '700', marginTop: 10 },
   sheetState: { gap: 8, paddingVertical: 8 },
   actionButton: {
     alignSelf: 'flex-start',

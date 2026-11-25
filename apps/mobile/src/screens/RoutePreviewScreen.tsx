@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FAILURE_COPY } from '../failure-copy';
 import * as Location from 'expo-location';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
+import { Text, TextInput } from '../components/Text';
 import type { MobileApiClient } from '../api-client';
 import { BackHeader, PrimaryButton } from '../components/primitives';
 import { useAppStyles } from '../components/styles';

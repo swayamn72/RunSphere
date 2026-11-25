@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Alert, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import type { ProgressionSummary } from '@runsphere/contracts';
 import { darkTokens } from '@runsphere/ui';
 import type { MobileApiClient } from '../api-client';
@@ -100,7 +101,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6
   },
   turfBadge: { backgroundColor: gameWorld.hud.glass, borderColor: gameWorld.hud.edgeSoft },
-  label: { color: darkTokens.text.primary, fontSize: 12, fontWeight: '800' },
+  label: { color: darkTokens.text.primary, fontSize: 12, fontWeight: '700' },
   track: {
     backgroundColor: darkTokens.background.surfaceRaised,
     borderRadius: 3,

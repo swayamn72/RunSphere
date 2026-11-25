@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useReducer, useMemo, useRef, useState } from 'react';
-import { Linking, Text, View } from 'react-native';
+import { Linking, View } from 'react-native';
+import { Text } from './src/components/Text';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { activityQueue } from './src/activity-queue.native';
 import { accountScopeFor, legacyAccountScopesFor } from './src/account-scope';

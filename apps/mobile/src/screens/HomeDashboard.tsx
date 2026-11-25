@@ -1,5 +1,6 @@
 import type { ComponentProps, ReactNode } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import { NavigationIcon } from '../components/NavigationIcon';
 import Svg, { Path } from 'react-native-svg';
 import { appPalette, darkTokens as tokens } from '@runsphere/ui';
@@ -317,7 +318,7 @@ const styles = StyleSheet.create({
   headerTools: { alignItems: 'flex-end', gap: 8, flexShrink: 1 },
   headerActions: { flexDirection: 'row', gap: 10 },
   wordmark: { alignItems: 'center', flexDirection: 'row', gap: 8, marginBottom: 6 },
-  brand: { color: tokens.text.primary, fontSize: 20, fontWeight: '900', letterSpacing: 1 },
+  brand: { color: tokens.text.primary, fontSize: 20, fontWeight: '700', letterSpacing: 1 },
   turf: {
     backgroundColor: appPalette.panel,
     borderColor: appPalette.border,
@@ -335,8 +336,8 @@ const styles = StyleSheet.create({
     top: 0,
     width: '58%'
   },
-  turfTitle: { color: tokens.text.primary, fontSize: 24, fontWeight: '900', marginBottom: 6 },
-  turfPoints: { color: tokens.text.primary, fontSize: 42, fontWeight: '900' },
+  turfTitle: { color: tokens.text.primary, fontSize: 24, fontWeight: '700', marginBottom: 6 },
+  turfPoints: { color: tokens.text.primary, fontSize: 40, fontWeight: '700' },
   mapButton: {
     alignSelf: 'flex-start',
     borderColor: tokens.text.secondary,
@@ -347,7 +348,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: 13
   },
-  name: { color: tokens.text.primary, fontSize: 30, fontWeight: '900', letterSpacing: -0.8 },
+  name: { color: tokens.text.primary, fontSize: 28, fontWeight: '700', letterSpacing: -0.8 },
   headerButton: {
     alignItems: 'center',
     backgroundColor: appPalette.panel,
@@ -382,11 +383,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10
   },
-  startLabel: { color: appPalette.ink, flexShrink: 1, fontSize: 23, fontWeight: '900' },
+  startLabel: { color: appPalette.ink, flexShrink: 1, fontSize: 24, fontWeight: '700' },
   sectionTitle: {
     color: tokens.text.primary,
-    fontSize: 23,
-    fontWeight: '900',
+    fontSize: 24,
+    fontWeight: '700',
     letterSpacing: -0.5,
     marginBottom: 8
   },
@@ -408,7 +409,7 @@ const styles = StyleSheet.create({
     minHeight: 28,
     paddingRight: 11
   },
-  title: { color: tokens.text.primary, fontSize: 16, fontWeight: '800' },
+  title: { color: tokens.text.primary, fontSize: 15, fontWeight: '700' },
   detail: { color: tokens.text.secondary, fontSize: 14, fontWeight: '500' },
   ink: { color: appPalette.ink },
   paperDetail: { color: appPalette.mutedInk, fontSize: 14, fontWeight: '500' },
@@ -423,7 +424,7 @@ const styles = StyleSheet.create({
     gap: 8,
     minHeight: 66
   },
-  value: { color: appPalette.ink, fontSize: 25, fontWeight: '900', letterSpacing: -0.4 },
+  value: { color: appPalette.ink, fontSize: 24, fontWeight: '700', letterSpacing: -0.4 },
   unit: { color: appPalette.mutedInk, fontSize: 14, fontWeight: '700' },
   questImage: { width: '40%', aspectRatio: 1.9, borderRadius: 10 },
   days: {
@@ -433,7 +434,7 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 8
   },
-  daysLabel: { color: appPalette.ink, fontSize: 14, fontWeight: '800' },
+  daysLabel: { color: appPalette.ink, fontSize: 14, fontWeight: '700' },
   pips: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', minWidth: 126 },
   goal: {
     borderTopColor: appPalette.paperLine,
@@ -449,7 +450,7 @@ const styles = StyleSheet.create({
     width: 13
   },
   filledPip: { backgroundColor: appPalette.accent, borderColor: appPalette.accent },
-  percent: { color: appPalette.ink, fontSize: 16, fontWeight: '900' },
+  percent: { color: appPalette.ink, fontSize: 15, fontWeight: '700' },
   track: {
     backgroundColor: appPalette.paperLine,
     borderRadius: 999,

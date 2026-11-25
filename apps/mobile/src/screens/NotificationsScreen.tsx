@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, Switch, Text, TextInput, View } from 'react-native';
+import { Pressable, Switch, View } from 'react-native';
+import { Text, TextInput } from '../components/Text';
 import type { InboxEntry, NotificationPreferences } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { BackHeader, PrimaryButton, SettingsGroup } from '../components/primitives';

@@ -7,7 +7,8 @@ import {
   type StyleSpecification,
   type ViewStateChangeEvent
 } from '@maplibre/maplibre-react-native';
-import { AppState, Pressable, StyleSheet, Text, View, type AppStateStatus } from 'react-native';
+import { AppState, Pressable, StyleSheet, View, type AppStateStatus } from 'react-native';
+import { Text } from '../components/Text';
 import { useAppTheme } from '../theme/theme';
 import { LocalGeoJsonLayers, type LocalGeoJsonLayer } from './LocalGeoJsonLayers';
 import { mapProductCopy, resolveMapRenderPlan } from './map-config';
@@ -435,7 +436,7 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '-18deg' }],
     width: 220
   },
-  fallbackTitle: { fontSize: 18, fontWeight: '800', textAlign: 'center' },
+  fallbackTitle: { fontSize: 17, fontWeight: '700', textAlign: 'center' },
   fallbackDetail: { fontSize: 14, lineHeight: 20, marginTop: 6, textAlign: 'center' },
   retry: {
     alignItems: 'center',
@@ -446,7 +447,7 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingHorizontal: 18
   },
-  retryText: { fontSize: 14, fontWeight: '800' },
+  retryText: { fontSize: 14, fontWeight: '700' },
   controls: { gap: 8, position: 'absolute', right: 12, top: 12 },
   control: {
     alignItems: 'center',
@@ -459,7 +460,7 @@ const styles = StyleSheet.create({
     width: 48
   },
   controlDisabled: { opacity: 0.5 },
-  controlText: { fontSize: 20, fontWeight: '900' },
+  controlText: { fontSize: 20, fontWeight: '700' },
   attribution: {
     bottom: 8,
     fontSize: assertAttributionFontSize(attributionFontSize),

@@ -11,10 +11,9 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View
 } from 'react-native';
+import { Text, TextInput } from '../components/Text';
 import {
   Camera,
   GeoJSONSource,
@@ -1371,8 +1370,8 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
     fallback: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 24 },
     fallbackTitle: {
       color: tokens.text.primary,
-      fontSize: 18,
-      fontWeight: '800',
+      fontSize: 17,
+      fontWeight: '700',
       marginBottom: 6,
       textAlign: 'center'
     },
@@ -1387,7 +1386,7 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
     },
     pinAnchor: { alignItems: 'center', justifyContent: 'center', width: 88, height: 72 },
     pinStem: { borderRadius: 2, height: 7, width: 2 },
-    crownBadge: { position: 'absolute', top: 2, fontSize: 21, color: gameWorld.badge.crown },
+    crownBadge: { position: 'absolute', top: 2, fontSize: 20, color: gameWorld.badge.crown },
     defenseBadge: {
       position: 'absolute',
       right: 0,
@@ -1410,7 +1409,7 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
     },
     revengeDim: { opacity: 0.64 },
     revengeBeacon: { position: 'relative', minHeight: 30, justifyContent: 'center' },
-    badgeText: { color: gameWorld.badge.text, fontSize: 9, fontWeight: '900' },
+    badgeText: { color: gameWorld.badge.text, fontSize: 11, fontWeight: '700' },
     bubble: {
       alignItems: 'center',
       backgroundColor: tokens.background.surface,
@@ -1418,7 +1417,7 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       borderWidth: 3,
       justifyContent: 'center'
     },
-    bubbleText: { color: tokens.text.primary, fontSize: 14, fontWeight: '900' },
+    bubbleText: { color: tokens.text.primary, fontSize: 14, fontWeight: '700' },
     celebration: {
       backgroundColor: tokens.background.surfaceInset,
       borderColor: SELF_RING,
@@ -1436,8 +1435,8 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       paddingVertical: 6
     },
     rowSelf: { backgroundColor: tokens.background.surfaceInset },
-    rank: { color: tokens.text.primary, fontSize: 14, fontWeight: '800', minWidth: 34 },
-    celebrationHeadline: { color: tokens.text.primary, fontSize: 18, fontWeight: '900' },
+    rank: { color: tokens.text.primary, fontSize: 14, fontWeight: '700', minWidth: 34 },
+    celebrationHeadline: { color: tokens.text.primary, fontSize: 17, fontWeight: '700' },
     celebrationDetail: { color: tokens.text.primary, fontSize: 14, lineHeight: 20 },
     tools: { alignSelf: 'flex-start', flexDirection: 'row', gap: 8 },
     hudHeader: {
@@ -1483,9 +1482,9 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
     },
     claimPreview: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     claimPreviewCopy: { flex: 1 },
-    hudLabel: { color: gameWorld.hud.text, fontSize: 14, fontWeight: '900' },
-    hudDetail: { color: gameWorld.hud.detail, fontSize: 10, fontWeight: '800' },
-    toolText: { color: gameWorld.hud.tool, fontSize: 20, fontWeight: '800' },
+    hudLabel: { color: gameWorld.hud.text, fontSize: 14, fontWeight: '700' },
+    hudDetail: { color: gameWorld.hud.detail, fontSize: 11, fontWeight: '700' },
+    toolText: { color: gameWorld.hud.tool, fontSize: 20, fontWeight: '700' },
     filterStatus: {
       alignSelf: 'flex-start',
       borderRadius: 12,
@@ -1514,7 +1513,7 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       justifyContent: 'center',
       width: 32
     },
-    playerArrow: { color: gameWorld.player.arrow, fontSize: 18, fontWeight: '900' },
+    playerArrow: { color: gameWorld.player.arrow, fontSize: 17, fontWeight: '700' },
     /** Search field and zone chips, floated over the top of the map. */
     zoneBar: { gap: 10, left: 12, position: 'absolute', right: 12, top: 12 },
     searchField: {
@@ -1544,7 +1543,7 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       backgroundColor: tokens.action.primary,
       borderColor: tokens.action.primary
     },
-    filterChipText: { color: tokens.text.secondary, fontSize: 12, fontWeight: '800' },
+    filterChipText: { color: tokens.text.secondary, fontSize: 12, fontWeight: '700' },
     filterChipTextActive: { color: tokens.text.onAccent },
     control: {
       alignItems: 'center',
@@ -1556,7 +1555,7 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       justifyContent: 'center',
       width: 48
     },
-    controlText: { color: tokens.map.controlText, fontSize: 20, fontWeight: '900' },
+    controlText: { color: tokens.map.controlText, fontSize: 20, fontWeight: '700' },
     banner: {
       backgroundColor: tokens.map.scrim,
       borderRadius: 12,
@@ -1581,13 +1580,13 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
     infoSheet: { maxHeight: '56%' },
     sheetScroll: { flexGrow: 0 },
     sheetContent: { gap: 8, padding: 12 },
-    title: { color: gameWorld.hud.text, fontSize: 20, fontWeight: '900' },
-    subtitle: { color: gameWorld.hud.text, fontSize: 15, fontWeight: '800', marginTop: 8 },
+    title: { color: gameWorld.hud.text, fontSize: 20, fontWeight: '700' },
+    subtitle: { color: gameWorld.hud.text, fontSize: 15, fontWeight: '700', marginTop: 8 },
     body: { color: gameWorld.hud.text, fontSize: 14, lineHeight: 20 },
     helper: { color: gameWorld.hud.textSoft, fontSize: 13, lineHeight: 18 },
     notice: { color: gameWorld.hud.textSoft, fontSize: 13, lineHeight: 18 },
     feedLine: { color: gameWorld.hud.textSoft, fontSize: 14, lineHeight: 20 },
-    link: { color: gameWorld.hud.textSoft, fontSize: 13, fontWeight: '800', marginTop: 6 },
+    link: { color: gameWorld.hud.textSoft, fontSize: 13, fontWeight: '700', marginTop: 6 },
     card: {
       gap: 4,
       padding: 2
@@ -1601,7 +1600,7 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
     cardActions: { flexDirection: 'row', gap: 8, marginTop: 5 },
     smallButton: { minWidth: 44, minHeight: 44, justifyContent: 'center', alignItems: 'center' },
     ghostAction: { flex: 1, backgroundColor: gameWorld.action.ghost },
-    ghostActionText: { color: gameWorld.action.ghostText, fontSize: 15, fontWeight: '900' },
+    ghostActionText: { color: gameWorld.action.ghostText, fontSize: 15, fontWeight: '700' },
     lineageAction: {
       flex: 1,
       backgroundColor: gameWorld.action.lineage,
@@ -1616,5 +1615,5 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       minHeight: 48,
       marginTop: 4
     },
-    primaryText: { color: tokens.text.onAccent, fontSize: 15, fontWeight: '800' }
+    primaryText: { color: tokens.text.onAccent, fontSize: 15, fontWeight: '700' }
   });

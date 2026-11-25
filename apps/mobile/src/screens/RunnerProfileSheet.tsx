@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text } from '../components/Text';
 import type { PublicProfile } from '@runsphere/contracts';
 import { ApiFailure, type MobileApiClient } from '../api-client';
 import { useAppStyles } from '../components/styles';

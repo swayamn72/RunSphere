@@ -1,5 +1,6 @@
 import type React from 'react';
-import { Text, type TextProps } from 'react-native';
+import { type TextProps } from 'react-native';
+import { Text } from './Text';
 import type { SemanticTokens, TypeRoleName } from '@runsphere/ui';
 import { useAppTheme } from '../theme/theme';
 import { textStyleFor } from '../theme/type-style';

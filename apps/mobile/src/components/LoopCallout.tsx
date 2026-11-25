@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { loopGuidance, type LoopGuidanceCue } from '../loop-guidance';
 import { isSafeMascotLabel } from '../mascot';
 import { useAppTheme } from '../theme/theme';
@@ -85,7 +86,7 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
       paddingVertical: 12
     },
     copy: { flex: 1 },
-    speaker: { color: t.text.secondary, fontSize: 12, fontWeight: '900', letterSpacing: 1 },
+    speaker: { color: t.text.secondary, fontSize: 12, fontWeight: '700', letterSpacing: 1 },
     message: { color: t.text.primary, fontSize: 14, lineHeight: 20, marginTop: 4 },
     action: {
       alignSelf: 'flex-start',
@@ -94,7 +95,7 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
       minHeight: 48,
       paddingHorizontal: 4
     },
-    actionText: { color: t.action.primary, fontSize: 14, fontWeight: '900' },
+    actionText: { color: t.action.primary, fontSize: 14, fontWeight: '700' },
     dismiss: { alignItems: 'center', justifyContent: 'center', minHeight: 48, minWidth: 48 },
-    dismissText: { color: t.text.secondary, fontSize: 16, fontWeight: '900' }
+    dismissText: { color: t.text.secondary, fontSize: 15, fontWeight: '700' }
   });

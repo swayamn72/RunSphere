@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, Share, Text, TextInput, View } from 'react-native';
+import { Pressable, Share, View } from 'react-native';
+import { Text, TextInput } from '../components/Text';
 import type { PublicProfile } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { useAppStyles } from '../components/styles';

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, Share, Text, TextInput, View } from 'react-native';
+import { Pressable, Share, View } from 'react-native';
+import { Text, TextInput } from '../components/Text';
 import type {
   Club,
   ClubBoardResponse,

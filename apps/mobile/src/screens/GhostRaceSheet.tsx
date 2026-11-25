@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text } from '../components/Text';
 import type { GhostTraceResponse } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { PrimaryButton } from '../components/primitives';

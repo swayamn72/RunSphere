@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import type { TerritoryLadderResponse, TerritoryMapResponse } from '@runsphere/contracts';
 import { useAppTheme } from '../theme/theme';
 import { MapSurface } from '../maps/MapSurface';
@@ -110,7 +111,7 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       marginTop: 12,
       padding: 16
     },
-    title: { color: tokens.text.primary, fontSize: 16, fontWeight: '800' },
+    title: { color: tokens.text.primary, fontSize: 15, fontWeight: '700' },
     body: { color: tokens.text.primary, fontSize: 14, lineHeight: 20 },
     helper: { color: tokens.text.secondary, fontSize: 13, lineHeight: 18 },
     map: { borderRadius: 16, height: 240, overflow: 'hidden' },
@@ -123,5 +124,5 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       paddingVertical: 8
     },
     rowSelf: { backgroundColor: tokens.background.surfaceInset },
-    rank: { color: tokens.text.primary, fontSize: 15, fontWeight: '800', minWidth: 44 }
+    rank: { color: tokens.text.primary, fontSize: 15, fontWeight: '700', minWidth: 44 }
   });

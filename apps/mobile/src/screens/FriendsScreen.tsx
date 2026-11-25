@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text, TextInput } from '../components/Text';
 import { RunnerSearch } from './RunnerSearch';
 import { RunnerProfileSheet } from './RunnerProfileSheet';
 import type { BlockedAccount, FriendRequest, Profile, ReportReason } from '@runsphere/contracts';

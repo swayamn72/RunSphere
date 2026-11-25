@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text } from '../components/Text';
 import type { AchievementStatus } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { BackHeader, SettingsGroup } from '../components/primitives';

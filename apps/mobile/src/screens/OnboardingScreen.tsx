@@ -3,17 +3,8 @@ import { failureMessage } from '../failure-copy';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useState } from 'react';
 import type React from 'react';
-import {
-  AppState,
-  Linking,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  Switch,
-  Text,
-  TextInput,
-  View
-} from 'react-native';
+import { AppState, Linking, Pressable, SafeAreaView, ScrollView, Switch, View } from 'react-native';
+import { Text, TextInput } from '../components/Text';
 import { useAppTheme } from '../theme/theme';
 import { statusBarStyleFor } from '../theme/theme-state';
 import type { MobileApiClient } from '../api-client';

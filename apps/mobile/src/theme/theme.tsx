@@ -14,6 +14,7 @@ import {
 } from './theme-state';
 import type { ThemePreferenceStore } from './theme-preference-model';
 import { loadInterFonts } from './inter-fonts';
+import { setInterReady } from './font-state';
 
 export type { AppColorScheme, ThemePreference } from './theme-state';
 
@@ -74,6 +75,8 @@ export function ThemeProvider({
       .then(([saved, loaded]) => {
         if (!active) return;
         setPreferenceState(saved);
+        // Before the first themed frame, so every Text draws in Inter from the start.
+        setInterReady(loaded);
         setFontsReady(loaded);
       })
       .catch(() => undefined)

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import type {
   Profile,
   ProgressionSummary,
@@ -652,7 +653,7 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
       minHeight: 48,
       paddingHorizontal: 4
     },
-    guideActionText: { color: appPalette.accent, fontSize: 14, fontWeight: '900' },
+    guideActionText: { color: appPalette.accent, fontSize: 14, fontWeight: '700' },
     unavailable: { marginTop: 12, minHeight: 64 },
     questLoading: {
       alignItems: 'center',

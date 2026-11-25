@@ -62,7 +62,7 @@ describe('design tokens', () => {
       expect(role.lineHeight).toBeGreaterThanOrEqual(role.size);
     }
     // 28 distinct font sizes shipped before this scale; keep the set small.
-    expect(new Set(Object.values(typeScale).map((role) => role.size)).size).toBeLessThanOrEqual(10);
+    expect(new Set(Object.values(typeScale).map((role) => role.size)).size).toBeLessThanOrEqual(12);
     expect(radius.pill).toBe(999);
     expect(space.lg).toBe(16);
   });

@@ -426,6 +426,7 @@ export const typeScale = {
   heading: { size: 20, lineHeight: 26, weight: 'semibold', letterSpacing: -0.2 },
   subheading: { size: 17, lineHeight: 22, weight: 'semibold', letterSpacing: 0 },
   body: { size: 15, lineHeight: 22, weight: 'regular', letterSpacing: 0 },
+  bodySmall: { size: 14, lineHeight: 20, weight: 'regular', letterSpacing: 0 },
   bodyStrong: { size: 15, lineHeight: 22, weight: 'semibold', letterSpacing: 0 },
   label: { size: 13, lineHeight: 18, weight: 'medium', letterSpacing: 0.1 },
   caption: { size: 12, lineHeight: 16, weight: 'regular', letterSpacing: 0.1 },

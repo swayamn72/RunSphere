@@ -20,13 +20,13 @@ export const createAppStyles = (t: SemanticTokens) =>
       justifyContent: 'center',
       padding: 20
     },
-    eyebrow: { color: t.status.success, fontSize: 11, fontWeight: '900', letterSpacing: 1.4 },
+    eyebrow: { color: t.status.success, fontSize: 11, fontWeight: '700', letterSpacing: 1.4 },
     teal: { color: t.status.success },
     lead: { color: t.text.secondary, fontSize: 15, lineHeight: 23, marginBottom: 18 },
     onboardingTitle: {
       color: t.text.primary,
-      fontSize: 34,
-      fontWeight: '900',
+      fontSize: 28,
+      fontWeight: '700',
       letterSpacing: -1.3,
       lineHeight: 38,
       marginBottom: 14
@@ -59,7 +59,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       justifyContent: 'space-between',
       marginBottom: 12
     },
-    cardTitle: { color: t.text.primary, fontSize: 16, fontWeight: '900' },
+    cardTitle: { color: t.text.primary, fontSize: 15, fontWeight: '700' },
     divider: { backgroundColor: t.border.subtle, height: 1, marginVertical: 12 },
     /**
      * A tinted square holding one glyph. The tint is passed per use so a card
@@ -73,7 +73,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       justifyContent: 'center',
       width: 40
     },
-    iconChipGlyph: { fontSize: 19 },
+    iconChipGlyph: { fontSize: 20 },
 
     /* ---------------------------------------------------------------- *
      * Screen headers
@@ -81,8 +81,8 @@ export const createAppStyles = (t: SemanticTokens) =>
 
     screenTitle: {
       color: t.text.primary,
-      fontSize: 26,
-      fontWeight: '900',
+      fontSize: 28,
+      fontWeight: '700',
       letterSpacing: -0.8
     },
     header: {
@@ -95,14 +95,14 @@ export const createAppStyles = (t: SemanticTokens) =>
     greetingName: {
       color: t.text.primary,
       fontSize: 24,
-      fontWeight: '900',
+      fontWeight: '700',
       letterSpacing: -0.7,
       marginTop: 2
     },
     homeTitle: {
       color: t.text.primary,
       fontSize: 28,
-      fontWeight: '900',
+      fontWeight: '700',
       letterSpacing: -1,
       lineHeight: 32,
       marginTop: 5
@@ -118,7 +118,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       overflow: 'hidden',
       width: 40
     },
-    avatarText: { color: t.text.primary, fontSize: 14, fontWeight: '900' },
+    avatarText: { color: t.text.primary, fontSize: 14, fontWeight: '700' },
     /** Trailing controls in a dashboard header: notifications, then avatar. */
     headerActions: { alignItems: 'center', flexDirection: 'row', gap: 10 },
     headerButton: {
@@ -131,7 +131,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       justifyContent: 'center',
       width: 40
     },
-    headerButtonGlyph: { color: t.text.primary, fontSize: 18 },
+    headerButtonGlyph: { color: t.text.primary, fontSize: 17 },
     /**
      * Unread marker. A dot rather than a number: the badge is decoration over
      * a button whose accessible name already carries the count.
@@ -156,7 +156,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       width: 28
     },
     iconChipSmallGlyph: { fontSize: 14 },
-    chevron: { color: t.text.secondary, fontSize: 26, fontWeight: '700' },
+    chevron: { color: t.text.secondary, fontSize: 28, fontWeight: '700' },
     challengeProgress: { gap: 6, marginTop: 14 },
 
     /* ---------------------------------------------------------------- *
@@ -166,8 +166,8 @@ export const createAppStyles = (t: SemanticTokens) =>
     streakRow: { alignItems: 'center', flexDirection: 'row', gap: 12 },
     streakNumber: {
       color: t.text.primary,
-      fontSize: 34,
-      fontWeight: '900',
+      fontSize: 28,
+      fontWeight: '700',
       letterSpacing: -1.4,
       lineHeight: 38
     },
@@ -183,7 +183,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       width: 11
     },
     weekDotFilled: { backgroundColor: t.action.primary, borderColor: t.action.primary },
-    weekLabel: { color: t.text.secondary, fontSize: 10, fontWeight: '800' },
+    weekLabel: { color: t.text.secondary, fontSize: 11, fontWeight: '700' },
 
     /* ---------------------------------------------------------------- *
      * Stat tiles (Home 2x2 grid, Profile row)
@@ -202,18 +202,19 @@ export const createAppStyles = (t: SemanticTokens) =>
     statTileHead: { alignItems: 'center', flexDirection: 'row', gap: 9 },
     statTileLabel: {
       color: appPalette.mutedInk,
-      fontSize: 10,
-      fontWeight: '800',
+      fontSize: 11,
+      fontWeight: '700',
       letterSpacing: 0.4
     },
     statTileValue: {
+      fontVariant: ['tabular-nums'],
       color: appPalette.ink,
-      fontSize: 21,
-      fontWeight: '900',
+      fontSize: 20,
+      fontWeight: '700',
       letterSpacing: -0.6,
       marginTop: 8
     },
-    statTileSuffix: { color: appPalette.mutedInk, fontSize: 12, fontWeight: '800' },
+    statTileSuffix: { color: appPalette.mutedInk, fontSize: 12, fontWeight: '700' },
 
     /* ---------------------------------------------------------------- *
      * Progress
@@ -231,7 +232,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       justifyContent: 'space-between',
       marginTop: 7
     },
-    progressMetaText: { color: t.text.secondary, fontSize: 11, fontWeight: '800' },
+    progressMetaText: { color: t.text.secondary, fontSize: 11, fontWeight: '700' },
 
     /* ---------------------------------------------------------------- *
      * Chips, pills, segmented controls
@@ -246,7 +247,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       paddingHorizontal: 14
     },
     pillActive: { backgroundColor: t.action.primary },
-    pillText: { color: t.text.secondary, fontSize: 12, fontWeight: '800' },
+    pillText: { color: t.text.secondary, fontSize: 12, fontWeight: '700' },
     pillTextActive: { color: t.text.onAccent },
     /** Two-or-three-way switch inside a recessed track (Challenges, Social). */
     segmented: {
@@ -265,7 +266,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       minHeight: 36
     },
     segmentActive: { backgroundColor: t.action.primary },
-    segmentText: { color: t.text.secondary, fontSize: 13, fontWeight: '800' },
+    segmentText: { color: t.text.secondary, fontSize: 13, fontWeight: '700' },
     segmentTextActive: { color: t.text.onAccent },
     filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
     filterChip: {
@@ -273,7 +274,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       borderRadius: 999,
       color: t.text.secondary,
       fontSize: 12,
-      fontWeight: '800',
+      fontWeight: '700',
       overflow: 'hidden',
       paddingHorizontal: 13,
       paddingVertical: 8
@@ -283,8 +284,8 @@ export const createAppStyles = (t: SemanticTokens) =>
       backgroundColor: t.background.surfaceRaised,
       borderRadius: 999,
       color: t.action.primary,
-      fontSize: 10,
-      fontWeight: '900',
+      fontSize: 11,
+      fontWeight: '700',
       overflow: 'hidden',
       paddingHorizontal: 9,
       paddingVertical: 5
@@ -295,8 +296,8 @@ export const createAppStyles = (t: SemanticTokens) =>
       backgroundColor: t.background.surfaceRaised,
       borderRadius: 999,
       color: t.action.primary,
-      fontSize: 10,
-      fontWeight: '900',
+      fontSize: 11,
+      fontWeight: '700',
       letterSpacing: 0.7,
       marginBottom: 12,
       overflow: 'hidden',
@@ -308,8 +309,8 @@ export const createAppStyles = (t: SemanticTokens) =>
       backgroundColor: t.background.surfaceRaised,
       borderRadius: 999,
       color: t.text.danger,
-      fontSize: 10,
-      fontWeight: '900',
+      fontSize: 11,
+      fontWeight: '700',
       letterSpacing: 0.7,
       marginBottom: 12,
       overflow: 'hidden',
@@ -331,7 +332,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       minHeight: 54,
       paddingHorizontal: 20
     },
-    primaryText: { color: t.text.onAccent, fontSize: 16, fontWeight: '900' },
+    primaryText: { color: t.text.onAccent, fontSize: 15, fontWeight: '700' },
     primaryArrow: { color: t.text.onAccent, fontSize: 20, position: 'absolute', right: 19 },
     buttonPressed: { opacity: 0.8 },
     buttonDisabled: { backgroundColor: t.action.disabled },
@@ -348,7 +349,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       minHeight: 56,
       paddingHorizontal: 20
     },
-    dangerText: { color: t.text.primary, fontSize: 16, fontWeight: '900', letterSpacing: 0.3 },
+    dangerText: { color: t.text.primary, fontSize: 15, fontWeight: '700', letterSpacing: 0.3 },
     secondaryButton: {
       alignItems: 'center',
       backgroundColor: t.background.surfaceRaised,
@@ -359,11 +360,11 @@ export const createAppStyles = (t: SemanticTokens) =>
       minHeight: 50,
       paddingHorizontal: 20
     },
-    secondaryText: { color: t.text.primary, fontSize: 15, fontWeight: '800' },
+    secondaryText: { color: t.text.primary, fontSize: 15, fontWeight: '700' },
     textButton: {
       color: t.action.primary,
       fontSize: 15,
-      fontWeight: '800',
+      fontWeight: '700',
       marginTop: 20,
       textAlign: 'center'
     },
@@ -397,9 +398,9 @@ export const createAppStyles = (t: SemanticTokens) =>
       paddingHorizontal: 8,
       paddingVertical: 14
     },
-    quickActionText: { fontSize: 12, fontWeight: '900', textAlign: 'center' },
+    quickActionText: { fontSize: 12, fontWeight: '700', textAlign: 'center' },
     quickActionIcon: { width: 28, height: 28 },
-    quickActionGlyph: { fontSize: 22 },
+    quickActionGlyph: { fontSize: 24 },
 
     /* ---------------------------------------------------------------- *
      * Headers for focused sub-screens
@@ -422,8 +423,8 @@ export const createAppStyles = (t: SemanticTokens) =>
       justifyContent: 'center',
       width: 40
     },
-    backText: { color: t.text.primary, fontSize: 26, lineHeight: 28 },
-    stepText: { color: t.text.secondary, fontSize: 11, fontWeight: '900', letterSpacing: 1.2 },
+    backText: { color: t.text.primary, fontSize: 28, lineHeight: 28 },
+    stepText: { color: t.text.secondary, fontSize: 11, fontWeight: '700', letterSpacing: 1.2 },
 
     /* ---------------------------------------------------------------- *
      * Forms
@@ -432,7 +433,7 @@ export const createAppStyles = (t: SemanticTokens) =>
     fieldLabel: {
       color: t.text.secondary,
       fontSize: 11,
-      fontWeight: '900',
+      fontWeight: '700',
       letterSpacing: 1.1,
       marginBottom: 7,
       marginTop: 10
@@ -443,7 +444,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       borderRadius: radius.control,
       borderWidth: 1,
       color: t.text.primary,
-      fontSize: 16,
+      fontSize: 15,
       minHeight: 52,
       paddingHorizontal: 15
     },
@@ -473,7 +474,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       width: 22
     },
     checkboxChecked: { backgroundColor: t.action.primary, borderColor: t.action.primary },
-    checkMark: { color: t.text.onAccent, fontWeight: '900' },
+    checkMark: { color: t.text.onAccent, fontWeight: '700' },
     checkCopy: { color: t.text.primary, flex: 1, fontSize: 15, lineHeight: 21 },
     choiceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
     choice: {
@@ -491,13 +492,14 @@ export const createAppStyles = (t: SemanticTokens) =>
       borderColor: t.action.primary,
       borderWidth: 2
     },
-    choiceTitle: { color: t.text.primary, fontSize: 17, fontWeight: '900', marginBottom: 5 },
+    choiceTitle: { color: t.text.primary, fontSize: 17, fontWeight: '700', marginBottom: 5 },
     stepperRow: { alignItems: 'center', flexDirection: 'row', gap: 14, marginBottom: 4 },
     stepperValue: {
+      fontVariant: ['tabular-nums'],
       color: t.text.primary,
       flex: 1,
-      fontSize: 22,
-      fontWeight: '900',
+      fontSize: 24,
+      fontWeight: '700',
       textAlign: 'center'
     },
 
@@ -533,7 +535,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       right: -45,
       width: 200
     },
-    heroPin: { color: t.action.primary, fontSize: 44, left: '54%', position: 'absolute', top: 102 },
+    heroPin: { color: t.action.primary, fontSize: 40, left: '54%', position: 'absolute', top: 102 },
 
     /* ---------------------------------------------------------------- *
      * Splash (first launch)
@@ -568,14 +570,14 @@ export const createAppStyles = (t: SemanticTokens) =>
     wordmark: {
       color: t.text.primary,
       fontSize: 40,
-      fontWeight: '900',
+      fontWeight: '700',
       letterSpacing: -1.6
     },
     splashTagline: { color: t.text.secondary, fontSize: 17, fontWeight: '700', lineHeight: 24 },
     splashFooter: {
       color: t.text.secondary,
       fontSize: 12,
-      fontWeight: '800',
+      fontWeight: '700',
       letterSpacing: 1.1,
       marginTop: 18,
       textAlign: 'center'
@@ -596,8 +598,8 @@ export const createAppStyles = (t: SemanticTokens) =>
       minHeight: 78,
       padding: 14
     },
-    permissionIcon: { color: t.status.success, fontSize: 25, marginRight: 12 },
-    rowTitle: { color: t.text.primary, fontSize: 15, fontWeight: '800' },
+    permissionIcon: { color: t.status.success, fontSize: 24, marginRight: 12 },
+    rowTitle: { color: t.text.primary, fontSize: 15, fontWeight: '700' },
     rowDetail: { color: t.text.secondary, fontSize: 12, lineHeight: 17, marginTop: 3 },
     privacyRow: {
       alignItems: 'center',
@@ -654,9 +656,19 @@ export const createAppStyles = (t: SemanticTokens) =>
       justifyContent: 'center',
       width: 22
     },
-    leaderRankText: { color: t.text.secondary, fontSize: 11, fontWeight: '900' },
-    leaderName: { color: t.text.primary, flex: 1, fontSize: 14, fontWeight: '800' },
-    leaderScore: { color: t.action.primary, fontSize: 14, fontWeight: '900' },
+    leaderRankText: {
+      fontVariant: ['tabular-nums'],
+      color: t.text.secondary,
+      fontSize: 11,
+      fontWeight: '700'
+    },
+    leaderName: { color: t.text.primary, flex: 1, fontSize: 14, fontWeight: '700' },
+    leaderScore: {
+      fontVariant: ['tabular-nums'],
+      color: t.action.primary,
+      fontSize: 14,
+      fontWeight: '700'
+    },
 
     /* ---------------------------------------------------------------- *
      * Notices
@@ -671,8 +683,8 @@ export const createAppStyles = (t: SemanticTokens) =>
       padding: 14
     },
     warningNotice: { backgroundColor: t.background.surfaceRaised },
-    noticeIcon: { color: t.status.success, fontSize: 16, fontWeight: '900', marginRight: 11 },
-    noticeTitle: { color: t.text.primary, fontSize: 13, fontWeight: '900' },
+    noticeIcon: { color: t.status.success, fontSize: 15, fontWeight: '700', marginRight: 11 },
+    noticeTitle: { color: t.text.primary, fontSize: 13, fontWeight: '700' },
     noticeCopy: { color: t.text.secondary, fontSize: 12, lineHeight: 17, marginTop: 3 },
     safetyFooter: {
       color: t.text.secondary,
@@ -683,7 +695,7 @@ export const createAppStyles = (t: SemanticTokens) =>
     },
     centeredState: { flex: 1, justifyContent: 'center', minHeight: 500, paddingHorizontal: 4 },
     comingSoon: { flex: 1, justifyContent: 'center', minHeight: 480, paddingHorizontal: 20 },
-    comingSoonTitle: { color: t.text.primary, fontSize: 30, fontWeight: '900', marginTop: 8 },
+    comingSoonTitle: { color: t.text.primary, fontSize: 28, fontWeight: '700', marginTop: 8 },
     comingSoonCopy: { color: t.text.secondary, fontSize: 15, lineHeight: 23, marginTop: 14 },
 
     /* ---------------------------------------------------------------- *
@@ -692,11 +704,17 @@ export const createAppStyles = (t: SemanticTokens) =>
 
     cardTopline: { flexDirection: 'row', justifyContent: 'space-between' },
     stat: { flex: 1 },
-    statLabel: { color: t.text.secondary, fontSize: 10, fontWeight: '900', letterSpacing: 0.9 },
+    statLabel: { color: t.text.secondary, fontSize: 11, fontWeight: '700', letterSpacing: 0.9 },
     statValueLine: { alignItems: 'baseline', flexDirection: 'row', marginTop: 5 },
-    statValue: { color: t.text.primary, fontSize: 23, fontWeight: '900', letterSpacing: -0.6 },
+    statValue: {
+      fontVariant: ['tabular-nums'],
+      color: t.text.primary,
+      fontSize: 24,
+      fontWeight: '700',
+      letterSpacing: -0.6
+    },
     statSuffix: { color: t.text.secondary, fontSize: 12, fontWeight: '700', marginLeft: 3 },
-    statDetail: { color: t.status.success, fontSize: 10, fontWeight: '700', marginTop: 5 },
+    statDetail: { color: t.status.success, fontSize: 11, fontWeight: '700', marginTop: 5 },
     /** Evenly divided read-only numbers (Run Summary, Zone Details, Profile). */
     metricRow: {
       backgroundColor: t.background.surface,
@@ -709,15 +727,16 @@ export const createAppStyles = (t: SemanticTokens) =>
     },
     metricCell: { alignItems: 'center', flex: 1, paddingHorizontal: 6 },
     metricCellValue: {
+      fontVariant: ['tabular-nums'],
       color: t.text.primary,
-      fontSize: 19,
-      fontWeight: '900',
+      fontSize: 20,
+      fontWeight: '700',
       letterSpacing: -0.5
     },
     metricCellLabel: {
       color: t.text.secondary,
-      fontSize: 10,
-      fontWeight: '800',
+      fontSize: 11,
+      fontWeight: '700',
       marginTop: 4,
       textAlign: 'center'
     },
@@ -740,7 +759,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       marginTop: 12
     },
     tourButtonOff: { opacity: 0.4 },
-    tourNext: { fontWeight: '900' },
+    tourNext: { fontWeight: '700' },
     /** The run detail overlay (M9 9.16): its drag-to-close header and body. */
     runDetailHeader: {
       backgroundColor: t.background.canvas,
@@ -832,12 +851,12 @@ export const createAppStyles = (t: SemanticTokens) =>
       width: 64
     },
     runCardWhen: { color: t.text.secondary, fontSize: 12, fontWeight: '700' },
-    runCardStats: { color: t.text.primary, fontSize: 16, fontWeight: '900', marginTop: 2 },
+    runCardStats: { color: t.text.primary, fontSize: 15, fontWeight: '700', marginTop: 2 },
     runCardMeta: { color: t.text.secondary, fontSize: 12, marginTop: 2 },
     runWeekTitle: {
       color: t.text.secondary,
       fontSize: 12,
-      fontWeight: '800',
+      fontWeight: '700',
       letterSpacing: 0.5,
       marginBottom: 8,
       marginTop: 14
@@ -860,8 +879,8 @@ export const createAppStyles = (t: SemanticTokens) =>
       marginBottom: 12,
       marginTop: 22
     },
-    sectionTitle: { color: t.text.primary, fontSize: 18, fontWeight: '900', letterSpacing: -0.4 },
-    link: { color: t.action.primary, fontSize: 13, fontWeight: '800' },
+    sectionTitle: { color: t.text.primary, fontSize: 17, fontWeight: '700', letterSpacing: -0.4 },
+    link: { color: t.action.primary, fontSize: 13, fontWeight: '700' },
     muted: { color: t.text.secondary, fontSize: 13 },
 
     /* ---------------------------------------------------------------- *
@@ -886,11 +905,11 @@ export const createAppStyles = (t: SemanticTokens) =>
       justifyContent: 'center',
       width: 88
     },
-    bigAvatarText: { color: t.text.primary, fontSize: 26, fontWeight: '900' },
+    bigAvatarText: { color: t.text.primary, fontSize: 28, fontWeight: '700' },
     profileName: {
       color: t.text.primary,
-      fontSize: 23,
-      fontWeight: '900',
+      fontSize: 24,
+      fontWeight: '700',
       letterSpacing: -0.6,
       marginTop: 12
     },
@@ -905,11 +924,16 @@ export const createAppStyles = (t: SemanticTokens) =>
       paddingVertical: 14
     },
     profileStat: { alignItems: 'center', flex: 1 },
-    profileStatValue: { color: t.text.primary, fontSize: 19, fontWeight: '900' },
+    profileStatValue: {
+      fontVariant: ['tabular-nums'],
+      color: t.text.primary,
+      fontSize: 20,
+      fontWeight: '700'
+    },
     profileStatLabel: {
       color: t.text.secondary,
-      fontSize: 9,
-      fontWeight: '900',
+      fontSize: 11,
+      fontWeight: '700',
       letterSpacing: 0.7,
       marginTop: 4,
       textAlign: 'center'
@@ -922,14 +946,14 @@ export const createAppStyles = (t: SemanticTokens) =>
       justifyContent: 'center',
       width: 64
     },
-    tierBadgeGlyph: { fontSize: 26 },
+    tierBadgeGlyph: { fontSize: 28 },
     /** The achievement strip: evenly divided cells, each a medallion and a name. */
     tierRow: { flexDirection: 'row', gap: 10 },
     tierCell: { alignItems: 'center', flex: 1, gap: 2 },
     tierBadgeLabel: {
       color: t.text.secondary,
-      fontSize: 10,
-      fontWeight: '800',
+      fontSize: 11,
+      fontWeight: '700',
       marginTop: 7,
       textAlign: 'center'
     },
@@ -949,7 +973,7 @@ export const createAppStyles = (t: SemanticTokens) =>
     settingsTitle: {
       color: t.text.primary,
       fontSize: 15,
-      fontWeight: '900',
+      fontWeight: '700',
       paddingHorizontal: 15,
       paddingTop: 15
     },
@@ -994,8 +1018,8 @@ export const createAppStyles = (t: SemanticTokens) =>
     },
     recordTitle: {
       color: t.text.primary,
-      fontSize: 25,
-      fontWeight: '900',
+      fontSize: 24,
+      fontWeight: '700',
       letterSpacing: -0.8,
       marginBottom: 10,
       marginTop: 6
@@ -1014,8 +1038,8 @@ export const createAppStyles = (t: SemanticTokens) =>
       backgroundColor: t.action.primary,
       borderRadius: 20,
       color: t.action.primary,
-      fontSize: 18,
-      fontWeight: '900',
+      fontSize: 17,
+      fontWeight: '700',
       paddingHorizontal: 10,
       paddingVertical: 7,
       position: 'absolute',
@@ -1035,12 +1059,12 @@ export const createAppStyles = (t: SemanticTokens) =>
     liveTitle: {
       color: t.text.primary,
       fontSize: 17,
-      fontWeight: '900',
+      fontWeight: '700',
       letterSpacing: -0.3
     },
     liveGpsRow: { alignItems: 'center', flexDirection: 'row', gap: 6 },
     liveGpsDot: { borderRadius: 4, height: 8, width: 8 },
-    liveGpsText: { color: t.text.secondary, fontSize: 12, fontWeight: '800' },
+    liveGpsText: { color: t.text.secondary, fontSize: 12, fontWeight: '700' },
     liveOverlay: {
       backgroundColor: t.background.surface,
       borderTopLeftRadius: 28,
@@ -1056,9 +1080,10 @@ export const createAppStyles = (t: SemanticTokens) =>
       padding: 12
     },
     liveDistance: {
+      fontVariant: ['tabular-nums'],
       color: t.text.primary,
-      fontSize: 46,
-      fontWeight: '900',
+      fontSize: 40,
+      fontWeight: '700',
       letterSpacing: -2,
       lineHeight: 54,
       marginTop: 24,
@@ -1067,7 +1092,7 @@ export const createAppStyles = (t: SemanticTokens) =>
     provisional: {
       color: t.text.secondary,
       fontSize: 11,
-      fontWeight: '800',
+      fontWeight: '700',
       letterSpacing: 0.5,
       marginTop: 8,
       textAlign: 'center'
@@ -1104,7 +1129,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       borderRadius: 14,
       color: t.text.onAccent,
       fontSize: 13,
-      fontWeight: '900',
+      fontWeight: '700',
       height: 28,
       marginRight: 11,
       overflow: 'hidden',
@@ -1122,8 +1147,8 @@ export const createAppStyles = (t: SemanticTokens) =>
       backgroundColor: t.action.primary,
       borderRadius: 999,
       color: t.text.onAccent,
-      fontSize: 10,
-      fontWeight: '900',
+      fontSize: 11,
+      fontWeight: '700',
       overflow: 'hidden',
       paddingHorizontal: 10,
       paddingVertical: 6
@@ -1157,11 +1182,11 @@ export const createAppStyles = (t: SemanticTokens) =>
     routeName: {
       color: t.text.primary,
       fontSize: 24,
-      fontWeight: '900',
+      fontWeight: '700',
       letterSpacing: -0.7,
       marginTop: 2
     },
-    routeMeta: { color: t.text.primary, fontSize: 14, fontWeight: '800', marginTop: 5 },
+    routeMeta: { color: t.text.primary, fontSize: 14, fontWeight: '700', marginTop: 5 },
     /** Which of the offered loops is on screen. */
     carouselDots: {
       alignSelf: 'center',
@@ -1198,7 +1223,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       gap: 3,
       padding: 12
     },
-    ghostHeadline: { fontSize: 15, fontWeight: '900' },
+    ghostHeadline: { fontSize: 15, fontWeight: '700' },
     ghostDetail: { color: t.text.secondary, fontSize: 12, lineHeight: 17 }
   });
 

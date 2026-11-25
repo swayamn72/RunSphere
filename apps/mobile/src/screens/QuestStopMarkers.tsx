@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import { Marker } from '@maplibre/maplibre-react-native';
 import { gameWorld } from '../theme/game-world';
 import type { QuestStop } from './quest-map-model';
@@ -49,5 +50,5 @@ const styles = StyleSheet.create({
     width: 32
   },
   passed: { backgroundColor: gameWorld.quest.passed },
-  number: { color: gameWorld.quest.ink, fontSize: 15, fontWeight: '900' }
+  number: { color: gameWorld.quest.ink, fontSize: 15, fontWeight: '700' }
 });

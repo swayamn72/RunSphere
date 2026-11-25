@@ -1,7 +1,8 @@
 import { appPalette } from '@runsphere/ui';
 import { seasonCountdown } from './home-progression-model';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import type {
   ChallengeLengthDays,
   ChallengeMode,
@@ -1329,14 +1330,14 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
       minHeight: 40
     },
     segmentActive: { backgroundColor: t.action.primary },
-    segmentText: { color: t.text.secondary, fontSize: 13, fontWeight: '800' },
+    segmentText: { color: t.text.secondary, fontSize: 13, fontWeight: '700' },
     segmentTextActive: { color: t.text.onAccent },
     flexCopy: { flex: 1 },
-    eyebrow: { color: t.status.success, fontSize: 12, fontWeight: '900', letterSpacing: 1.2 },
+    eyebrow: { color: t.status.success, fontSize: 12, fontWeight: '700', letterSpacing: 1.2 },
     title: {
       color: t.text.primary,
-      fontSize: 30,
-      fontWeight: '900',
+      fontSize: 28,
+      fontWeight: '700',
       letterSpacing: -1,
       lineHeight: 35,
       marginTop: 5
@@ -1345,12 +1346,12 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
     groupLabel: {
       color: t.text.secondary,
       fontSize: 12,
-      fontWeight: '900',
+      fontWeight: '700',
       letterSpacing: 1.2,
       marginTop: 20
     },
     sectionHeader: { marginTop: 26 },
-    sectionTitle: { color: t.text.primary, fontSize: 20, fontWeight: '900', lineHeight: 26 },
+    sectionTitle: { color: t.text.primary, fontSize: 20, fontWeight: '700', lineHeight: 26 },
     card: {
       backgroundColor: t.background.surface,
       borderColor: t.border.subtle,
@@ -1362,8 +1363,8 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
     cardHeader: { alignItems: 'flex-start', flexDirection: 'row', gap: 12 },
     cardTitle: {
       color: t.text.primary,
-      fontSize: 19,
-      fontWeight: '900',
+      fontSize: 20,
+      fontWeight: '700',
       lineHeight: 25,
       marginTop: 4
     },
@@ -1372,13 +1373,13 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
       borderRadius: 14,
       color: t.text.secondary,
       fontSize: 12,
-      fontWeight: '900',
+      fontWeight: '700',
       overflow: 'hidden',
       paddingHorizontal: 9,
       paddingVertical: 6
     },
     body: { color: t.text.secondary, fontSize: 14, lineHeight: 21, marginTop: 8 },
-    outcome: { color: t.text.primary, fontSize: 16, fontWeight: '900', marginTop: 10 },
+    outcome: { color: t.text.primary, fontSize: 15, fontWeight: '700', marginTop: 10 },
     helper: { color: t.text.secondary, fontSize: 12, lineHeight: 18, marginTop: 12 },
     weekLabel: { color: t.text.secondary, fontSize: 12, lineHeight: 18 },
     actionRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
@@ -1391,7 +1392,7 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
       minHeight: 48,
       paddingHorizontal: 16
     },
-    acceptText: { color: t.text.onAccent, fontSize: 15, fontWeight: '900' },
+    acceptText: { color: t.text.onAccent, fontSize: 15, fontWeight: '700' },
     declineButton: {
       alignItems: 'center',
       backgroundColor: t.background.surfaceInset,
@@ -1403,7 +1404,7 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
       minHeight: 48,
       paddingHorizontal: 16
     },
-    declineText: { color: t.text.primary, fontSize: 15, fontWeight: '900' },
+    declineText: { color: t.text.primary, fontSize: 15, fontWeight: '700' },
     composeButton: {
       alignItems: 'center',
       backgroundColor: t.background.surfaceInset,
@@ -1414,11 +1415,11 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
       marginTop: 16,
       minHeight: 52
     },
-    composeText: { color: t.text.primary, fontSize: 15, fontWeight: '900' },
+    composeText: { color: t.text.primary, fontSize: 15, fontWeight: '700' },
     fieldLabel: {
       color: t.text.secondary,
       fontSize: 12,
-      fontWeight: '900',
+      fontWeight: '700',
       letterSpacing: 1.1,
       marginTop: 16
     },
@@ -1434,7 +1435,7 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
       paddingHorizontal: 14
     },
     chipSelected: { backgroundColor: t.action.primary, borderColor: t.action.primary },
-    chipText: { color: t.text.primary, fontSize: 14, fontWeight: '800' },
+    chipText: { color: t.text.primary, fontSize: 14, fontWeight: '700' },
     chipTextSelected: { color: t.text.onAccent },
     standingRow: {
       alignItems: 'center',
@@ -1448,9 +1449,9 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
       paddingVertical: 8
     },
     standingSelf: { backgroundColor: appPalette.paperLine },
-    rank: { color: appPalette.mutedInk, fontSize: 14, fontWeight: '900', minWidth: 24 },
-    standingName: { color: appPalette.ink, flex: 1, fontSize: 15, fontWeight: '800' },
-    standingScore: { color: appPalette.ink, fontSize: 15, fontWeight: '900' },
+    rank: { color: appPalette.mutedInk, fontSize: 14, fontWeight: '700', minWidth: 24 },
+    standingName: { color: appPalette.ink, flex: 1, fontSize: 15, fontWeight: '700' },
+    standingScore: { color: appPalette.ink, fontSize: 15, fontWeight: '700' },
     guide: { alignItems: 'center', flexDirection: 'row', gap: 12, marginTop: 16, minHeight: 64 },
     guideAction: {
       alignSelf: 'flex-start',
@@ -1459,7 +1460,7 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
       minHeight: 48,
       paddingHorizontal: 4
     },
-    guideActionText: { color: t.action.primary, fontSize: 14, fontWeight: '900' },
+    guideActionText: { color: t.action.primary, fontSize: 14, fontWeight: '700' },
     unavailable: { marginTop: 12, minHeight: 64 },
     noticeCard: {
       backgroundColor: t.background.surfaceInset,
@@ -1478,8 +1479,8 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
       marginTop: 24,
       padding: 14
     },
-    noticeIcon: { color: t.status.success, fontSize: 18, fontWeight: '900' },
-    noticeTitle: { color: t.text.primary, fontSize: 15, fontWeight: '900' },
+    noticeIcon: { color: t.status.success, fontSize: 17, fontWeight: '700' },
+    noticeTitle: { color: t.text.primary, fontSize: 15, fontWeight: '700' },
     noticeCopy: { color: t.text.secondary, fontSize: 13, lineHeight: 19, marginTop: 4 },
     skeleton: { backgroundColor: t.background.surfaceInset, borderRadius: 6, marginTop: 12 },
     skeletonTitle: { height: 24, width: '62%' },

@@ -5,17 +5,8 @@ import { SharedWithYou } from './SharedWithYou';
 import { PrivacySettingsScreen } from './PrivacySettingsScreen';
 import { legalLinks } from './legal-model';
 import { AccountRecoveryScreen } from './AccountRecoveryScreen';
-import {
-  Alert,
-  Linking,
-  Modal,
-  Pressable,
-  ScrollView,
-  Switch,
-  Text,
-  TextInput,
-  View
-} from 'react-native';
+import { Alert, Linking, Modal, Pressable, ScrollView, Switch, View } from 'react-native';
+import { Text, TextInput } from '../components/Text';
 import * as Location from 'expo-location';
 import type {
   Profile,

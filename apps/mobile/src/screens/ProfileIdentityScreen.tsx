@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text, TextInput } from '../components/Text';
 import type { Profile } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { AuthFailure } from '../auth-failure';

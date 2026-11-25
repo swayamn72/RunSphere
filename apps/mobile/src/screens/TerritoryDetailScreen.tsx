@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import type { TerritoryClaim, TerritoryClaimHistoryResponse } from '@runsphere/contracts';
 import { CrewMascot } from '../components/CrewMascot';
 import { useAppTheme } from '../theme/theme';
@@ -228,7 +229,7 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       justifyContent: 'center',
       width: 40
     },
-    backGlyph: { color: tokens.text.primary, fontSize: 26, lineHeight: 28 },
+    backGlyph: { color: tokens.text.primary, fontSize: 28, lineHeight: 28 },
     owner: { alignItems: 'center', gap: 4 },
     avatar: {
       alignItems: 'center',
@@ -242,12 +243,12 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
     crown: { fontSize: 20, marginTop: 2 },
     title: {
       color: tokens.text.primary,
-      fontSize: 23,
-      fontWeight: '900',
+      fontSize: 24,
+      fontWeight: '700',
       letterSpacing: -0.6,
       textAlign: 'center'
     },
-    status: { fontSize: 13, fontWeight: '800', textAlign: 'center' },
+    status: { fontSize: 13, fontWeight: '700', textAlign: 'center' },
     helper: { color: tokens.text.secondary, fontSize: 13, lineHeight: 18 },
     stats: { flexDirection: 'row', gap: 10 },
     stat: {
@@ -259,8 +260,8 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       gap: 2,
       padding: 12
     },
-    statLabel: { color: tokens.text.tertiary, fontSize: 11, fontWeight: '800' },
-    statValue: { color: tokens.text.primary, fontSize: 18, fontWeight: '900' },
+    statLabel: { color: tokens.text.tertiary, fontSize: 11, fontWeight: '700' },
+    statValue: { color: tokens.text.primary, fontSize: 17, fontWeight: '700' },
     callout: {
       backgroundColor: tokens.background.surfaceInset,
       borderRadius: 14,
@@ -276,7 +277,7 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       justifyContent: 'center',
       minHeight: 52
     },
-    ghostButtonText: { color: tokens.text.onAccent, fontSize: 15, fontWeight: '900' },
+    ghostButtonText: { color: tokens.text.onAccent, fontSize: 15, fontWeight: '700' },
     /** "Run here": a pill, because it is the page's one always-available action. */
     runHereButton: {
       alignItems: 'center',
@@ -285,8 +286,8 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       justifyContent: 'center',
       minHeight: 54
     },
-    runHereText: { color: tokens.text.onAccent, fontSize: 16, fontWeight: '900' },
-    section: { color: tokens.text.primary, fontSize: 16, fontWeight: '800', marginTop: 4 },
+    runHereText: { color: tokens.text.onAccent, fontSize: 15, fontWeight: '700' },
+    section: { color: tokens.text.primary, fontSize: 15, fontWeight: '700', marginTop: 4 },
     timelineRow: { flexDirection: 'row', gap: 10 },
     rail: { alignItems: 'center', width: 14 },
     dot: { borderRadius: 5, height: 10, marginTop: 5, width: 10 },

@@ -1,5 +1,6 @@
 import { appPalette } from '@runsphere/ui';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text } from '../components/Text';
 import { SettingsButton } from '../components/SettingsButton';
 import { useAppStyles } from '../components/styles';
 import { useAppTheme } from '../theme/theme';

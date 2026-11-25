@@ -1,4 +1,5 @@
-﻿import { Pressable, Text, View } from 'react-native';
+﻿import { Pressable, View } from 'react-native';
+import { Text } from '../components/Text';
 import { useAppStyles } from '../components/styles';
 import { NavigationIcon } from '../components/NavigationIcon';
 import { useAppTheme } from '../theme/theme';

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import { useAppTheme } from '../theme/theme';
 import { tabs, type Tab } from './types';
 import { TutorialTarget } from '../components/TutorialTarget';
@@ -85,7 +86,7 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
     },
     selectedLabel: {
       color: tokens.action.selected,
-      fontWeight: '800'
+      fontWeight: '700'
     },
     indicator: {
       position: 'absolute',

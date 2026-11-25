@@ -1,5 +1,6 @@
 import type React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import { useAppTheme } from '../theme/theme';
 import { resolveSheetState, type MapSheetState } from './map-model';
 
@@ -89,7 +90,7 @@ const styles = StyleSheet.create({
   expanded: { flex: 1, minHeight: 420 },
   handle: { alignSelf: 'center', borderRadius: 2, height: 4, marginBottom: 12, width: 40 },
   header: { alignItems: 'center', flexDirection: 'row', gap: 12, justifyContent: 'space-between' },
-  title: { flex: 1, fontSize: 18, fontWeight: '800' },
+  title: { flex: 1, fontSize: 17, fontWeight: '700' },
   actions: { flexDirection: 'row', gap: 8 },
   button: {
     alignItems: 'center',
@@ -99,5 +100,5 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingHorizontal: 12
   },
-  buttonText: { fontSize: 14, fontWeight: '800' }
+  buttonText: { fontSize: 14, fontWeight: '700' }
 });
