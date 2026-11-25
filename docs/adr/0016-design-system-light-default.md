@@ -59,3 +59,15 @@ Mobile loads it at runtime with `expo-font` so the hand-edited native projects d
 ## Rollback
 
 Set the default preference back to `dark` in `theme-state.ts`. Both token sets stay valid.
+
+## Amendment (2026-11-25): headless menus in the admin
+
+The owner delegated the admin component library choice. The admin adds
+`@radix-ui/react-dropdown-menu`, an unstyled primitive, for the account menu: arrow-key
+navigation, typeahead, focus return and Escape come with it, and rewriting them is where
+accessibility bugs live. Modals stay on the browser's native `<dialog>`. All styling stays ours,
+from `@runsphere/ui` CSS variables.
+
+Still excluded: Tailwind and shadcn/ui. Tailwind would add a second styling system beside the
+tokens, and shadcn has no React Native counterpart, so it could not unify the two apps. Mobile
+keeps its own React Native kit.

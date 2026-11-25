@@ -13,8 +13,8 @@ export const THEME_LABEL: Readonly<Record<ThemePreference, string>> = {
   system: 'Match device'
 };
 
-/** Light, Dark or Match device. Applies at once and is remembered in this browser. */
-export function ThemeSwitch() {
+/** The saved preference and a setter that applies it at once. Shared by every theme control. */
+export function useThemePreference(): readonly [ThemePreference, (next: ThemePreference) => void] {
   const [preference, setPreference] = useState<ThemePreference>(() => readThemePreference());
 
   // "Match device" has to follow the OS if it changes while the page is open.
@@ -31,7 +31,12 @@ export function ThemeSwitch() {
     writeThemePreference(next);
     applyThemeToDocument(next);
   };
+  return [preference, choose] as const;
+}
 
+/** Light, Dark or Match device. Applies at once and is remembered in this browser. */
+export function ThemeSwitch() {
+  const [preference, choose] = useThemePreference();
   return (
     <div className="rs-segmented" role="radiogroup" aria-label="Appearance">
       {themePreferences.map((option) => (

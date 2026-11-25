@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import {
   AREAS,
+  AREA_GROUPS,
   AUDIT_NOTICE,
   NO_ROLES_MESSAGE,
   initialArea,
@@ -20,7 +21,16 @@ import { QuestsAreaLoader } from './quests-area.js';
 import { ReviewArea } from './review-area.js';
 import { SeasonsArea } from './seasons-area.js';
 import { TurfAreaLoader } from './turf-area.js';
-import { Button, Field, Notice, PageHeader, Section, StatusTag, ThemeSwitch } from './ui/index.js';
+import {
+  AccountMenu,
+  Button,
+  Field,
+  Notice,
+  PageHeader,
+  Section,
+  StatusTag,
+  ThemeSwitch
+} from './ui/index.js';
 
 /** What staff cannot see, said once on every page rather than only at sign-in. */
 const PRIVACY_STATEMENT =
@@ -200,26 +210,30 @@ export function AdminShell() {
       <aside id="rs-sidebar" className="rs-sidebar">
         <p className="rs-brand rs-sidebar__brand">TURFR Operations</p>
         <nav aria-label="Operations areas">
-          {visible.map((definition) => (
-            <button
-              key={definition.key}
-              type="button"
-              aria-current={definition.key === area}
-              onClick={() => openArea(definition.key)}
-            >
-              {definition.title}
-            </button>
-          ))}
+          {AREA_GROUPS.map((group) => {
+            const items = visible.filter((definition) => definition.group === group.key);
+            if (!items.length) return null;
+            return (
+              <div key={group.key} role="group" aria-label={group.label} className="rs-nav-group">
+                <p className="rs-nav-group__label" aria-hidden>
+                  {group.label}
+                </p>
+                {items.map((definition) => (
+                  <button
+                    key={definition.key}
+                    type="button"
+                    aria-current={definition.key === area}
+                    onClick={() => openArea(definition.key)}
+                  >
+                    {definition.title}
+                  </button>
+                ))}
+              </div>
+            );
+          })}
         </nav>
         <div className="rs-session">
-          <p className="rs-session__line">
-            Staff session active
-            {roles.length ? ` · ${roleLabels(roles).join(', ')}` : ''}
-          </p>
-          <ThemeSwitch />
-          <Button variant="ghost" onClick={signOut}>
-            Sign out
-          </Button>
+          <AccountMenu roles={roleLabels(roles)} onSignOut={signOut} />
         </div>
       </aside>
 

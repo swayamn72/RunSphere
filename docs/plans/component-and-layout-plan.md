@@ -1,6 +1,6 @@
 # Component, placement and layout plan
 
-Status: **proposal, nothing here is built yet.** Written 2026-11-25 on `feat/design-system`, after the
+Status: **partly built (2026-11-25), see §11.** Written 2026-11-25 on `feat/design-system`, after the
 colour, type and theme work in [frontend-reconstruction.md](frontend-reconstruction.md) (ADR-0016).
 That work made the app consistent in colour and type. This plan is about the next layer: **which
 component each job uses, where it sits on the screen, and how it looks and behaves**, to an
@@ -259,3 +259,36 @@ the privacy onboarding step.
 5. Move locate to the thumb zone and hide zoom buttons by default (§4.8).
 6. Admin library: A, B or C (§6).
 7. Admin shortcuts, yes or no (§5).
+
+## 11. Build status (2026-11-25)
+
+The owner delegated every decision in §10 ("whatever is best for our application and audience"), so
+the recommended option was taken for each one. Library choice: **B**, Radix primitives for the admin
+only (ADR-0016 amendment).
+
+**Built and checked**
+
+- Mobile: `Chevron` icon replaces the `‹` and `›` glyphs in back buttons and `Setting` rows (and the
+  Quests, Clubs and territory back buttons). Pushed-screen headers no longer draw an empty circle.
+- Mobile Settings regrouped: Appearance, Account, Privacy & safety, Friends and clubs, Goals &
+  activity, Your standing, Help, Data and account (Delete last). The disabled "Activity history" row
+  is gone. Same keys, screens and endpoints.
+- Mobile: the XP chip shows on the Profile overview only. Profile lost its duplicate Settings row.
+  The Quests filter chips are one scrolling row.
+- Admin: sidebar grouped Work, Operate, Govern, Support; account menu (appearance, sign out) at the
+  foot; `ConfirmButton` with a dialog for upholding or overturning an appeal, rolling a week back
+  and cancelling a campaign. No request changed: all 40 Playwright specs, including the exact-payload
+  ones, pass.
+- Checked on the iOS Simulator (light): Settings, Profile, Run picker. Checked in Chromium
+  (screenshot, light desktop): the admin sidebar.
+
+**Not built**
+
+- Mobile kit pieces: `AppBar`, `Skeleton`, `BottomSheet`, `Toast`, `FilterChips`, `GroupedList`
+  as shared components. The changes above were made in place on the existing primitives.
+- §4.2 Home reorder, §4.3 Free-run emphasis, §4.5 Social skeleton rows and requests row,
+  §4.6 merging Runs and Activity history (not merged: not yet confirmed to be the same data),
+  §4.8 Map locate placement and zoom buttons, §4.9 one `BottomSheet`.
+- Admin: table toolbars and row menus, the right-hand drawer, keyboard shortcuts.
+- The unseen screens in §7 are still unseen. Nothing here was run on a physical device or on
+  Android.

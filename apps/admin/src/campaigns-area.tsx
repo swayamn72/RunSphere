@@ -11,7 +11,7 @@ import {
 import type { AreaContext } from './area-types.js';
 import { lifecycleTone } from './status-tone.js';
 import { useAreaLoad } from './use-area-load.js';
-import { Button, DataTable, Field, Notice, Section, StatusTag } from './ui/index.js';
+import { Button, ConfirmButton, DataTable, Field, Notice, Section, StatusTag } from './ui/index.js';
 
 /** Campaigns and the approved templates they send, with the forms beside them. */
 export function CampaignsView({
@@ -90,10 +90,14 @@ export function CampaignsView({
                       </>
                     ) : null}
                     {campaign.status !== 'sent' && campaign.status !== 'cancelled' ? (
-                      <Button
+                      <ConfirmButton
                         variant="ghost"
+                        danger
                         disabled={loading}
-                        onClick={() =>
+                        title="Cancel this campaign?"
+                        description="Anything still queued is dropped and nothing more is sent."
+                        confirmLabel="Cancel the campaign"
+                        onConfirm={() =>
                           void run(
                             () => cancelCampaign(accessToken, campaign.id),
                             'Cancelled. Anything still queued was dropped.'
@@ -101,7 +105,7 @@ export function CampaignsView({
                         }
                       >
                         Cancel
-                      </Button>
+                      </ConfirmButton>
                     ) : null}
                   </div>
                 )

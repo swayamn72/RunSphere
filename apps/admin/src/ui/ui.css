@@ -580,3 +580,93 @@
   align-items: center;
   gap: var(--rs-space-sm);
 }
+
+/* Account menu (sidebar foot) and the shared menu surface. */
+.rs-menu-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--rs-space-md);
+  width: 100%;
+  min-height: 48px;
+  padding: var(--rs-space-xs) var(--rs-space-sm);
+  border: 1px solid transparent;
+  border-radius: var(--rs-radius-control);
+  background: transparent;
+  color: var(--rs-text-primary);
+  text-align: left;
+}
+.rs-menu-trigger:hover,
+.rs-menu-trigger[data-state='open'] {
+  background: var(--rs-background-surface-inset);
+}
+.rs-avatar {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--rs-radius-pill);
+  background: var(--rs-action-primary);
+  color: var(--rs-text-on-accent);
+  font-weight: var(--rs-weight-semibold);
+}
+.rs-account__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.rs-account__title {
+  font-weight: var(--rs-weight-semibold);
+}
+.rs-account__sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--rs-type-caption-size);
+  color: var(--rs-text-secondary);
+}
+.rs-menu {
+  z-index: 50;
+  min-width: 220px;
+  padding: var(--rs-space-xs);
+  border: 1px solid var(--rs-border-subtle);
+  border-radius: var(--rs-radius-control);
+  background: var(--rs-background-surface-raised);
+  box-shadow: var(--rs-shadow-e3);
+}
+.rs-menu__label {
+  padding: var(--rs-space-xs) var(--rs-space-md);
+  font-size: var(--rs-type-caption-size);
+  font-weight: var(--rs-weight-semibold);
+  color: var(--rs-text-secondary);
+}
+.rs-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--rs-space-sm);
+  min-height: 36px;
+  padding: 0 var(--rs-space-md);
+  border-radius: var(--rs-radius-sm);
+  color: var(--rs-text-primary);
+  cursor: pointer;
+  outline: none;
+}
+.rs-menu__item--radio {
+  padding-left: calc(var(--rs-space-md) + 20px);
+  position: relative;
+}
+.rs-menu__check {
+  position: absolute;
+  left: var(--rs-space-md);
+}
+.rs-menu__item--danger {
+  color: var(--rs-text-danger);
+}
+.rs-menu__item[data-highlighted] {
+  background: var(--rs-background-surface-inset);
+}
+.rs-menu__separator {
+  height: 1px;
+  margin: var(--rs-space-xs) 0;
+  background: var(--rs-border-subtle);
+}

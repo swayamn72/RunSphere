@@ -1,7 +1,9 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
+  AccountMenu,
   Button,
+  ConfirmButton,
   DataTable,
   Dialog,
   EmptyState,
@@ -147,5 +149,31 @@ describe('ThemeSwitch', () => {
     expect(markup).toMatch(/aria-checked="true"[^>]*>Light</);
     expect(markup).toContain('>Dark<');
     expect(markup).toContain('>Match device<');
+  });
+});
+
+describe('ConfirmButton', () => {
+  it('shows the trigger and keeps the confirmation dialog closed until pressed', () => {
+    const markup = html(
+      <ConfirmButton
+        title="Overturn this sanction?"
+        description="The sanction is lifted now."
+        confirmLabel="Overturn it"
+        onConfirm={() => undefined}
+      >
+        Overturn it
+      </ConfirmButton>
+    );
+    expect(markup).toContain('Overturn it');
+    expect(markup).toContain('aria-labelledby');
+    expect(markup).not.toMatch(/<dialog[^>]* open/);
+  });
+});
+
+describe('AccountMenu', () => {
+  it('names the account and its roles on the trigger', () => {
+    const markup = html(<AccountMenu roles={['Admin', 'Support']} onSignOut={() => undefined} />);
+    expect(markup).toContain('aria-label="Account"');
+    expect(markup).toContain('Admin, Support');
   });
 });

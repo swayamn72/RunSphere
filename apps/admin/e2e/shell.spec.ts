@@ -1,18 +1,20 @@
 import { expect, test } from '@playwright/test';
-import { goTo, lightness, mockApi, nav, signIn } from './mock-api';
+import { goTo, lightness, mockApi, nav, openAccountMenu, signIn } from './mock-api';
 
 test.describe('console frame', () => {
-  test('switches theme from the sidebar and remembers it across a reload', async ({ page }) => {
+  test('switches theme from the account menu and remembers it across a reload', async ({
+    page
+  }) => {
     await mockApi(page);
     await page.goto('/');
     await signIn(page);
 
-    const appearance = page.getByRole('radiogroup', { name: 'Appearance' });
-    await expect(appearance.getByRole('radio', { name: 'Light' })).toHaveAttribute(
+    await openAccountMenu(page);
+    await expect(page.getByRole('menuitemradio', { name: 'Light' })).toHaveAttribute(
       'aria-checked',
       'true'
     );
-    await appearance.getByRole('radio', { name: 'Dark' }).click();
+    await page.getByRole('menuitemradio', { name: 'Dark' }).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     expect(await page.evaluate(() => localStorage.getItem('rs-theme'))).toBe('dark');
     expect(
@@ -27,10 +29,8 @@ test.describe('console frame', () => {
     await mockApi(page);
     await page.goto('/');
     await signIn(page);
-    await page
-      .getByRole('radiogroup', { name: 'Appearance' })
-      .getByRole('radio', { name: 'Match device' })
-      .click();
+    await openAccountMenu(page);
+    await page.getByRole('menuitemradio', { name: 'Match device' }).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     await page.emulateMedia({ colorScheme: 'light' });
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
@@ -76,7 +76,8 @@ test.describe('console frame', () => {
     await mockApi(page);
     await page.goto('/');
     await signIn(page);
-    await page.getByRole('button', { name: 'Sign out' }).click();
+    await openAccountMenu(page);
+    await page.getByRole('menuitem', { name: 'Sign out' }).click();
     await expect(page.getByRole('heading', { name: 'Sign in to review' })).toBeVisible();
     await expect(nav(page)).toHaveCount(0);
     await expect(page.getByLabel('Password')).toHaveValue('');

@@ -17,7 +17,15 @@ import {
 } from './api.js';
 import type { AreaContext } from './area-types.js';
 import { useAreaLoad } from './use-area-load.js';
-import { Button, EmptyState, Field, Notice, Section, StatusTag } from './ui/index.js';
+import {
+  Button,
+  ConfirmButton,
+  EmptyState,
+  Field,
+  Notice,
+  Section,
+  StatusTag
+} from './ui/index.js';
 
 const readable = (value: string) => value.replace(/_/g, ' ');
 
@@ -288,10 +296,12 @@ export function ModerationView({
                   </p>
                 </div>
                 <div className="rs-actions">
-                  <Button
-                    variant="secondary"
+                  <ConfirmButton
                     disabled={loading}
-                    onClick={() =>
+                    title="Uphold this sanction?"
+                    description="The appeal is declined and the sanction stands. The account is told the decision stands after review."
+                    confirmLabel="Uphold the sanction"
+                    onConfirm={() =>
                       void run(
                         () =>
                           decideAppeal(accessToken, appeal.id, {
@@ -303,11 +313,13 @@ export function ModerationView({
                     }
                   >
                     Uphold the sanction
-                  </Button>
-                  <Button
-                    variant="secondary"
+                  </ConfirmButton>
+                  <ConfirmButton
                     disabled={loading}
-                    onClick={() =>
+                    title="Overturn this sanction?"
+                    description="The appeal is accepted and the sanction is lifted now. The account is told."
+                    confirmLabel="Overturn it"
+                    onConfirm={() =>
                       void run(
                         () =>
                           decideAppeal(accessToken, appeal.id, {
@@ -319,7 +331,7 @@ export function ModerationView({
                     }
                   >
                     Overturn it
-                  </Button>
+                  </ConfirmButton>
                 </div>
               </li>
             ))}

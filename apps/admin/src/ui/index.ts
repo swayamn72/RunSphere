@@ -8,3 +8,7 @@ export { PageHeader } from './PageHeader.js';
 export { Section } from './Section.js';
 export { StatusTag, type Tone } from './StatusTag.js';
 export { ThemeSwitch, THEME_LABEL } from './ThemeSwitch.js';
+export { AccountMenu } from './AccountMenu.js';
+export { Menu, MenuItem, MenuLabel, MenuRadioGroup, MenuSeparator } from './Menu.js';
+export { useThemePreference } from './ThemeSwitch.js';
+export { ConfirmButton } from './ConfirmButton.js';

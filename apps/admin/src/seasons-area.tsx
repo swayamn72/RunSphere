@@ -18,7 +18,7 @@ import {
 } from './api.js';
 import type { AreaContext } from './area-types.js';
 import { useAreaLoad } from './use-area-load.js';
-import { Button, DataTable, Field, Notice, Section, StatusTag } from './ui/index.js';
+import { ConfirmButton, DataTable, Field, Notice, Section, StatusTag } from './ui/index.js';
 
 export const concentrationState = (row: TerritoryConcentrationRow): string => {
   if (!row.applicable) return CONCENTRATION_NOT_APPLICABLE_NOTE;
@@ -174,10 +174,13 @@ export function SeasonsView({
                   key: 'action',
                   header: 'Action',
                   render: (week) => (
-                    <Button
-                      variant="secondary"
+                    <ConfirmButton
+                      danger
                       disabled={week.currentVersion <= 1 || reason.trim().length === 0}
-                      onClick={() =>
+                      title="Roll this week back one version?"
+                      description={`The week starting ${week.weekStartsOn} goes back to version ${week.currentVersion - 1}. Your reason is recorded against your staff account.`}
+                      confirmLabel="Roll back"
+                      onConfirm={() =>
                         void run(async () => {
                           await rollBackTerritoryWeek(accessToken, seasonId, week.weekStartsOn, {
                             toVersion: week.currentVersion - 1,
@@ -189,7 +192,7 @@ export function SeasonsView({
                       }
                     >
                       Roll back one version
-                    </Button>
+                    </ConfirmButton>
                   )
                 }
               ]}

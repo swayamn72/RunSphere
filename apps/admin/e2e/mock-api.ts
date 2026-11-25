@@ -62,6 +62,15 @@ export const goTo = async (page: Page, area: string) => {
   await nav(page).getByRole('button', { name: area, exact: true }).click();
 };
 
+/** Opens the account menu at the foot of the sidebar, opening the phone menu first if needed. */
+export const openAccountMenu = async (page: Page) => {
+  await page.locator('nav[aria-label="Operations areas"]').waitFor({ state: 'attached' });
+  const menu = page.getByRole('button', { name: 'Menu' });
+  if ((await menu.isVisible()) && (await menu.getAttribute('aria-expanded')) !== 'true')
+    await menu.click();
+  await page.getByRole('button', { name: 'Account' }).click();
+};
+
 /** Perceived lightness of an `rgb()` string, 0 (black) to 1 (white). */
 export const lightness = (rgb: string): number => {
   const [r = 0, g = 0, b = 0] = (rgb.match(/\d+(\.\d+)?/g) ?? []).map(Number);

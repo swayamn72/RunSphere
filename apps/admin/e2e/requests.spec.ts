@@ -118,6 +118,13 @@ test.describe('moderation', () => {
     });
     await open(page, 'Moderation');
     await page.getByRole('button', { name: 'Overturn it' }).click();
+    // Nothing is sent until the dialog's own confirmation.
+    await expect(page.getByRole('dialog', { name: 'Overturn this sanction?' })).toBeVisible();
+    expect(api.calls.some((call) => call.path.includes('/appeals/'))).toBe(false);
+    await page
+      .getByRole('dialog', { name: 'Overturn this sanction?' })
+      .getByRole('button', { name: 'Overturn it' })
+      .click();
     await expect(page.getByRole('status')).toContainText('Appeal accepted');
     expect(api.calls).toContainEqual({
       method: 'POST',
