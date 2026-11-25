@@ -1,7 +1,7 @@
 # Frontend reconstruction: audit, design-system plan, checklist
 
 Status: **Phase 1 (audit) and Phase 2 (architecture) done 2026-11-25. Decisions are in
-[ADR-0016](../adr/0016-design-system-light-default.md). Phase 3 (foundation) done. Phase 4 (admin) done. Phase 5 (mobile) mostly done; see the Mobile checklist for what is unverified.** No application
+[ADR-0016](../adr/0016-design-system-light-default.md). Phase 3 (foundation) done. Phase 4 (admin) done. Phase 5 (mobile) mostly done. Phase 6 (device theme pass) partly done: see the Phase 6 log at the end.** No application
 source has changed yet. Baseline: commit `6e73766`
 (branch `feat/ios-app`).
 
@@ -383,3 +383,18 @@ Findings from the device (kept for the owner):
 - [ ] Theme verification: light and dark on every admin area and mobile screen; map and live run stay dark in both; status bars; no flash on launch or reload
 - [ ] Monorepo checks green; no test weakened
 - [ ] Final report
+
+## 10. Phase 6 log (2026-11-25, iOS Simulator, iPhone 17 Pro)
+
+Seen on a device in **light**: Run picker, Quests list, Quest detail (dark map island, by
+design), Social standings (loading state), Profile (stats, achievements empty state, account,
+activity history), Settings privacy section.
+
+Fixed: Profile stat tiles had a left-aligned value over a centred label (label now left); settings
+toggle rows had no vertical padding, so text touched the dividers (`paddingVertical: 12`).
+
+Not seen on a device: Quest detail in dark, route preview, recording and results, run detail,
+clubs, friends, notifications, privacy zones, achievements list, account recovery, the guided tour.
+Spacing and radius literals are still not consolidated. Maestro point taps were unreliable for deep
+navigation, so those screens need a manual pass.
+

@@ -65,7 +65,12 @@ export function ProfileStats({ cells }: { cells: readonly ProfileStatCell[] }) {
         {cells.map((cell) => (
           <View key={cell.key} style={styles.statTile}>
             <Text style={styles.statTileValue}>{cell.value}</Text>
-            <Text style={[styles.metricCellLabel, { color: tokens.text.onPaperMuted }]}>
+            <Text
+              style={[
+                styles.metricCellLabel,
+                { color: tokens.text.onPaperMuted, textAlign: 'left' }
+              ]}
+            >
               {cell.label}
             </Text>
           </View>

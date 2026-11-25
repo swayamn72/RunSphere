@@ -984,7 +984,8 @@ export const createAppStyles = (t: SemanticTokens) =>
       flexDirection: 'row',
       justifyContent: 'space-between',
       minHeight: 54,
-      paddingHorizontal: 15
+      paddingHorizontal: 15,
+      paddingVertical: 12
     },
     settingDisabled: { opacity: 0.55 },
     settingValue: {
