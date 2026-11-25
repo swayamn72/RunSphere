@@ -16,6 +16,9 @@ ios/Pods/
 .DS_Store
 .vscode/
 .idea/
+skills/
+LOCAL_SETUP.md
+skills-lock.json
 
 # Firebase config. Not a secret (it ships in every APK) but it names one
 # specific Firebase project, and a checkout building against somebody else's
