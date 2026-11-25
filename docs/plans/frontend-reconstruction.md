@@ -103,6 +103,7 @@ default. The accent stays lime on contrast and differentiation grounds (ADR-0016
 - `shell.tsx` is one 1,240-line component with 19 `useState`s holding every area's data.
 - No URL state: a refresh drops the open area, and there are no deep links.
 - `Inter` is named in CSS but never loaded.
+- `NO_ROLES_MESSAGE` is unreachable: Activity review is open to any signed-in account (`ANY_STAFF` in `areas.ts`, gated by the server), so a no-role account sees that one area instead of the message. Found by the Playwright sign-in spec. Left as is: it's an access decision for the owner, not a styling one.
 
 ## 6. Functionality that must survive (preservation checklist)
 
@@ -330,7 +331,9 @@ Nothing is removed. No API, contract, schema or backend change.
 - [x] 2. Mobile foundation: `ThemeProvider` with a saved preference (light default; Light / Dark / Match phone) and `Appearance` sync; `ForceTheme` (always mounted, optional `scheme`) holds the Map, quest map and live run dark via `isAlwaysDark(shell)`; Inter loaded with `expo-font` and a system-font fallback; `AppText` and `textStyleFor`; `userInterfaceStyle: 'automatic'` in Expo config, Android `strings.xml` and iOS `Info.plist` (hand-edited to match prebuild output); `theme.test.ts` rewritten for light default. **No screen uses `AppText` yet and there is no Appearance setting in Profile yet** (Phase 5).
   - **Intermediate state:** the app now opens light, but six files still read raw `appPalette.*` (Home, PlayScreen, ProfileOverview, `styles.ts`) and many screens assume dark, so the screens look unfinished until Phase 5. Don't ship this branch's mobile build before then.
   - **Not verified:** on-device rendering (light, dark, the Map island, Inter loading, status bars) and that `expo prebuild --platform ios` reproduces the hand-edited `Info.plist` (the iOS CI drift check will say).
-- [ ] 3. Admin foundation
+- [x] 3. Admin foundation: `buildThemeCss()` baked into `index.html` by a Vite plugin (`theme-plugin.ts`) with a pre-paint script (`theme-bootstrap.ts`), so there's no flash; `theme.ts` (Light / Dark / Match device, saved in `localStorage['rs-theme']`); `styles.css` rewritten to `--rs-*` variables only with focus rings and a real disabled cursor; `@fontsource-variable/inter`; `src/ui/` primitives (`Button`, `StatusTag`, `Notice`, `EmptyState`, `PageHeader`, `Section`, `Field`, `DataTable`, `Dialog`, `ThemeSwitch`); `design-guard.test.ts` (no colour literals, only defined `--rs-*` variables, no heavy weights); Playwright scaffold in `apps/admin/e2e` (`pnpm --filter @runsphere/admin test:e2e`, not in CI) with mocked `/v1`.
+  - Added `text.onDanger` to `@runsphere/ui` so the danger button needs no literal.
+  - **The primitives and `ThemeSwitch` are not used by the shell yet**; step 4 adopts them. The theme toggle e2e and screenshot baselines wait for that.
 
 ### Admin
 

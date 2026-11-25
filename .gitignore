@@ -28,3 +28,7 @@ GoogleService-Info.plist
 
 # Local toolchain shims (a corepack pnpm wrapper for this machine).
 scratch/
+
+# Playwright output
+apps/admin/test-results/
+apps/admin/playwright-report/

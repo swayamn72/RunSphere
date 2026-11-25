@@ -33,6 +33,8 @@ export interface SemanticTokens {
     /** Ink and muted ink on `background.paper`, the approved warm-paper cards. */
     readonly onPaper: string;
     readonly onPaperMuted: string;
+    /** Text on a filled destructive surface (`action.danger`). */
+    readonly onDanger: string;
     /**
      * Rose for *text* (errors, destructive labels, rival headings). The brand
      * rose `#F43F5E` stays for zones, lines and fills, but as text it is
@@ -134,6 +136,7 @@ export const darkTokens: SemanticTokens = {
     onSelected: appPalette.canvas,
     onPaper: appPalette.ink,
     onPaperMuted: appPalette.mutedInk,
+    onDanger: '#FFFFFF',
     danger: '#FA6078'
   },
   border: {
@@ -213,6 +216,7 @@ export const lightTokens: SemanticTokens = {
     onSelected: '#141414',
     onPaper: '#141414',
     onPaperMuted: '#4A4843',
+    onDanger: '#FFFFFF',
     danger: '#B4233C'
   },
   border: { subtle: '#E2DED6', strong: '#86827A', focus: '#3F5A00', paper: '#E2DED6' },
@@ -372,7 +376,7 @@ export const contrastPairsFor = (t: SemanticTokens) =>
     onSelected: { foreground: t.text.onSelected, background: t.action.selected, minimum: 4.5 },
     onPaper: { foreground: t.text.onPaper, background: t.background.paper, minimum: 4.5 },
     onPaperMuted: { foreground: t.text.onPaperMuted, background: t.background.paper, minimum: 4.5 },
-    onDanger: { foreground: '#FFFFFF', background: t.action.danger, minimum: 4.5 },
+    onDanger: { foreground: t.text.onDanger, background: t.action.danger, minimum: 4.5 },
     accentText: { foreground: t.text.accent, background: t.background.surface, minimum: 4.5 }
   }) as const;
 
