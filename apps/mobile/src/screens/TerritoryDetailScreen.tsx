@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { radius, space } from '@runsphere/ui';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import type { TerritoryClaim, TerritoryClaimHistoryResponse } from '@runsphere/contracts';
@@ -218,7 +219,7 @@ function Stat({
 const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
   StyleSheet.create({
     root: { backgroundColor: tokens.background.canvas, flex: 1 },
-    content: { gap: 12, padding: 16, paddingBottom: 96 },
+    content: { gap: space.md, padding: space.lg, paddingBottom: 96 },
     header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
     backButton: {
       alignItems: 'center',
@@ -231,7 +232,7 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       width: 40
     },
     backGlyph: { color: tokens.text.primary, fontSize: 28, lineHeight: 28 },
-    owner: { alignItems: 'center', gap: 4 },
+    owner: { alignItems: 'center', gap: space.xs },
     avatar: {
       alignItems: 'center',
       backgroundColor: tokens.background.surface,
@@ -241,7 +242,7 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       justifyContent: 'center',
       width: 76
     },
-    crown: { fontSize: 20, marginTop: 2 },
+    crown: { fontSize: 20, marginTop: space.xxs },
     title: {
       color: tokens.text.primary,
       fontSize: 24,
@@ -258,8 +259,8 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       borderRadius: 14,
       borderWidth: 1,
       flex: 1,
-      gap: 2,
-      padding: 12
+      gap: space.xxs,
+      padding: space.md
     },
     statLabel: { color: tokens.text.tertiary, fontSize: 11, fontWeight: '700' },
     statValue: { color: tokens.text.primary, fontSize: 17, fontWeight: '700' },
@@ -269,12 +270,12 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       color: tokens.text.primary,
       fontSize: 14,
       lineHeight: 20,
-      padding: 12
+      padding: space.md
     },
     ghostButton: {
       alignItems: 'center',
       backgroundColor: tokens.action.primary,
-      borderRadius: 16,
+      borderRadius: radius.card,
       justifyContent: 'center',
       minHeight: 52
     },
@@ -283,15 +284,15 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
     runHereButton: {
       alignItems: 'center',
       backgroundColor: tokens.action.primary,
-      borderRadius: 999,
+      borderRadius: radius.pill,
       justifyContent: 'center',
       minHeight: 54
     },
     runHereText: { color: tokens.text.onAccent, fontSize: 15, fontWeight: '700' },
-    section: { color: tokens.text.primary, fontSize: 15, fontWeight: '700', marginTop: 4 },
+    section: { color: tokens.text.primary, fontSize: 15, fontWeight: '700', marginTop: space.xs },
     timelineRow: { flexDirection: 'row', gap: 10 },
     rail: { alignItems: 'center', width: 14 },
     dot: { borderRadius: 5, height: 10, marginTop: 5, width: 10 },
-    line: { backgroundColor: tokens.border.subtle, flex: 1, marginTop: 2, width: 2 },
+    line: { backgroundColor: tokens.border.subtle, flex: 1, marginTop: space.xxs, width: 2 },
     timelineText: { color: tokens.text.primary, flex: 1, fontSize: 14, lineHeight: 20 }
   });

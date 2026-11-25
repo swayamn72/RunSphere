@@ -5,7 +5,8 @@ import { SharedWithYou } from './SharedWithYou';
 import { PrivacySettingsScreen } from './PrivacySettingsScreen';
 import { legalLinks } from './legal-model';
 import { AccountRecoveryScreen } from './AccountRecoveryScreen';
-import { Alert, Linking, Modal, Pressable, ScrollView, Switch, View } from 'react-native';
+import { Alert, Linking, Pressable, Switch, View } from 'react-native';
+import { BottomSheet } from '../components/BottomSheet';
 import { Text, TextInput } from '../components/Text';
 import * as Location from 'expo-location';
 import type {
@@ -407,23 +408,18 @@ export function ProfileScreen({
           onPress={() => setFairPlayOpen(true)}
         />
       </SettingsGroup>
-      {fairPlayOpen && (
-        <Modal transparent animationType="fade" onRequestClose={() => setFairPlayOpen(false)}>
-          <ScrollView contentContainerStyle={styles.modalBackdrop}>
-            <View accessibilityViewIsModal style={styles.recordCard}>
-              <Text accessibilityRole="header" style={styles.recordTitle}>
-                Fair Play &amp; Privacy
-              </Text>
-              {FAIR_PLAY_PRIVACY.map((detail) => (
-                <Text key={detail} style={styles.lead}>
-                  {detail}
-                </Text>
-              ))}
-              <PrimaryButton label="Done" onPress={() => setFairPlayOpen(false)} />
-            </View>
-          </ScrollView>
-        </Modal>
-      )}
+      <BottomSheet
+        visible={fairPlayOpen}
+        title="Fair Play & Privacy"
+        onClose={() => setFairPlayOpen(false)}
+        actions={<PrimaryButton label="Done" onPress={() => setFairPlayOpen(false)} />}
+      >
+        {FAIR_PLAY_PRIVACY.map((detail) => (
+          <Text key={detail} style={styles.lead}>
+            {detail}
+          </Text>
+        ))}
+      </BottomSheet>
       <SettingsGroup title="Friends and clubs">
         <Setting
           label="Notifications"

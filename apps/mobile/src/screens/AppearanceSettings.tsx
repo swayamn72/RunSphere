@@ -1,4 +1,5 @@
 import { Pressable, View } from 'react-native';
+import { space } from '@runsphere/ui';
 import { Text } from '../components/Text';
 import { useAppStyles } from '../components/styles';
 import { SettingsGroup } from '../components/primitives';
@@ -11,7 +12,7 @@ export function AppearanceSettings() {
   const { preference, setPreference } = useAppTheme();
   return (
     <SettingsGroup title="Appearance">
-      <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
+      <View style={{ paddingHorizontal: space.lg, paddingBottom: space.lg }}>
         <View
           accessibilityRole="radiogroup"
           accessibilityLabel="Appearance"

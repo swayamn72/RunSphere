@@ -1,4 +1,5 @@
 import type React from 'react';
+import { radius, space } from '@runsphere/ui';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import { useAppTheme } from '../theme/theme';
@@ -83,22 +84,27 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     borderWidth: 1,
     minHeight: 96,
-    padding: 16
+    padding: space.lg
   },
   collapsed: { minHeight: 96 },
   half: { minHeight: 240 },
   expanded: { flex: 1, minHeight: 420 },
-  handle: { alignSelf: 'center', borderRadius: 2, height: 4, marginBottom: 12, width: 40 },
-  header: { alignItems: 'center', flexDirection: 'row', gap: 12, justifyContent: 'space-between' },
+  handle: { alignSelf: 'center', borderRadius: 2, height: 4, marginBottom: space.md, width: 40 },
+  header: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: space.md,
+    justifyContent: 'space-between'
+  },
   title: { flex: 1, fontSize: 17, fontWeight: '700' },
-  actions: { flexDirection: 'row', gap: 8 },
+  actions: { flexDirection: 'row', gap: space.sm },
   button: {
     alignItems: 'center',
-    borderRadius: 16,
+    borderRadius: radius.card,
     borderWidth: 1,
     justifyContent: 'center',
     minHeight: 48,
-    paddingHorizontal: 12
+    paddingHorizontal: space.md
   },
   buttonText: { fontSize: 14, fontWeight: '700' }
 });

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { space } from '@runsphere/ui';
 import { AppState, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import type {
@@ -618,23 +619,23 @@ function Unavailable({
 
 const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
   StyleSheet.create({
-    coachCard: { borderLeftColor: t.zone.owned, borderLeftWidth: 3, gap: 12 },
+    coachCard: { borderLeftColor: t.zone.owned, borderLeftWidth: 3, gap: space.md },
     panel: {
       backgroundColor: t.background.paper,
       borderColor: t.border.paper,
       borderWidth: 1,
       borderRadius: 18,
       marginTop: 14,
-      padding: 12
+      padding: space.md
     },
     paperCopy: { color: t.text.onPaperMuted },
     paperAction: { color: t.text.onPaper, textDecorationLine: 'underline' },
-    quests: { marginTop: 16 },
+    quests: { marginTop: space.lg },
     questHeader: {
       alignItems: 'center',
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginBottom: 8
+      marginBottom: space.sm
     },
     viewAll: {
       borderColor: t.text.secondary,
@@ -642,24 +643,30 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
       borderWidth: 1,
       justifyContent: 'center',
       minHeight: 44,
-      paddingHorizontal: 12
+      paddingHorizontal: space.md
     },
     viewAllText: { color: t.text.primary, fontSize: 14, fontWeight: '700' },
-    guide: { alignItems: 'center', flexDirection: 'row', gap: 12, marginTop: 12, minHeight: 64 },
+    guide: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: space.md,
+      marginTop: space.md,
+      minHeight: 64
+    },
     guideAction: {
       alignSelf: 'flex-start',
       justifyContent: 'center',
-      marginTop: 8,
+      marginTop: space.sm,
       minHeight: 48,
-      paddingHorizontal: 4
+      paddingHorizontal: space.xs
     },
     guideActionText: { color: t.text.accent, fontSize: 14, fontWeight: '700' },
-    unavailable: { marginTop: 12, minHeight: 64 },
+    unavailable: { marginTop: space.md, minHeight: 64 },
     questLoading: {
       alignItems: 'center',
       flexDirection: 'row',
-      gap: 12,
-      marginTop: 12,
+      gap: space.md,
+      marginTop: space.md,
       minHeight: 64
     }
   });

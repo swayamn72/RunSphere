@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { space } from '@runsphere/ui';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from './Text';
 import { loopGuidance, type LoopGuidanceCue } from '../loop-guidance';
@@ -79,21 +80,21 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
       borderRadius: 18,
       borderWidth: 1,
       flexDirection: 'row',
-      gap: 12,
-      marginTop: 12,
+      gap: space.md,
+      marginTop: space.md,
       minHeight: 72,
       paddingHorizontal: 14,
-      paddingVertical: 12
+      paddingVertical: space.md
     },
     copy: { flex: 1 },
     speaker: { color: t.text.secondary, fontSize: 12, fontWeight: '700', letterSpacing: 1 },
-    message: { color: t.text.primary, fontSize: 14, lineHeight: 20, marginTop: 4 },
+    message: { color: t.text.primary, fontSize: 14, lineHeight: 20, marginTop: space.xs },
     action: {
       alignSelf: 'flex-start',
       justifyContent: 'center',
-      marginTop: 8,
+      marginTop: space.sm,
       minHeight: 48,
-      paddingHorizontal: 4
+      paddingHorizontal: space.xs
     },
     actionText: { color: t.action.primary, fontSize: 14, fontWeight: '700' },
     dismiss: { alignItems: 'center', justifyContent: 'center', minHeight: 48, minWidth: 48 },

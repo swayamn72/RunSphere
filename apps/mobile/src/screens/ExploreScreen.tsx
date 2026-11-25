@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { radius, space } from '@runsphere/ui';
 import { FAILURE_COPY } from '../failure-copy';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
@@ -330,8 +331,8 @@ function SheetState({
   );
 }
 const styles = StyleSheet.create({
-  root: { gap: 12 },
-  header: { alignItems: 'center', flexDirection: 'row', gap: 12 },
+  root: { gap: space.md },
+  header: { alignItems: 'center', flexDirection: 'row', gap: space.md },
   backButton: {
     alignItems: 'center',
     borderRadius: 20,
@@ -344,33 +345,33 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, fontWeight: '700', letterSpacing: -0.8 },
   copy: { fontSize: 14, lineHeight: 20 },
   // One scrolling row: wrapped chips pushed the list down by a second line.
-  filters: { flexDirection: 'row', gap: 8, paddingVertical: 4 },
-  filtersScroll: { flexGrow: 0, marginTop: 4 },
+  filters: { flexDirection: 'row', gap: space.sm, paddingVertical: space.xs },
+  filtersScroll: { flexGrow: 0, marginTop: space.xs },
   filter: {
-    borderRadius: 16,
+    borderRadius: radius.card,
     borderWidth: 1,
     minHeight: 40,
     justifyContent: 'center',
-    paddingHorizontal: 12
+    paddingHorizontal: space.md
   },
-  cards: { gap: 8 },
-  card: { borderRadius: 16, borderWidth: 1, minHeight: 96, padding: 14 },
+  cards: { gap: space.sm },
+  card: { borderRadius: radius.card, borderWidth: 1, minHeight: 96, padding: 14 },
   cardHeader: {
     alignItems: 'flex-start',
     flexDirection: 'row',
-    gap: 8,
+    gap: space.sm,
     justifyContent: 'space-between'
   },
   cardTitle: { flex: 1, fontSize: 15, fontWeight: '700' },
   status: { fontSize: 11, fontWeight: '700', letterSpacing: 0.7 },
-  cardCopy: { fontSize: 12, lineHeight: 18, marginTop: 4 },
+  cardCopy: { fontSize: 12, lineHeight: 18, marginTop: space.xs },
   select: { fontSize: 13, fontWeight: '700', marginTop: 10 },
-  sheetState: { gap: 8, paddingVertical: 8 },
+  sheetState: { gap: space.sm, paddingVertical: space.sm },
   actionButton: {
     alignSelf: 'flex-start',
-    borderRadius: 16,
+    borderRadius: radius.card,
     justifyContent: 'center',
     minHeight: 48,
-    paddingHorizontal: 16
+    paddingHorizontal: space.lg
   }
 });

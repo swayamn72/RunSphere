@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { StyleSheet } from 'react-native';
 import type { SemanticTokens } from '@runsphere/ui';
-import { radius } from '@runsphere/ui';
+import { radius, space } from '@runsphere/ui';
 import { useAppTheme } from '../theme/theme';
 
 export const createAppStyles = (t: SemanticTokens) =>
@@ -18,7 +18,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       backgroundColor: t.scrim.strong,
       flexGrow: 1,
       justifyContent: 'center',
-      padding: 20
+      padding: space.xl
     },
     eyebrow: { color: t.text.accent, fontSize: 11, fontWeight: '700', letterSpacing: 1.2 },
     teal: { color: t.status.success },
@@ -36,7 +36,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       fontSize: 14,
       fontWeight: '700',
       lineHeight: 20,
-      marginTop: 16
+      marginTop: space.lg
     },
 
     /* ---------------------------------------------------------------- *
@@ -49,18 +49,18 @@ export const createAppStyles = (t: SemanticTokens) =>
       borderColor: t.border.subtle,
       borderRadius: radius.card,
       borderWidth: 1,
-      marginBottom: 12,
-      padding: 16
+      marginBottom: space.md,
+      padding: space.lg
     },
-    cardRow: { alignItems: 'center', flexDirection: 'row', gap: 12 },
+    cardRow: { alignItems: 'center', flexDirection: 'row', gap: space.md },
     cardHeader: {
       alignItems: 'center',
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginBottom: 12
+      marginBottom: space.md
     },
     cardTitle: { color: t.text.primary, fontSize: 15, fontWeight: '700' },
-    divider: { backgroundColor: t.border.subtle, height: 1, marginVertical: 12 },
+    divider: { backgroundColor: t.border.subtle, height: 1, marginVertical: space.md },
     /**
      * A tinted square holding one glyph. The tint is passed per use so a card
      * can carry its own meaning (streak amber, zone violet, rival coral)
@@ -97,7 +97,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       fontSize: 24,
       fontWeight: '700',
       letterSpacing: -0.7,
-      marginTop: 2
+      marginTop: space.xxs
     },
     homeTitle: {
       color: t.text.primary,
@@ -163,7 +163,7 @@ export const createAppStyles = (t: SemanticTokens) =>
      * Streak + week strip (Home)
      * ---------------------------------------------------------------- */
 
-    streakRow: { alignItems: 'center', flexDirection: 'row', gap: 12 },
+    streakRow: { alignItems: 'center', flexDirection: 'row', gap: space.md },
     streakNumber: {
       color: t.text.primary,
       fontSize: 28,
@@ -172,12 +172,12 @@ export const createAppStyles = (t: SemanticTokens) =>
       lineHeight: 38
     },
     streakLabel: { color: t.text.secondary, fontSize: 12, fontWeight: '700', marginTop: -2 },
-    weekRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 },
+    weekRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space.lg },
     weekDay: { alignItems: 'center', flex: 1, gap: 6 },
     weekDot: {
       backgroundColor: t.background.surfaceInset,
       borderColor: t.border.subtle,
-      borderRadius: 6,
+      borderRadius: radius.sm,
       borderWidth: 1,
       height: 11,
       width: 11
@@ -212,7 +212,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       fontSize: 20,
       fontWeight: '700',
       letterSpacing: -0.6,
-      marginTop: 8
+      marginTop: space.sm
     },
     statTileSuffix: { color: t.text.onPaperMuted, fontSize: 12, fontWeight: '700' },
 
@@ -222,11 +222,11 @@ export const createAppStyles = (t: SemanticTokens) =>
 
     progressTrack: {
       backgroundColor: t.background.surfaceInset,
-      borderRadius: 999,
+      borderRadius: radius.pill,
       height: 7,
       overflow: 'hidden'
     },
-    progressFill: { backgroundColor: t.action.primary, borderRadius: 999, height: 7 },
+    progressFill: { backgroundColor: t.action.primary, borderRadius: radius.pill, height: 7 },
     progressMeta: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -238,10 +238,10 @@ export const createAppStyles = (t: SemanticTokens) =>
      * Chips, pills, segmented controls
      * ---------------------------------------------------------------- */
 
-    pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
     pill: {
       backgroundColor: t.background.surfaceRaised,
-      borderRadius: 999,
+      borderRadius: radius.pill,
       minHeight: 34,
       justifyContent: 'center',
       paddingHorizontal: 14
@@ -252,15 +252,15 @@ export const createAppStyles = (t: SemanticTokens) =>
     /** Two-or-three-way switch inside a recessed track (Challenges, Social). */
     segmented: {
       backgroundColor: t.background.surfaceInset,
-      borderRadius: 999,
+      borderRadius: radius.pill,
       flexDirection: 'row',
-      gap: 4,
+      gap: space.xs,
       marginBottom: 14,
-      padding: 4
+      padding: space.xs
     },
     segment: {
       alignItems: 'center',
-      borderRadius: 999,
+      borderRadius: radius.pill,
       flex: 1,
       justifyContent: 'center',
       minHeight: 36
@@ -268,21 +268,21 @@ export const createAppStyles = (t: SemanticTokens) =>
     segmentActive: { backgroundColor: t.action.primary },
     segmentText: { color: t.text.secondary, fontSize: 13, fontWeight: '700' },
     segmentTextActive: { color: t.text.onAccent },
-    filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+    filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginBottom: space.md },
     filterChip: {
       backgroundColor: t.background.surfaceRaised,
-      borderRadius: 999,
+      borderRadius: radius.pill,
       color: t.text.secondary,
       fontSize: 12,
       fontWeight: '700',
       overflow: 'hidden',
       paddingHorizontal: 13,
-      paddingVertical: 8
+      paddingVertical: space.sm
     },
     filterChipActive: { backgroundColor: t.action.primary, color: t.text.onAccent },
     badge: {
       backgroundColor: t.background.surfaceRaised,
-      borderRadius: 999,
+      borderRadius: radius.pill,
       color: t.action.primary,
       fontSize: 11,
       fontWeight: '700',
@@ -294,12 +294,12 @@ export const createAppStyles = (t: SemanticTokens) =>
     mvpLabel: {
       alignSelf: 'flex-start',
       backgroundColor: t.background.surfaceRaised,
-      borderRadius: 999,
+      borderRadius: radius.pill,
       color: t.action.primary,
       fontSize: 11,
       fontWeight: '700',
       letterSpacing: 0.7,
-      marginBottom: 12,
+      marginBottom: space.md,
       overflow: 'hidden',
       paddingHorizontal: 9,
       paddingVertical: 5
@@ -307,12 +307,12 @@ export const createAppStyles = (t: SemanticTokens) =>
     futureLabel: {
       alignSelf: 'flex-start',
       backgroundColor: t.background.surfaceRaised,
-      borderRadius: 999,
+      borderRadius: radius.pill,
       color: t.text.danger,
       fontSize: 11,
       fontWeight: '700',
       letterSpacing: 0.7,
-      marginBottom: 12,
+      marginBottom: space.md,
       overflow: 'hidden',
       paddingHorizontal: 9,
       paddingVertical: 5
@@ -325,12 +325,12 @@ export const createAppStyles = (t: SemanticTokens) =>
     primaryButton: {
       alignItems: 'center',
       backgroundColor: t.action.primary,
-      borderRadius: 999,
+      borderRadius: radius.pill,
       flexDirection: 'row',
       justifyContent: 'center',
-      marginTop: 12,
+      marginTop: space.md,
       minHeight: 54,
-      paddingHorizontal: 20
+      paddingHorizontal: space.xl
     },
     primaryText: { color: t.text.onAccent, fontSize: 15, fontWeight: '700' },
     primaryArrow: { color: t.text.onAccent, fontSize: 20, position: 'absolute', right: 19 },
@@ -343,29 +343,29 @@ export const createAppStyles = (t: SemanticTokens) =>
     dangerButton: {
       alignItems: 'center',
       backgroundColor: t.action.danger,
-      borderRadius: 999,
+      borderRadius: radius.pill,
       justifyContent: 'center',
       marginTop: 10,
       minHeight: 56,
-      paddingHorizontal: 20
+      paddingHorizontal: space.xl
     },
     dangerText: { color: t.text.primary, fontSize: 15, fontWeight: '700', letterSpacing: 0.3 },
     secondaryButton: {
       alignItems: 'center',
       backgroundColor: t.background.surfaceRaised,
       borderColor: t.border.subtle,
-      borderRadius: 999,
+      borderRadius: radius.pill,
       borderWidth: 1,
       justifyContent: 'center',
       minHeight: 50,
-      paddingHorizontal: 20
+      paddingHorizontal: space.xl
     },
     secondaryText: { color: t.text.primary, fontSize: 15, fontWeight: '700' },
     textButton: {
       color: t.action.primary,
       fontSize: 15,
       fontWeight: '700',
-      marginTop: 20,
+      marginTop: space.xl,
       textAlign: 'center'
     },
     iconButton: {
@@ -392,10 +392,10 @@ export const createAppStyles = (t: SemanticTokens) =>
       alignItems: 'center',
       borderRadius: radius.control,
       flex: 1,
-      gap: 8,
+      gap: space.sm,
       justifyContent: 'center',
       minHeight: 84,
-      paddingHorizontal: 8,
+      paddingHorizontal: space.sm,
       paddingVertical: 14
     },
     quickActionText: { fontSize: 12, fontWeight: '700', textAlign: 'center' },
@@ -411,7 +411,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       flexDirection: 'row',
       height: 58,
       justifyContent: 'space-between',
-      marginBottom: 16
+      marginBottom: space.lg
     },
     backButton: {
       alignItems: 'center',
@@ -429,7 +429,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       alignItems: 'center',
       flex: 1,
       flexDirection: 'row',
-      gap: 4,
+      gap: space.xs,
       justifyContent: 'flex-end'
     },
     backText: { color: t.text.primary, fontSize: 28, lineHeight: 28 },
@@ -462,20 +462,25 @@ export const createAppStyles = (t: SemanticTokens) =>
       alignItems: 'center',
       backgroundColor: t.background.surface,
       borderColor: t.border.subtle,
-      borderRadius: 999,
+      borderRadius: radius.pill,
       borderWidth: 1,
       flexDirection: 'row',
       gap: 10,
       minHeight: 46,
-      paddingHorizontal: 16
+      paddingHorizontal: space.lg
     },
     searchGlyph: { color: t.text.secondary, fontSize: 15 },
     searchInput: { color: t.text.primary, flex: 1, fontSize: 14, padding: 0 },
-    checkRow: { alignItems: 'center', flexDirection: 'row', marginTop: 20, paddingVertical: 5 },
+    checkRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      marginTop: space.xl,
+      paddingVertical: 5
+    },
     checkbox: {
       alignItems: 'center',
       borderColor: t.text.secondary,
-      borderRadius: 6,
+      borderRadius: radius.sm,
       borderWidth: 2,
       height: 22,
       justifyContent: 'center',
@@ -485,7 +490,7 @@ export const createAppStyles = (t: SemanticTokens) =>
     checkboxChecked: { backgroundColor: t.action.primary, borderColor: t.action.primary },
     checkMark: { color: t.text.onAccent, fontWeight: '700' },
     checkCopy: { color: t.text.primary, flex: 1, fontSize: 15, lineHeight: 21 },
-    choiceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
+    choiceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: space.lg },
     choice: {
       backgroundColor: t.background.surface,
       borderColor: t.border.subtle,
@@ -502,7 +507,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       borderWidth: 2
     },
     choiceTitle: { color: t.text.primary, fontSize: 17, fontWeight: '700', marginBottom: 5 },
-    stepperRow: { alignItems: 'center', flexDirection: 'row', gap: 14, marginBottom: 4 },
+    stepperRow: { alignItems: 'center', flexDirection: 'row', gap: 14, marginBottom: space.xs },
     stepperValue: {
       fontVariant: ['tabular-nums'],
       color: t.text.primary,
@@ -559,20 +564,20 @@ export const createAppStyles = (t: SemanticTokens) =>
       borderRadius: radius.card,
       height: 430,
       justifyContent: 'flex-end',
-      marginBottom: 28,
+      marginBottom: space.xxl,
       overflow: 'hidden'
     },
     splashLogo: {
       alignSelf: 'center',
       height: 200,
       marginBottom: 'auto',
-      marginTop: 28,
+      marginTop: space.xxl,
       width: 230
     },
     accountLogo: {
       alignSelf: 'flex-start',
       height: 48,
-      marginBottom: 12,
+      marginBottom: space.md,
       width: 56
     },
     splashMark: { gap: 10, padding: 24 },
@@ -607,7 +612,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       minHeight: 78,
       padding: 14
     },
-    permissionIcon: { color: t.status.success, fontSize: 24, marginRight: 12 },
+    permissionIcon: { color: t.status.success, fontSize: 24, marginRight: space.md },
     rowTitle: { color: t.text.primary, fontSize: 15, fontWeight: '700' },
     rowDetail: { color: t.text.secondary, fontSize: 12, lineHeight: 17, marginTop: 3 },
     privacyRow: {
@@ -617,7 +622,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       borderRadius: radius.control,
       borderWidth: 1,
       flexDirection: 'row',
-      marginTop: 4,
+      marginTop: space.xs,
       minHeight: 80,
       padding: 14
     },
@@ -629,7 +634,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       borderRadius: radius.control,
       borderWidth: 1,
       flexDirection: 'row',
-      marginBottom: 8,
+      marginBottom: space.sm,
       padding: 14
     },
     history: { marginTop: 22 },
@@ -652,8 +657,8 @@ export const createAppStyles = (t: SemanticTokens) =>
       borderRadius: radius.chip,
       flexDirection: 'row',
       gap: 10,
-      marginBottom: 8,
-      paddingHorizontal: 12,
+      marginBottom: space.sm,
+      paddingHorizontal: space.md,
       paddingVertical: 10
     },
     leaderRowSelf: { backgroundColor: t.action.primary + '1F' },
@@ -688,7 +693,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       backgroundColor: t.background.surfaceRaised,
       borderRadius: radius.control,
       flexDirection: 'row',
-      marginBottom: 12,
+      marginBottom: space.md,
       padding: 14
     },
     warningNotice: { backgroundColor: t.background.surfaceRaised },
@@ -702,9 +707,19 @@ export const createAppStyles = (t: SemanticTokens) =>
       marginBottom: 10,
       textAlign: 'center'
     },
-    centeredState: { flex: 1, justifyContent: 'center', minHeight: 500, paddingHorizontal: 4 },
-    comingSoon: { flex: 1, justifyContent: 'center', minHeight: 480, paddingHorizontal: 20 },
-    comingSoonTitle: { color: t.text.primary, fontSize: 28, fontWeight: '700', marginTop: 8 },
+    centeredState: {
+      flex: 1,
+      justifyContent: 'center',
+      minHeight: 500,
+      paddingHorizontal: space.xs
+    },
+    comingSoon: { flex: 1, justifyContent: 'center', minHeight: 480, paddingHorizontal: space.xl },
+    comingSoonTitle: {
+      color: t.text.primary,
+      fontSize: 28,
+      fontWeight: '700',
+      marginTop: space.sm
+    },
     comingSoonCopy: { color: t.text.secondary, fontSize: 15, lineHeight: 23, marginTop: 14 },
 
     /* ---------------------------------------------------------------- *
@@ -731,7 +746,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       borderRadius: radius.control,
       borderWidth: 1,
       flexDirection: 'row',
-      marginBottom: 12,
+      marginBottom: space.md,
       paddingVertical: 14
     },
     metricCell: { alignItems: 'center', flex: 1, paddingHorizontal: 6 },
@@ -746,7 +761,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       color: t.text.secondary,
       fontSize: 11,
       fontWeight: '700',
-      marginTop: 4,
+      marginTop: space.xs,
       textAlign: 'center'
     },
     /** The guided tour (M9 9.23): spotlight ring, speech bubble and its buttons. */
@@ -757,15 +772,15 @@ export const createAppStyles = (t: SemanticTokens) =>
       borderRadius: radius.control,
       borderWidth: 1,
       left: 16,
-      padding: 16,
+      padding: space.lg,
       position: 'absolute',
       right: 16
     },
-    tourBubbleRow: { flexDirection: 'row', gap: 12 },
+    tourBubbleRow: { flexDirection: 'row', gap: space.md },
     tourButtons: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginTop: 12
+      marginTop: space.md
     },
     tourButtonOff: { opacity: 0.4 },
     tourNext: { fontWeight: '700' },
@@ -776,14 +791,14 @@ export const createAppStyles = (t: SemanticTokens) =>
       borderBottomWidth: 1,
       paddingBottom: 10,
       paddingHorizontal: 18,
-      paddingTop: 8
+      paddingTop: space.sm
     },
     runDetailGrabber: {
       alignSelf: 'center',
       backgroundColor: t.border.subtle,
       borderRadius: 3,
       height: 5,
-      marginBottom: 8,
+      marginBottom: space.sm,
       width: 40
     },
     runDetailBody: { padding: 18, paddingBottom: 48 },
@@ -810,7 +825,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       borderColor: t.border.subtle,
       borderRadius: radius.control,
       borderWidth: 1,
-      marginBottom: 12,
+      marginBottom: space.md,
       padding: 14
     },
     runStatGrid: {
@@ -820,10 +835,10 @@ export const createAppStyles = (t: SemanticTokens) =>
       borderWidth: 1,
       flexDirection: 'row',
       flexWrap: 'wrap',
-      marginBottom: 12,
-      paddingVertical: 8
+      marginBottom: space.md,
+      paddingVertical: space.sm
     },
-    runStatCell: { alignItems: 'center', paddingVertical: 8, width: '33.33%' },
+    runStatCell: { alignItems: 'center', paddingVertical: space.sm, width: '33.33%' },
     splitBarTrack: {
       backgroundColor: t.background.surfaceInset,
       borderRadius: 3,
@@ -837,9 +852,9 @@ export const createAppStyles = (t: SemanticTokens) =>
     chartHeader: {
       alignItems: 'baseline',
       flexDirection: 'row',
-      gap: 12,
+      gap: space.md,
       justifyContent: 'space-between',
-      marginTop: 8
+      marginTop: space.sm
     },
     /** A run in the profile run log (M9 9.15): route line left, numbers right. */
     runCard: {
@@ -849,9 +864,9 @@ export const createAppStyles = (t: SemanticTokens) =>
       borderRadius: radius.control,
       borderWidth: 1,
       flexDirection: 'row',
-      gap: 12,
-      marginBottom: 8,
-      padding: 12
+      gap: space.md,
+      marginBottom: space.sm,
+      padding: space.md
     },
     runThumb: {
       backgroundColor: t.background.surfaceInset,
@@ -860,14 +875,14 @@ export const createAppStyles = (t: SemanticTokens) =>
       width: 64
     },
     runCardWhen: { color: t.text.secondary, fontSize: 12, fontWeight: '700' },
-    runCardStats: { color: t.text.primary, fontSize: 15, fontWeight: '700', marginTop: 2 },
-    runCardMeta: { color: t.text.secondary, fontSize: 12, marginTop: 2 },
+    runCardStats: { color: t.text.primary, fontSize: 15, fontWeight: '700', marginTop: space.xxs },
+    runCardMeta: { color: t.text.secondary, fontSize: 12, marginTop: space.xxs },
     runWeekTitle: {
       color: t.text.secondary,
       fontSize: 12,
       fontWeight: '700',
       letterSpacing: 0.5,
-      marginBottom: 8,
+      marginBottom: space.sm,
       marginTop: 14
     },
     /** One km split on the run result (M9 9.12): label left, pace and climb right. */
@@ -877,7 +892,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       borderBottomWidth: 1,
       flexDirection: 'row',
       justifyContent: 'space-between',
-      paddingVertical: 8
+      paddingVertical: space.sm
     },
     splitLabel: { color: t.text.primary, fontSize: 14, fontWeight: '700' },
     splitValue: { color: t.text.secondary, fontSize: 14, fontVariant: ['tabular-nums'] },
@@ -885,7 +900,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       alignItems: 'center',
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginBottom: 12,
+      marginBottom: space.md,
       marginTop: 22
     },
     sectionTitle: { color: t.text.primary, fontSize: 17, fontWeight: '700', letterSpacing: -0.4 },
@@ -903,7 +918,12 @@ export const createAppStyles = (t: SemanticTokens) =>
       marginBottom: 18
     },
     profileHead: { alignItems: 'center', marginBottom: 18 },
-    profileHandle: { color: t.text.secondary, fontSize: 14, fontWeight: '700', marginTop: 2 },
+    profileHandle: {
+      color: t.text.secondary,
+      fontSize: 14,
+      fontWeight: '700',
+      marginTop: space.xxs
+    },
     bigAvatar: {
       alignItems: 'center',
       backgroundColor: t.background.surfaceRaised,
@@ -920,16 +940,16 @@ export const createAppStyles = (t: SemanticTokens) =>
       fontSize: 24,
       fontWeight: '700',
       letterSpacing: -0.6,
-      marginTop: 12
+      marginTop: space.md
     },
-    levelDetail: { color: t.text.secondary, fontSize: 13, fontWeight: '700', marginTop: 4 },
+    levelDetail: { color: t.text.secondary, fontSize: 13, fontWeight: '700', marginTop: space.xs },
     profileStats: {
       backgroundColor: t.background.surface,
       borderColor: t.border.subtle,
       borderRadius: radius.control,
       borderWidth: 1,
       flexDirection: 'row',
-      marginBottom: 16,
+      marginBottom: space.lg,
       paddingVertical: 14
     },
     profileStat: { alignItems: 'center', flex: 1 },
@@ -944,7 +964,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       fontSize: 11,
       fontWeight: '700',
       letterSpacing: 0.7,
-      marginTop: 4,
+      marginTop: space.xs,
       textAlign: 'center'
     },
     /** Achievement medallion: a tinted rounded square with a glyph. */
@@ -958,7 +978,7 @@ export const createAppStyles = (t: SemanticTokens) =>
     tierBadgeGlyph: { fontSize: 28 },
     /** The achievement strip: evenly divided cells, each a medallion and a name. */
     tierRow: { flexDirection: 'row', gap: 10 },
-    tierCell: { alignItems: 'center', flex: 1, gap: 2 },
+    tierCell: { alignItems: 'center', flex: 1, gap: space.xxs },
     tierBadgeLabel: {
       color: t.text.secondary,
       fontSize: 11,
@@ -994,7 +1014,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       justifyContent: 'space-between',
       minHeight: 54,
       paddingHorizontal: 15,
-      paddingVertical: 12
+      paddingVertical: space.md
     },
     settingDisabled: { opacity: 0.55 },
     settingValue: {
@@ -1002,14 +1022,14 @@ export const createAppStyles = (t: SemanticTokens) =>
       fontSize: 13,
       flexShrink: 1,
       fontWeight: '700',
-      marginLeft: 12,
+      marginLeft: space.md,
       textAlign: 'right'
     },
     settingsHint: {
       color: t.text.secondary,
       fontSize: 12,
       lineHeight: 17,
-      paddingBottom: 12,
+      paddingBottom: space.md,
       paddingHorizontal: 15,
       paddingTop: 7
     },
@@ -1025,7 +1045,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       borderColor: t.border.subtle,
       borderRadius: radius.card,
       borderWidth: 1,
-      marginTop: 12,
+      marginTop: space.md,
       padding: 18
     },
     recordTitle: {
@@ -1062,7 +1082,7 @@ export const createAppStyles = (t: SemanticTokens) =>
     /** The run's own title bar, floated over the map while the tab bar is hidden. */
     liveTitleBar: {
       alignItems: 'center',
-      gap: 4,
+      gap: space.xs,
       left: 0,
       position: 'absolute',
       right: 0,
@@ -1081,7 +1101,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       backgroundColor: t.background.surface,
       borderTopLeftRadius: 28,
       borderTopRightRadius: 28,
-      gap: 8,
+      gap: space.sm,
       marginTop: -28,
       padding: 18,
       paddingBottom: 26
@@ -1089,7 +1109,7 @@ export const createAppStyles = (t: SemanticTokens) =>
     liveStatus: {
       backgroundColor: t.background.surfaceInset,
       borderRadius: radius.chip,
-      padding: 12
+      padding: space.md
     },
     liveDistance: {
       fontVariant: ['tabular-nums'],
@@ -1106,7 +1126,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       fontSize: 11,
       fontWeight: '700',
       letterSpacing: 0.5,
-      marginTop: 8,
+      marginTop: space.sm,
       textAlign: 'center'
     },
     liveStats: {
@@ -1115,8 +1135,8 @@ export const createAppStyles = (t: SemanticTokens) =>
       flexDirection: 'row',
       alignItems: 'flex-start',
       flexWrap: 'wrap',
-      gap: 12,
-      marginTop: 12,
+      gap: space.md,
+      marginTop: space.md,
       padding: 14
     },
     resultStats: {
@@ -1124,7 +1144,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       borderRadius: radius.control,
       flexDirection: 'row',
       marginBottom: 10,
-      marginTop: 8,
+      marginTop: space.sm,
       padding: 14
     },
     checkpoint: {
@@ -1157,7 +1177,7 @@ export const createAppStyles = (t: SemanticTokens) =>
     },
     openPill: {
       backgroundColor: t.action.primary,
-      borderRadius: 999,
+      borderRadius: radius.pill,
       color: t.text.onAccent,
       fontSize: 11,
       fontWeight: '700',
@@ -1176,7 +1196,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       marginBottom: 14,
       overflow: 'hidden'
     },
-    routeCardRow: { flexDirection: 'row', gap: 10, paddingBottom: 4, paddingRight: 18 },
+    routeCardRow: { flexDirection: 'row', gap: 10, paddingBottom: space.xs, paddingRight: 18 },
     routeCard: {
       backgroundColor: t.background.surface,
       borderColor: t.border.subtle,
@@ -1196,7 +1216,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       fontSize: 24,
       fontWeight: '700',
       letterSpacing: -0.7,
-      marginTop: 2
+      marginTop: space.xxs
     },
     routeMeta: { color: t.text.primary, fontSize: 14, fontWeight: '700', marginTop: 5 },
     /** Which of the offered loops is on screen. */
@@ -1222,8 +1242,8 @@ export const createAppStyles = (t: SemanticTokens) =>
       borderRadius: radius.control,
       borderWidth: 1,
       flexDirection: 'row',
-      gap: 12,
-      marginBottom: 8,
+      gap: space.md,
+      marginBottom: space.sm,
       minHeight: 56,
       paddingHorizontal: 14
     },
@@ -1233,7 +1253,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       borderRadius: radius.chip,
       borderWidth: 2,
       gap: 3,
-      padding: 12
+      padding: space.md
     },
     ghostHeadline: { fontSize: 15, fontWeight: '700' },
     ghostDetail: { color: t.text.secondary, fontSize: 12, lineHeight: 17 }

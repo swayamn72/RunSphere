@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { typeScale } from '@runsphere/ui';
+import { radius, space, typeScale } from '@runsphere/ui';
 
 const sources = (): string[] => {
   const walk = (directory: string): string[] =>
@@ -37,6 +37,27 @@ describe('type system guard (ADR-0016)', () => {
     for (const path of sources())
       for (const [, size] of readFileSync(path, 'utf8').matchAll(/fontSize: ?(\d+)/g))
         if (!allowed.has(Number(size))) stray.add(`${path}: ${size}`);
+    expect([...stray]).toEqual([]);
+  });
+
+  it('spells a spacing or radius that is on the scale with its token', () => {
+    // A value on the scale is written `space.md` / `radius.card`, so changing
+    // the scale changes the app. Off-scale values (3, 5, 10, 14...) are the
+    // designer's call and stay literal until a pass decides them.
+    const spaceValues = new Set<number>(Object.values(space));
+    const radiusValues = new Set<number>(Object.values(radius));
+    const spacing =
+      /\b(?:padding|paddingHorizontal|paddingVertical|paddingTop|paddingBottom|paddingLeft|paddingRight|margin|marginHorizontal|marginVertical|marginTop|marginBottom|marginLeft|marginRight|gap|rowGap|columnGap): (\d+)\b(?![.\d])/g;
+    const corners = /\bborderRadius: (\d+)\b(?![.\d])/g;
+    const stray = new Set<string>();
+    for (const path of sources()) {
+      if (path.includes('/theme/')) continue;
+      const text = readFileSync(path, 'utf8');
+      for (const [, value] of text.matchAll(spacing))
+        if (spaceValues.has(Number(value))) stray.add(`${path}: spacing ${value}`);
+      for (const [, value] of text.matchAll(corners))
+        if (radiusValues.has(Number(value))) stray.add(`${path}: radius ${value}`);
+    }
     expect([...stray]).toEqual([]);
   });
 });

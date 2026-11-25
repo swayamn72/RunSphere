@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { space } from '@runsphere/ui';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import type { QuestDetail, QuestSummary } from '@runsphere/contracts';
@@ -127,19 +128,25 @@ export function QuestDetailScreen({
         ) : (
           <>
             <QuestProgressCard api={api} questId={quest.id} onProgress={setProgress} />
-            {start ? (
-              <PrimaryButton label="Start this quest" onPress={() => onStart(start)} />
-            ) : (
-              progress &&
-              progress !== 'taken' && (
-                <Text style={[styles.copy, { color: tokens.text.secondary }]}>
-                  {QUEST_START_HINT[progress]}
-                </Text>
-              )
+            {!start && progress && progress !== 'taken' && (
+              <Text style={[styles.copy, { color: tokens.text.secondary }]}>
+                {QUEST_START_HINT[progress]}
+              </Text>
             )}
           </>
         )}
       </ScrollView>
+      {/* Pinned, so the one action stays in the thumb zone however long the stop list is. */}
+      {!sample && start ? (
+        <View
+          style={[
+            styles.footer,
+            { backgroundColor: tokens.background.canvas, borderTopColor: tokens.border.subtle }
+          ]}
+        >
+          <PrimaryButton label="Start this quest" onPress={() => onStart(start)} />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -212,14 +219,15 @@ const styles = StyleSheet.create({
   },
   backText: { fontSize: 28, fontWeight: '500', lineHeight: 34 },
   panel: { flexGrow: 0, maxHeight: '52%' },
-  panelContent: { gap: 10, padding: 20, paddingBottom: 28 },
+  footer: { borderTopWidth: 1, paddingBottom: space.xl, paddingHorizontal: space.xl },
+  panelContent: { gap: 10, padding: space.xl, paddingBottom: space.xxl },
   eyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 1.2 },
   title: { fontSize: 28, fontWeight: '700', letterSpacing: -0.5 },
   facts: { fontSize: 14, fontWeight: '700' },
   copy: { fontSize: 14, lineHeight: 20 },
   small: { fontSize: 12, lineHeight: 17 },
-  stops: { gap: 8 },
-  stop: { alignItems: 'center', flexDirection: 'row', gap: 12 },
+  stops: { gap: space.sm },
+  stop: { alignItems: 'center', flexDirection: 'row', gap: space.md },
   stopNumber: {
     alignItems: 'center',
     backgroundColor: gameWorld.quest.marker,

@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { space } from '@runsphere/ui';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import { useAppTheme } from '../theme/theme';
@@ -68,7 +69,7 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       left: 0,
       minHeight: Platform.OS === 'ios' ? 84 : 68,
       paddingBottom: Platform.OS === 'ios' ? 22 : 10,
-      paddingTop: 8,
+      paddingTop: space.sm,
       position: 'absolute',
       right: 0
     },

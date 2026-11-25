@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { radius, space } from '@runsphere/ui';
 import {
   Camera,
   Map,
@@ -445,19 +446,19 @@ const styles = StyleSheet.create({
   fallbackDetail: { fontSize: 14, lineHeight: 20, marginTop: 6, textAlign: 'center' },
   retry: {
     alignItems: 'center',
-    borderRadius: 16,
+    borderRadius: radius.card,
     borderWidth: 1,
     justifyContent: 'center',
-    marginTop: 16,
+    marginTop: space.lg,
     minHeight: 48,
     paddingHorizontal: 18
   },
   retryText: { fontSize: 14, fontWeight: '700' },
-  controls: { gap: 8, position: 'absolute', right: 12, top: 12 },
+  controls: { gap: space.sm, position: 'absolute', right: 12, top: 12 },
   locate: { bottom: 36, position: 'absolute', right: 12 },
   control: {
     alignItems: 'center',
-    borderRadius: 24,
+    borderRadius: radius.sheet,
     borderWidth: 1,
     height: 48,
     justifyContent: 'center',
@@ -474,7 +475,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     maxWidth: '72%',
     paddingHorizontal: 6,
-    paddingVertical: 4,
+    paddingVertical: space.xs,
     position: 'absolute'
   }
 });

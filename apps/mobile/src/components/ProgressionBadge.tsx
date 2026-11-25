@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, AppState, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from './Text';
 import type { ProgressionSummary } from '@runsphere/contracts';
-import { darkTokens } from '@runsphere/ui';
+import { darkTokens, space } from '@runsphere/ui';
 import type { MobileApiClient } from '../api-client';
 import { dashboardPreviewEnabled, previewProgression } from '../screens/dashboard-preview';
 import { progressionPresentation } from '../screens/home-progression-model';
@@ -88,7 +88,7 @@ export function ProgressionBadge({
 }
 
 const styles = StyleSheet.create({
-  screenStatus: { paddingHorizontal: 20, paddingTop: 6 },
+  screenStatus: { paddingHorizontal: space.xl, paddingTop: 6 },
   badge: {
     alignSelf: 'flex-end',
     backgroundColor: darkTokens.background.surface,
@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     justifyContent: 'center',
     minHeight: 48,
-    paddingHorizontal: 12,
+    paddingHorizontal: space.md,
     paddingVertical: 6
   },
   turfBadge: { backgroundColor: gameWorld.hud.glass, borderColor: gameWorld.hud.edgeSoft },
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
     backgroundColor: darkTokens.background.surfaceRaised,
     borderRadius: 3,
     height: 3,
-    marginTop: 4,
+    marginTop: space.xs,
     overflow: 'hidden'
   },
   fill: { backgroundColor: darkTokens.action.primary, height: '100%' }

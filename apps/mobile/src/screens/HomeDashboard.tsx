@@ -3,7 +3,7 @@ import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import { NavigationIcon } from '../components/NavigationIcon';
 import Svg, { Path } from 'react-native-svg';
-import { appPalette, darkTokens as night, type SemanticTokens } from '@runsphere/ui';
+import { type SemanticTokens, appPalette, darkTokens as night, radius, space } from '@runsphere/ui';
 import { useAppTheme } from '../theme/theme';
 import questWaterfront from '../../assets/quest-waterfront.jpg';
 import type {
@@ -329,23 +329,23 @@ const createStyles = (tokens: SemanticTokens) =>
       alignItems: 'center',
       flexDirection: 'row',
       gap: 10,
-      marginBottom: 16,
+      marginBottom: space.lg,
       minHeight: 56
     },
     copy: { flex: 1, minWidth: 0 },
-    headerTools: { alignItems: 'flex-end', gap: 8, flexShrink: 1 },
+    headerTools: { alignItems: 'flex-end', gap: space.sm, flexShrink: 1 },
     headerActions: { flexDirection: 'row', gap: 10 },
-    wordmark: { alignItems: 'center', flexDirection: 'row', gap: 8, marginBottom: 6 },
+    wordmark: { alignItems: 'center', flexDirection: 'row', gap: space.sm, marginBottom: 6 },
     brand: { color: tokens.text.primary, fontSize: 20, fontWeight: '700', letterSpacing: 1 },
     // The Turf card is a night-map illustration in both themes.
     turf: {
       backgroundColor: night.background.surface,
       borderColor: night.border.subtle,
-      borderRadius: 16,
+      borderRadius: radius.card,
       borderWidth: 1,
-      marginBottom: 12,
+      marginBottom: space.md,
       overflow: 'hidden',
-      padding: 16
+      padding: space.lg
     },
     turfArt: {
       backgroundColor: night.background.surface,
@@ -362,19 +362,19 @@ const createStyles = (tokens: SemanticTokens) =>
     mapButton: {
       alignSelf: 'flex-start',
       borderColor: night.text.secondary,
-      borderRadius: 12,
+      borderRadius: radius.control,
       borderWidth: 1,
       justifyContent: 'center',
-      marginTop: 12,
+      marginTop: space.md,
       minHeight: 44,
-      paddingHorizontal: 16
+      paddingHorizontal: space.lg
     },
     name: { color: tokens.text.primary, fontSize: 28, fontWeight: '700', letterSpacing: -0.4 },
     headerButton: {
       alignItems: 'center',
       backgroundColor: tokens.background.surface,
       borderColor: tokens.border.subtle,
-      borderRadius: 24,
+      borderRadius: radius.sheet,
       borderWidth: 1,
       height: 48,
       justifyContent: 'center',
@@ -385,7 +385,7 @@ const createStyles = (tokens: SemanticTokens) =>
     badge: {
       backgroundColor: tokens.brand.lime,
       borderColor: tokens.background.surface,
-      borderRadius: 6,
+      borderRadius: radius.sm,
       borderWidth: 1,
       height: 10,
       position: 'absolute',
@@ -396,14 +396,14 @@ const createStyles = (tokens: SemanticTokens) =>
     start: {
       alignItems: 'center',
       backgroundColor: tokens.brand.lime,
-      borderRadius: 16,
+      borderRadius: radius.card,
       flexDirection: 'row',
-      gap: 12,
+      gap: space.md,
       justifyContent: 'center',
-      marginBottom: 12,
+      marginBottom: space.md,
       minHeight: 56,
-      paddingHorizontal: 16,
-      paddingVertical: 12
+      paddingHorizontal: space.lg,
+      paddingVertical: space.md
     },
     startLabel: { color: tokens.text.onSelected, flexShrink: 1, fontSize: 24, fontWeight: '700' },
     sectionTitle: {
@@ -411,39 +411,39 @@ const createStyles = (tokens: SemanticTokens) =>
       fontSize: 24,
       fontWeight: '700',
       letterSpacing: -0.4,
-      marginBottom: 8
+      marginBottom: space.sm
     },
     card: {
       backgroundColor: tokens.background.surfaceRaised,
       borderColor: tokens.border.subtle,
-      borderRadius: 16,
+      borderRadius: radius.card,
       borderWidth: 1,
-      marginBottom: 12,
-      paddingHorizontal: 12,
-      paddingVertical: 12
+      marginBottom: space.md,
+      paddingHorizontal: space.md,
+      paddingVertical: space.md
     },
-    row: { alignItems: 'center', flexDirection: 'row', gap: 12, minHeight: 42 },
+    row: { alignItems: 'center', flexDirection: 'row', gap: space.md, minHeight: 42 },
     cardIcon: {
       alignItems: 'center',
       borderRightColor: tokens.border.subtle,
       borderRightWidth: 1,
       justifyContent: 'center',
       minHeight: 28,
-      paddingRight: 12
+      paddingRight: space.md
     },
     title: { color: tokens.text.primary, fontSize: 15, fontWeight: '700' },
     detail: { color: tokens.text.secondary, fontSize: 14, fontWeight: '500' },
     ink: { color: tokens.text.onPaper },
     paperDetail: { color: tokens.text.onPaperMuted, fontSize: 14, fontWeight: '500' },
     questCard: { backgroundColor: tokens.background.paper, borderColor: tokens.border.paper },
-    grid: { flexDirection: 'row', gap: 12 },
+    grid: { flexDirection: 'row', gap: space.md },
     tile: {
       alignItems: 'center',
       backgroundColor: tokens.background.paper,
       borderColor: tokens.border.paper,
       flex: 1,
       flexDirection: 'row',
-      gap: 8,
+      gap: space.sm,
       minHeight: 66
     },
     value: {
@@ -454,25 +454,25 @@ const createStyles = (tokens: SemanticTokens) =>
       letterSpacing: -0.3
     },
     unit: { color: tokens.text.onPaperMuted, fontSize: 14, fontWeight: '700' },
-    questImage: { width: '40%', aspectRatio: 1.9, borderRadius: 12 },
+    questImage: { width: '40%', aspectRatio: 1.9, borderRadius: radius.control },
     days: {
       alignItems: 'center',
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 12,
-      paddingVertical: 8
+      gap: space.md,
+      paddingVertical: space.sm
     },
     daysLabel: { color: tokens.text.onPaper, fontSize: 14, fontWeight: '700' },
     pips: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', minWidth: 126 },
     goal: {
       borderTopColor: tokens.border.paper,
       borderTopWidth: 1,
-      marginTop: 8,
-      paddingTop: 12
+      marginTop: space.sm,
+      paddingTop: space.md
     },
     pip: {
       borderColor: tokens.text.onPaperMuted,
-      borderRadius: 6,
+      borderRadius: radius.sm,
       borderWidth: 1,
       height: 13,
       width: 13
@@ -486,11 +486,11 @@ const createStyles = (tokens: SemanticTokens) =>
     },
     track: {
       backgroundColor: tokens.border.paper,
-      borderRadius: 999,
+      borderRadius: radius.pill,
       height: 8,
-      marginTop: 12,
+      marginTop: space.md,
       overflow: 'hidden'
     },
-    fill: { backgroundColor: tokens.brand.lime, borderRadius: 999, height: '100%' },
+    fill: { backgroundColor: tokens.brand.lime, borderRadius: radius.pill, height: '100%' },
     pressed: { opacity: 0.75 }
   });

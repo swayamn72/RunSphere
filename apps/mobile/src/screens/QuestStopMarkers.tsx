@@ -1,4 +1,5 @@
 import { StyleSheet, View } from 'react-native';
+import { radius } from '@runsphere/ui';
 import { Text } from '../components/Text';
 import { Marker } from '@maplibre/maplibre-react-native';
 import { gameWorld } from '../theme/game-world';
@@ -43,7 +44,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: gameWorld.quest.marker,
     borderColor: gameWorld.quest.markerEdge,
-    borderRadius: 16,
+    borderRadius: radius.card,
     borderWidth: 2,
     height: 32,
     justifyContent: 'center',
