@@ -1,7 +1,7 @@
 # Frontend reconstruction: audit, design-system plan, checklist
 
 Status: **Phase 1 (audit) and Phase 2 (architecture) done 2026-11-25. Decisions are in
-[ADR-0016](../adr/0016-design-system-light-default.md). Phase 3 (foundation) done. Phase 4 (admin) done.** No application
+[ADR-0016](../adr/0016-design-system-light-default.md). Phase 3 (foundation) done. Phase 4 (admin) done. Phase 5 (mobile) mostly done; see the Mobile checklist for what is unverified.** No application
 source has changed yet. Baseline: commit `6e73766`
 (branch `feat/ios-app`).
 
@@ -359,14 +359,24 @@ Behaviour changes, all deliberate: (1) success notices now stay visible; before,
 
 ### Mobile
 
-- [ ] Foundation (`typeScale`, `AppText`, spacing and radius migration)
-- [ ] Tab bar and screen headers
-- [ ] Onboarding, recovery, tour
-- [ ] Home
-- [ ] Social (friends, clubs, search, profile sheet, shared, invites, notifications)
-- [ ] Profile (overview, identity, privacy, zones, achievements, seasons, run log, run detail)
-- [ ] Run (picker, route preview, preparation, recording, Ghost Race)
-- [ ] Map / Turf (HUD, panels, territory detail, quest detail, explore)
+Verified by running the real app in the iOS Simulator (iPhone 17 Pro, dev client, Maestro to drive it), signed in with a throwaway account, in light and dark.
+
+- [x] Foundation: Inter via a drop-in `Text`/`TextInput` (no screen names a font file), weights 800/900 retired (140 styles), font sizes 28 → 10 (scale in `@runsphere/ui`), tabular figures on numeric styles, guard tests (`design-scale.test.ts`)
+- [x] Tab bar and shell: active tab uses `text.accent` (olive on light, lime on dark) with an indicator; the Map, quest map and live run stay dark via `ForceTheme`
+- [x] Home: header, paper cards, stat tiles, weekly goal follow the theme; the Turf card stays a night-map illustration
+- [x] Social: standings card follows the theme; "you" row uses the map's own `zone.ownedFill`
+- [x] Profile: stats, achievements, settings; new **Appearance** setting (Light / Dark / Match phone)
+- [x] Run picker (light)
+- [x] Map / Turf (dark island unchanged, confirmed on device)
+- [x] Onboarding (light, seen on device: sign-in, privacy step, run-visibility step)
+- [ ] Not looked at on a device: quest detail, route preview, activity recording/results, run detail and charts (chart line now uses `text.accent`), clubs, friends, notifications, privacy zones, achievements, account recovery, the guided tour in dark. They draw through the shared `useAppStyles` roles and the guard tests prove no colour literals, but nobody has seen them.
+- [ ] Spacing: ~400 literal padding/margin/gap values and ~100 `borderRadius` literals are **not** consolidated. Radius literals are often half a circle's size, so a blind snap would break avatars and dots; spacing needs a visual pass screen by screen.
+
+Findings from the device (kept for the owner):
+
+- The floating gear in every screenshot is the Expo **dev client's** debug button, not the app.
+- A dark panel with a dark mascot appeared once on the privacy onboarding step; no code that draws it was found, so it is unresolved. Re-check on a fresh onboarding.
+- The Home dashboard hard-coded dark colours and hid its own header on the light canvas; fixed.
 
 ### Verification
 

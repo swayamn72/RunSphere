@@ -4,7 +4,6 @@ import { Text } from '../components/Text';
 import Svg, { Line, Path } from 'react-native-svg';
 import type { ActivityMetrics } from '@runsphere/contracts';
 import { useAppStyles } from '../components/styles';
-import { gameWorld } from '../theme/game-world';
 import { useAppTheme } from '../theme/theme';
 import { chartPath, scrubAt, type Scrub } from './run-detail-layout-model';
 import type { Lines } from './route-draw-model';
@@ -74,7 +73,8 @@ export function RunChart({
         <Svg width={width} height={CHART_HEIGHT}>
           <Path
             d={geometry.path}
-            stroke={kind === 'pace' ? gameWorld.route.quick : tokens.text.secondary}
+            // Accent as a line colour: olive on light, lime on dark. Lime is faint on a light card.
+            stroke={kind === 'pace' ? tokens.text.accent : tokens.text.secondary}
             strokeWidth={2}
             fill="none"
           />
