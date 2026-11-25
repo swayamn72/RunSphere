@@ -393,6 +393,9 @@ activity history), Settings privacy section.
 Fixed: Profile stat tiles had a left-aligned value over a centred label (label now left); settings
 toggle rows had no vertical padding, so text touched the dividers (`paddingVertical: 12`).
 
+Seen on a device in **dark**: Settings (with the Appearance control), Achievements, Profile. The
+Profile stat tiles stay paper-coloured in dark, by the `background.paper` role.
+
 Not seen on a device: Quest detail in dark, route preview, recording and results, run detail,
 clubs, friends, notifications, privacy zones, achievements list, account recovery, the guided tour.
 Spacing and radius literals are still not consolidated. Maestro point taps were unreliable for deep
