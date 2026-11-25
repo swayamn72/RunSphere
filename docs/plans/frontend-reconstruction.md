@@ -1,7 +1,7 @@
 # Frontend reconstruction: audit, design-system plan, checklist
 
 Status: **Phase 1 (audit) and Phase 2 (architecture) done 2026-11-25. Decisions are in
-[ADR-0016](../adr/0016-design-system-light-default.md). Next: Phase 3 (foundation).** No application
+[ADR-0016](../adr/0016-design-system-light-default.md). Phase 3 (foundation) in progress: step 1 done.** No application
 source has changed yet. Baseline: commit `6e73766`
 (branch `feat/ios-app`).
 
@@ -160,7 +160,7 @@ Add to `SemanticTokens`. All additions are optional for consumers, and both toke
 | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | background                           | canvas `#F4F2ED`, surface `#FFFFFF`, surfaceRaised `#FFFFFF` (with elevation 1), surfaceInset `#EFECE6`                                             |
 | text                                 | primary `#141414`, secondary `#4A4843`, tertiary `#5F5C56`, disabled `#9C9891`, inverse `#F4F2ED`, onAccent `#F4F2ED`, danger `#B4233C`             |
-| border                               | subtle `#E2DED6`, strong `#8C887F`, focus `#3F5A00`                                                                                                 |
+| border                               | subtle `#E2DED6`, strong `#86827A`, focus `#3F5A00`                                                                                                 |
 | action                               | primary `#141414`, primaryPressed `#2B2B2B`, secondary `#FFFFFF`, selected `#C9F44A`, disabled `#E2DED6`, danger `#B4233C`, dangerPressed `#951C31` |
 | status                               | info `#0B6E99`, success `#1A6E44`, warning `#9A5B00`, error `#B4233C`, pending `#9A5B00`                                                            |
 | accent                               | violet `#6D4BD8`, amber `#9A5B00`, coral `#B4233C`, azure `#0B6E99`, gold `#8A6400`                                                                 |
@@ -179,16 +179,16 @@ Contrast pairs:
 
 Measured (light):
 
-| Pair                          | Ratio |
-| ----------------------------- | ----- |
-| ink on canvas                 | 16.5  |
-| secondary on canvas           | 8.2   |
-| tertiary on inset             | 5.45  |
-| olive on canvas               | 7.0   |
-| danger on canvas              | 5.8   |
-| ink on lime                   | 14.5  |
-| paper on ink                  | 16.5  |
-| `border.strong` (3:1 graphic) | 3.16  |
+| Pair                          | Ratio            |
+| ----------------------------- | ---------------- |
+| ink on canvas                 | 16.5             |
+| secondary on canvas           | 8.2              |
+| tertiary on inset             | 5.45             |
+| olive on canvas               | 7.0              |
+| danger on canvas              | 5.8              |
+| ink on lime                   | 14.5             |
+| paper on ink                  | 16.5             |
+| `border.strong` (3:1 graphic) | 3.0+ (`#86827A`) |
 
 ### 8.2 Typography (Inter; both apps)
 
@@ -323,6 +323,12 @@ The admin uses the same roles. It can step `title` up to 32 and `display` to 44 
 Nothing is removed. No API, contract, schema or backend change.
 
 ## 9. Checklists
+
+### Phase 3 foundation (spec §8.7 steps 1–3)
+
+- [x] 1. `packages/ui`: new roles, `lightTokens`, dark adjustments, `typeScale`, `fontWeight`, space, radius, elevation, motion, `toCssVariables` / `buildThemeCss`, shared AA matrix over both schemes (`border.strong` light darkened to `#86827A` to reach 3:1 on the inset surface)
+- [ ] 2. Mobile foundation
+- [ ] 3. Admin foundation
 
 ### Admin
 

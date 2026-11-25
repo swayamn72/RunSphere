@@ -60,49 +60,8 @@ describe('single-appearance theme', () => {
       expect(contrast(pair.foreground, pair.background)).toBeGreaterThanOrEqual(pair.minimum);
   });
 
-  /**
-   * UX.1 (Milestone 2.5): every colour a screen may set as *text* meets WCAG
-   * 2.2 AA (4.5:1) on every surface it can sit on, and every colour used for
-   * map zones, lines and glyphs meets the 3:1 non-text minimum. Disabled text
-   * is exempt under WCAG. `action.danger` is a button fill, not a text colour,
-   * so it is covered by the white-on-danger pair above instead.
-   */
-  const surfaces = Object.entries(darkTokens.background);
-  const textRoles = {
-    'text.primary': darkTokens.text.primary,
-    'text.secondary': darkTokens.text.secondary,
-    'text.tertiary': darkTokens.text.tertiary,
-    'text.danger': darkTokens.text.danger,
-    'action.primary': darkTokens.action.primary,
-    'status.info': darkTokens.status.info,
-    'status.success': darkTokens.status.success,
-    'status.warning': darkTokens.status.warning,
-    'accent.violet': darkTokens.accent.violet,
-    'accent.gold': darkTokens.accent.gold,
-    'zone.owned': darkTokens.zone.owned,
-    'zone.neutral': darkTokens.zone.neutral
-  };
-  const graphicRoles = {
-    'zone.owned': darkTokens.zone.owned,
-    'zone.rival': darkTokens.zone.rival,
-    'zone.neutral': darkTokens.zone.neutral,
-    'status.error': darkTokens.status.error,
-    'route.line': darkTokens.route.line,
-    'border.focus': darkTokens.border.focus
-  };
-
-  it.each(Object.entries(textRoles))('%s is AA text on every surface', (_role, colour) => {
-    for (const [, surface] of surfaces)
-      expect(contrast(colour, surface)).toBeGreaterThanOrEqual(4.5);
-  });
-
-  it.each(Object.entries(graphicRoles))(
-    '%s meets 3:1 as a graphic on every surface',
-    (_role, colour) => {
-      for (const [, surface] of surfaces)
-        expect(contrast(colour, surface)).toBeGreaterThanOrEqual(3);
-    }
-  );
+  // The per-role AA matrix (UX.1) moved to packages/ui/src/index.test.ts, where it runs
+  // over the light and dark schemes together.
 
   // UX.2: every colour comes from `@runsphere/ui`, so a palette change can't
   // leave a stray literal behind (which has happened twice in this codebase).
