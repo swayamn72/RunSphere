@@ -113,6 +113,9 @@
 .rs-notice--info {
   border-left-color: var(--rs-status-info);
 }
+.rs-notice--success {
+  border-left-color: var(--rs-status-success);
+}
 .rs-notice--readonly {
   border-left-color: var(--rs-border-strong);
 }
@@ -309,8 +312,14 @@
   border-radius: var(--rs-radius-control);
   background: var(--rs-background-surface);
 }
+.rs-segmented {
+  max-width: 100%;
+}
 .rs-segmented .rs-segmented__option {
-  padding: 6px var(--rs-space-md);
+  flex: 1 1 auto;
+  border: 0;
+  white-space: nowrap;
+  padding: 6px var(--rs-space-sm);
   border-radius: calc(var(--rs-radius-control) - 2px);
   background: transparent;
   color: var(--rs-text-primary);
@@ -331,4 +340,243 @@
     flex-direction: column;
     align-items: flex-start;
   }
+}
+
+/* Page furniture used by the areas */
+.rs-form {
+  display: grid;
+  gap: var(--rs-space-lg);
+}
+.rs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--rs-space-sm);
+}
+.rs-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rs-space-xs);
+}
+.rs-inline-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rs-space-sm);
+  font-size: var(--rs-type-label-size);
+  font-weight: var(--rs-weight-medium);
+}
+.rs-inline-filter select,
+.rs-inline-filter input:not([type='checkbox']) {
+  width: auto;
+  min-width: 140px;
+}
+.rs-season-picker {
+  max-width: 520px;
+  margin-bottom: var(--rs-space-md);
+}
+.rs-review {
+  display: grid;
+  gap: var(--rs-space-sm);
+  min-width: 220px;
+}
+
+/* Key figures */
+.rs-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--rs-space-md);
+  margin: var(--rs-space-md) 0 0;
+}
+.rs-stat {
+  padding: var(--rs-space-lg);
+  border: 1px solid var(--rs-border-subtle);
+  border-radius: var(--rs-radius-card);
+  background: var(--rs-background-surface);
+}
+.rs-stat__label {
+  font-size: var(--rs-type-caption-size);
+  color: var(--rs-text-secondary);
+}
+.rs-stat__value {
+  margin: var(--rs-space-xs) 0 0;
+  font-size: var(--rs-type-metric-size);
+  line-height: var(--rs-type-metric-line);
+  font-weight: var(--rs-type-metric-weight);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A page body with a form beside it */
+.rs-with-aside {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--rs-space-xl);
+}
+/* A wide table must scroll inside its own box, not stretch the page. */
+.rs-with-aside > *,
+.rs-split > * {
+  min-width: 0;
+}
+.rs-aside {
+  display: grid;
+  gap: var(--rs-space-lg);
+  align-content: start;
+}
+.rs-aside .rs-section {
+  margin-bottom: 0;
+}
+@media (min-width: 1024px) {
+  .rs-with-aside {
+    grid-template-columns: minmax(0, 1fr) 340px;
+    align-items: start;
+  }
+  .rs-aside {
+    position: sticky;
+    top: var(--rs-space-xl);
+  }
+}
+
+/* Queue and detail */
+.rs-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--rs-space-lg);
+}
+.rs-queue {
+  display: grid;
+  gap: var(--rs-space-xs);
+  align-content: start;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rs-queue__item {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: var(--rs-space-md);
+  border: 1px solid var(--rs-border-subtle);
+  border-radius: var(--rs-radius-control);
+  background: var(--rs-background-surface);
+  text-align: left;
+}
+.rs-queue__item:hover {
+  background: var(--rs-background-surface-inset);
+}
+.rs-queue__item[aria-current='true'] {
+  border-color: var(--rs-border-focus);
+  box-shadow: inset 3px 0 0 var(--rs-border-focus);
+}
+.rs-queue__name {
+  font-weight: var(--rs-weight-semibold);
+}
+.rs-queue__meta {
+  font-size: var(--rs-type-caption-size);
+  color: var(--rs-text-secondary);
+}
+.rs-detail {
+  display: grid;
+  gap: var(--rs-space-lg);
+  align-content: start;
+  padding: var(--rs-space-xl);
+  border: 1px solid var(--rs-border-subtle);
+  border-radius: var(--rs-radius-card);
+  background: var(--rs-background-surface);
+}
+.rs-detail__head {
+  display: grid;
+  gap: var(--rs-space-sm);
+}
+.rs-detail__title {
+  font-size: var(--rs-type-heading-size);
+  line-height: var(--rs-type-heading-line);
+  font-weight: var(--rs-type-heading-weight);
+}
+.rs-detail__note {
+  color: var(--rs-text-secondary);
+}
+.rs-choices {
+  display: grid;
+  gap: var(--rs-space-sm);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.rs-choices legend {
+  padding: 0;
+  margin-bottom: var(--rs-space-sm);
+  font-weight: var(--rs-weight-semibold);
+}
+.rs-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--rs-space-sm);
+  padding: var(--rs-space-md);
+  border: 1px solid var(--rs-border-subtle);
+  border-radius: var(--rs-radius-control);
+}
+.rs-choice__effect {
+  display: block;
+  font-size: var(--rs-type-caption-size);
+  color: var(--rs-text-secondary);
+}
+.rs-history {
+  display: grid;
+  gap: var(--rs-space-md);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rs-history__item {
+  display: grid;
+  gap: var(--rs-space-sm);
+  padding: var(--rs-space-md);
+  border: 1px solid var(--rs-border-subtle);
+  border-radius: var(--rs-radius-control);
+}
+.rs-cards {
+  display: grid;
+  gap: var(--rs-space-md);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rs-card {
+  display: grid;
+  gap: var(--rs-space-md);
+  padding: var(--rs-space-lg);
+  border: 1px solid var(--rs-border-subtle);
+  border-radius: var(--rs-radius-card);
+  background: var(--rs-background-surface);
+}
+.rs-card p {
+  margin-top: var(--rs-space-sm);
+}
+@media (min-width: 1024px) {
+  .rs-split {
+    grid-template-columns: 300px minmax(0, 1fr);
+    align-items: start;
+  }
+  .rs-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+}
+
+/* Whatever follows a section's heading is set a step away from it. */
+.rs-section > :not(.rs-section__head) + * {
+  margin-top: var(--rs-space-md);
+}
+.rs-nowrap {
+  white-space: nowrap;
+}
+
+/* Identifiers stay in one piece; the table scrolls instead of breaking them. */
+.rs-table code {
+  white-space: nowrap;
+}
+.rs-section__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--rs-space-sm);
 }

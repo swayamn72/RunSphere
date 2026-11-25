@@ -1,0 +1,183 @@
+/*
+ * The console's frame. Sidebar from 1024px up; a top bar with a menu below it.
+ * Widths mirror `layout` and `breakpoints` in @runsphere/ui (media queries
+ * can't read custom properties).
+ */
+.rs-skip {
+  position: absolute;
+  left: var(--rs-space-md);
+  top: -48px;
+  z-index: 10;
+  padding: var(--rs-space-sm) var(--rs-space-md);
+  border-radius: var(--rs-radius-control);
+  background: var(--rs-action-primary);
+  color: var(--rs-text-on-accent);
+}
+.rs-skip:focus {
+  top: var(--rs-space-md);
+}
+.rs-brand {
+  font-size: var(--rs-type-label-size);
+  font-weight: var(--rs-weight-bold);
+  letter-spacing: var(--rs-type-overline-tracking);
+  color: var(--rs-text-primary);
+}
+
+/* Signed out */
+.rs-auth {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.rs-auth__main {
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: var(--rs-space-xxxl) var(--rs-space-lg) var(--rs-space-xxl);
+  flex: 1;
+}
+.rs-auth__main .rs-brand {
+  margin-bottom: var(--rs-space-xl);
+}
+.rs-auth__form {
+  padding: var(--rs-space-xl);
+  border: 1px solid var(--rs-border-subtle);
+  border-radius: var(--rs-radius-card);
+  background: var(--rs-background-surface);
+  box-shadow: var(--rs-shadow-e1);
+}
+
+/* Signed in */
+.rs-app {
+  min-height: 100vh;
+}
+.rs-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: var(--rs-space-md);
+  padding: var(--rs-space-sm) var(--rs-space-lg);
+  border-bottom: 1px solid var(--rs-border-subtle);
+  background: var(--rs-background-surface);
+}
+.rs-menu-button {
+  min-height: 40px;
+  padding: 0 var(--rs-space-md);
+  border: 1px solid var(--rs-border-strong);
+  border-radius: var(--rs-radius-control);
+  background: var(--rs-action-secondary);
+  font-weight: var(--rs-weight-semibold);
+}
+.rs-sidebar {
+  display: none;
+  padding: var(--rs-space-lg);
+  border-bottom: 1px solid var(--rs-border-subtle);
+  background: var(--rs-background-surface);
+}
+.rs-app[data-menu-open='true'] .rs-sidebar {
+  display: block;
+}
+.rs-sidebar__brand {
+  display: none;
+  margin-bottom: var(--rs-space-lg);
+}
+.rs-sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rs-space-xxs);
+}
+.rs-sidebar nav button {
+  min-height: 40px;
+  padding: 0 var(--rs-space-md);
+  border: 0;
+  border-radius: var(--rs-radius-control);
+  background: transparent;
+  color: var(--rs-text-primary);
+  text-align: left;
+  font-weight: var(--rs-weight-medium);
+}
+.rs-sidebar nav button:hover {
+  background: var(--rs-background-surface-inset);
+}
+.rs-sidebar nav button[aria-current='true'] {
+  background: var(--rs-action-selected);
+  color: var(--rs-text-on-selected);
+  font-weight: var(--rs-weight-semibold);
+}
+.rs-session {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--rs-space-md);
+  margin-top: var(--rs-space-xl);
+  padding-top: var(--rs-space-lg);
+  border-top: 1px solid var(--rs-border-subtle);
+}
+.rs-session__line {
+  font-size: var(--rs-type-caption-size);
+  color: var(--rs-text-secondary);
+}
+.rs-content {
+  min-width: 0;
+}
+.rs-main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--rs-space-xl) var(--rs-space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--rs-space-lg);
+}
+.rs-main:focus {
+  outline: none;
+}
+.rs-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--rs-space-md);
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--rs-space-lg);
+  font-size: var(--rs-type-caption-size);
+  color: var(--rs-text-secondary);
+}
+.rs-auth .rs-footer {
+  width: 100%;
+}
+
+@media (min-width: 1024px) {
+  .rs-app {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+  }
+  .rs-topbar {
+    display: none;
+  }
+  .rs-sidebar,
+  .rs-app[data-menu-open='true'] .rs-sidebar {
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    border-bottom: 0;
+    border-right: 1px solid var(--rs-border-subtle);
+  }
+  .rs-sidebar__brand {
+    display: block;
+  }
+  .rs-session {
+    margin-top: auto;
+  }
+  .rs-main {
+    padding: var(--rs-space-xxl) var(--rs-space-xxl) var(--rs-space-xl);
+  }
+  .rs-footer {
+    padding: var(--rs-space-lg) var(--rs-space-xxl);
+  }
+}

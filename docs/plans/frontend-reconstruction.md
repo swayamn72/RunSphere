@@ -1,7 +1,7 @@
 # Frontend reconstruction: audit, design-system plan, checklist
 
 Status: **Phase 1 (audit) and Phase 2 (architecture) done 2026-11-25. Decisions are in
-[ADR-0016](../adr/0016-design-system-light-default.md). Phase 3 (foundation) in progress: step 1 done.** No application
+[ADR-0016](../adr/0016-design-system-light-default.md). Phase 3 (foundation) done. Phase 4 (admin) done.** No application
 source has changed yet. Baseline: commit `6e73766`
 (branch `feat/ios-app`).
 
@@ -337,19 +337,25 @@ Nothing is removed. No API, contract, schema or backend change.
 
 ### Admin
 
-- [ ] Foundation (CSS variables, theme bootstrap, primitives)
-- [ ] Shell and navigation
-- [ ] Sign-in
-- [ ] Activity review
-- [ ] Moderation (reports, appeals, sanctions)
-- [ ] Competitions
-- [ ] Turf claims
-- [ ] Quests
-- [ ] Territory seasons
-- [ ] Campaign email
-- [ ] Privacy requests
-- [ ] Data stewardship
-- [ ] Support (unbuilt state)
+All areas moved to `*-area.tsx` files (container that loads + pure view), built on `src/ui/`. The shell holds only session, roles and the open area.
+
+- [x] Foundation (CSS variables, theme bootstrap, primitives)
+- [x] Shell and navigation: sidebar from 1024px, top bar with a menu below, skip link, `?area=` sync (Back/Forward, role-gated), theme switch, sign out
+- [x] Sign-in
+- [x] Activity review: dense table, status filter
+- [x] Moderation: split view (queue + detail), appeals list
+- [x] Competitions: table + create form in a side panel
+- [x] Turf claims: stat tiles + flags table
+- [x] Quests: editable table
+- [x] Territory seasons: picker, divisions, concentration, weeks
+- [x] Campaign email: campaigns and templates tables + two side forms
+- [x] Privacy requests: read-only table, "needs a look" filter
+- [x] Data stewardship: read-only table, kind filter
+- [x] Support (unbuilt state)
+
+Verified in a browser (Playwright, 40 specs, `pnpm --filter @runsphere/admin test:e2e`): every form sends the same method, path and body as before; role gating; URL sync; theme persistence; phone menu; no horizontal page scroll at 375px. Screenshots of every area at 375 and 1280 in both themes were reviewed by eye.
+
+Behaviour changes, all deliberate: (1) success notices now stay visible; before, the reload after an action cleared them at once; (2) the open area is not re-fetched when its own nav item is clicked again (use Refresh); (3) added Sign out; (4) the "Raw GPS…" statement moved to the footer once signed in.
 
 ### Mobile
 

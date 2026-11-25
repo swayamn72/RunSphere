@@ -25,7 +25,7 @@ for (const theme of ['light', 'dark'] as const)
         fullPage: true
       });
       await signIn(page);
-      await page.getByRole('navigation', { name: 'Operations areas' }).waitFor();
+      await page.getByRole('heading', { level: 1 }).waitFor();
       await page.screenshot({
         path: `test-results/screenshots/console-${theme}-${size.name}.png`,
         fullPage: true

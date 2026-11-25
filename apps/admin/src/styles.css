@@ -1,8 +1,8 @@
 /*
- * Every colour, size and radius here is a `--rs-*` variable generated from
- * `@runsphere/ui` and injected into index.html (ADR-0016). A test fails on any
- * hex literal in this folder. The shell's layout is redesigned in a later step;
- * this file keeps its current structure and only draws it with tokens.
+ * Base element styles. Every colour, size and radius is a `--rs-*` variable
+ * generated from `@runsphere/ui` and injected into index.html (ADR-0016); a
+ * test fails on any colour literal in this folder. Layout lives in layout.css
+ * and components in ui/ui.css.
  */
 :root {
   font-family: 'Inter Variable', var(--rs-font-sans);
@@ -24,207 +24,58 @@ body {
   outline: 2px solid var(--rs-border-focus);
   outline-offset: 2px;
 }
-main {
-  max-width: 1200px;
-  margin: auto;
-  padding: 48px 32px;
-}
-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  margin-bottom: 36px;
-}
-header span,
-small {
-  font-size: var(--rs-type-overline-size);
-  line-height: var(--rs-type-overline-line);
-  font-weight: var(--rs-type-overline-weight);
-  letter-spacing: var(--rs-type-overline-tracking);
-  color: var(--rs-text-accent);
-}
-h1 {
-  font-size: var(--rs-type-display-size);
-  line-height: var(--rs-type-display-line);
-  font-weight: var(--rs-type-display-weight);
-  letter-spacing: var(--rs-type-display-tracking);
-  margin: 8px 0 0;
-}
-.status,
-.tag {
-  background: var(--rs-brand-lime);
-  color: var(--rs-text-on-selected);
-  border-radius: var(--rs-radius-pill);
-  padding: 9px 13px;
-  font-size: var(--rs-type-label-size);
-  font-weight: var(--rs-weight-semibold);
-}
-.metrics {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 18px;
-  margin-bottom: 28px;
-}
-.metrics article,
-.panel {
-  background: var(--rs-background-surface);
-  border: 1px solid var(--rs-border-subtle);
-  border-radius: var(--rs-radius-card);
-  box-shadow: var(--rs-shadow-e1);
-  padding: 24px;
-}
-.metrics strong {
-  display: block;
-  font-size: var(--rs-type-metric-size);
-  font-weight: var(--rs-type-metric-weight);
-  font-variant-numeric: tabular-nums;
-  margin-top: 11px;
-}
-.metrics em {
-  font-style: normal;
-  font-size: var(--rs-type-label-size);
-  color: var(--rs-text-secondary);
-}
-.metrics p {
-  margin: 8px 0 0;
-  color: var(--rs-text-secondary);
-}
-.panel-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.panel h2 {
-  margin: 7px 0 22px;
-  font-size: var(--rs-type-heading-size);
-  line-height: var(--rs-type-heading-line);
-  font-weight: var(--rs-type-heading-weight);
-  letter-spacing: var(--rs-type-heading-tracking);
-}
-button,
-input {
-  font: inherit;
-}
-button {
-  background: var(--rs-action-primary);
-  color: var(--rs-text-on-accent);
-  border: 0;
-  border-radius: var(--rs-radius-control);
-  padding: 11px 16px;
-  font-weight: var(--rs-weight-semibold);
-  cursor: pointer;
-}
-button:hover:not(:disabled) {
-  background: var(--rs-action-primary-pressed);
-}
-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-button[aria-busy='true'] {
-  cursor: progress;
-}
-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--rs-space-sm);
-  margin-bottom: var(--rs-space-xl);
-}
-nav button {
-  background: var(--rs-action-secondary);
-  color: var(--rs-text-primary);
-  border: 1px solid var(--rs-border-strong);
-}
-nav button:hover:not(:disabled) {
-  background: var(--rs-background-surface-inset);
-}
-nav button[aria-current='true'] {
-  background: var(--rs-action-selected);
-  color: var(--rs-text-on-selected);
-  border-color: var(--rs-action-selected);
-}
-.status.neutral {
-  background: var(--rs-background-surface-inset);
-  color: var(--rs-text-primary);
-}
-.sign-in-panel {
-  max-width: 520px;
-}
-form {
-  display: grid;
-  gap: 16px;
-}
-label {
-  display: grid;
-  gap: 7px;
-  font-weight: var(--rs-weight-semibold);
-}
-input {
-  width: 100%;
-  border: 1px solid var(--rs-border-strong);
-  border-radius: var(--rs-radius-control);
-  background: var(--rs-background-surface);
-  color: var(--rs-text-primary);
-  padding: 11px;
-}
-.error {
-  color: var(--rs-text-danger);
-  font-weight: var(--rs-weight-semibold);
+h1,
+h2,
+h3,
+p {
+  margin: 0;
 }
 code {
   font-size: var(--rs-type-caption-size);
+  overflow-wrap: anywhere;
 }
-table {
-  border-collapse: collapse;
+em {
+  font-style: normal;
+  font-weight: var(--rs-weight-semibold);
+  color: var(--rs-text-secondary);
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+input:not([type='checkbox']):not([type='radio']),
+select,
+textarea {
   width: 100%;
-}
-th {
-  text-align: left;
-  color: var(--rs-text-secondary);
-  font-size: var(--rs-type-caption-size);
-  padding: 12px 8px;
-  border-bottom: 1px solid var(--rs-border-subtle);
-}
-td {
-  padding: 18px 8px;
-  border-bottom: 1px solid var(--rs-border-subtle);
-}
-.tag {
-  background: var(--rs-background-surface-inset);
+  min-height: 40px;
+  padding: 0 var(--rs-space-md);
+  border: 1px solid var(--rs-border-strong);
+  border-radius: var(--rs-radius-control);
+  background: var(--rs-background-surface);
   color: var(--rs-text-primary);
-  font-size: var(--rs-type-caption-size);
-  padding: 6px 9px;
 }
-footer {
-  margin: 24px 0;
-  color: var(--rs-text-secondary);
-  font-size: var(--rs-type-label-size);
+textarea {
+  min-height: 96px;
+  padding-top: var(--rs-space-sm);
+  padding-bottom: var(--rs-space-sm);
+  resize: vertical;
 }
-@media (max-width: 700px) {
-  main {
-    padding: 28px 18px;
-  }
-  header {
-    display: block;
-  }
-  .status {
-    display: inline-block;
-    margin-top: 16px;
-  }
-  .metrics {
-    grid-template-columns: 1fr;
-  }
-  h1 {
-    font-size: var(--rs-type-title-size);
-    line-height: var(--rs-type-title-line);
-  }
-  table {
-    font-size: var(--rs-type-label-size);
-  }
-  th:nth-child(3),
-  td:nth-child(3) {
-    display: none;
-  }
+input::placeholder,
+textarea::placeholder {
+  color: var(--rs-text-tertiary);
+}
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--rs-text-accent);
 }
 @media (prefers-reduced-motion: reduce) {
   * {
