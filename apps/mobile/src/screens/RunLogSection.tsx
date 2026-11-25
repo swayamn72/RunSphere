@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { View as NativeView } from 'react-native';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text } from '../components/Text';
 import Svg, { Circle, Path } from 'react-native-svg';
 import type { RunLogItem } from '@runsphere/contracts';
 import { useAppStyles } from '../components/styles';

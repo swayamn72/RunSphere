@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { space } from '@runsphere/ui';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import type { QuestDetail, QuestSummary } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { PrimaryButton } from '../components/primitives';
 import { QuestProgressCard } from './QuestProgressCard';
 import { QuestStopMarkers } from './QuestStopMarkers';
 import { MapSurface } from '../maps/MapSurface';
+import { Chevron } from '../components/Chevron';
 import { useAppTheme } from '../theme/theme';
 import { gameWorld } from '../theme/game-world';
 import { detailStateFor, shouldDrawSelectedGeometry, type QuestDetailState } from './explore-model';
@@ -99,7 +102,7 @@ export function QuestDetailScreen({
           onPress={onBack}
           style={[styles.back, { backgroundColor: tokens.map.control }]}
         >
-          <Text style={[styles.backText, { color: tokens.map.controlText }]}>‹</Text>
+          <Chevron direction="back" color={tokens.map.controlText} />
         </Pressable>
       </View>
       <ScrollView
@@ -125,19 +128,25 @@ export function QuestDetailScreen({
         ) : (
           <>
             <QuestProgressCard api={api} questId={quest.id} onProgress={setProgress} />
-            {start ? (
-              <PrimaryButton label="Start this quest" onPress={() => onStart(start)} />
-            ) : (
-              progress &&
-              progress !== 'taken' && (
-                <Text style={[styles.copy, { color: tokens.text.secondary }]}>
-                  {QUEST_START_HINT[progress]}
-                </Text>
-              )
+            {!start && progress && progress !== 'taken' && (
+              <Text style={[styles.copy, { color: tokens.text.secondary }]}>
+                {QUEST_START_HINT[progress]}
+              </Text>
             )}
           </>
         )}
       </ScrollView>
+      {/* Pinned, so the one action stays in the thumb zone however long the stop list is. */}
+      {!sample && start ? (
+        <View
+          style={[
+            styles.footer,
+            { backgroundColor: tokens.background.canvas, borderTopColor: tokens.border.subtle }
+          ]}
+        >
+          <PrimaryButton label="Start this quest" onPress={() => onStart(start)} />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -208,16 +217,17 @@ const styles = StyleSheet.create({
     top: 12,
     width: 44
   },
-  backText: { fontSize: 32, fontWeight: '500', lineHeight: 34 },
+  backText: { fontSize: 28, fontWeight: '500', lineHeight: 34 },
   panel: { flexGrow: 0, maxHeight: '52%' },
-  panelContent: { gap: 10, padding: 20, paddingBottom: 28 },
-  eyebrow: { fontSize: 11, fontWeight: '900', letterSpacing: 1.2 },
-  title: { fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
+  footer: { borderTopWidth: 1, paddingBottom: space.xl, paddingHorizontal: space.xl },
+  panelContent: { gap: 10, padding: space.xl, paddingBottom: space.xxl },
+  eyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 1.2 },
+  title: { fontSize: 28, fontWeight: '700', letterSpacing: -0.5 },
   facts: { fontSize: 14, fontWeight: '700' },
   copy: { fontSize: 14, lineHeight: 20 },
   small: { fontSize: 12, lineHeight: 17 },
-  stops: { gap: 8 },
-  stop: { alignItems: 'center', flexDirection: 'row', gap: 12 },
+  stops: { gap: space.sm },
+  stop: { alignItems: 'center', flexDirection: 'row', gap: space.md },
   stopNumber: {
     alignItems: 'center',
     backgroundColor: gameWorld.quest.marker,
@@ -228,6 +238,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 28
   },
-  stopNumberText: { color: gameWorld.quest.ink, fontSize: 13, fontWeight: '900' },
-  stopTitle: { flex: 1, fontSize: 15, fontWeight: '800' }
+  stopNumberText: { color: gameWorld.quest.ink, fontSize: 13, fontWeight: '700' },
+  stopTitle: { flex: 1, fontSize: 15, fontWeight: '700' }
 });

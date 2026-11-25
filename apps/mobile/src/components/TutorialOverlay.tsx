@@ -4,11 +4,11 @@ import {
   Platform,
   Pressable,
   StyleSheet,
-  Text,
   View,
   findNodeHandle,
   useWindowDimensions
 } from 'react-native';
+import { Text } from './Text';
 import { BlurView } from 'expo-blur';
 import Animated, {
   Easing,

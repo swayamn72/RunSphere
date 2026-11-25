@@ -1,4 +1,4 @@
-import { darkTokens } from '@runsphere/ui';
+import { darkTokens, lightTokens } from '@runsphere/ui';
 
 /**
  * The theme a render test should stand in for `./theme`.
@@ -14,7 +14,16 @@ import { darkTokens } from '@runsphere/ui';
  * vi.mock('../theme/theme', async () => (await import('../theme/theme-mock.js')).themeMock());
  * ```
  */
-export const themeMock = () => ({
-  useAppTheme: () => ({ colorScheme: 'dark' as const, reduceMotion: true, tokens: darkTokens }),
-  ThemeProvider: ({ children }: { children: unknown }) => children
+export const themeMock = (scheme: 'light' | 'dark' = 'dark') => ({
+  useAppTheme: () => ({
+    colorScheme: scheme,
+    reduceMotion: true,
+    tokens: scheme === 'dark' ? darkTokens : lightTokens,
+    preference: scheme,
+    setPreference: () => undefined,
+    // Tests draw in the platform font; Inter is a device concern.
+    fontsReady: false
+  }),
+  ThemeProvider: ({ children }: { children: unknown }) => children,
+  ForceTheme: ({ children }: { children: unknown }) => children
 });

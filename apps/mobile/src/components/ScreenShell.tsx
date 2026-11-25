@@ -1,4 +1,5 @@
 import type React from 'react';
+import { space } from '@runsphere/ui';
 import { useEffect, useRef } from 'react';
 import {
   Dimensions,
@@ -109,8 +110,8 @@ export function FocusedFlexShell({
 
 const styles = StyleSheet.create({
   keyboardSafe: { flex: 1 },
-  tabContent: { flexGrow: 1, padding: 20, paddingBottom: 118 },
-  focusedContent: { flexGrow: 1, padding: 20, paddingBottom: 36 },
-  focusedFlex: { flex: 1, padding: 20, paddingBottom: 16 },
+  tabContent: { flexGrow: 1, padding: space.xl, paddingBottom: 118 },
+  focusedContent: { flexGrow: 1, padding: space.xl, paddingBottom: 36 },
+  focusedFlex: { flex: 1, padding: space.xl, paddingBottom: space.lg },
   fullBleed: { flex: 1 }
 });

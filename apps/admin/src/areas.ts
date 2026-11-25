@@ -27,8 +27,20 @@ export type AreaKey =
   | 'data'
   | 'support';
 
+export type AreaGroup = 'work' | 'operate' | 'govern' | 'support';
+
+/** Sidebar sections, in order. Grouped by the job staff are doing, not by data model. */
+export const AREA_GROUPS: readonly { readonly key: AreaGroup; readonly label: string }[] = [
+  { key: 'work', label: 'Work' },
+  { key: 'operate', label: 'Operate' },
+  { key: 'govern', label: 'Govern' },
+  { key: 'support', label: 'Support' }
+];
+
 export interface AreaDefinition {
   readonly key: AreaKey;
+  /** Which sidebar section lists it. */
+  readonly group: AreaGroup;
   readonly title: string;
   /** What this area is for, in one line, for somebody who has just signed in. */
   readonly summary: string;
@@ -54,6 +66,7 @@ const ANY_STAFF = () => true;
 export const AREAS: readonly AreaDefinition[] = [
   {
     key: 'review',
+    group: 'work',
     title: 'Activity review',
     summary: 'Submissions that failed or are awaiting validation. Never raw GPS.',
     permitted: ANY_STAFF,
@@ -61,6 +74,7 @@ export const AREAS: readonly AreaDefinition[] = [
   },
   {
     key: 'moderation',
+    group: 'work',
     title: 'Moderation',
     summary: 'Open reports and the appeals against decisions already made.',
     permitted: canModerate,
@@ -68,6 +82,7 @@ export const AREAS: readonly AreaDefinition[] = [
   },
   {
     key: 'competitions',
+    group: 'operate',
     title: 'Competitions',
     summary: 'Schedule, announce, and cancel time-boxed events.',
     permitted: canOperateCompetitions,
@@ -75,6 +90,7 @@ export const AREAS: readonly AreaDefinition[] = [
   },
   {
     key: 'turf',
+    group: 'work',
     title: 'Turf claims',
     summary: 'How concentrated held ground is, and back-and-forth trades flagged for review.',
     // Two routes with two gates: a moderator works the trade flags, a season
@@ -86,6 +102,7 @@ export const AREAS: readonly AreaDefinition[] = [
   },
   {
     key: 'quests',
+    group: 'operate',
     title: 'Quests',
     summary: 'How long a runner has to pass every stop on a quest run.',
     permitted: canOperateCompetitions,
@@ -93,6 +110,7 @@ export const AREAS: readonly AreaDefinition[] = [
   },
   {
     key: 'seasons',
+    group: 'operate',
     title: 'Territory seasons',
     summary: 'Division sizes, concentration monitoring, and week rollback for a season.',
     permitted: canOperateCompetitions,
@@ -100,6 +118,7 @@ export const AREAS: readonly AreaDefinition[] = [
   },
   {
     key: 'campaigns',
+    group: 'operate',
     title: 'Campaign email',
     summary: 'Templates, audience counts, scheduling, and cancellation.',
     permitted: canManageCampaigns,
@@ -107,6 +126,7 @@ export const AREAS: readonly AreaDefinition[] = [
   },
   {
     key: 'privacy',
+    group: 'govern',
     title: 'Privacy requests',
     summary: 'Export and erasure requests, and whether they are still moving.',
     permitted: (roles) => roles.includes('privacy_officer') || roles.includes('admin'),
@@ -114,6 +134,7 @@ export const AREAS: readonly AreaDefinition[] = [
   },
   {
     key: 'data',
+    group: 'govern',
     title: 'Data stewardship',
     summary: 'Which rule version is live for each kind, and since when.',
     permitted: (roles) => roles.includes('data_steward') || roles.includes('admin'),
@@ -121,6 +142,7 @@ export const AREAS: readonly AreaDefinition[] = [
   },
   {
     key: 'support',
+    group: 'support',
     title: 'Support',
     summary: 'Look up an account by its own reference to answer a question.',
     permitted: (roles) => roles.includes('support') || roles.includes('admin'),

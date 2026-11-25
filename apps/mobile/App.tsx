@@ -1,6 +1,6 @@
-import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { Linking, Text, View } from 'react-native';
+import { useCallback, useEffect, useReducer, useMemo, useRef, useState } from 'react';
+import { Linking, View } from 'react-native';
+import { Text } from './src/components/Text';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { activityQueue } from './src/activity-queue.native';
 import { accountScopeFor, legacyAccountScopesFor } from './src/account-scope';
@@ -54,7 +54,8 @@ import { RunDetailProvider } from './src/screens/RunDetailHost';
 import { RunDetailScreen } from './src/screens/RunDetailScreen';
 import { needsRunsPrompt } from './src/screens/runs-sharing-prompt-model';
 import { PrimaryButton } from './src/components/primitives';
-import { useAppStyles } from './src/components/styles';
+import { createAppStyles, useAppStyles } from './src/components/styles';
+import { darkTokens } from '@runsphere/ui';
 import { coordinateLogout } from './src/logout-coordinator';
 import { setGuidanceStore } from './src/loop-guidance';
 import { persistentGuidanceStore } from './src/loop-guidance.native';
@@ -72,7 +73,7 @@ import { persistentTourStore } from './src/tour-secure-store.native';
 import { registerForPush, revokePushRegistration } from './src/push-registration';
 import { nativePushTokenSource, pushRegistrationStore } from './src/push-registration.native';
 import { TabBar } from './src/navigation/TabBar';
-import { isTabBarVisible, selectAppShell } from './src/navigation/app-shell';
+import { isAlwaysDark, isTabBarVisible, selectAppShell } from './src/navigation/app-shell';
 import {
   activityFlowReducer,
   activityOriginReturn,
@@ -103,7 +104,8 @@ import {
 } from './src/screens/notifications-model';
 import { TurfScreen } from './src/screens/TurfScreen';
 import { QuestDetailScreen } from './src/screens/QuestDetailScreen';
-import { ThemeProvider, useAppTheme } from './src/theme/theme';
+import { ForceTheme, ThemeProvider, useAppTheme } from './src/theme/theme';
+import { persistentThemePreferenceStore } from './src/theme/theme-preference.native';
 
 // Guidance memory is resolved through the registry so no screen imports a
 // native secure-storage module.
@@ -158,7 +160,7 @@ if (TaskManager) {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <ThemeProvider>
+      <ThemeProvider store={persistentThemePreferenceStore}>
         <RunSphereApp />
       </ThemeProvider>
     </SafeAreaProvider>
@@ -166,8 +168,9 @@ export default function App() {
 }
 
 function RunSphereApp() {
-  const { colorScheme, tokens } = useAppTheme();
+  const { tokens } = useAppTheme();
   const styles = useAppStyles();
+  const darkAppStyles = useMemo(() => createAppStyles(darkTokens), []);
   const [onboarding, dispatch] = useReducer(onboardingReducer, initialOnboardingState);
   const [activeTab, setActiveTab] = useState<Tab>(landingTab);
   const [claimRunId, setClaimRunId] = useState<string>();
@@ -509,6 +512,11 @@ function RunSphereApp() {
       activityRoute.screen === 'idle' &&
       !recording
   });
+  // The map and the live run stay dark in both themes (ADR-0016). The root
+  // views below are drawn here, outside the island's provider, so they take the
+  // dark styles directly.
+  const island = isAlwaysDark(shell);
+  const shellStyles = island ? darkAppStyles : styles;
   const content =
     recording && accountId ? (
       <ActivityRecording
@@ -675,6 +683,11 @@ function RunSphereApp() {
           accountId={accountId}
           initialScreen={profileEntry}
           onLogoutComplete={finishSession}
+          history={
+            accountId && (
+              <ActivityHistory accountId={accountId} sync={activitySync} onOpen={setRecording} />
+            )
+          }
           onReplayTour={() => setTour({ index: 0 })}
           onNavigate={(target) => {
             // Friend requests open the friends list inside Social; challenges
@@ -684,96 +697,84 @@ function RunSphereApp() {
             setActiveTab(NOTIFICATION_TARGET_TAB[target]);
           }}
         />
-        {accountId && (
-          <ActivityHistory accountId={accountId} sync={activitySync} onOpen={setRecording} />
-        )}
       </>
     );
 
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
-      <RunDetailProvider
-        renderDetail={(props) => (
-          <RunDetailScreen
-            {...props}
-            api={apiClient}
-            status={
-              accountId && (
-                <ScreenProgression
-                  key={accountId}
-                  api={apiClient}
-                  refreshKey="run-detail"
-                  inHeader
-                />
-              )
-            }
-          />
-        )}
-        onOpenChange={setRunOpen}
-      >
-        <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-        {/* What the tour's panels blur on Android (M9 9.23). */}
-        <BlurTargetView
-          ref={tourBlurTarget}
-          style={styles.screen}
-          // Android has no accessibilityViewIsModal: hide the app from
-          // TalkBack while the tour is over it (found on a phone, M9 9.29).
-          importantForAccessibility={tour || runOpen ? 'no-hide-descendants' : 'auto'}
+    <ForceTheme {...(island ? { scheme: 'dark' as const } : {})}>
+      <SafeAreaView edges={['top']} style={shellStyles.screen}>
+        <RunDetailProvider
+          renderDetail={(props) => (
+            <RunDetailScreen
+              {...props}
+              api={apiClient}
+              status={
+                accountId && (
+                  <ScreenProgression
+                    key={accountId}
+                    api={apiClient}
+                    refreshKey="run-detail"
+                    inHeader
+                  />
+                )
+              }
+            />
+          )}
+          onOpenChange={setRunOpen}
         >
-          {accountId &&
-            content.type !== HomeScreen &&
-            content.type !== TurfScreen &&
-            content.type !== QuestDetailScreen && (
-              <ScreenProgression
-                key={accountId}
-                api={apiClient}
-                refreshKey={`${activeTab}:${focus}:${activityRoute.screen}:${recording?.state ?? ''}`}
+          {/* What the tour's panels blur on Android (M9 9.23). */}
+          <BlurTargetView
+            ref={tourBlurTarget}
+            style={shellStyles.screen}
+            // Android has no accessibilityViewIsModal: hide the app from
+            // TalkBack while the tour is over it (found on a phone, M9 9.29).
+            importantForAccessibility={tour || runOpen ? 'no-hide-descendants' : 'auto'}
+          >
+            {shell === 'tab-scroll' ? (
+              <TabScrollShell>{content}</TabScrollShell>
+            ) : shell === 'tab-map' ? (
+              <FocusedFlexShell fullBleed>{content}</FocusedFlexShell>
+            ) : shell === 'focused-map' ? (
+              <FocusedFlexShell fullBleed>{content}</FocusedFlexShell>
+            ) : shell === 'focused-scroll' ? (
+              <FocusedScrollShell>{content}</FocusedScrollShell>
+            ) : (
+              <FocusedFlexShell>{content}</FocusedFlexShell>
+            )}
+            {isTabBarVisible(shell) && (
+              <TabBar
+                activeTab={activeTab}
+                turf={shell === 'tab-map'}
+                onChange={(tab) => {
+                  setSelectedQuest(undefined);
+                  setFocus('none');
+                  setRouteGuide(undefined);
+                  if (tab !== 'Social') setSocialEntry('feed');
+                  if (tab !== 'Profile') setProfileEntry('profile');
+                  if (tab === 'Run') {
+                    if (activeTab !== 'Run') chooseRun(activeTab === 'Map' ? 'map' : 'home');
+                    return;
+                  }
+                  dispatchActivityRoute({ type: 'select-tab' });
+                  setActiveTab(tab);
+                }}
               />
             )}
-          {shell === 'tab-scroll' ? (
-            <TabScrollShell>{content}</TabScrollShell>
-          ) : shell === 'tab-map' ? (
-            <FocusedFlexShell fullBleed>{content}</FocusedFlexShell>
-          ) : shell === 'focused-map' ? (
-            <FocusedFlexShell fullBleed>{content}</FocusedFlexShell>
-          ) : shell === 'focused-scroll' ? (
-            <FocusedScrollShell>{content}</FocusedScrollShell>
-          ) : (
-            <FocusedFlexShell>{content}</FocusedFlexShell>
-          )}
-          {isTabBarVisible(shell) && (
-            <TabBar
+          </BlurTargetView>
+          {tour ? (
+            <TutorialOverlay
+              blurTarget={tourBlurTarget}
+              state={tour}
+              onAction={tourAction}
               activeTab={activeTab}
-              turf={shell === 'tab-map'}
-              onChange={(tab) => {
-                setSelectedQuest(undefined);
-                setFocus('none');
-                setRouteGuide(undefined);
-                if (tab !== 'Social') setSocialEntry('feed');
-                if (tab !== 'Profile') setProfileEntry('profile');
-                if (tab === 'Run') {
-                  if (activeTab !== 'Run') chooseRun(activeTab === 'Map' ? 'map' : 'home');
-                  return;
-                }
+              onShowTab={(tab) => {
                 dispatchActivityRoute({ type: 'select-tab' });
                 setActiveTab(tab);
               }}
             />
-          )}
-        </BlurTargetView>
-        {tour ? (
-          <TutorialOverlay
-            blurTarget={tourBlurTarget}
-            state={tour}
-            onAction={tourAction}
-            activeTab={activeTab}
-            onShowTab={(tab) => {
-              dispatchActivityRoute({ type: 'select-tab' });
-              setActiveTab(tab);
-            }}
-          />
-        ) : null}
-      </RunDetailProvider>
-    </SafeAreaView>
+          ) : null}
+        </RunDetailProvider>
+      </SafeAreaView>
+    </ForceTheme>
   );
 }

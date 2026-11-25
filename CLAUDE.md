@@ -4,6 +4,7 @@ Guidance for Claude Code in this repository. Verified against the code on 2026-1
 Deeper references: `PROJECT_ARCHITECTURE.md`, `IMPLEMENTATION_STATUS.md`, `BUGS_AND_RISKS.md`,
 `IMPLEMENTATION_ROADMAP.md` (✅ done / 🟡 partial / unmarked = open; start here to pick work). **Trust the code over `docs/`**: several docs are stale (see
 PROJECT_ARCHITECTURE.md §9). The [TURFR mobile handoff](docs/plans/turfr-ui-rebrand.md) records the approved design, preview setup, and open device checks.
+The [frontend reconstruction plan](docs/plans/frontend-reconstruction.md) is the live design-system spec and checklist.
 
 ## What this is
 
@@ -130,6 +131,12 @@ APK exists and `aapt` isn't on PATH. Run `vitest run` directly to test only the 
 - **Colours:** core tokens in `packages/ui`; the Turf map/HUD palette in
   `apps/mobile/src/theme/game-world.ts`. `theme.test.ts` fails on any hex literal elsewhere and checks
   AA contrast.
+- **Design system (in progress, ADR-0016):** light is the default in both apps and dark is optional
+  (Light / Dark / Match device). Map and live run stay dark in both. Accent stays TURFR lime: a fill
+  for yours and selected, never text on light (use `text.accent`). The typeface is Inter, weights
+  400–700 only, with tabular figures for numbers. Spec, phase status and checklists:
+  `docs/plans/frontend-reconstruction.md`. Admin colours come from `@runsphere/ui` via CSS variables
+  (`toCssVariables`), never hex in `apps/admin/src`. Don't add Tailwind/shadcn (the admin may use unstyled Radix primitives for menus, ADR-0016 amendment). Mobile: import `Text`/`TextInput` from `src/components/Text`, never `react-native` (that is how Inter is applied); use only the four weights and the font sizes in `typeScale` (`theme/design-scale.test.ts` enforces it); read colours from roles (`text.accent`, `background.paper`, `text.onPaper`), never `appPalette`.
 - **Admin areas:** `apps/admin/src/areas.ts` gates each area with the API's own role predicates; new
   areas get their own component file (e.g. `turf-area.tsx`) with a `renderToStaticMarkup` test.
 - **Held back for v1:** `apps/mobile/src/launch-features.ts`. Clubs are off (`CLUBS_ENABLED`): hidden

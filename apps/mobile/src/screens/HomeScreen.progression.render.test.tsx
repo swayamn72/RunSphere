@@ -186,6 +186,8 @@ describe('Home dashboard renders', () => {
       (props) => props['importantForAccessibility'] === 'no-hide-descendants'
     );
     expect(pips).toHaveLength(7);
+    for (const pip of pips)
+      expect(resolvedStyle(pip.props['style'])).toMatchObject({ width: 12, height: 12 });
     const fills = pips.map((pip) => resolvedStyle(pip.props['style'])['backgroundColor']);
     expect(fills.filter((fill) => fill === appPalette.accent)).toHaveLength(3);
     // An inactive day is neutral, never an error or a warning (ADR-0005).
@@ -219,7 +221,7 @@ describe('Home dashboard renders', () => {
     const renderer = await renderHome(stubApi({ goal: () => Promise.resolve(goalWithoutTargets) }));
     const text = renderedText(renderer);
     expect(text).not.toContain('Weekly goal');
-    expect(text).toContain('Choose a distance or active-minute goal when you are ready.');
+    expect(text).not.toContain('Set weekly goal');
     expect(
       hostsMatching(renderer, (props) => props['accessibilityLabel'] === 'Weekly goal progress')
     ).toHaveLength(0);

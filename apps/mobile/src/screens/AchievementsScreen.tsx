@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text } from '../components/Text';
 import type { AchievementStatus } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { BackHeader, SettingsGroup } from '../components/primitives';
+import { AchievementArt } from '../components/ProgressionArtwork';
 import { useAppStyles } from '../components/styles';
 import {
   achievementRows,
@@ -114,14 +116,23 @@ export function AchievementsScreen({
               key={row.key}
               accessible
               accessibilityLabel={row.accessibilityLabel}
-              style={[styles.settingStack, !row.earned && styles.settingDisabled]}
+              style={[
+                styles.settingStack,
+                styles.achievementRow,
+                !row.earned && styles.settingDisabled
+              ]}
             >
-              <Text style={styles.eyebrow}>
-                {row.earned ? `EARNED ${row.earnedOn ?? ''}`.trim() : 'NOT EARNED YET'}
-              </Text>
-              <Text style={styles.rowTitle}>{row.title}</Text>
-              <Text style={styles.rowDetail}>{row.description}</Text>
-              <Text style={styles.rowDetail}>{row.rewardLabel}</Text>
+              <View style={styles.tierBadge}>
+                <AchievementArt achievementKey={row.key} />
+              </View>
+              <View style={styles.flexCopy}>
+                <Text style={styles.eyebrow}>
+                  {row.earned ? `EARNED ${row.earnedOn ?? ''}`.trim() : 'NOT EARNED YET'}
+                </Text>
+                <Text style={styles.rowTitle}>{row.title}</Text>
+                <Text style={styles.rowDetail}>{row.description}</Text>
+                <Text style={styles.rowDetail}>{row.rewardLabel}</Text>
+              </View>
             </View>
           ))}
         </SettingsGroup>

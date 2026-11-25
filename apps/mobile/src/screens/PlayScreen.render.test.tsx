@@ -71,27 +71,7 @@ vi.mock('../components/primitives', () => ({
       React.createElement('Text' as React.ElementType, null, label)
     )
 }));
-vi.mock('../theme/theme', () => ({
-  useAppTheme: () => ({
-    colorScheme: 'light',
-    reduceMotion: true,
-    tokens: {
-      action: { primary: '#0A6' },
-      background: { canvas: '#fff', surface: '#f7f7f7', surfaceInset: '#eee' },
-      border: { subtle: '#ddd' },
-      status: { success: '#0A6' },
-      text: { primary: '#111', secondary: '#555', onAccent: '#fff' },
-      mascot: {
-        body: '#D9EAE0',
-        outline: '#386755',
-        orbit: '#5D8500',
-        pointer: '#087B69',
-        eye: '#10251F',
-        beacon: '#8FBD18'
-      }
-    }
-  })
-}));
+vi.mock('../theme/theme', async () => (await import('../theme/theme-mock.js')).themeMock());
 
 const { PlayScreen } = await import('./PlayScreen.js');
 const { createMemoryGuidanceStore, setGuidanceStore } = await import('../loop-guidance.js');

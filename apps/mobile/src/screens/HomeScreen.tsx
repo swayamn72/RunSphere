@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import { space } from '@runsphere/ui';
+import { AppState, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import type {
   Profile,
   ProgressionSummary,
@@ -19,7 +21,6 @@ import {
   previewTurfQuests
 } from './dashboard-preview';
 import { useAppTheme } from '../theme/theme';
-import { appPalette } from '@runsphere/ui';
 import {
   ActiveDaysCard,
   DashboardGrid,
@@ -384,11 +385,12 @@ export function HomeScreen({
 
       {dashboardPreviewEnabled && <Text style={styles.muted}>Sample dashboard data</Text>}
 
-      <HomeTurfCard points={turf && formatTurfPoints(turf.totalAreaSqm)} onPress={onOpenMap} />
-
+      {/* The thing a runner does next comes first (component plan 4.2). */}
       <TutorialTarget id="home-start">
         <HomeStartButton onPress={onStart} />
       </TutorialTarget>
+
+      <HomeTurfCard points={turf && formatTurfPoints(turf.totalAreaSqm)} onPress={onOpenMap} />
 
       <View style={local.panel}>
         <HomeSectionTitle onPaper>This week</HomeSectionTitle>
@@ -396,17 +398,6 @@ export function HomeScreen({
         {activeDays && <ActiveDaysCard card={activeDays} />}
 
         {featured && <WeeklyGoalCard metric={featured} onPress={onOpenChallenges} />}
-        {goalState === 'empty' && (
-          <Guide
-            onPaper
-            local={local}
-            styles={styles}
-            variant="empty"
-            label="Choose a distance or active-minute goal when you are ready."
-            actionLabel="Set weekly goal"
-            onAction={onOpenProfile}
-          />
-        )}
         {goalState === 'offline' && (
           <Guide
             onPaper
@@ -617,23 +608,23 @@ function Unavailable({
 
 const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
   StyleSheet.create({
-    coachCard: { borderLeftColor: t.zone.owned, borderLeftWidth: 3, gap: 12 },
+    coachCard: { borderLeftColor: t.zone.owned, borderLeftWidth: 3, gap: space.md },
     panel: {
-      backgroundColor: appPalette.paper,
-      borderColor: appPalette.paperLine,
+      backgroundColor: t.background.paper,
+      borderColor: t.border.paper,
       borderWidth: 1,
       borderRadius: 18,
       marginTop: 14,
-      padding: 12
+      padding: space.md
     },
-    paperCopy: { color: appPalette.mutedInk },
-    paperAction: { color: appPalette.ink, textDecorationLine: 'underline' },
-    quests: { marginTop: 16 },
+    paperCopy: { color: t.text.onPaperMuted },
+    paperAction: { color: t.text.onPaper, textDecorationLine: 'underline' },
+    quests: { marginTop: space.lg },
     questHeader: {
       alignItems: 'center',
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginBottom: 8
+      marginBottom: space.sm
     },
     viewAll: {
       borderColor: t.text.secondary,
@@ -641,24 +632,30 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
       borderWidth: 1,
       justifyContent: 'center',
       minHeight: 44,
-      paddingHorizontal: 12
+      paddingHorizontal: space.md
     },
     viewAllText: { color: t.text.primary, fontSize: 14, fontWeight: '700' },
-    guide: { alignItems: 'center', flexDirection: 'row', gap: 12, marginTop: 12, minHeight: 64 },
+    guide: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: space.md,
+      marginTop: space.md,
+      minHeight: 64
+    },
     guideAction: {
       alignSelf: 'flex-start',
       justifyContent: 'center',
-      marginTop: 8,
+      marginTop: space.sm,
       minHeight: 48,
-      paddingHorizontal: 4
+      paddingHorizontal: space.xs
     },
-    guideActionText: { color: appPalette.accent, fontSize: 14, fontWeight: '900' },
-    unavailable: { marginTop: 12, minHeight: 64 },
+    guideActionText: { color: t.text.accent, fontSize: 14, fontWeight: '700' },
+    unavailable: { marginTop: space.md, minHeight: 64 },
     questLoading: {
       alignItems: 'center',
       flexDirection: 'row',
-      gap: 12,
-      marginTop: 12,
+      gap: space.md,
+      marginTop: space.md,
       minHeight: 64
     }
   });

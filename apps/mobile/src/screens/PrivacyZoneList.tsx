@@ -1,4 +1,5 @@
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text } from '../components/Text';
 import type { PrivacyZoneResponse } from '@runsphere/contracts';
 import { useAppStyles } from '../components/styles';
 

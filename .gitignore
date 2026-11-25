@@ -16,6 +16,9 @@ ios/Pods/
 .DS_Store
 .vscode/
 .idea/
+skills/
+LOCAL_SETUP.md
+skills-lock.json
 
 # Firebase config. Not a secret (it ships in every APK) but it names one
 # specific Firebase project, and a checkout building against somebody else's
@@ -25,3 +28,7 @@ GoogleService-Info.plist
 
 # Local toolchain shims (a corepack pnpm wrapper for this machine).
 scratch/
+
+# Playwright output
+apps/admin/test-results/
+apps/admin/playwright-report/

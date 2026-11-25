@@ -14,14 +14,11 @@ const award = (id: string, achievementKey: string, awardedAt: string): Achieveme
 });
 
 describe('profile stat cells', () => {
-  it('shows confirmed area and leaves unsupported totals unavailable', () => {
+  it('shows confirmed Turf points when the summary is available', () => {
     expect(profileStatCells({ claimCount: 2, totalAreaSqm: 12000, lostCount: 1 })).toEqual([
-      { key: 'held', label: 'Turf held', value: '120 Turf points' },
-      { key: 'carved', label: 'Zones carved', value: '—' },
-      { key: 'defenses', label: 'Successful defenses', value: '—' },
-      { key: 'streak', label: 'Best streak', value: '—' }
+      { key: 'held', label: 'Turf held', value: '120 Turf points' }
     ]);
-    expect(profileStatCells(undefined)[0]?.value).toBe('—');
+    expect(profileStatCells(undefined)).toEqual([]);
   });
 });
 
@@ -41,6 +38,7 @@ describe('achievement medallions', () => {
       award('d', 'night_owl', '2026-08-20T06:00:00Z')
     ]);
     expect(medallions.map((entry) => entry.key)).toEqual(['c', 'b', 'a']);
+    expect(medallions[0]?.achievementKey).toBe('zone_capturer');
     expect(medallions[0]?.label).toBe('Zone capturer');
     expect(medallions[0]?.awardedOn).toBe('2026-09-09');
     expect(medallions[0]?.accessibilityLabel).toBe('Zone capturer. Earned on 2026-09-09.');

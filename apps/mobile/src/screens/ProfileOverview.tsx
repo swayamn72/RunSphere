@@ -1,8 +1,10 @@
-import { appPalette } from '@runsphere/ui';
-import { Pressable, Text, View } from 'react-native';
+import type { ProgressionSummary } from '@runsphere/contracts';
+import { Pressable, View } from 'react-native';
+import { AchievementArt, TurfPointsMark } from '../components/ProgressionArtwork';
+import { Text } from '../components/Text';
 import { SettingsButton } from '../components/SettingsButton';
 import { useAppStyles } from '../components/styles';
-import { useAppTheme } from '../theme/theme';
+import { progressionPresentation } from './home-progression-model';
 import { type AchievementMedallion, type ProfileStatCell } from './profile-overview-model';
 
 /**
@@ -52,25 +54,52 @@ export function ProfileIdentityHead({
   );
 }
 
+export function ProfileLevel({ summary }: { summary: ProgressionSummary }) {
+  const styles = useAppStyles();
+  const { level, totalXpLabel } = progressionPresentation(summary, undefined);
+  const progress = level?.progress;
+  return (
+    <View style={styles.profileLevelCard}>
+      <View style={styles.profileLevelHeader}>
+        <Text accessibilityRole="header" style={styles.profileStatValue}>
+          {level?.levelLabel ?? 'Runner XP'}
+        </Text>
+        <Text style={styles.statTileSuffix}>{totalXpLabel} total</Text>
+      </View>
+      {progress !== undefined && (
+        <View
+          accessibilityRole="progressbar"
+          accessibilityLabel="Progress to next level"
+          accessibilityValue={{ min: 0, max: 100, now: progress }}
+          style={styles.progressTrack}
+        >
+          <View style={[styles.progressFill, { width: `${progress}%` }]} />
+        </View>
+      )}
+      {level && (
+        <Text style={styles.statTileSuffix}>
+          {level.terminal ? 'Top level reached' : level.xpInLevelLabel}
+        </Text>
+      )}
+    </View>
+  );
+}
+
 export function ProfileStats({ cells }: { cells: readonly ProfileStatCell[] }) {
   const styles = useAppStyles();
   if (!cells.length) return null;
   return (
-    <View>
-      <Text accessibilityRole="header" style={styles.sectionTitle}>
-        Career &amp; Turf Stats
-      </Text>
-      <View style={styles.statGrid}>
-        {cells.map((cell) => (
-          <View key={cell.key} style={styles.statTile}>
-            <Text style={styles.statTileValue}>{cell.value}</Text>
-            <Text style={[styles.metricCellLabel, { color: appPalette.mutedInk }]}>
-              {cell.label}
-            </Text>
+    <>
+      {cells.map((cell) => (
+        <View key={cell.key} style={styles.profileTurfCard}>
+          <TurfPointsMark size={48} />
+          <View style={styles.flexCopy}>
+            <Text style={styles.statTileSuffix}>{cell.label}</Text>
+            <Text style={styles.profileStatValue}>{cell.value}</Text>
           </View>
-        ))}
-      </View>
-    </View>
+        </View>
+      ))}
+    </>
   );
 }
 
@@ -84,10 +113,6 @@ export function AchievementStrip({
   onViewAll: () => void;
 }) {
   const styles = useAppStyles();
-  const { tokens } = useAppTheme();
-  // A fixed rotation, so the three most recent awards stay distinguishable
-  // without implying a tier the server has not published.
-  const hues = [tokens.accent.gold, tokens.accent.violet, tokens.accent.azure];
   return (
     <>
       <View style={styles.sectionHeader}>
@@ -104,27 +129,15 @@ export function AchievementStrip({
       </View>
       {medallions.length ? (
         <View style={styles.tierRow}>
-          {medallions.map((medallion, index) => (
+          {medallions.map((medallion) => (
             <View
               key={medallion.key}
               accessible
               accessibilityLabel={medallion.accessibilityLabel}
               style={styles.tierCell}
             >
-              <View
-                style={[
-                  styles.tierBadge,
-                  { backgroundColor: (hues[index % hues.length] ?? tokens.accent.gold) + '26' }
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.tierBadgeGlyph,
-                    { color: hues[index % hues.length] ?? tokens.accent.gold }
-                  ]}
-                >
-                  ★
-                </Text>
+              <View style={styles.tierBadge}>
+                <AchievementArt achievementKey={medallion.achievementKey} />
               </View>
               <Text numberOfLines={2} style={styles.tierBadgeLabel}>
                 {medallion.label}

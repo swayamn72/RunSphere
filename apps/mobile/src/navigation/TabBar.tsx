@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { space } from '@runsphere/ui';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import { useAppTheme } from '../theme/theme';
 import { tabs, type Tab } from './types';
 import { TutorialTarget } from '../components/TutorialTarget';
@@ -43,7 +45,7 @@ export function TabBar({
               <View style={styles.iconWell}>
                 <NavigationIcon
                   name={tabIcons[tab]}
-                  color={selected ? tokens.action.selected : tokens.text.primary}
+                  color={selected ? tokens.text.accent : tokens.text.primary}
                 />
                 <Text style={[styles.label, selected && styles.selectedLabel]}>{tab}</Text>
                 {selected && <View style={styles.indicator} />}
@@ -67,7 +69,7 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       left: 0,
       minHeight: Platform.OS === 'ios' ? 84 : 68,
       paddingBottom: Platform.OS === 'ios' ? 22 : 10,
-      paddingTop: 8,
+      paddingTop: space.sm,
       position: 'absolute',
       right: 0
     },
@@ -84,8 +86,9 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       fontWeight: '600'
     },
     selectedLabel: {
-      color: tokens.action.selected,
-      fontWeight: '800'
+      // Accent as text: olive on light, lime on dark. Lime is 1.14:1 on the light canvas.
+      color: tokens.text.accent,
+      fontWeight: '700'
     },
     indicator: {
       position: 'absolute',
@@ -93,7 +96,7 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       width: 38,
       height: 3,
       borderRadius: 2,
-      backgroundColor: tokens.action.selected
+      backgroundColor: tokens.text.accent
     },
     pressed: {
       opacity: 0.74,

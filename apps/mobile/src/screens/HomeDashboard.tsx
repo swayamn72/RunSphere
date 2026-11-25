@@ -1,8 +1,10 @@
-import type { ComponentProps, ReactNode } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo, type ComponentProps, type ReactNode } from 'react';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import { NavigationIcon } from '../components/NavigationIcon';
 import Svg, { Path } from 'react-native-svg';
-import { appPalette, darkTokens as tokens } from '@runsphere/ui';
+import { type SemanticTokens, appPalette, darkTokens as night, radius, space } from '@runsphere/ui';
+import { useAppTheme } from '../theme/theme';
 import questWaterfront from '../../assets/quest-waterfront.jpg';
 import type {
   ActiveDaysPresentation,
@@ -12,6 +14,13 @@ import type {
 import type { WeeklyGoalMetric } from './home-state';
 
 type IconName = ComponentProps<typeof NavigationIcon>['name'];
+
+/** Home's styles follow the active theme; only the Turf card is always night (see `turf*`). */
+function useHome() {
+  const { tokens } = useAppTheme();
+  const styles = useMemo(() => createStyles(tokens), [tokens]);
+  return { tokens, styles };
+}
 
 export function HomeHeader({
   greeting,
@@ -24,6 +33,7 @@ export function HomeHeader({
   onOpenNotifications: () => void;
   onOpenProfile: () => void;
 }) {
+  const { tokens, styles } = useHome();
   return (
     <View style={styles.header}>
       <View style={styles.copy}>
@@ -31,7 +41,7 @@ export function HomeHeader({
           <Svg width={25} height={24} viewBox="0 0 25 24" accessible={false}>
             <Path
               d="M1 14l4-4h6l4 4v5l-4 4H5l-4-4zm10-10 4-4h6l4 4v5l-4 4h-6l-4-4z"
-              fill={appPalette.accent}
+              fill={tokens.brand.lime}
             />
           </Svg>
           <Text style={styles.brand}>TURFR</Text>
@@ -66,8 +76,8 @@ export function HomeHeader({
             >
               <Path
                 d="M24 2 43 13v22L24 46 5 35V13Z"
-                fill={appPalette.canvas}
-                stroke={appPalette.paper}
+                fill={tokens.background.surface}
+                stroke={tokens.border.strong}
                 strokeWidth={1.5}
                 strokeLinejoin="round"
               />
@@ -81,6 +91,7 @@ export function HomeHeader({
 }
 
 export function HomeStartButton({ onPress }: { onPress: () => void }) {
+  const { tokens, styles } = useHome();
   return (
     <Pressable
       accessibilityRole="button"
@@ -88,7 +99,7 @@ export function HomeStartButton({ onPress }: { onPress: () => void }) {
       onPress={onPress}
       style={({ pressed }) => [styles.start, pressed && styles.pressed]}
     >
-      <NavigationIcon name="runner" color={appPalette.ink} size={30} />
+      <NavigationIcon name="runner" color={tokens.text.onSelected} size={30} />
       <Text style={styles.startLabel}>Start a run</Text>
     </Pressable>
   );
@@ -108,6 +119,7 @@ export function HomeTurfCard({
   points: string | undefined;
   onPress: () => void;
 }) {
+  const { styles } = useHome();
   return (
     <View style={styles.turf}>
       {/* Decorative illustration, independent of the runner's actual claims. */}
@@ -142,9 +154,9 @@ export function HomeTurfCard({
       </Text>
       {points !== undefined && (
         <>
-          <Text style={styles.detail}>Turf points</Text>
+          <Text style={styles.turfDetail}>Turf points</Text>
           <Text style={styles.turfPoints}>{points}</Text>
-          <Text style={styles.detail}>this season</Text>
+          <Text style={styles.turfDetail}>this season</Text>
         </>
       )}
       <Pressable
@@ -152,7 +164,7 @@ export function HomeTurfCard({
         onPress={onPress}
         style={({ pressed }) => [styles.mapButton, pressed && styles.pressed]}
       >
-        <Text style={styles.title}>View map</Text>
+        <Text style={styles.turfButtonText}>View map</Text>
       </Pressable>
     </View>
   );
@@ -165,6 +177,7 @@ export function HomeSectionTitle({
   children: ReactNode;
   onPaper?: boolean;
 }) {
+  const { styles } = useHome();
   return (
     <Text accessibilityRole="header" style={[styles.sectionTitle, onPaper && styles.ink]}>
       {children}
@@ -173,6 +186,7 @@ export function HomeSectionTitle({
 }
 
 function CardIcon({ name }: { name: IconName }) {
+  const { tokens, styles } = useHome();
   return (
     <View style={styles.cardIcon}>
       <NavigationIcon name={name} color={tokens.text.secondary} size={24} />
@@ -195,6 +209,7 @@ export function HomeLinkRow({
   accessibilityLabel?: string;
   onPress: () => void;
 }) {
+  const { tokens, styles } = useHome();
   return (
     <Pressable
       accessibilityRole="button"
@@ -218,7 +233,7 @@ export function HomeLinkRow({
       </View>
       <NavigationIcon
         name="chevron"
-        color={questImage ? appPalette.ink : tokens.text.primary}
+        color={questImage ? tokens.text.onPaper : tokens.text.primary}
         size={20}
       />
     </Pressable>
@@ -226,6 +241,7 @@ export function HomeLinkRow({
 }
 
 export function ActiveDaysCard({ card }: { card: ActiveDaysPresentation }) {
+  const { styles } = useHome();
   return (
     <View accessible accessibilityLabel={card.accessibilityLabel} style={styles.days}>
       {/* The API provides a count, so the pips have no weekday labels. */}
@@ -251,12 +267,13 @@ const statIcons = {
 } as const satisfies Record<DashboardTile['key'], IconName>;
 
 export function DashboardGrid({ tiles }: { tiles: readonly DashboardTile[] }) {
+  const { tokens, styles } = useHome();
   if (!tiles.length) return null;
   return (
     <View style={styles.grid}>
       {tiles.map((tile) => (
         <View key={tile.key} style={[styles.card, styles.tile]}>
-          <NavigationIcon name={statIcons[tile.key]} color={appPalette.ink} size={23} />
+          <NavigationIcon name={statIcons[tile.key]} color={tokens.text.onPaper} size={23} />
           <View style={styles.copy}>
             <Text style={styles.value}>
               {tile.value}
@@ -277,6 +294,7 @@ export function WeeklyGoalCard({
   metric: WeeklyGoalMetric;
   onPress: () => void;
 }) {
+  const { tokens, styles } = useHome();
   const progressLabel = `${metric.actual} / ${metric.goal}`;
   return (
     <Pressable
@@ -286,7 +304,7 @@ export function WeeklyGoalCard({
       style={({ pressed }) => [styles.goal, pressed && styles.pressed]}
     >
       <View style={styles.row}>
-        <NavigationIcon name="locate" color={appPalette.ink} size={24} />
+        <NavigationIcon name="locate" color={tokens.text.onPaper} size={24} />
         <View style={styles.copy}>
           <Text style={[styles.title, styles.ink]}>Weekly goal</Text>
           <Text style={styles.paperDetail}>{progressLabel}</Text>
@@ -305,158 +323,179 @@ export function WeeklyGoalCard({
   );
 }
 
-const styles = StyleSheet.create({
-  header: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 16,
-    minHeight: 56
-  },
-  copy: { flex: 1, minWidth: 0 },
-  headerTools: { alignItems: 'flex-end', gap: 8, flexShrink: 1 },
-  headerActions: { flexDirection: 'row', gap: 10 },
-  wordmark: { alignItems: 'center', flexDirection: 'row', gap: 8, marginBottom: 6 },
-  brand: { color: tokens.text.primary, fontSize: 20, fontWeight: '900', letterSpacing: 1 },
-  turf: {
-    backgroundColor: appPalette.panel,
-    borderColor: appPalette.border,
-    borderRadius: 18,
-    borderWidth: 1,
-    marginBottom: 12,
-    overflow: 'hidden',
-    padding: 15
-  },
-  turfArt: {
-    backgroundColor: appPalette.panel,
-    bottom: 0,
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    width: '58%'
-  },
-  turfTitle: { color: tokens.text.primary, fontSize: 24, fontWeight: '900', marginBottom: 6 },
-  turfPoints: { color: tokens.text.primary, fontSize: 42, fontWeight: '900' },
-  mapButton: {
-    alignSelf: 'flex-start',
-    borderColor: tokens.text.secondary,
-    borderRadius: 10,
-    borderWidth: 1,
-    justifyContent: 'center',
-    marginTop: 10,
-    minHeight: 44,
-    paddingHorizontal: 13
-  },
-  name: { color: tokens.text.primary, fontSize: 30, fontWeight: '900', letterSpacing: -0.8 },
-  headerButton: {
-    alignItems: 'center',
-    backgroundColor: appPalette.panel,
-    borderColor: appPalette.border,
-    borderRadius: 24,
-    borderWidth: 1,
-    height: 48,
-    justifyContent: 'center',
-    width: 48
-  },
-  avatar: { width: 48, height: 48, justifyContent: 'center', alignItems: 'center' },
-  avatarShape: { position: 'absolute' },
-  badge: {
-    backgroundColor: appPalette.accent,
-    borderColor: appPalette.panel,
-    borderRadius: 6,
-    borderWidth: 1,
-    height: 10,
-    position: 'absolute',
-    right: 9,
-    top: 8,
-    width: 10
-  },
-  start: {
-    alignItems: 'center',
-    backgroundColor: appPalette.accent,
-    borderRadius: 16,
-    flexDirection: 'row',
-    gap: 10,
-    justifyContent: 'center',
-    minHeight: 56,
-    paddingHorizontal: 16,
-    paddingVertical: 10
-  },
-  startLabel: { color: appPalette.ink, flexShrink: 1, fontSize: 23, fontWeight: '900' },
-  sectionTitle: {
-    color: tokens.text.primary,
-    fontSize: 23,
-    fontWeight: '900',
-    letterSpacing: -0.5,
-    marginBottom: 8
-  },
-  card: {
-    backgroundColor: appPalette.raised,
-    borderColor: appPalette.border,
-    borderRadius: 14,
-    borderWidth: 1,
-    marginBottom: 10,
-    paddingHorizontal: 13,
-    paddingVertical: 10
-  },
-  row: { alignItems: 'center', flexDirection: 'row', gap: 12, minHeight: 42 },
-  cardIcon: {
-    alignItems: 'center',
-    borderRightColor: tokens.border.subtle,
-    borderRightWidth: 1,
-    justifyContent: 'center',
-    minHeight: 28,
-    paddingRight: 11
-  },
-  title: { color: tokens.text.primary, fontSize: 16, fontWeight: '800' },
-  detail: { color: tokens.text.secondary, fontSize: 14, fontWeight: '500' },
-  ink: { color: appPalette.ink },
-  paperDetail: { color: appPalette.mutedInk, fontSize: 14, fontWeight: '500' },
-  questCard: { backgroundColor: appPalette.paper, borderColor: appPalette.paperLine },
-  grid: { flexDirection: 'row', gap: 10 },
-  tile: {
-    alignItems: 'center',
-    backgroundColor: appPalette.paper,
-    borderColor: appPalette.paperLine,
-    flex: 1,
-    flexDirection: 'row',
-    gap: 8,
-    minHeight: 66
-  },
-  value: { color: appPalette.ink, fontSize: 25, fontWeight: '900', letterSpacing: -0.4 },
-  unit: { color: appPalette.mutedInk, fontSize: 14, fontWeight: '700' },
-  questImage: { width: '40%', aspectRatio: 1.9, borderRadius: 10 },
-  days: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    paddingVertical: 8
-  },
-  daysLabel: { color: appPalette.ink, fontSize: 14, fontWeight: '800' },
-  pips: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', minWidth: 126 },
-  goal: {
-    borderTopColor: appPalette.paperLine,
-    borderTopWidth: 1,
-    marginTop: 8,
-    paddingTop: 10
-  },
-  pip: {
-    borderColor: appPalette.mutedInk,
-    borderRadius: 6,
-    borderWidth: 1,
-    height: 13,
-    width: 13
-  },
-  filledPip: { backgroundColor: appPalette.accent, borderColor: appPalette.accent },
-  percent: { color: appPalette.ink, fontSize: 16, fontWeight: '900' },
-  track: {
-    backgroundColor: appPalette.paperLine,
-    borderRadius: 999,
-    height: 8,
-    marginTop: 10,
-    overflow: 'hidden'
-  },
-  fill: { backgroundColor: appPalette.accent, borderRadius: 999, height: '100%' },
-  pressed: { opacity: 0.75 }
-});
+const createStyles = (tokens: SemanticTokens) =>
+  StyleSheet.create({
+    header: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: 10,
+      marginBottom: space.lg,
+      minHeight: 56
+    },
+    copy: { flex: 1, minWidth: 0 },
+    headerTools: { alignItems: 'flex-end', gap: space.sm, flexShrink: 1 },
+    headerActions: { flexDirection: 'row', gap: 10 },
+    wordmark: { alignItems: 'center', flexDirection: 'row', gap: space.sm, marginBottom: 6 },
+    brand: { color: tokens.text.primary, fontSize: 20, fontWeight: '700', letterSpacing: 1 },
+    // The Turf card is a night-map illustration in both themes.
+    turf: {
+      backgroundColor: night.background.surface,
+      borderColor: night.border.subtle,
+      borderRadius: radius.card,
+      borderWidth: 1,
+      marginBottom: space.md,
+      overflow: 'hidden',
+      padding: space.lg
+    },
+    turfArt: {
+      backgroundColor: night.background.surface,
+      bottom: 0,
+      position: 'absolute',
+      right: 0,
+      top: 0,
+      width: '58%'
+    },
+    turfTitle: { color: night.text.primary, fontSize: 24, fontWeight: '700', marginBottom: 6 },
+    turfPoints: { color: night.text.primary, fontSize: 40, fontWeight: '700' },
+    turfDetail: { color: night.text.secondary, fontSize: 14, fontWeight: '500' },
+    turfButtonText: { color: night.text.primary, fontSize: 15, fontWeight: '700' },
+    mapButton: {
+      alignSelf: 'flex-start',
+      borderColor: night.text.secondary,
+      borderRadius: radius.control,
+      borderWidth: 1,
+      justifyContent: 'center',
+      marginTop: space.md,
+      minHeight: 44,
+      paddingHorizontal: space.lg
+    },
+    name: { color: tokens.text.primary, fontSize: 28, fontWeight: '700', letterSpacing: -0.4 },
+    headerButton: {
+      alignItems: 'center',
+      backgroundColor: tokens.background.surface,
+      borderColor: tokens.border.subtle,
+      borderRadius: radius.sheet,
+      borderWidth: 1,
+      height: 48,
+      justifyContent: 'center',
+      width: 48
+    },
+    avatar: { width: 48, height: 48, justifyContent: 'center', alignItems: 'center' },
+    avatarShape: { position: 'absolute' },
+    badge: {
+      backgroundColor: tokens.brand.lime,
+      borderColor: tokens.background.surface,
+      borderRadius: radius.sm,
+      borderWidth: 1,
+      height: 10,
+      position: 'absolute',
+      right: 9,
+      top: 8,
+      width: 10
+    },
+    start: {
+      alignItems: 'center',
+      backgroundColor: tokens.brand.lime,
+      borderRadius: radius.card,
+      flexDirection: 'row',
+      gap: space.md,
+      justifyContent: 'center',
+      marginBottom: space.md,
+      minHeight: 56,
+      paddingHorizontal: space.lg,
+      paddingVertical: space.md
+    },
+    startLabel: { color: tokens.text.onSelected, flexShrink: 1, fontSize: 24, fontWeight: '700' },
+    sectionTitle: {
+      color: tokens.text.primary,
+      fontSize: 24,
+      fontWeight: '700',
+      letterSpacing: -0.4,
+      marginBottom: space.sm
+    },
+    card: {
+      backgroundColor: tokens.background.surfaceRaised,
+      borderColor: tokens.border.subtle,
+      borderRadius: radius.card,
+      borderWidth: 1,
+      marginBottom: space.md,
+      paddingHorizontal: space.md,
+      paddingVertical: space.md
+    },
+    row: { alignItems: 'center', flexDirection: 'row', gap: space.md, minHeight: 42 },
+    cardIcon: {
+      alignItems: 'center',
+      borderRightColor: tokens.border.subtle,
+      borderRightWidth: 1,
+      justifyContent: 'center',
+      minHeight: 28,
+      paddingRight: space.md
+    },
+    title: { color: tokens.text.primary, fontSize: 15, fontWeight: '700' },
+    detail: { color: tokens.text.secondary, fontSize: 14, fontWeight: '500' },
+    ink: { color: tokens.text.onPaper },
+    paperDetail: { color: tokens.text.onPaperMuted, fontSize: 14, fontWeight: '500' },
+    questCard: { backgroundColor: tokens.background.paper, borderColor: tokens.border.paper },
+    grid: { flexDirection: 'row', gap: space.md },
+    tile: {
+      alignItems: 'center',
+      backgroundColor: tokens.background.paper,
+      borderColor: tokens.border.paper,
+      flex: 1,
+      flexDirection: 'row',
+      gap: space.sm,
+      minHeight: 66
+    },
+    value: {
+      color: tokens.text.onPaper,
+      fontSize: 24,
+      fontVariant: ['tabular-nums'],
+      fontWeight: '700',
+      letterSpacing: -0.3
+    },
+    unit: { color: tokens.text.onPaperMuted, fontSize: 14, fontWeight: '700' },
+    questImage: { width: '40%', aspectRatio: 1.9, borderRadius: radius.control },
+    days: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: space.md,
+      paddingVertical: space.sm
+    },
+    daysLabel: {
+      color: tokens.text.onPaper,
+      fontSize: 14,
+      fontVariant: ['tabular-nums'],
+      fontWeight: '700'
+    },
+    pips: { flexDirection: 'row', gap: space.sm },
+    goal: {
+      borderTopColor: tokens.border.paper,
+      borderTopWidth: 1,
+      marginTop: space.sm,
+      paddingTop: space.md
+    },
+    pip: {
+      borderColor: tokens.text.onPaperMuted,
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      height: 12,
+      width: 12
+    },
+    filledPip: { backgroundColor: tokens.brand.lime },
+    percent: {
+      color: tokens.text.onPaper,
+      fontSize: 15,
+      fontVariant: ['tabular-nums'],
+      fontWeight: '700'
+    },
+    track: {
+      backgroundColor: tokens.border.paper,
+      borderRadius: radius.pill,
+      height: 8,
+      marginTop: space.md,
+      overflow: 'hidden'
+    },
+    fill: { backgroundColor: tokens.brand.lime, borderRadius: radius.pill, height: '100%' },
+    pressed: { opacity: 0.75 }
+  });

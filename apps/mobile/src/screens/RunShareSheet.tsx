@@ -1,10 +1,12 @@
 import { useRef, useState } from 'react';
-import { Modal, Pressable, Text, View, type TextStyle, type ViewStyle } from 'react-native';
+import { Modal, Pressable, View, type TextStyle, type ViewStyle } from 'react-native';
+import { radius, space, typeScale } from '@runsphere/ui';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import { PrimaryButton } from '../components/primitives';
 import { useAppStyles } from '../components/styles';
+import { Text } from '../components/Text';
 import { failureMessage } from '../failure-copy';
 import { gameWorld } from '../theme/game-world';
 import {
@@ -145,22 +147,22 @@ export function ShareCardFace({ card }: { card: RunShareCard }) {
 }
 
 const local: Record<string, ViewStyle | TextStyle> = {
-  backdrop: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 16 },
-  actions: { alignSelf: 'stretch', gap: 8, marginTop: 16 },
+  backdrop: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: space.lg },
+  actions: { alignSelf: 'stretch', gap: space.sm, marginTop: space.lg },
   card: {
-    borderRadius: 16,
+    borderRadius: radius.card,
     height: SHARE_CARD_HEIGHT,
     overflow: 'hidden',
-    padding: 20,
+    padding: space.xl,
     width: SHARE_CARD_WIDTH
   },
   header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  brand: { fontSize: 18, fontWeight: '900', letterSpacing: 2 },
+  brand: { fontSize: typeScale.subheading.size, fontWeight: '700', letterSpacing: 2 },
   date: { fontSize: 13, fontWeight: '700' },
-  title: { fontSize: 22, fontWeight: '900', marginTop: 6 },
+  title: { fontSize: typeScale.heading.size, fontWeight: '700', marginTop: 6 },
   route: { alignItems: 'center', flex: 1, justifyContent: 'center' },
   stats: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  stat: { marginTop: 8, minWidth: '22%' },
-  statValue: { fontSize: 17, fontVariant: ['tabular-nums'], fontWeight: '900' },
-  statLabel: { fontSize: 11, fontWeight: '700', marginTop: 2 }
+  stat: { marginTop: space.sm, minWidth: '22%' },
+  statValue: { fontSize: 17, fontVariant: ['tabular-nums'], fontWeight: '700' },
+  statLabel: { fontSize: 11, fontWeight: '700', marginTop: space.xxs }
 };

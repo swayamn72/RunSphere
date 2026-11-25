@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Text, TextInput, View } from 'react-native';
+import { View } from 'react-native';
+import { Text, TextInput } from '../components/Text';
 import type { MobileApiClient } from '../api-client';
 import { BackHeader, PrimaryButton } from '../components/primitives';
 import { useAppStyles } from '../components/styles';

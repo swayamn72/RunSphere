@@ -9,15 +9,12 @@ export interface ProfileStatCell {
 
 export const profileStatCells = (
   turf: TerritoryClaimSummary | undefined
-): readonly ProfileStatCell[] => [
-  { key: 'held', label: 'Turf held', value: turfAreaLabel(turf?.totalAreaSqm) },
-  { key: 'carved', label: 'Zones carved', value: '—' },
-  { key: 'defenses', label: 'Successful defenses', value: '—' },
-  { key: 'streak', label: 'Best streak', value: '—' }
-];
+): readonly ProfileStatCell[] =>
+  turf ? [{ key: 'held', label: 'Turf held', value: turfAreaLabel(turf.totalAreaSqm) }] : [];
 
 export interface AchievementMedallion {
   readonly key: string;
+  readonly achievementKey: string;
   readonly label: string;
   readonly awardedOn: string | undefined;
   readonly accessibilityLabel: string;
@@ -57,6 +54,7 @@ export const achievementMedallions = (
       const awardedOn = awardedDate(award.awardedAt);
       return {
         key: award.id,
+        achievementKey: award.achievementKey,
         label,
         awardedOn,
         accessibilityLabel: awardedOn ? `${label}. Earned on ${awardedOn}.` : `${label}. Earned.`

@@ -5,17 +5,9 @@ import { SharedWithYou } from './SharedWithYou';
 import { PrivacySettingsScreen } from './PrivacySettingsScreen';
 import { legalLinks } from './legal-model';
 import { AccountRecoveryScreen } from './AccountRecoveryScreen';
-import {
-  Alert,
-  Linking,
-  Modal,
-  Pressable,
-  ScrollView,
-  Switch,
-  Text,
-  TextInput,
-  View
-} from 'react-native';
+import { Alert, Linking, Pressable, Switch, View } from 'react-native';
+import { BottomSheet } from '../components/BottomSheet';
+import { Text, TextInput } from '../components/Text';
 import * as Location from 'expo-location';
 import type {
   Profile,
@@ -32,6 +24,7 @@ import { activityQueue } from '../activity-queue.native';
 import { activityRecorder } from '../activity-recorder.native';
 import { authStorage } from '../auth-storage.native';
 import { BackHeader, PrimaryButton, Setting, SettingsGroup, Stat } from '../components/primitives';
+import { AppearanceSettings } from './AppearanceSettings';
 import { useAppTheme } from '../theme/theme';
 import { useAppStyles } from '../components/styles';
 import { coordinateLogout } from '../logout-coordinator';
@@ -43,7 +36,12 @@ import { NotificationsScreen } from './NotificationsScreen';
 import { ProfileIdentityScreen } from './ProfileIdentityScreen';
 import type { NotificationTarget } from './notifications-model';
 import { profileInitials, profileNameLabel } from './profile-model';
-import { AchievementStrip, ProfileIdentityHead, ProfileStats } from './ProfileOverview';
+import {
+  AchievementStrip,
+  ProfileIdentityHead,
+  ProfileLevel,
+  ProfileStats
+} from './ProfileOverview';
 import { RunLogSection } from './RunLogSection';
 import { useOpenRun } from './RunDetailHost';
 import {
@@ -134,6 +132,7 @@ export function ProfileScreen({
   onLogoutComplete,
   onReplayTour,
   onNavigate,
+  history,
   initialScreen = 'profile'
 }: {
   api: MobileApiClient;
@@ -143,6 +142,9 @@ export function ProfileScreen({
   onReplayTour?: () => void;
   /** Leaves the Profile tab for a destination an inbox entry points at. */
   onNavigate?: (target: NotificationTarget) => void;
+  /** The level and XP chip, shown on the overview only (component plan §4.1). */
+  /** The on-this-phone activity list, shown under the overview only, not under every sub-screen. */
+  history?: React.ReactNode;
   /**
    * Opens straight onto one of the sub-screens. The dashboard's bell arrives
    * here on `notifications`, so the inbox is one tap away rather than three.
@@ -378,35 +380,58 @@ export function ProfileScreen({
     );
   const settingsView = (
     <>
-      <SettingsGroup title="Goals & runs">
-        <Setting
-          label="Weekly progress"
-          value="Set your own pace"
-          onPress={() => setScreen('goals')}
-        />
-        <Setting label="Your runs" value="Listed above, on this phone" disabled />
-        <Setting
-          label="Achievements"
-          value="Cosmetic only"
-          onPress={() => setScreen('achievements')}
-        />
-        {onReplayTour ? (
-          <Setting
-            label="Replay the tour"
-            value="Rho shows you around again"
-            onPress={() => {
-              setScreen('profile');
-              onReplayTour();
-            }}
-          />
-        ) : null}
-      </SettingsGroup>
-      <SettingsGroup title="You and your friends">
+      <AppearanceSettings />
+      <SettingsGroup title="Account">
         <Setting
           label="Display name"
           value={profile?.displayName ?? 'Not set'}
           onPress={() => setScreen('identity')}
         />
+        <Setting
+          label="Change email"
+          value="Confirm with a link"
+          onPress={() => setScreen('change-email')}
+        />
+        <Setting
+          label="Email verification"
+          value={verificationStatus}
+          onPress={() => void requestVerification()}
+        />
+        <Text style={styles.settingsHint}>
+          Who can see you and your runs is set under Privacy & safety. Exact routes still stay
+          private.
+        </Text>
+      </SettingsGroup>
+      <SettingsGroup title="Privacy & safety">
+        <Setting
+          label="Privacy & visibility"
+          value="Who sees you"
+          onPress={() => setScreen('privacy')}
+        />
+        <Setting
+          label="Safety & privacy"
+          value="Private by default"
+          onPress={() => setScreen('safety')}
+        />
+        <Setting
+          label="Fair Play & Privacy"
+          value="GPS checks and what you share"
+          onPress={() => setFairPlayOpen(true)}
+        />
+      </SettingsGroup>
+      <BottomSheet
+        visible={fairPlayOpen}
+        title="Fair Play & Privacy"
+        onClose={() => setFairPlayOpen(false)}
+        actions={<PrimaryButton label="Done" onPress={() => setFairPlayOpen(false)} />}
+      >
+        {FAIR_PLAY_PRIVACY.map((detail) => (
+          <Text key={detail} style={styles.lead}>
+            {detail}
+          </Text>
+        ))}
+      </BottomSheet>
+      <SettingsGroup title={CLUBS_ENABLED ? 'Friends and clubs' : 'Friends'}>
         <Setting
           label="Notifications"
           value="Inbox and delivery"
@@ -420,56 +445,16 @@ export function ProfileScreen({
           friends and requests from the Social tab.
         </Text>
       </SettingsGroup>
-      <SettingsGroup title="Fair play">
+      <SettingsGroup title="Goals & runs">
         <Setting
-          label="Fair Play & Privacy"
-          value="GPS checks and what you share"
-          onPress={() => setFairPlayOpen(true)}
-        />
-      </SettingsGroup>
-      {fairPlayOpen && (
-        <Modal transparent animationType="fade" onRequestClose={() => setFairPlayOpen(false)}>
-          <ScrollView contentContainerStyle={styles.modalBackdrop}>
-            <View accessibilityViewIsModal style={styles.recordCard}>
-              <Text accessibilityRole="header" style={styles.recordTitle}>
-                Fair Play &amp; Privacy
-              </Text>
-              {FAIR_PLAY_PRIVACY.map((detail) => (
-                <Text key={detail} style={styles.lead}>
-                  {detail}
-                </Text>
-              ))}
-              <PrimaryButton label="Done" onPress={() => setFairPlayOpen(false)} />
-            </View>
-          </ScrollView>
-        </Modal>
-      )}
-      <SettingsGroup title="Account visibility">
-        <Setting
-          label="Change email"
-          value="Confirm with a link"
-          onPress={() => setScreen('change-email')}
+          label="Weekly progress"
+          value="Set your own pace"
+          onPress={() => setScreen('goals')}
         />
         <Setting
-          label="Email verification"
-          value={verificationStatus}
-          onPress={() => void requestVerification()}
-        />
-        <Text style={styles.settingsHint}>
-          Who can see you and your runs is set under Privacy & visibility below. Exact routes still
-          stay private.
-        </Text>
-      </SettingsGroup>
-      <SettingsGroup title="Privacy & safety">
-        <Setting
-          label="Privacy & visibility"
-          value="Who sees you"
-          onPress={() => setScreen('privacy')}
-        />
-        <Setting
-          label="Safety & privacy"
-          value="Private by default"
-          onPress={() => setScreen('safety')}
+          label="Achievements"
+          value="Cosmetic only"
+          onPress={() => setScreen('achievements')}
         />
       </SettingsGroup>
       <SettingsGroup title="Your standing">
@@ -516,7 +501,19 @@ export function ProfileScreen({
           </View>
         ))}
       </SettingsGroup>
-      <SettingsGroup title="Data">
+      <SettingsGroup title="Help">
+        {onReplayTour ? (
+          <Setting
+            label="Replay the tour"
+            value="Rho shows you around again"
+            onPress={() => {
+              setScreen('profile');
+              onReplayTour();
+            }}
+          />
+        ) : null}
+      </SettingsGroup>
+      <SettingsGroup title="Data and account">
         <Setting
           label="Export your data"
           value="Generate a private copy"
@@ -566,6 +563,7 @@ export function ProfileScreen({
         onEdit={() => setScreen('identity')}
         onOpenSettings={() => setScreen('settings')}
       />
+      {progression && <ProfileLevel summary={progression} />}
       <ProfileStats cells={profileStatCells(overviewTurf)} />
       <AchievementStrip
         medallions={achievementMedallions(progression?.achievements ?? [])}
@@ -582,16 +580,7 @@ export function ProfileScreen({
             }
           : {})}
       />
-      <View style={styles.sectionHeader}>
-        <Text accessibilityRole="header" style={styles.sectionTitle}>
-          Account
-        </Text>
-      </View>
-      <Setting
-        label="Settings"
-        value={CLUBS_ENABLED ? 'Goals, clubs, privacy, data' : 'Goals, privacy, data'}
-        onPress={() => setScreen('settings')}
-      />
+      {history}
     </>
   );
 }
@@ -923,17 +912,19 @@ function SafetyScreen({ api, onBack }: { api: MobileApiClient; onBack: () => voi
           Safety invitations require verified, trusted accounts. A contact never receives exact
           coordinates, exact route, or access to past runs.
         </Text>
-        <TextInput
-          accessibilityLabel="Safety contact email"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          value={contactEmail}
-          onChangeText={setContactEmail}
-          style={styles.input}
-          placeholder="contact@example.com"
-          placeholderTextColor={tokens.text.secondary}
-        />
-        <PrimaryButton label="Invite verified contact" onPress={() => void invite()} />
+        <View style={styles.settingStack}>
+          <TextInput
+            accessibilityLabel="Safety contact email"
+            autoCapitalize="none"
+            keyboardType="email-address"
+            value={contactEmail}
+            onChangeText={setContactEmail}
+            style={styles.input}
+            placeholder="contact@example.com"
+            placeholderTextColor={tokens.text.secondary}
+          />
+          <PrimaryButton label="Invite verified contact" onPress={() => void invite()} />
+        </View>
         {state === 'loading' && <Text style={styles.privateNote}>Loading safety contacts…</Text>}
         {state === 'offline' && (
           <ErrorState copy="Safety contacts are unavailable offline." onRetry={loadContacts} />

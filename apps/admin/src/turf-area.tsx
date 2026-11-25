@@ -1,5 +1,10 @@
 import { useState } from 'react';
 import type { TerritoryConcentrationReport, TerritoryTradeFlag } from '@runsphere/contracts';
+import { canModerate, canOperateCompetitions } from '@runsphere/domain';
+import { getTradeFlags, getTurfConcentration, reviewTradeFlag } from './api.js';
+import type { AreaContext } from './area-types.js';
+import { useAreaLoad } from './use-area-load.js';
+import { Button, DataTable, Field, Notice, Section, StatusTag } from './ui/index.js';
 
 /**
  * Turf claims for staff (the claim-era model, not the cell seasons that are
@@ -27,110 +32,141 @@ export const concentrationSummary = (report: TerritoryConcentrationReport): stri
   return report.breached ? 'Over the concentration limit.' : 'Within the concentration limits.';
 };
 
+function Stat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rs-stat">
+      <dt className="rs-stat__label">{label}</dt>
+      <dd className="rs-stat__value">{value}</dd>
+    </div>
+  );
+}
+
 export function TurfArea({ concentration, flags, flagNote, loading, onReview }: TurfAreaProps) {
   const [notes, setNotes] = useState<Record<string, string>>({});
   const noteFor = (id: string) => notes[id]?.trim() ?? '';
 
   return (
-    <section>
-      <h2>Turf claims</h2>
+    <>
+      <Section title="Concentration" description={concentration?.scopeNote}>
+        {concentration ? (
+          <>
+            <Notice tone={concentration.breached ? 'warning' : 'info'}>
+              {concentrationSummary(concentration)}
+            </Notice>
+            <dl className="rs-stats">
+              <Stat label="Holders" value={concentration.holders} />
+              <Stat
+                label="Ground held"
+                value={`${(concentration.totalAreaSqm / 1_000_000).toFixed(2)} km²`}
+              />
+              <Stat label="Top 10% of holders" value={percent(concentration.topDecileShare)} />
+              <Stat label="Largest single holder" value={percent(concentration.topHolderShare)} />
+            </dl>
+          </>
+        ) : (
+          <Notice tone="readonly">Concentration needs a season operator or admin role.</Notice>
+        )}
+      </Section>
 
-      <h3>Concentration</h3>
-      {concentration ? (
-        <>
-          <p className={concentration.breached ? 'status error' : 'status neutral'}>
-            {concentrationSummary(concentration)}
-          </p>
-          <table>
-            <tbody>
-              <tr>
-                <th>Holders</th>
-                <td>{concentration.holders}</td>
-              </tr>
-              <tr>
-                <th>Ground held</th>
-                <td>{`${(concentration.totalAreaSqm / 1_000_000).toFixed(2)} km²`}</td>
-              </tr>
-              <tr>
-                <th>Top 10% of holders</th>
-                <td>{percent(concentration.topDecileShare)}</td>
-              </tr>
-              <tr>
-                <th>Largest single holder</th>
-                <td>{percent(concentration.topHolderShare)}</td>
-              </tr>
-            </tbody>
-          </table>
-          <p>{concentration.scopeNote}</p>
-        </>
-      ) : (
-        <p className="status neutral">Concentration needs a season operator or admin role.</p>
-      )}
-
-      <h3>Flagged trades</h3>
-      {flags === undefined ? (
-        <p className="status neutral">Trade flags need a moderator or admin role.</p>
-      ) : (
-        <>
-          {flagNote ? <p>{flagNote}</p> : null}
-          <table>
-            <thead>
-              <tr>
-                <th>Exchanges</th>
-                <th>Share between the pair</th>
-                <th>Window</th>
-                <th>Review</th>
-              </tr>
-            </thead>
-            <tbody>
-              {flags.map((flag) => (
-                <tr key={flag.id}>
-                  <td>{flag.exchanges}</td>
-                  <td>{percent(flag.pairShare)}</td>
-                  <td>
-                    {`${new Date(flag.firstAt).toLocaleDateString()} – ${new Date(flag.lastAt).toLocaleDateString()}`}
-                  </td>
-                  <td>
-                    {flag.reviewOutcome ? (
-                      <span className="tag">{flag.reviewOutcome}</span>
-                    ) : (
-                      <>
-                        <label htmlFor={`note-${flag.id}`}>Note</label>
+      <Section title="Flagged trades" description={flags === undefined ? undefined : flagNote}>
+        {flags === undefined ? (
+          <Notice tone="readonly">Trade flags need a moderator or admin role.</Notice>
+        ) : (
+          <DataTable
+            caption="Flagged trades"
+            columns={[
+              { key: 'exchanges', header: 'Exchanges', numeric: true, render: (f) => f.exchanges },
+              {
+                key: 'share',
+                header: 'Share between the pair',
+                numeric: true,
+                render: (f) => percent(f.pairShare)
+              },
+              {
+                key: 'window',
+                header: 'Window',
+                render: (f) =>
+                  `${new Date(f.firstAt).toLocaleDateString()} – ${new Date(f.lastAt).toLocaleDateString()}`
+              },
+              {
+                key: 'review',
+                header: 'Review',
+                render: (flag) =>
+                  flag.reviewOutcome ? (
+                    <StatusTag tone={flag.reviewOutcome === 'upheld' ? 'warning' : 'neutral'}>
+                      {flag.reviewOutcome}
+                    </StatusTag>
+                  ) : (
+                    <div className="rs-review">
+                      <Field label="Note">
                         <input
-                          id={`note-${flag.id}`}
                           value={notes[flag.id] ?? ''}
                           onChange={(event) =>
                             setNotes((current) => ({ ...current, [flag.id]: event.target.value }))
                           }
                         />
-                        <button
-                          type="button"
+                      </Field>
+                      <div className="rs-actions">
+                        <Button
+                          variant="secondary"
                           disabled={loading || !noteFor(flag.id)}
                           onClick={() => onReview(flag.id, 'upheld', noteFor(flag.id))}
                         >
                           Uphold
-                        </button>
-                        <button
-                          type="button"
+                        </Button>
+                        <Button
+                          variant="ghost"
                           disabled={loading || !noteFor(flag.id)}
                           onClick={() => onReview(flag.id, 'dismissed', noteFor(flag.id))}
                         >
                           Dismiss
-                        </button>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {!loading && flags.length === 0 ? (
-                <tr>
-                  <td colSpan={4}>No trades are flagged.</td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </>
-      )}
-    </section>
+                        </Button>
+                      </div>
+                    </div>
+                  )
+              }
+            ]}
+            rows={flags}
+            rowKey={(flag) => flag.id}
+            emptyMessage={loading ? 'Loading…' : 'No trades are flagged.'}
+          />
+        )}
+      </Section>
+    </>
+  );
+}
+
+export function TurfAreaLoader({ accessToken, roles, loading, run }: AreaContext) {
+  const [concentration, setConcentration] = useState<TerritoryConcentrationReport>();
+  const [flags, setFlags] = useState<readonly TerritoryTradeFlag[]>();
+  const [flagNote, setFlagNote] = useState<string>();
+
+  useAreaLoad(() =>
+    run(async () => {
+      // Each part loads only for the role its route admits.
+      setConcentration(
+        canOperateCompetitions(roles) ? await getTurfConcentration(accessToken) : undefined
+      );
+      if (canModerate(roles)) {
+        const queue = await getTradeFlags(accessToken);
+        setFlags(queue.data);
+        setFlagNote(queue.note);
+      } else setFlags(undefined);
+    })
+  );
+
+  return (
+    <TurfArea
+      concentration={concentration}
+      flags={flags}
+      flagNote={flagNote}
+      loading={loading}
+      onReview={(flagId, outcome, note) =>
+        void run(async () => {
+          const queue = await reviewTradeFlag(accessToken, flagId, { outcome, note });
+          setFlags(queue.data);
+        }, 'Review recorded.')
+      }
+    />
   );
 }
