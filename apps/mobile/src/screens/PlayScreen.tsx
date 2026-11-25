@@ -26,6 +26,8 @@ import { TerritoryPanel } from './TerritoryPanel';
 import { SeasonHistory } from './SeasonHistory';
 import { useLoopGuidance } from '../components/useLoopGuidance';
 import type { LoopGuidanceCue } from '../loop-guidance';
+import { Chevron } from '../components/Chevron';
+import { NavigationIcon } from '../components/NavigationIcon';
 import { useAppTheme } from '../theme/theme';
 import {
   CHALLENGE_MODE_LABEL,
@@ -678,6 +680,8 @@ export function PlayScreen({
       {standingsRemoteState === 'loading' && (
         <View style={styles.card}>
           <View style={[styles.skeleton, styles.skeletonLine]} />
+          <View style={[styles.skeleton, styles.skeletonLine]} />
+          <View style={[styles.skeleton, styles.skeletonLine]} />
           <Text style={styles.helper}>Loading standings.</Text>
         </View>
       )}
@@ -1067,15 +1071,24 @@ export function PlayScreen({
 
           {socialSegment === 'friends' && (
             <>
-              {friendBoardView}
+              {/* Above the standings, so a pending request isn't buried under them. */}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Manage friends"
                 onPress={() => setScreen('friends')}
-                style={styles.guideAction}
+                style={({ pressed }) => [
+                  styles.card,
+                  { alignItems: 'center', flexDirection: 'row', gap: 12 },
+                  pressed && { opacity: 0.7 }
+                ]}
               >
-                <Text style={styles.guideActionText}>Friends and requests ›</Text>
+                <NavigationIcon name="social" color={tokens.text.secondary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.cardTitle}>Friends and requests</Text>
+                </View>
+                <Chevron direction="forward" size={18} color={tokens.text.secondary} />
               </Pressable>
+              {friendBoardView}
             </>
           )}
           {socialSegment === 'global' && globalBoardView}

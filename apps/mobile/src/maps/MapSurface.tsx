@@ -376,52 +376,57 @@ function MapControls({
   ];
   const controlText = { color: tokens.map.controlText };
   return (
-    <View style={styles.controls} pointerEvents="box-none">
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Reset compass to north"
-        onPress={onResetNorth}
-        style={control}
-      >
-        <Text allowFontScaling={false} style={[styles.controlText, controlText]}>
-          N
-        </Text>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Zoom in"
-        onPress={onZoomIn}
-        style={control}
-      >
-        <Text allowFontScaling={false} style={[styles.controlText, controlText]}>
-          +
-        </Text>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Zoom out"
-        onPress={onZoomOut}
-        style={control}
-      >
-        <Text allowFontScaling={false} style={[styles.controlText, controlText]}>
-          −
-        </Text>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={
-          camera.mode === 'follow' ? 'Following current location' : 'Recenter current location'
-        }
-        accessibilityState={{ disabled: recenterDisabled, selected: camera.mode === 'follow' }}
-        disabled={recenterDisabled}
-        onPress={onRecenter}
-        style={[...control, recenterDisabled && styles.controlDisabled]}
-      >
-        <Text allowFontScaling={false} style={[styles.controlText, controlText]}>
-          ◎
-        </Text>
-      </Pressable>
-    </View>
+    <>
+      <View style={styles.controls} pointerEvents="box-none">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Reset compass to north"
+          onPress={onResetNorth}
+          style={control}
+        >
+          <Text allowFontScaling={false} style={[styles.controlText, controlText]}>
+            N
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Zoom in"
+          onPress={onZoomIn}
+          style={control}
+        >
+          <Text allowFontScaling={false} style={[styles.controlText, controlText]}>
+            +
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Zoom out"
+          onPress={onZoomOut}
+          style={control}
+        >
+          <Text allowFontScaling={false} style={[styles.controlText, controlText]}>
+            −
+          </Text>
+        </Pressable>
+      </View>
+      {/* Recenter sits in the thumb zone, bottom right (component plan 4.8). */}
+      <View style={styles.locate} pointerEvents="box-none">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            camera.mode === 'follow' ? 'Following current location' : 'Recenter current location'
+          }
+          accessibilityState={{ disabled: recenterDisabled, selected: camera.mode === 'follow' }}
+          disabled={recenterDisabled}
+          onPress={onRecenter}
+          style={[...control, recenterDisabled && styles.controlDisabled]}
+        >
+          <Text allowFontScaling={false} style={[styles.controlText, controlText]}>
+            ◎
+          </Text>
+        </Pressable>
+      </View>
+    </>
   );
 }
 
@@ -449,6 +454,7 @@ const styles = StyleSheet.create({
   },
   retryText: { fontSize: 14, fontWeight: '700' },
   controls: { gap: 8, position: 'absolute', right: 12, top: 12 },
+  locate: { bottom: 36, position: 'absolute', right: 12 },
   control: {
     alignItems: 'center',
     borderRadius: 24,

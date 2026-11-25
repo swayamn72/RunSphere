@@ -384,11 +384,12 @@ export function HomeScreen({
 
       {dashboardPreviewEnabled && <Text style={styles.muted}>Sample dashboard data</Text>}
 
-      <HomeTurfCard points={turf && formatTurfPoints(turf.totalAreaSqm)} onPress={onOpenMap} />
-
+      {/* The thing a runner does next comes first (component plan 4.2). */}
       <TutorialTarget id="home-start">
         <HomeStartButton onPress={onStart} />
       </TutorialTarget>
+
+      <HomeTurfCard points={turf && formatTurfPoints(turf.totalAreaSqm)} onPress={onOpenMap} />
 
       <View style={local.panel}>
         <HomeSectionTitle onPaper>This week</HomeSectionTitle>

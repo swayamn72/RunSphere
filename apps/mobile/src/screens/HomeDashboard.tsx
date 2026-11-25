@@ -400,6 +400,7 @@ const createStyles = (tokens: SemanticTokens) =>
       flexDirection: 'row',
       gap: 12,
       justifyContent: 'center',
+      marginBottom: 12,
       minHeight: 56,
       paddingHorizontal: 16,
       paddingVertical: 12

@@ -282,13 +282,23 @@ only (ADR-0016 amendment).
 - Checked on the iOS Simulator (light): Settings, Profile, Run picker. Checked in Chromium
   (screenshot, light desktop): the admin sidebar.
 
+**Added later the same day (checked on the Simulator, light)**
+
+- Home: Start a run now leads, above the Turf card (§4.2).
+- Run picker: Free run is the filled lead card, every card has a chevron, and "Browse running routes"
+  is a row like the others (§4.3).
+- Social: "Friends and requests" is a row above the standings, and standings load as three
+  skeleton rows (§4.5).
+- Map surface: the recenter button moved to the bottom-right of the map. Seen on the quest detail map
+  only; the Map tab has its own toolbar and was not changed (§4.8).
+
 **Not built**
 
 - Mobile kit pieces: `AppBar`, `Skeleton`, `BottomSheet`, `Toast`, `FilterChips`, `GroupedList`
   as shared components. The changes above were made in place on the existing primitives.
-- §4.2 Home reorder, §4.3 Free-run emphasis, §4.5 Social skeleton rows and requests row,
-  §4.6 merging Runs and Activity history (not merged: not yet confirmed to be the same data),
-  §4.8 Map locate placement and zoom buttons, §4.9 one `BottomSheet`.
+- §4.6 merging Runs and Activity history (not merged: not yet confirmed to be the same data),
+  §4.8 hiding the zoom buttons and the compass-only-when-rotated rule, §4.4 a sticky Start on the
+  quest detail (the screen was only seen with a sample quest), §4.9 one `BottomSheet`.
 - Admin: table toolbars and row menus, the right-hand drawer, keyboard shortcuts.
 - The unseen screens in §7 are still unseen. Nothing here was run on a physical device or on
   Android.
