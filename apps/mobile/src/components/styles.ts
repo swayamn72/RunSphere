@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { StyleSheet } from 'react-native';
 import type { SemanticTokens } from '@runsphere/ui';
-import { appPalette, radius } from '@runsphere/ui';
+import { radius } from '@runsphere/ui';
 import { useAppTheme } from '../theme/theme';
 
 export const createAppStyles = (t: SemanticTokens) =>
@@ -20,7 +20,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       justifyContent: 'center',
       padding: 20
     },
-    eyebrow: { color: t.status.success, fontSize: 11, fontWeight: '700', letterSpacing: 1.4 },
+    eyebrow: { color: t.text.accent, fontSize: 11, fontWeight: '700', letterSpacing: 1.2 },
     teal: { color: t.status.success },
     lead: { color: t.text.secondary, fontSize: 15, lineHeight: 23, marginBottom: 18 },
     onboardingTitle: {
@@ -191,8 +191,8 @@ export const createAppStyles = (t: SemanticTokens) =>
 
     statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
     statTile: {
-      backgroundColor: appPalette.paper,
-      borderColor: appPalette.paperLine,
+      backgroundColor: t.background.paper,
+      borderColor: t.border.paper,
       borderRadius: radius.control,
       borderWidth: 1,
       flexGrow: 1,
@@ -201,20 +201,20 @@ export const createAppStyles = (t: SemanticTokens) =>
     },
     statTileHead: { alignItems: 'center', flexDirection: 'row', gap: 9 },
     statTileLabel: {
-      color: appPalette.mutedInk,
+      color: t.text.onPaperMuted,
       fontSize: 11,
       fontWeight: '700',
       letterSpacing: 0.4
     },
     statTileValue: {
       fontVariant: ['tabular-nums'],
-      color: appPalette.ink,
+      color: t.text.onPaper,
       fontSize: 20,
       fontWeight: '700',
       letterSpacing: -0.6,
       marginTop: 8
     },
-    statTileSuffix: { color: appPalette.mutedInk, fontSize: 12, fontWeight: '700' },
+    statTileSuffix: { color: t.text.onPaperMuted, fontSize: 12, fontWeight: '700' },
 
     /* ---------------------------------------------------------------- *
      * Progress

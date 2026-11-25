@@ -20,7 +20,6 @@ import {
   previewTurfQuests
 } from './dashboard-preview';
 import { useAppTheme } from '../theme/theme';
-import { appPalette } from '@runsphere/ui';
 import {
   ActiveDaysCard,
   DashboardGrid,
@@ -620,15 +619,15 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
   StyleSheet.create({
     coachCard: { borderLeftColor: t.zone.owned, borderLeftWidth: 3, gap: 12 },
     panel: {
-      backgroundColor: appPalette.paper,
-      borderColor: appPalette.paperLine,
+      backgroundColor: t.background.paper,
+      borderColor: t.border.paper,
       borderWidth: 1,
       borderRadius: 18,
       marginTop: 14,
       padding: 12
     },
-    paperCopy: { color: appPalette.mutedInk },
-    paperAction: { color: appPalette.ink, textDecorationLine: 'underline' },
+    paperCopy: { color: t.text.onPaperMuted },
+    paperAction: { color: t.text.onPaper, textDecorationLine: 'underline' },
     quests: { marginTop: 16 },
     questHeader: {
       alignItems: 'center',
@@ -653,7 +652,7 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
       minHeight: 48,
       paddingHorizontal: 4
     },
-    guideActionText: { color: appPalette.accent, fontSize: 14, fontWeight: '700' },
+    guideActionText: { color: t.text.accent, fontSize: 14, fontWeight: '700' },
     unavailable: { marginTop: 12, minHeight: 64 },
     questLoading: {
       alignItems: 'center',

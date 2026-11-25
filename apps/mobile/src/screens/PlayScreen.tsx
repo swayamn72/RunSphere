@@ -1,4 +1,3 @@
-import { appPalette } from '@runsphere/ui';
 import { seasonCountdown } from './home-progression-model';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -1439,8 +1438,8 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
     chipTextSelected: { color: t.text.onAccent },
     standingRow: {
       alignItems: 'center',
-      backgroundColor: appPalette.paper,
-      borderTopColor: appPalette.paperLine,
+      backgroundColor: t.background.paper,
+      borderTopColor: t.border.paper,
       borderTopWidth: 1,
       flexDirection: 'row',
       gap: 12,
@@ -1448,10 +1447,11 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
       paddingHorizontal: 12,
       paddingVertical: 8
     },
-    standingSelf: { backgroundColor: appPalette.paperLine },
-    rank: { color: appPalette.mutedInk, fontSize: 14, fontWeight: '700', minWidth: 24 },
-    standingName: { color: appPalette.ink, flex: 1, fontSize: 15, fontWeight: '700' },
-    standingScore: { color: appPalette.ink, fontSize: 15, fontWeight: '700' },
+    // Your own row is lime-tinted, the same "yours" fill the map uses.
+    standingSelf: { backgroundColor: t.zone.ownedFill, borderRadius: 12 },
+    rank: { color: t.text.onPaperMuted, fontSize: 14, fontWeight: '700', minWidth: 24 },
+    standingName: { color: t.text.onPaper, flex: 1, fontSize: 15, fontWeight: '700' },
+    standingScore: { color: t.text.onPaper, fontSize: 15, fontWeight: '700' },
     guide: { alignItems: 'center', flexDirection: 'row', gap: 12, marginTop: 16, minHeight: 64 },
     guideAction: {
       alignSelf: 'flex-start',

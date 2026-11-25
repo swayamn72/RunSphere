@@ -44,7 +44,7 @@ export function TabBar({
               <View style={styles.iconWell}>
                 <NavigationIcon
                   name={tabIcons[tab]}
-                  color={selected ? tokens.action.selected : tokens.text.primary}
+                  color={selected ? tokens.text.accent : tokens.text.primary}
                 />
                 <Text style={[styles.label, selected && styles.selectedLabel]}>{tab}</Text>
                 {selected && <View style={styles.indicator} />}
@@ -85,7 +85,8 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       fontWeight: '600'
     },
     selectedLabel: {
-      color: tokens.action.selected,
+      // Accent as text: olive on light, lime on dark. Lime is 1.14:1 on the light canvas.
+      color: tokens.text.accent,
       fontWeight: '700'
     },
     indicator: {
@@ -94,7 +95,7 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       width: 38,
       height: 3,
       borderRadius: 2,
-      backgroundColor: tokens.action.selected
+      backgroundColor: tokens.text.accent
     },
     pressed: {
       opacity: 0.74,

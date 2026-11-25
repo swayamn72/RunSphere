@@ -23,6 +23,7 @@ import { activityQueue } from '../activity-queue.native';
 import { activityRecorder } from '../activity-recorder.native';
 import { authStorage } from '../auth-storage.native';
 import { BackHeader, PrimaryButton, Setting, SettingsGroup, Stat } from '../components/primitives';
+import { AppearanceSettings } from './AppearanceSettings';
 import { useAppTheme } from '../theme/theme';
 import { useAppStyles } from '../components/styles';
 import { coordinateLogout } from '../logout-coordinator';
@@ -364,6 +365,7 @@ export function ProfileScreen({
     );
   const settingsView = (
     <>
+      <AppearanceSettings />
       <SettingsGroup title="Goals & activity">
         <Setting
           label="Weekly progress"

@@ -1,4 +1,3 @@
-import { appPalette } from '@runsphere/ui';
 import { Pressable, View } from 'react-native';
 import { Text } from '../components/Text';
 import { SettingsButton } from '../components/SettingsButton';
@@ -55,6 +54,7 @@ export function ProfileIdentityHead({
 
 export function ProfileStats({ cells }: { cells: readonly ProfileStatCell[] }) {
   const styles = useAppStyles();
+  const { tokens } = useAppTheme();
   if (!cells.length) return null;
   return (
     <View>
@@ -65,7 +65,7 @@ export function ProfileStats({ cells }: { cells: readonly ProfileStatCell[] }) {
         {cells.map((cell) => (
           <View key={cell.key} style={styles.statTile}>
             <Text style={styles.statTileValue}>{cell.value}</Text>
-            <Text style={[styles.metricCellLabel, { color: appPalette.mutedInk }]}>
+            <Text style={[styles.metricCellLabel, { color: tokens.text.onPaperMuted }]}>
               {cell.label}
             </Text>
           </View>
