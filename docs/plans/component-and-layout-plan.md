@@ -301,14 +301,22 @@ only (ADR-0016 amendment).
 - Competitions has a search toolbar with a "n of m shown" count (`TableToolbar`). No other table has
   one yet. The requests sent are unchanged.
 
-**Not built**
+**Final pass (same day)**
 
-- Mobile kit pieces: `AppBar`, `Skeleton`, `BottomSheet`, `Toast`, `FilterChips`, `GroupedList`
-  as shared components. The changes above were made in place on the existing primitives.
-- §4.6 merging Runs and Activity history (not merged: not yet confirmed to be the same data),
-  §4.8 hiding the zoom buttons and the compass-only-when-rotated rule, §4.4 a sticky Start on the
-  quest detail (the screen was only seen with a sample quest), §4.9 one `BottomSheet`.
-- Admin: toolbars on the other tables, row `…` menus, the right-hand detail drawer, keyboard
-  shortcuts. Quests and Seasons still edit in place; Moderation keeps its split view.
-- The unseen screens in §7 are still unseen. Nothing here was run on a physical device or on
-  Android.
+- Admin: searchable tables on Review, Campaigns, Quests, Privacy requests and Data; a submission
+  details drawer; a per-campaign schedule drawer (it also fixes one send-time field being shared by
+  every draft row); a row menu on competitions with a confirm dialog for cancelling; `/` focuses the
+  table search. 46 Playwright specs pass.
+- Mobile: shared `BottomSheet` (the Fair Play sheet uses it, seen on the Simulator) and `Toast`
+  (built and tested, not yet used by a screen); quest detail Start pinned under the scroll (logic
+  only, not seen with a real quest); quest cards use a chevron; Activity history shows on the Profile
+  overview only, not under every sub-screen; spacing and radius tokens.
+
+**Not built, or decided against**
+
+- Runs and Activity history stay separate: they are different data.
+- Map zoom buttons stay, for accessibility.
+- `AppBar` was not made a separate component: `BackHeader` already serves that job.
+- Other tables have no row `…` menus; only competitions does. Moderation keeps its split view.
+- The screens never opened on a device are still unopened; nothing ran on Android or a physical
+  phone. See [the final report](frontend-reconstruction-final-report.md).
