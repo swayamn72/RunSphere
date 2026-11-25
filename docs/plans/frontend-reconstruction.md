@@ -369,8 +369,8 @@ Verified by running the real app in the iOS Simulator (iPhone 17 Pro, dev client
 - [x] Run picker (light)
 - [x] Map / Turf (dark island unchanged, confirmed on device)
 - [x] Onboarding (light, seen on device: sign-in, privacy step, run-visibility step)
-- [ ] Not looked at on a device: quest detail, route preview, activity recording/results, run detail and charts (chart line now uses `text.accent`), clubs, friends, notifications, privacy zones, achievements, account recovery, the guided tour in dark. They draw through the shared `useAppStyles` roles and the guard tests prove no colour literals, but nobody has seen them.
-- [ ] Spacing: ~400 literal padding/margin/gap values and ~100 `borderRadius` literals are **not** consolidated. Radius literals are often half a circle's size, so a blind snap would break avatars and dots; spacing needs a visual pass screen by screen.
+- [x] **Accepted by the product owner on 2026-11-25 without device verification** (only testing was pending). Not looked at on a device: quest detail, route preview, activity recording/results, run detail and charts (chart line now uses `text.accent`), clubs, friends, notifications, privacy zones, achievements, account recovery, the guided tour in dark. They draw through the shared `useAppStyles` roles and the guard tests prove no colour literals, but nobody has seen them.
+- [ ] Spacing (still open, not a testing item): ~400 literal padding/margin/gap values and ~100 `borderRadius` literals are **not** consolidated. Radius literals are often half a circle's size, so a blind snap would break avatars and dots; spacing needs a visual pass screen by screen.
 
 Findings from the device (kept for the owner):
 
@@ -380,7 +380,7 @@ Findings from the device (kept for the owner):
 
 ### Verification
 
-- [ ] Theme verification: light and dark on every admin area and mobile screen; map and live run stay dark in both; status bars; no flash on launch or reload
+- [x] Theme verification: admin checked by eye on every area in both themes; mobile checked on the screens listed above, the rest **accepted by the owner without device verification (2026-11-25)**; map and live run stay dark in both; status bars; no flash on launch or reload
 - [ ] Monorepo checks green; no test weakened
 - [ ] Final report
 
@@ -401,3 +401,7 @@ clubs, friends, notifications, privacy zones, achievements list, account recover
 Spacing and radius literals are still not consolidated. Maestro point taps were unreliable for deep
 navigation, so those screens need a manual pass.
 
+Owner decision 2026-11-25: the screens above that were never opened on a device are accepted as
+passed, since only testing was pending. This records the acceptance. It is not a test result, and
+those screens remain unseen. The next layer of work (component choice, placement, visuals, settings
+layout) is planned in [component-and-layout-plan.md](component-and-layout-plan.md).
