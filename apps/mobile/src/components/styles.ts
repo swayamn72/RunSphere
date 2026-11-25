@@ -425,7 +425,13 @@ export const createAppStyles = (t: SemanticTokens) =>
     },
     // Keeps a centred title centred when a header has no trailing action.
     backSpacer: { height: 40, width: 40 },
-    settingTrail: { alignItems: 'center', flexDirection: 'row', gap: 4, flexShrink: 1 },
+    settingTrail: {
+      alignItems: 'center',
+      flex: 1,
+      flexDirection: 'row',
+      gap: 4,
+      justifyContent: 'flex-end'
+    },
     backText: { color: t.text.primary, fontSize: 28, lineHeight: 28 },
     stepText: { color: t.text.secondary, fontSize: 11, fontWeight: '700', letterSpacing: 1.2 },
 
@@ -994,6 +1000,7 @@ export const createAppStyles = (t: SemanticTokens) =>
     settingValue: {
       color: t.text.secondary,
       fontSize: 13,
+      flexShrink: 1,
       fontWeight: '700',
       marginLeft: 12,
       textAlign: 'right'
@@ -1002,6 +1009,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       color: t.text.secondary,
       fontSize: 12,
       lineHeight: 17,
+      paddingBottom: 12,
       paddingHorizontal: 15,
       paddingTop: 7
     },
