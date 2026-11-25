@@ -59,7 +59,9 @@ const config: ExpoConfig = {
   scheme: 'runsphere',
   version: '0.1.0',
   orientation: 'portrait',
-  userInterfaceStyle: 'dark',
+  // Light by default; the runner can pick Dark or Match phone (ADR-0016). The
+  // app sets the scheme itself, which needs the platform to allow either.
+  userInterfaceStyle: 'automatic',
   newArchEnabled: true,
   android: {
     package: 'com.runsphere.app',

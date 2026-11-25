@@ -15,6 +15,7 @@ import {
   View
 } from 'react-native';
 import { useAppTheme } from '../theme/theme';
+import { statusBarStyleFor } from '../theme/theme-state';
 import type { MobileApiClient } from '../api-client';
 import { AuthFailure } from '../auth-failure';
 import { getLocationPermissionState } from '../location-permission';
@@ -135,7 +136,7 @@ export function Onboarding({
 
   return (
     <SafeAreaView style={styles.screen}>
-      <StatusBar style={colorScheme === 'dark' ? 'dark' : 'light'} />
+      <StatusBar style={statusBarStyleFor(colorScheme)} />
       <KeyboardSafe>
         <ScrollView
           contentContainerStyle={styles.onboardingContent}

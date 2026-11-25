@@ -327,7 +327,9 @@ Nothing is removed. No API, contract, schema or backend change.
 ### Phase 3 foundation (spec §8.7 steps 1–3)
 
 - [x] 1. `packages/ui`: new roles, `lightTokens`, dark adjustments, `typeScale`, `fontWeight`, space, radius, elevation, motion, `toCssVariables` / `buildThemeCss`, shared AA matrix over both schemes (`border.strong` light darkened to `#86827A` to reach 3:1 on the inset surface)
-- [ ] 2. Mobile foundation
+- [x] 2. Mobile foundation: `ThemeProvider` with a saved preference (light default; Light / Dark / Match phone) and `Appearance` sync; `ForceTheme` (always mounted, optional `scheme`) holds the Map, quest map and live run dark via `isAlwaysDark(shell)`; Inter loaded with `expo-font` and a system-font fallback; `AppText` and `textStyleFor`; `userInterfaceStyle: 'automatic'` in Expo config, Android `strings.xml` and iOS `Info.plist` (hand-edited to match prebuild output); `theme.test.ts` rewritten for light default. **No screen uses `AppText` yet and there is no Appearance setting in Profile yet** (Phase 5).
+  - **Intermediate state:** the app now opens light, but six files still read raw `appPalette.*` (Home, PlayScreen, ProfileOverview, `styles.ts`) and many screens assume dark, so the screens look unfinished until Phase 5. Don't ship this branch's mobile build before then.
+  - **Not verified:** on-device rendering (light, dark, the Map island, Inter loading, status bars) and that `expo prebuild --platform ios` reproduces the hand-edited `Info.plist` (the iOS CI drift check will say).
 - [ ] 3. Admin foundation
 
 ### Admin

@@ -1,8 +1,14 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { appPalette, contrastPairs, darkTokens } from '@runsphere/ui';
-import { resolveColorScheme } from './theme-state.js';
+import { appPalette, contrastPairs, darkTokens, lightTokens } from '@runsphere/ui';
+import {
+  defaultThemePreference,
+  nativeSchemeFor,
+  resolveColorScheme,
+  statusBarStyleFor,
+  tokensFor
+} from './theme-state.js';
 import { gameWorld } from './game-world.js';
 
 const luminance = (hex: string): number => {
@@ -21,38 +27,58 @@ const contrast = (foreground: string, background: string) => {
   return (light + 0.05) / (dark + 0.05);
 };
 
-describe('single-appearance theme', () => {
-  it('pins Expo and the committed Android project to the one appearance the product ships', () => {
+describe('light-default theme (ADR-0016)', () => {
+  it('lets the app pick its own appearance on Expo, Android and iOS', () => {
     const expoConfig = readFileSync('app.config.ts', 'utf8');
     const nativeStrings = readFileSync('android/app/src/main/res/values/strings.xml', 'utf8');
+    const infoPlist = readFileSync('ios/TURFR/Info.plist', 'utf8');
 
-    expect(expoConfig).toContain("userInterfaceStyle: 'dark'");
+    expect(expoConfig).toContain("userInterfaceStyle: 'automatic'");
     expect(nativeStrings).toContain(
-      '<string name="expo_system_ui_user_interface_style" translatable="false">dark</string>'
+      '<string name="expo_system_ui_user_interface_style" translatable="false">automatic</string>'
     );
+    expect(infoPlist).toMatch(/<key>UIUserInterfaceStyle<\/key>\s*<string>Automatic<\/string>/);
   });
 
-  it('provides one complete semantic system covering every role a screen reads', () => {
+  it('provides one complete set of roles per scheme, covering every role a screen reads', () => {
+    expect(lightTokens.background.canvas).toBe(appPalette.paper);
     expect(darkTokens.background.canvas).toBe(appPalette.canvas);
     expect(darkTokens.background.surface).toBe(appPalette.panel);
     expect(darkTokens.action.primary).toBe(appPalette.accent);
-    expect(darkTokens.map.control).toMatch(/^#/);
-    expect(darkTokens.route.line).toMatch(/^#/);
-    expect(darkTokens.checkpoint.fill).toMatch(/^#/);
-    expect(darkTokens.mascot.beacon).toMatch(/^#/);
-    // The named hues the redesign leans on: zone ownership and reward tiers.
     expect(darkTokens.zone.owned).toBe(appPalette.accent);
-    expect(darkTokens.zone.rival).toBe('#F43F5E');
-    expect(darkTokens.zone.neutral).toBe('#F59E0B');
-    expect(darkTokens.accent.gold).toMatch(/^#/);
-    expect(darkTokens.action.danger).toMatch(/^#/);
+    for (const tokens of [lightTokens, darkTokens]) {
+      expect(tokens.map.control).toMatch(/^#/);
+      expect(tokens.route.line).toMatch(/^#/);
+      expect(tokens.checkpoint.fill).toMatch(/^#/);
+      expect(tokens.mascot.beacon).toMatch(/^#/);
+      expect(tokens.accent.gold).toMatch(/^#/);
+      expect(tokens.action.danger).toMatch(/^#/);
+    }
   });
 
-  it('ignores the platform appearance rather than inverting the product at runtime', () => {
-    expect(resolveColorScheme('light')).toBe('dark');
-    expect(resolveColorScheme('dark')).toBe('dark');
-    expect(resolveColorScheme(null)).toBe('dark');
-    expect(resolveColorScheme()).toBe('dark');
+  it('is light until the runner chooses, whatever the phone is set to', () => {
+    expect(defaultThemePreference).toBe('light');
+    expect(resolveColorScheme(defaultThemePreference, 'dark')).toBe('light');
+    expect(resolveColorScheme('light', 'dark')).toBe('light');
+    expect(resolveColorScheme('dark', 'light')).toBe('dark');
+  });
+
+  it('follows the phone only for "Match phone", and reads an unreported phone as light', () => {
+    expect(resolveColorScheme('system', 'dark')).toBe('dark');
+    expect(resolveColorScheme('system', 'light')).toBe('light');
+    expect(resolveColorScheme('system', 'unspecified')).toBe('light');
+    expect(resolveColorScheme('system', null)).toBe('light');
+    expect(resolveColorScheme('system')).toBe('light');
+  });
+
+  it('hands the choice to the platform, or back to the phone, in the form it expects', () => {
+    expect(nativeSchemeFor('light')).toBe('light');
+    expect(nativeSchemeFor('dark')).toBe('dark');
+    expect(nativeSchemeFor('system')).toBe('unspecified');
+    expect(statusBarStyleFor('dark')).toBe('light');
+    expect(statusBarStyleFor('light')).toBe('dark');
+    expect(tokensFor('light')).toBe(lightTokens);
+    expect(tokensFor('dark')).toBe(darkTokens);
   });
 
   it('meets named critical contrast-pair minimums', () => {

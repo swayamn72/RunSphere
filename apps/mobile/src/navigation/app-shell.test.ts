@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isTabBarVisible, selectAppShell } from './app-shell.js';
+import { isAlwaysDark, isTabBarVisible, selectAppShell } from './app-shell.js';
 
 const standard = {
   activityRoute: 'idle' as const,
@@ -67,5 +67,15 @@ describe('app shell selection', () => {
         mapInteractive: false
       })
     ).toBe('focused-scroll');
+  });
+});
+
+describe('always-dark surfaces (ADR-0016)', () => {
+  it('keeps the Turf map, a quest map and the live run dark, and nothing else', () => {
+    expect(isAlwaysDark('tab-map')).toBe(true);
+    expect(isAlwaysDark('focused-map')).toBe(true);
+    expect(isAlwaysDark('focused-flex')).toBe(true);
+    expect(isAlwaysDark('tab-scroll')).toBe(false);
+    expect(isAlwaysDark('focused-scroll')).toBe(false);
   });
 });

@@ -44,7 +44,7 @@ pnpm --filter @runsphere/mobile ios               # build and run in the Simulat
 pnpm --filter @runsphere/mobile ios:build:simulator   # CLI build, no signing (what CI runs)
 ```
 
-- **Bundle id** `com.runsphere.app`, iOS 16.4+, iPhone only, dark UI.
+- **Bundle id** `com.runsphere.app`, iOS 16.4+, iPhone only, light by default with an optional dark theme (ADR-0016; Map and live run stay dark).
 - **Background recording:** the `location` background mode (When-In-Use permission, no "Always") is the iOS counterpart of Android's foreground service. `NSMotionUsageDescription` is stripped on purpose; nothing reads motion data.
 - **Push:** `GoogleService-Info.plist` is optional and untracked; `app.config.ts` omits it when absent, same as `google-services.json`. APNs also needs the Push Notifications capability and an APNs key uploaded to Firebase/EAS.
 - **Signing and release:** `eas build -p ios --profile production`, then `eas submit -p ios`. Set `ascAppId` in `eas.json` first. Free Apple IDs cannot use the location background mode on devices reliably; use a paid team.
