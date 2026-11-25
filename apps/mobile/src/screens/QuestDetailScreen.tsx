@@ -7,6 +7,7 @@ import { PrimaryButton } from '../components/primitives';
 import { QuestProgressCard } from './QuestProgressCard';
 import { QuestStopMarkers } from './QuestStopMarkers';
 import { MapSurface } from '../maps/MapSurface';
+import { Chevron } from '../components/Chevron';
 import { useAppTheme } from '../theme/theme';
 import { gameWorld } from '../theme/game-world';
 import { detailStateFor, shouldDrawSelectedGeometry, type QuestDetailState } from './explore-model';
@@ -100,7 +101,7 @@ export function QuestDetailScreen({
           onPress={onBack}
           style={[styles.back, { backgroundColor: tokens.map.control }]}
         >
-          <Text style={[styles.backText, { color: tokens.map.controlText }]}>‹</Text>
+          <Chevron direction="back" color={tokens.map.controlText} />
         </Pressable>
       </View>
       <ScrollView

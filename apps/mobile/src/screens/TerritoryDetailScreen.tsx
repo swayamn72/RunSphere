@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import type { TerritoryClaim, TerritoryClaimHistoryResponse } from '@runsphere/contracts';
 import { CrewMascot } from '../components/CrewMascot';
+import { Chevron } from '../components/Chevron';
 import { useAppTheme } from '../theme/theme';
 import {
   crewForAvatar,
@@ -68,7 +69,7 @@ export function TerritoryDetailScreen({
           onPress={onBack}
           style={styles.backButton}
         >
-          <Text style={styles.backGlyph}>‹</Text>
+          <Chevron direction="back" color={tokens.text.primary} />
         </Pressable>
         <View style={styles.backButton} />
       </View>

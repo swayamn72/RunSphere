@@ -2,9 +2,12 @@ import type React from 'react';
 import { Pressable, View } from 'react-native';
 import { Text } from './Text';
 import { useAppStyles } from './styles';
+import { Chevron } from './Chevron';
+import { useAppTheme } from '../theme/theme';
 
 export function StepHeader({ step, onBack }: { step: string; onBack: () => void }) {
   const styles = useAppStyles();
+  const { tokens } = useAppTheme();
   return (
     <View style={styles.stepHeader}>
       <Pressable
@@ -13,10 +16,10 @@ export function StepHeader({ step, onBack }: { step: string; onBack: () => void 
         onPress={onBack}
         style={styles.backButton}
       >
-        <Text style={styles.backText}>‹</Text>
+        <Chevron direction="back" color={tokens.text.primary} />
       </Pressable>
       <Text style={styles.stepText}>{step}</Text>
-      <View style={styles.backButton} />
+      <View style={styles.backSpacer} />
     </View>
   );
 }
@@ -122,6 +125,7 @@ export function SettingsGroup({ title, children }: { title: string; children: Re
  */
 export function BackHeader({ label, onBack }: { label: string; onBack: () => void }) {
   const styles = useAppStyles();
+  const { tokens } = useAppTheme();
   return (
     <View style={styles.stepHeader}>
       <Pressable
@@ -130,12 +134,12 @@ export function BackHeader({ label, onBack }: { label: string; onBack: () => voi
         onPress={onBack}
         style={styles.backButton}
       >
-        <Text style={styles.backText}>‹</Text>
+        <Chevron direction="back" color={tokens.text.primary} />
       </Pressable>
       <Text accessibilityRole="header" style={styles.stepText}>
         {label}
       </Text>
-      <View style={styles.backButton} />
+      <View style={styles.backSpacer} />
     </View>
   );
 }
@@ -154,6 +158,7 @@ export function Setting({
   disabled?: boolean;
 }) {
   const styles = useAppStyles();
+  const { tokens } = useAppTheme();
   return (
     <Pressable
       accessibilityRole="button"
@@ -164,10 +169,16 @@ export function Setting({
       style={[styles.setting, disabled && styles.settingDisabled]}
     >
       <Text style={[styles.rowTitle, destructive && styles.destructive]}>{label}</Text>
-      <Text style={[styles.settingValue, destructive && styles.destructive]}>
-        {value}
-        {onPress ? ' ›' : ''}
-      </Text>
+      <View style={styles.settingTrail}>
+        <Text style={[styles.settingValue, destructive && styles.destructive]}>{value}</Text>
+        {onPress ? (
+          <Chevron
+            direction="forward"
+            size={16}
+            color={destructive ? tokens.status.error : tokens.text.secondary}
+          />
+        ) : null}
+      </View>
     </Pressable>
   );
 }

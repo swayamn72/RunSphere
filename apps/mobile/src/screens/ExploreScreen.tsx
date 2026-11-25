@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FAILURE_COPY } from '../failure-copy';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import type { QuestSummary } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { LoopCallout } from '../components/LoopCallout';
 import { useLoopGuidance } from '../components/useLoopGuidance';
 import type { LoopGuidanceCue } from '../loop-guidance';
+import { Chevron } from '../components/Chevron';
 import { useAppTheme } from '../theme/theme';
 import { dashboardPreviewEnabled, previewTurfQuests } from './dashboard-preview';
 import {
@@ -91,7 +92,7 @@ export function ExploreScreen({
             { backgroundColor: tokens.background.surface, borderColor: tokens.border.subtle }
           ]}
         >
-          <Text style={[styles.backGlyph, { color: tokens.text.primary }]}>‹</Text>
+          <Chevron direction="back" color={tokens.text.primary} />
         </Pressable>
         <Text accessibilityRole="header" style={[styles.title, { color: tokens.text.primary }]}>
           Quests
@@ -121,7 +122,13 @@ function QuestFiltersBar({
   onChange: (filters: QuestFilters) => void;
 }) {
   return (
-    <View accessibilityRole="tablist" style={styles.filters}>
+    <ScrollView
+      horizontal
+      accessibilityRole="tablist"
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.filters}
+      style={styles.filtersScroll}
+    >
       <FilterTab
         label="All"
         active={filters.open === 'all'}
@@ -158,7 +165,7 @@ function QuestFiltersBar({
           })
         }
       />
-    </View>
+    </ScrollView>
   );
 }
 
@@ -336,7 +343,9 @@ const styles = StyleSheet.create({
   backGlyph: { fontSize: 28, lineHeight: 28 },
   title: { fontSize: 28, fontWeight: '700', letterSpacing: -0.8 },
   copy: { fontSize: 14, lineHeight: 20 },
-  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  // One scrolling row: wrapped chips pushed the list down by a second line.
+  filters: { flexDirection: 'row', gap: 8, paddingVertical: 4 },
+  filtersScroll: { flexGrow: 0, marginTop: 4 },
   filter: {
     borderRadius: 16,
     borderWidth: 1,

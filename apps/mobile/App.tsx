@@ -683,6 +683,15 @@ function RunSphereApp() {
           accountId={accountId}
           initialScreen={profileEntry}
           onLogoutComplete={finishSession}
+          status={
+            accountId && (
+              <ScreenProgression
+                key={accountId}
+                api={apiClient}
+                refreshKey={`${activeTab}:${focus}`}
+              />
+            )
+          }
           onReplayTour={() => setTour({ index: 0 })}
           onNavigate={(target) => {
             // Friend requests open the friends list inside Social; challenges
@@ -728,16 +737,6 @@ function RunSphereApp() {
             // TalkBack while the tour is over it (found on a phone, M9 9.29).
             importantForAccessibility={tour || runOpen ? 'no-hide-descendants' : 'auto'}
           >
-            {accountId &&
-              content.type !== HomeScreen &&
-              content.type !== TurfScreen &&
-              content.type !== QuestDetailScreen && (
-                <ScreenProgression
-                  key={accountId}
-                  api={apiClient}
-                  refreshKey={`${activeTab}:${focus}:${activityRoute.screen}:${recording?.state ?? ''}`}
-                />
-              )}
             {shell === 'tab-scroll' ? (
               <TabScrollShell>{content}</TabScrollShell>
             ) : shell === 'tab-map' ? (

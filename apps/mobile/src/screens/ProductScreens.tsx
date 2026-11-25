@@ -125,6 +125,7 @@ export function ProfileScreen({
   onLogoutComplete,
   onReplayTour,
   onNavigate,
+  status,
   initialScreen = 'profile'
 }: {
   api: MobileApiClient;
@@ -134,6 +135,8 @@ export function ProfileScreen({
   onReplayTour?: () => void;
   /** Leaves the Profile tab for a destination an inbox entry points at. */
   onNavigate?: (target: NotificationTarget) => void;
+  /** The level and XP chip, shown on the overview only (component plan §4.1). */
+  status?: React.ReactNode;
   /**
    * Opens straight onto one of the sub-screens. The dashboard's bell arrives
    * here on `notifications`, so the inbox is one tap away rather than three.
@@ -366,47 +369,38 @@ export function ProfileScreen({
   const settingsView = (
     <>
       <AppearanceSettings />
-      <SettingsGroup title="Goals & activity">
-        <Setting
-          label="Weekly progress"
-          value="Set your own pace"
-          onPress={() => setScreen('goals')}
-        />
-        <Setting label="Activity history" value="Listed above, on this device" disabled />
-        <Setting
-          label="Achievements"
-          value="Cosmetic only"
-          onPress={() => setScreen('achievements')}
-        />
-        {onReplayTour ? (
-          <Setting
-            label="Replay the tour"
-            value="Rho shows you around again"
-            onPress={() => {
-              setScreen('profile');
-              onReplayTour();
-            }}
-          />
-        ) : null}
-      </SettingsGroup>
-      <SettingsGroup title="You and your friends">
+      <SettingsGroup title="Account">
         <Setting
           label="Display name"
           value={profile?.displayName ?? 'Not set'}
           onPress={() => setScreen('identity')}
         />
         <Setting
-          label="Notifications"
-          value="Inbox and delivery"
-          onPress={() => setScreen('notifications')}
+          label="Change email"
+          value="Confirm with a link"
+          onPress={() => setScreen('change-email')}
         />
-        <Setting label="Clubs" value="Create or join one" onPress={() => setScreen('clubs')} />
+        <Setting
+          label="Email verification"
+          value={verificationStatus}
+          onPress={() => void requestVerification()}
+        />
         <Text style={styles.settingsHint}>
-          Friends see your display name, and your runs as you choose in Privacy & visibility. Manage
-          friends and requests from the Social tab.
+          Who can see you and your runs is set under Privacy & safety. Exact routes still stay
+          private.
         </Text>
       </SettingsGroup>
-      <SettingsGroup title="Fair play">
+      <SettingsGroup title="Privacy & safety">
+        <Setting
+          label="Privacy & visibility"
+          value="Who sees you"
+          onPress={() => setScreen('privacy')}
+        />
+        <Setting
+          label="Safety & privacy"
+          value="Private by default"
+          onPress={() => setScreen('safety')}
+        />
         <Setting
           label="Fair Play & Privacy"
           value="GPS checks and what you share"
@@ -430,32 +424,28 @@ export function ProfileScreen({
           </ScrollView>
         </Modal>
       )}
-      <SettingsGroup title="Account visibility">
+      <SettingsGroup title="Friends and clubs">
         <Setting
-          label="Change email"
-          value="Confirm with a link"
-          onPress={() => setScreen('change-email')}
+          label="Notifications"
+          value="Inbox and delivery"
+          onPress={() => setScreen('notifications')}
         />
-        <Setting
-          label="Email verification"
-          value={verificationStatus}
-          onPress={() => void requestVerification()}
-        />
+        <Setting label="Clubs" value="Create or join one" onPress={() => setScreen('clubs')} />
         <Text style={styles.settingsHint}>
-          Who can see you and your runs is set under Privacy & visibility below. Exact routes still
-          stay private.
+          Friends see your display name, and your runs as you choose in Privacy & visibility. Manage
+          friends and requests from the Social tab.
         </Text>
       </SettingsGroup>
-      <SettingsGroup title="Privacy & safety">
+      <SettingsGroup title="Goals & activity">
         <Setting
-          label="Privacy & visibility"
-          value="Who sees you"
-          onPress={() => setScreen('privacy')}
+          label="Weekly progress"
+          value="Set your own pace"
+          onPress={() => setScreen('goals')}
         />
         <Setting
-          label="Safety & privacy"
-          value="Private by default"
-          onPress={() => setScreen('safety')}
+          label="Achievements"
+          value="Cosmetic only"
+          onPress={() => setScreen('achievements')}
         />
       </SettingsGroup>
       <SettingsGroup title="Your standing">
@@ -502,7 +492,19 @@ export function ProfileScreen({
           </View>
         ))}
       </SettingsGroup>
-      <SettingsGroup title="Data">
+      <SettingsGroup title="Help">
+        {onReplayTour ? (
+          <Setting
+            label="Replay the tour"
+            value="Rho shows you around again"
+            onPress={() => {
+              setScreen('profile');
+              onReplayTour();
+            }}
+          />
+        ) : null}
+      </SettingsGroup>
+      <SettingsGroup title="Data and account">
         <Setting
           label="Export your data"
           value="Generate a private copy"
@@ -544,6 +546,7 @@ export function ProfileScreen({
 
   return (
     <>
+      {status}
       <ProfileIdentityHead
         name={profileNameLabel(profile?.displayName)}
         initials={profileInitials(profile?.displayName)}
@@ -567,16 +570,6 @@ export function ProfileScreen({
                 openRun({ item, owner: true, origin, measureOrigin, onDeleted })
             }
           : {})}
-      />
-      <View style={styles.sectionHeader}>
-        <Text accessibilityRole="header" style={styles.sectionTitle}>
-          Account
-        </Text>
-      </View>
-      <Setting
-        label="Settings"
-        value="Goals, clubs, privacy, data"
-        onPress={() => setScreen('settings')}
       />
     </>
   );
