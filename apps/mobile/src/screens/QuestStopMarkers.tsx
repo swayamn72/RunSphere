@@ -1,4 +1,6 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { radius } from '@runsphere/ui';
+import { Text } from '../components/Text';
 import { Marker } from '@maplibre/maplibre-react-native';
 import { gameWorld } from '../theme/game-world';
 import type { QuestStop } from './quest-map-model';
@@ -42,12 +44,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: gameWorld.quest.marker,
     borderColor: gameWorld.quest.markerEdge,
-    borderRadius: 16,
+    borderRadius: radius.card,
     borderWidth: 2,
     height: 32,
     justifyContent: 'center',
     width: 32
   },
   passed: { backgroundColor: gameWorld.quest.passed },
-  number: { color: gameWorld.quest.ink, fontSize: 15, fontWeight: '900' }
+  number: { color: gameWorld.quest.ink, fontSize: 15, fontWeight: '700' }
 });

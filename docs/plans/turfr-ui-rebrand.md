@@ -29,6 +29,9 @@ The [Play submission guide](../play-store-submission.md) covers launch assets an
   deferred. Keep existing race history, API behavior and privacy opt-out intact.
   The separate H3 cell-season engine remains gated.
 
+> **Amended 2026-11-25 by [ADR-0016](../adr/0016-design-system-light-default.md):** both apps are
+> now light by default with an optional dark theme. The palette above stays. Map and live run stay dark.
+
 ## Preview and validation
 
 Use the Android dev client and Metro. Set `EXPO_PUBLIC_HOME_PREVIEW=true` in the

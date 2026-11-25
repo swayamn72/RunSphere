@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { radius, space } from '@runsphere/ui';
 import { FAILURE_COPY } from '../failure-copy';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import type { QuestSummary } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { LoopCallout } from '../components/LoopCallout';
 import { useLoopGuidance } from '../components/useLoopGuidance';
 import type { LoopGuidanceCue } from '../loop-guidance';
+import { Chevron } from '../components/Chevron';
 import { useAppTheme } from '../theme/theme';
 import { dashboardPreviewEnabled, previewTurfQuests } from './dashboard-preview';
 import {
@@ -90,7 +93,7 @@ export function ExploreScreen({
             { backgroundColor: tokens.background.surface, borderColor: tokens.border.subtle }
           ]}
         >
-          <Text style={[styles.backGlyph, { color: tokens.text.primary }]}>‹</Text>
+          <Chevron direction="back" color={tokens.text.primary} />
         </Pressable>
         <Text accessibilityRole="header" style={[styles.title, { color: tokens.text.primary }]}>
           Quests
@@ -120,7 +123,13 @@ function QuestFiltersBar({
   onChange: (filters: QuestFilters) => void;
 }) {
   return (
-    <View accessibilityRole="tablist" style={styles.filters}>
+    <ScrollView
+      horizontal
+      accessibilityRole="tablist"
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.filters}
+      style={styles.filtersScroll}
+    >
       <FilterTab
         label="All"
         active={filters.open === 'all'}
@@ -157,7 +166,7 @@ function QuestFiltersBar({
           })
         }
       />
-    </View>
+    </ScrollView>
   );
 }
 
@@ -183,7 +192,7 @@ function FilterTab({
       ]}
     >
       <Text
-        style={{ color: active ? tokens.text.onAccent : tokens.text.secondary, fontWeight: '800' }}
+        style={{ color: active ? tokens.text.onAccent : tokens.text.secondary, fontWeight: '700' }}
       >
         {label}
       </Text>
@@ -277,7 +286,9 @@ function QuestCatalog({
             {quest.openHours.schedule}
             {quest.timeLimitMinutes ? ` · finish within ${quest.timeLimitMinutes} min` : ''}
           </Text>
-          <Text style={[styles.select, { color: tokens.action.primary }]}>Open quest</Text>
+          <View style={styles.cardChevron}>
+            <Chevron direction="forward" size={18} color={tokens.text.secondary} />
+          </View>
         </Pressable>
       ))}
     </View>
@@ -315,15 +326,15 @@ function SheetState({
           onPress={onPress}
           style={[styles.actionButton, { backgroundColor: tokens.action.primary }]}
         >
-          <Text style={{ color: tokens.text.onAccent, fontWeight: '900' }}>{action}</Text>
+          <Text style={{ color: tokens.text.onAccent, fontWeight: '700' }}>{action}</Text>
         </Pressable>
       )}
     </View>
   );
 }
 const styles = StyleSheet.create({
-  root: { gap: 12 },
-  header: { alignItems: 'center', flexDirection: 'row', gap: 12 },
+  root: { gap: space.md },
+  header: { alignItems: 'center', flexDirection: 'row', gap: space.md },
   backButton: {
     alignItems: 'center',
     borderRadius: 20,
@@ -332,35 +343,44 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 40
   },
-  backGlyph: { fontSize: 26, lineHeight: 28 },
-  title: { fontSize: 28, fontWeight: '900', letterSpacing: -0.8 },
+  backGlyph: { fontSize: 28, lineHeight: 28 },
+  title: { fontSize: 28, fontWeight: '700', letterSpacing: -0.8 },
   copy: { fontSize: 14, lineHeight: 20 },
-  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  // One scrolling row: wrapped chips pushed the list down by a second line.
+  filters: {
+    flexDirection: 'row',
+    gap: space.sm,
+    paddingHorizontal: space.xl,
+    paddingVertical: space.xs
+  },
+  // Bleeds to the screen edge so the row reads as scrollable, not cut off.
+  filtersScroll: { flexGrow: 0, marginHorizontal: -space.xl, marginTop: space.xs },
+  cardChevron: { bottom: space.lg, position: 'absolute', right: space.lg },
   filter: {
-    borderRadius: 16,
+    borderRadius: radius.card,
     borderWidth: 1,
     minHeight: 40,
     justifyContent: 'center',
-    paddingHorizontal: 12
+    paddingHorizontal: space.md
   },
-  cards: { gap: 8 },
-  card: { borderRadius: 16, borderWidth: 1, minHeight: 96, padding: 14 },
+  cards: { gap: space.sm },
+  card: { borderRadius: radius.card, borderWidth: 1, minHeight: 96, padding: 14 },
   cardHeader: {
     alignItems: 'flex-start',
     flexDirection: 'row',
-    gap: 8,
+    gap: space.sm,
     justifyContent: 'space-between'
   },
-  cardTitle: { flex: 1, fontSize: 16, fontWeight: '900' },
-  status: { fontSize: 10, fontWeight: '900', letterSpacing: 0.7 },
-  cardCopy: { fontSize: 12, lineHeight: 18, marginTop: 4 },
-  select: { fontSize: 13, fontWeight: '900', marginTop: 10 },
-  sheetState: { gap: 8, paddingVertical: 8 },
+  cardTitle: { flex: 1, fontSize: 15, fontWeight: '700' },
+  status: { fontSize: 11, fontWeight: '700', letterSpacing: 0.7 },
+  cardCopy: { fontSize: 12, lineHeight: 18, marginTop: space.xs },
+  select: { fontSize: 13, fontWeight: '700', marginTop: 10 },
+  sheetState: { gap: space.sm, paddingVertical: space.sm },
   actionButton: {
     alignSelf: 'flex-start',
-    borderRadius: 16,
+    borderRadius: radius.card,
     justifyContent: 'center',
     minHeight: 48,
-    paddingHorizontal: 16
+    paddingHorizontal: space.lg
   }
 });

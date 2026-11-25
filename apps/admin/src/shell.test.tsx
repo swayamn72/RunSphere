@@ -19,7 +19,7 @@ describe('admin shell', () => {
   it('names the console rather than one of its areas before an area is open', () => {
     // The console is more than the activity review queue it began as, and the
     // heading now becomes the area's own title once one is opened.
-    expect(markup()).toContain('<h1>Operations</h1>');
+    expect(markup()).toMatch(/<h1[^>]*>Operations<\/h1>/);
   });
 
   it('states what staff cannot see here, and that their own use is recorded', () => {

@@ -1,7 +1,8 @@
-import { appPalette } from '@runsphere/ui';
 import { seasonCountdown } from './home-progression-model';
+import { radius, space } from '@runsphere/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import type {
   ChallengeLengthDays,
   ChallengeMode,
@@ -26,6 +27,8 @@ import { TerritoryPanel } from './TerritoryPanel';
 import { SeasonHistory } from './SeasonHistory';
 import { useLoopGuidance } from '../components/useLoopGuidance';
 import type { LoopGuidanceCue } from '../loop-guidance';
+import { Chevron } from '../components/Chevron';
+import { NavigationIcon } from '../components/NavigationIcon';
 import { useAppTheme } from '../theme/theme';
 import {
   CHALLENGE_MODE_LABEL,
@@ -678,6 +681,8 @@ export function PlayScreen({
       {standingsRemoteState === 'loading' && (
         <View style={styles.card}>
           <View style={[styles.skeleton, styles.skeletonLine]} />
+          <View style={[styles.skeleton, styles.skeletonLine]} />
+          <View style={[styles.skeleton, styles.skeletonLine]} />
           <Text style={styles.helper}>Loading standings.</Text>
         </View>
       )}
@@ -1067,15 +1072,24 @@ export function PlayScreen({
 
           {socialSegment === 'friends' && (
             <>
-              {friendBoardView}
+              {/* Above the standings, so a pending request isn't buried under them. */}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Manage friends"
                 onPress={() => setScreen('friends')}
-                style={styles.guideAction}
+                style={({ pressed }) => [
+                  styles.card,
+                  { alignItems: 'center', flexDirection: 'row', gap: space.md },
+                  pressed && { opacity: 0.7 }
+                ]}
               >
-                <Text style={styles.guideActionText}>Friends and requests ›</Text>
+                <NavigationIcon name="social" color={tokens.text.secondary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.cardTitle}>Friends and requests</Text>
+                </View>
+                <Chevron direction="forward" size={18} color={tokens.text.secondary} />
               </Pressable>
+              {friendBoardView}
             </>
           )}
           {socialSegment === 'global' && globalBoardView}
@@ -1310,100 +1324,100 @@ function Unavailable({
 const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
   StyleSheet.create({
     liveStatus: { color: t.text.secondary, fontSize: 1, height: 1, opacity: 0, width: 1 },
-    header: { justifyContent: 'center', marginBottom: 4, minHeight: 64 },
+    header: { justifyContent: 'center', marginBottom: space.xs, minHeight: 64 },
     /** Two-or-three-way switch inside a recessed track, as on the shared sheet. */
     segmented: {
       backgroundColor: t.background.surfaceInset,
-      borderRadius: 999,
+      borderRadius: radius.pill,
       flexDirection: 'row',
-      gap: 4,
+      gap: space.xs,
       marginBottom: 14,
-      marginTop: 4,
-      padding: 4
+      marginTop: space.xs,
+      padding: space.xs
     },
     segment: {
       alignItems: 'center',
-      borderRadius: 999,
+      borderRadius: radius.pill,
       flex: 1,
       justifyContent: 'center',
       minHeight: 40
     },
     segmentActive: { backgroundColor: t.action.primary },
-    segmentText: { color: t.text.secondary, fontSize: 13, fontWeight: '800' },
+    segmentText: { color: t.text.secondary, fontSize: 13, fontWeight: '700' },
     segmentTextActive: { color: t.text.onAccent },
     flexCopy: { flex: 1 },
-    eyebrow: { color: t.status.success, fontSize: 12, fontWeight: '900', letterSpacing: 1.2 },
+    eyebrow: { color: t.status.success, fontSize: 12, fontWeight: '700', letterSpacing: 1.2 },
     title: {
       color: t.text.primary,
-      fontSize: 30,
-      fontWeight: '900',
+      fontSize: 28,
+      fontWeight: '700',
       letterSpacing: -1,
       lineHeight: 35,
       marginTop: 5
     },
-    lead: { color: t.text.secondary, fontSize: 14, lineHeight: 21, marginTop: 8 },
+    lead: { color: t.text.secondary, fontSize: 14, lineHeight: 21, marginTop: space.sm },
     groupLabel: {
       color: t.text.secondary,
       fontSize: 12,
-      fontWeight: '900',
+      fontWeight: '700',
       letterSpacing: 1.2,
-      marginTop: 20
+      marginTop: space.xl
     },
     sectionHeader: { marginTop: 26 },
-    sectionTitle: { color: t.text.primary, fontSize: 20, fontWeight: '900', lineHeight: 26 },
+    sectionTitle: { color: t.text.primary, fontSize: 20, fontWeight: '700', lineHeight: 26 },
     card: {
       backgroundColor: t.background.surface,
       borderColor: t.border.subtle,
       borderRadius: 22,
       borderWidth: 1,
-      marginTop: 12,
-      padding: 16
+      marginTop: space.md,
+      padding: space.lg
     },
-    cardHeader: { alignItems: 'flex-start', flexDirection: 'row', gap: 12 },
+    cardHeader: { alignItems: 'flex-start', flexDirection: 'row', gap: space.md },
     cardTitle: {
       color: t.text.primary,
-      fontSize: 19,
-      fontWeight: '900',
+      fontSize: 20,
+      fontWeight: '700',
       lineHeight: 25,
-      marginTop: 4
+      marginTop: space.xs
     },
     windowBadge: {
       backgroundColor: t.background.surfaceInset,
       borderRadius: 14,
       color: t.text.secondary,
       fontSize: 12,
-      fontWeight: '900',
+      fontWeight: '700',
       overflow: 'hidden',
       paddingHorizontal: 9,
       paddingVertical: 6
     },
-    body: { color: t.text.secondary, fontSize: 14, lineHeight: 21, marginTop: 8 },
-    outcome: { color: t.text.primary, fontSize: 16, fontWeight: '900', marginTop: 10 },
-    helper: { color: t.text.secondary, fontSize: 12, lineHeight: 18, marginTop: 12 },
+    body: { color: t.text.secondary, fontSize: 14, lineHeight: 21, marginTop: space.sm },
+    outcome: { color: t.text.primary, fontSize: 15, fontWeight: '700', marginTop: 10 },
+    helper: { color: t.text.secondary, fontSize: 12, lineHeight: 18, marginTop: space.md },
     weekLabel: { color: t.text.secondary, fontSize: 12, lineHeight: 18 },
     actionRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
     acceptButton: {
       alignItems: 'center',
       backgroundColor: t.action.primary,
-      borderRadius: 16,
+      borderRadius: radius.card,
       flex: 1,
       justifyContent: 'center',
       minHeight: 48,
-      paddingHorizontal: 16
+      paddingHorizontal: space.lg
     },
-    acceptText: { color: t.text.onAccent, fontSize: 15, fontWeight: '900' },
+    acceptText: { color: t.text.onAccent, fontSize: 15, fontWeight: '700' },
     declineButton: {
       alignItems: 'center',
       backgroundColor: t.background.surfaceInset,
       borderColor: t.border.subtle,
-      borderRadius: 16,
+      borderRadius: radius.card,
       borderWidth: 1,
       flex: 1,
       justifyContent: 'center',
       minHeight: 48,
-      paddingHorizontal: 16
+      paddingHorizontal: space.lg
     },
-    declineText: { color: t.text.primary, fontSize: 15, fontWeight: '900' },
+    declineText: { color: t.text.primary, fontSize: 15, fontWeight: '700' },
     composeButton: {
       alignItems: 'center',
       backgroundColor: t.background.surfaceInset,
@@ -1411,61 +1425,68 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
       borderRadius: 18,
       borderWidth: 1,
       justifyContent: 'center',
-      marginTop: 16,
+      marginTop: space.lg,
       minHeight: 52
     },
-    composeText: { color: t.text.primary, fontSize: 15, fontWeight: '900' },
+    composeText: { color: t.text.primary, fontSize: 15, fontWeight: '700' },
     fieldLabel: {
       color: t.text.secondary,
       fontSize: 12,
-      fontWeight: '900',
+      fontWeight: '700',
       letterSpacing: 1.1,
-      marginTop: 16
+      marginTop: space.lg
     },
-    chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+    chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.sm },
     chip: {
       alignItems: 'center',
       backgroundColor: t.background.surfaceInset,
       borderColor: t.border.subtle,
-      borderRadius: 16,
+      borderRadius: radius.card,
       borderWidth: 1,
       justifyContent: 'center',
       minHeight: 48,
       paddingHorizontal: 14
     },
     chipSelected: { backgroundColor: t.action.primary, borderColor: t.action.primary },
-    chipText: { color: t.text.primary, fontSize: 14, fontWeight: '800' },
+    chipText: { color: t.text.primary, fontSize: 14, fontWeight: '700' },
     chipTextSelected: { color: t.text.onAccent },
     standingRow: {
       alignItems: 'center',
-      backgroundColor: appPalette.paper,
-      borderTopColor: appPalette.paperLine,
+      backgroundColor: t.background.paper,
+      borderTopColor: t.border.paper,
       borderTopWidth: 1,
       flexDirection: 'row',
-      gap: 12,
+      gap: space.md,
       minHeight: 52,
-      paddingHorizontal: 12,
-      paddingVertical: 8
+      paddingHorizontal: space.md,
+      paddingVertical: space.sm
     },
-    standingSelf: { backgroundColor: appPalette.paperLine },
-    rank: { color: appPalette.mutedInk, fontSize: 14, fontWeight: '900', minWidth: 24 },
-    standingName: { color: appPalette.ink, flex: 1, fontSize: 15, fontWeight: '800' },
-    standingScore: { color: appPalette.ink, fontSize: 15, fontWeight: '900' },
-    guide: { alignItems: 'center', flexDirection: 'row', gap: 12, marginTop: 16, minHeight: 64 },
+    // Your own row is lime-tinted, the same "yours" fill the map uses.
+    standingSelf: { backgroundColor: t.zone.ownedFill, borderRadius: radius.control },
+    rank: { color: t.text.onPaperMuted, fontSize: 14, fontWeight: '700', minWidth: 24 },
+    standingName: { color: t.text.onPaper, flex: 1, fontSize: 15, fontWeight: '700' },
+    standingScore: { color: t.text.onPaper, fontSize: 15, fontWeight: '700' },
+    guide: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: space.md,
+      marginTop: space.lg,
+      minHeight: 64
+    },
     guideAction: {
       alignSelf: 'flex-start',
       justifyContent: 'center',
       marginTop: 10,
       minHeight: 48,
-      paddingHorizontal: 4
+      paddingHorizontal: space.xs
     },
-    guideActionText: { color: t.action.primary, fontSize: 14, fontWeight: '900' },
-    unavailable: { marginTop: 12, minHeight: 64 },
+    guideActionText: { color: t.action.primary, fontSize: 14, fontWeight: '700' },
+    unavailable: { marginTop: space.md, minHeight: 64 },
     noticeCard: {
       backgroundColor: t.background.surfaceInset,
-      borderRadius: 16,
-      marginTop: 12,
-      padding: 12
+      borderRadius: radius.card,
+      marginTop: space.md,
+      padding: space.md
     },
     noticeText: { color: t.text.primary, fontSize: 14, lineHeight: 20 },
     notice: {
@@ -1474,14 +1495,18 @@ const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
       borderRadius: 18,
       borderWidth: 1,
       flexDirection: 'row',
-      gap: 12,
+      gap: space.md,
       marginTop: 24,
       padding: 14
     },
-    noticeIcon: { color: t.status.success, fontSize: 18, fontWeight: '900' },
-    noticeTitle: { color: t.text.primary, fontSize: 15, fontWeight: '900' },
-    noticeCopy: { color: t.text.secondary, fontSize: 13, lineHeight: 19, marginTop: 4 },
-    skeleton: { backgroundColor: t.background.surfaceInset, borderRadius: 6, marginTop: 12 },
+    noticeIcon: { color: t.status.success, fontSize: 17, fontWeight: '700' },
+    noticeTitle: { color: t.text.primary, fontSize: 15, fontWeight: '700' },
+    noticeCopy: { color: t.text.secondary, fontSize: 13, lineHeight: 19, marginTop: space.xs },
+    skeleton: {
+      backgroundColor: t.background.surfaceInset,
+      borderRadius: radius.sm,
+      marginTop: space.md
+    },
     skeletonTitle: { height: 24, width: '62%' },
     skeletonLine: { height: 16, width: '82%' }
   });

@@ -67,7 +67,7 @@ describe('Turf claims area', () => {
     expect(markup).toContain('90%');
     expect(markup).toContain('dismissed');
     // Review buttons stay disabled until a note is written.
-    expect(markup).toMatch(/<button type="button" disabled="">Uphold<\/button>/);
+    expect(markup).toMatch(/<button[^>]*type="button"[^>]*disabled=""[^>]*>Uphold<\/button>/);
   });
 
   it('says which role a part needs instead of showing an empty table', () => {

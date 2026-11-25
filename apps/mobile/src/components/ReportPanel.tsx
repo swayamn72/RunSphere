@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Pressable, Text } from 'react-native';
+import { Pressable } from 'react-native';
+import { Text } from './Text';
 import type { ReportReason, ReportSubjectType } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import {

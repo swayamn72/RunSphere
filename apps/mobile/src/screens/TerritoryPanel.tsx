@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { radius, space } from '@runsphere/ui';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import type { TerritoryLadderResponse, TerritoryMapResponse } from '@runsphere/contracts';
 import { useAppTheme } from '../theme/theme';
 import { MapSurface } from '../maps/MapSurface';
@@ -106,22 +108,22 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       borderColor: tokens.border.subtle,
       borderRadius: 20,
       borderWidth: 1,
-      gap: 8,
-      marginTop: 12,
-      padding: 16
+      gap: space.sm,
+      marginTop: space.md,
+      padding: space.lg
     },
-    title: { color: tokens.text.primary, fontSize: 16, fontWeight: '800' },
+    title: { color: tokens.text.primary, fontSize: 15, fontWeight: '700' },
     body: { color: tokens.text.primary, fontSize: 14, lineHeight: 20 },
     helper: { color: tokens.text.secondary, fontSize: 13, lineHeight: 18 },
-    map: { borderRadius: 16, height: 240, overflow: 'hidden' },
+    map: { borderRadius: radius.card, height: 240, overflow: 'hidden' },
     row: {
       alignItems: 'center',
       borderTopColor: tokens.border.subtle,
       borderTopWidth: 1,
       flexDirection: 'row',
-      gap: 12,
-      paddingVertical: 8
+      gap: space.md,
+      paddingVertical: space.sm
     },
     rowSelf: { backgroundColor: tokens.background.surfaceInset },
-    rank: { color: tokens.text.primary, fontSize: 15, fontWeight: '800', minWidth: 44 }
+    rank: { color: tokens.text.primary, fontSize: 15, fontWeight: '700', minWidth: 44 }
   });

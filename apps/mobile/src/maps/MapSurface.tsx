@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { radius, space } from '@runsphere/ui';
 import {
   Camera,
   Map,
@@ -7,7 +8,8 @@ import {
   type StyleSpecification,
   type ViewStateChangeEvent
 } from '@maplibre/maplibre-react-native';
-import { AppState, Pressable, StyleSheet, Text, View, type AppStateStatus } from 'react-native';
+import { AppState, Pressable, StyleSheet, View, type AppStateStatus } from 'react-native';
+import { Text } from '../components/Text';
 import { useAppTheme } from '../theme/theme';
 import { LocalGeoJsonLayers, type LocalGeoJsonLayer } from './LocalGeoJsonLayers';
 import { mapProductCopy, resolveMapRenderPlan } from './map-config';
@@ -375,52 +377,57 @@ function MapControls({
   ];
   const controlText = { color: tokens.map.controlText };
   return (
-    <View style={styles.controls} pointerEvents="box-none">
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Reset compass to north"
-        onPress={onResetNorth}
-        style={control}
-      >
-        <Text allowFontScaling={false} style={[styles.controlText, controlText]}>
-          N
-        </Text>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Zoom in"
-        onPress={onZoomIn}
-        style={control}
-      >
-        <Text allowFontScaling={false} style={[styles.controlText, controlText]}>
-          +
-        </Text>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Zoom out"
-        onPress={onZoomOut}
-        style={control}
-      >
-        <Text allowFontScaling={false} style={[styles.controlText, controlText]}>
-          −
-        </Text>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={
-          camera.mode === 'follow' ? 'Following current location' : 'Recenter current location'
-        }
-        accessibilityState={{ disabled: recenterDisabled, selected: camera.mode === 'follow' }}
-        disabled={recenterDisabled}
-        onPress={onRecenter}
-        style={[...control, recenterDisabled && styles.controlDisabled]}
-      >
-        <Text allowFontScaling={false} style={[styles.controlText, controlText]}>
-          ◎
-        </Text>
-      </Pressable>
-    </View>
+    <>
+      <View style={styles.controls} pointerEvents="box-none">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Reset compass to north"
+          onPress={onResetNorth}
+          style={control}
+        >
+          <Text allowFontScaling={false} style={[styles.controlText, controlText]}>
+            N
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Zoom in"
+          onPress={onZoomIn}
+          style={control}
+        >
+          <Text allowFontScaling={false} style={[styles.controlText, controlText]}>
+            +
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Zoom out"
+          onPress={onZoomOut}
+          style={control}
+        >
+          <Text allowFontScaling={false} style={[styles.controlText, controlText]}>
+            −
+          </Text>
+        </Pressable>
+      </View>
+      {/* Recenter sits in the thumb zone, bottom right (component plan 4.8). */}
+      <View style={styles.locate} pointerEvents="box-none">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            camera.mode === 'follow' ? 'Following current location' : 'Recenter current location'
+          }
+          accessibilityState={{ disabled: recenterDisabled, selected: camera.mode === 'follow' }}
+          disabled={recenterDisabled}
+          onPress={onRecenter}
+          style={[...control, recenterDisabled && styles.controlDisabled]}
+        >
+          <Text allowFontScaling={false} style={[styles.controlText, controlText]}>
+            ◎
+          </Text>
+        </Pressable>
+      </View>
+    </>
   );
 }
 
@@ -435,22 +442,23 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '-18deg' }],
     width: 220
   },
-  fallbackTitle: { fontSize: 18, fontWeight: '800', textAlign: 'center' },
+  fallbackTitle: { fontSize: 17, fontWeight: '700', textAlign: 'center' },
   fallbackDetail: { fontSize: 14, lineHeight: 20, marginTop: 6, textAlign: 'center' },
   retry: {
     alignItems: 'center',
-    borderRadius: 16,
+    borderRadius: radius.card,
     borderWidth: 1,
     justifyContent: 'center',
-    marginTop: 16,
+    marginTop: space.lg,
     minHeight: 48,
     paddingHorizontal: 18
   },
-  retryText: { fontSize: 14, fontWeight: '800' },
-  controls: { gap: 8, position: 'absolute', right: 12, top: 12 },
+  retryText: { fontSize: 14, fontWeight: '700' },
+  controls: { gap: space.sm, position: 'absolute', right: 12, top: 12 },
+  locate: { bottom: 36, position: 'absolute', right: 12 },
   control: {
     alignItems: 'center',
-    borderRadius: 24,
+    borderRadius: radius.sheet,
     borderWidth: 1,
     height: 48,
     justifyContent: 'center',
@@ -459,7 +467,7 @@ const styles = StyleSheet.create({
     width: 48
   },
   controlDisabled: { opacity: 0.5 },
-  controlText: { fontSize: 20, fontWeight: '900' },
+  controlText: { fontSize: 20, fontWeight: '700' },
   attribution: {
     bottom: 8,
     fontSize: assertAttributionFontSize(attributionFontSize),
@@ -467,7 +475,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     maxWidth: '72%',
     paddingHorizontal: 6,
-    paddingVertical: 4,
+    paddingVertical: space.xs,
     position: 'absolute'
   }
 });

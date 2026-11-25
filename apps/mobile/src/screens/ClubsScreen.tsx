@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, Share, Text, TextInput, View } from 'react-native';
+import { Pressable, Share, View } from 'react-native';
+import { Text, TextInput } from '../components/Text';
 import type {
   Club,
   ClubBoardResponse,
@@ -12,6 +13,7 @@ import type {
 import type { MobileApiClient } from '../api-client';
 import { BackHeader, PrimaryButton, SettingsGroup } from '../components/primitives';
 import { useAppStyles } from '../components/styles';
+import { Chevron } from '../components/Chevron';
 import { useAppTheme } from '../theme/theme';
 import {
   ARCHIVE_CONSEQUENCE,
@@ -265,7 +267,7 @@ export function ClubsScreen({
                   {row.roleLabel} · {row.memberLabel}
                 </Text>
               </View>
-              <Text style={styles.settingValue}>›</Text>
+              <Chevron direction="forward" size={16} color={tokens.text.secondary} />
             </Pressable>
           ))}
         </SettingsGroup>

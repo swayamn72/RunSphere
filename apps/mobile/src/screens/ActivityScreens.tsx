@@ -1,6 +1,8 @@
 import * as Location from 'expo-location';
+import { space } from '@runsphere/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Linking, Pressable, Text, View } from 'react-native';
+import { AppState, Linking, Pressable, View } from 'react-native';
+import { Text } from '../components/Text';
 import type { LngLat } from '@maplibre/maplibre-react-native';
 import type { Geometry } from 'geojson';
 import { activityRecorder } from '../activity-recorder.native';
@@ -1397,7 +1399,7 @@ function RunSplits({ panel }: { panel: RunMetricsPanel }) {
 }
 
 const stylesForResultMap = {
-  container: { height: 240, marginBottom: 12, overflow: 'hidden' as const }
+  container: { height: 240, marginBottom: space.md, overflow: 'hidden' as const }
 };
 
 function ActivityResults({

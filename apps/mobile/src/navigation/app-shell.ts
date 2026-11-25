@@ -43,3 +43,10 @@ export const selectAppShell = ({
 
 export const isTabBarVisible = (shell: AppShell): boolean =>
   shell === 'tab-scroll' || shell === 'tab-map';
+
+/**
+ * The surfaces designed for night in both themes (ADR-0016): the Turf map, a
+ * quest's own map, and the live run. Everything else follows the appearance.
+ */
+export const isAlwaysDark = (shell: AppShell): boolean =>
+  shell === 'tab-map' || shell === 'focused-map' || shell === 'focused-flex';

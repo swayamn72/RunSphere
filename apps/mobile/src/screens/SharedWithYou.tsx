@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Linking, Pressable, Text, View } from 'react-native';
+import { Linking, Pressable, View } from 'react-native';
+import { Text } from '../components/Text';
 import type { SafetyShareReceived } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
 import { useAppStyles } from '../components/styles';

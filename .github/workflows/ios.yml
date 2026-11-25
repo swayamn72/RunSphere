@@ -1,0 +1,65 @@
+name: iOS
+
+# Separate from ci.yml: macOS minutes cost ~10x Linux, so this only runs when
+# the mobile app or the native iOS project changes.
+on:
+  pull_request:
+    paths:
+      - 'apps/mobile/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/ios.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mobile/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  simulator-build:
+    name: Build for iOS Simulator
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.21.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace packages the app imports
+        run: pnpm --filter @runsphere/ui --filter @runsphere/contracts --filter @runsphere/domain build
+
+      - name: Native project matches app.config.ts
+        # Fails when someone edits app.config.ts without regenerating ios/.
+        working-directory: apps/mobile
+        run: |
+          pnpm prebuild:ios
+          git diff --exit-code --ignore-cr-at-eol -- ios ':!ios/Podfile.lock'
+
+      - uses: actions/cache@v4
+        with:
+          path: apps/mobile/ios/Pods
+          key: pods-${{ hashFiles('apps/mobile/ios/Podfile.lock') }}
+
+      - name: Install pods
+        working-directory: apps/mobile/ios
+        run: pod install --deployment
+
+      - name: Build (no signing)
+        working-directory: apps/mobile
+        run: pnpm ios:build:simulator

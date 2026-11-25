@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Pressable, Switch, Text, TextInput, View } from 'react-native';
+import { Pressable, Switch, View } from 'react-native';
+import { Text, TextInput } from '../components/Text';
 import type {
   IdentityResponse,
   PrivacySettings,
