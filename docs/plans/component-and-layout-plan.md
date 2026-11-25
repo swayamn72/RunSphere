@@ -292,6 +292,15 @@ only (ADR-0016 amendment).
 - Map surface: the recenter button moved to the bottom-right of the map. Seen on the quest detail map
   only; the Map tab has its own toolbar and was not changed (§4.8).
 
+**Admin, third pass (checked in Chromium, 42 Playwright specs pass)**
+
+- Competitions and Campaigns: the always-open side forms are now dialogs opened from a
+  "Draft a competition", "Create a campaign" or "Publish a template" button in the section header.
+  The dialog closes only when the server accepts, keeps what was typed when it refuses, and shows the
+  refusal inside itself. `run` now resolves true or false for this.
+- Competitions has a search toolbar with a "n of m shown" count (`TableToolbar`). No other table has
+  one yet. The requests sent are unchanged.
+
 **Not built**
 
 - Mobile kit pieces: `AppBar`, `Skeleton`, `BottomSheet`, `Toast`, `FilterChips`, `GroupedList`
@@ -299,6 +308,7 @@ only (ADR-0016 amendment).
 - §4.6 merging Runs and Activity history (not merged: not yet confirmed to be the same data),
   §4.8 hiding the zoom buttons and the compass-only-when-rotated rule, §4.4 a sticky Start on the
   quest detail (the screen was only seen with a sample quest), §4.9 one `BottomSheet`.
-- Admin: table toolbars and row menus, the right-hand drawer, keyboard shortcuts.
+- Admin: toolbars on the other tables, row `…` menus, the right-hand detail drawer, keyboard
+  shortcuts. Quests and Seasons still edit in place; Moderation keeps its split view.
 - The unseen screens in §7 are still unseen. Nothing here was run on a physical device or on
   Android.

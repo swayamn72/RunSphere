@@ -73,7 +73,7 @@ export function AdminShell() {
   const [loading, setLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const run = async (work: () => Promise<unknown>, success?: string) => {
+  const run = async (work: () => Promise<unknown>, success?: string): Promise<boolean> => {
     setLoading(true);
     setError(undefined);
     // An action with its own message replaces the last one. A reload that
@@ -83,11 +83,13 @@ export function AdminShell() {
     try {
       await work();
       if (success) setNotice(success);
+      return true;
     } catch (reason) {
       setNotice(undefined);
       // The server's message is the useful one: a role refusal, a rule that
       // does not allow something, a state that has moved on.
       setError(reason instanceof Error ? reason.message : 'That did not work');
+      return false;
     } finally {
       setLoading(false);
     }
@@ -256,7 +258,9 @@ export function AdminShell() {
             </Section>
           ) : null}
 
-          {accessToken && area && render ? render({ accessToken, roles, loading, run }) : null}
+          {accessToken && area && render
+            ? render({ accessToken, roles, loading, error, run })
+            : null}
         </main>
         <footer className="rs-footer">
           <span>

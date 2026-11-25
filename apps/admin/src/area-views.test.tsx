@@ -22,7 +22,7 @@ const context: AreaContext = {
   accessToken: 'token',
   roles: ['admin'],
   loading: false,
-  run: async () => undefined
+  run: async () => true
 };
 const html = (node: React.ReactElement) => renderToStaticMarkup(node);
 const cast = <T,>(value: unknown) => value as T;

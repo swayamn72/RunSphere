@@ -207,6 +207,7 @@ test.describe('competitions', () => {
       }
     });
     await open(page, 'Competitions');
+    await page.getByRole('button', { name: 'Draft a competition' }).click();
     await page.getByLabel('Title').fill('January Streak');
     await page.getByLabel('First day').fill('2027-01-04');
     await page.getByLabel('Days').selectOption('14');
@@ -235,11 +236,54 @@ test.describe('competitions', () => {
   });
 });
 
+test.describe('competitions toolbar and dialog', () => {
+  const competitions = [
+    ['c-1', 'December Dash'],
+    ['c-2', 'January Streak']
+  ].map(([id, title]) => ({
+    id,
+    title,
+    status: 'draft',
+    periodStart: '2026-12-01',
+    periodEnd: '2026-12-14',
+    participantCount: 0
+  }));
+
+  test('searches the table and says how many rows show', async ({ page }) => {
+    await mockApi(page, { responses: { 'GET /v1/competitions': { data: competitions } } });
+    await open(page, 'Competitions');
+    await expect(page.getByText('2 shown')).toBeVisible();
+    await page.getByRole('searchbox', { name: 'Search competitions' }).fill('jan');
+    await expect(page.getByText('1 of 2 shown')).toBeVisible();
+    await expect(page.getByRole('cell', { name: 'December Dash' })).toHaveCount(0);
+    await expect(page.getByRole('cell', { name: 'January Streak' })).toBeVisible();
+  });
+
+  test('keeps the draft dialog open, with what was typed, when the server refuses', async ({
+    page
+  }) => {
+    await mockApi(page, {
+      refusals: { 'POST /v1/staff/competitions': 'A competition already covers those days.' }
+    });
+    await open(page, 'Competitions');
+    await page.getByRole('button', { name: 'Draft a competition' }).click();
+    await page.getByLabel('Title').fill('January Streak');
+    await page.getByLabel('First day').fill('2027-01-04');
+    await page.getByRole('button', { name: 'Create draft' }).click();
+    await expect(page.getByRole('dialog', { name: 'Draft a competition' })).toBeVisible();
+    await expect(page.getByRole('dialog').getByRole('alert')).toContainText(
+      'A competition already covers those days.'
+    );
+    await expect(page.getByLabel('Title')).toHaveValue('January Streak');
+  });
+});
+
 test.describe('campaigns', () => {
   test('creates a consented draft and publishes a template', async ({ page }) => {
     const api = await mockApi(page);
     await open(page, 'Campaign email');
 
+    await page.getByRole('button', { name: 'Create a campaign' }).click();
     await page.getByLabel('Template key').fill('winter-welcome');
     await page.getByLabel('Send cap').fill('250');
     await page.getByRole('button', { name: 'Create draft' }).click();
@@ -250,6 +294,7 @@ test.describe('campaigns', () => {
       body: { templateKey: 'winter-welcome', audience: { consentRequired: true }, sendCap: 250 }
     });
 
+    await page.getByRole('button', { name: 'Publish a template' }).click();
     await page.getByLabel('Key', { exact: true }).fill('winter-welcome');
     await page.getByLabel('Subject').fill('Welcome back');
     await page.getByLabel('Body').fill('See you out there.');

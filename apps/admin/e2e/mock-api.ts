@@ -18,9 +18,11 @@ export const mockApi = async (
     loginFails?: boolean;
     /** Response bodies by `${METHOD} ${path}`. */
     responses?: Record<string, unknown>;
+    /** Calls the server refuses, by `${METHOD} ${path}`. */
+    refusals?: Record<string, string>;
   } = {}
 ) => {
-  const { roles = ['admin'], loginFails = false, responses = {} } = options;
+  const { roles = ['admin'], loginFails = false, responses = {}, refusals = {} } = options;
   const calls: RecordedCall[] = [];
   await page.route('**/v1/**', async (route) => {
     const request = route.request();
@@ -36,6 +38,8 @@ export const mockApi = async (
         ? reply(401, { message: 'Email or password is not right.' })
         : reply(200, { accessToken: 'access-token', refreshToken: 'refresh-token' });
     if (pathname === '/v1/staff/roles') return reply(200, { roles });
+    const refusal = refusals[`${method} ${pathname}`];
+    if (refusal !== undefined) return reply(409, { message: refusal });
     const custom = responses[`${method} ${pathname}`];
     if (custom !== undefined) return reply(200, custom);
     return method === 'GET' ? reply(200, { data: [] }) : reply(200, {});

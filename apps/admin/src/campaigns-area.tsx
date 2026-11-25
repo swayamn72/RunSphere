@@ -11,14 +11,24 @@ import {
 import type { AreaContext } from './area-types.js';
 import { lifecycleTone } from './status-tone.js';
 import { useAreaLoad } from './use-area-load.js';
-import { Button, ConfirmButton, DataTable, Field, Notice, Section, StatusTag } from './ui/index.js';
+import {
+  Button,
+  ConfirmButton,
+  DataTable,
+  Field,
+  FormDialog,
+  Notice,
+  Section,
+  StatusTag
+} from './ui/index.js';
 
-/** Campaigns and the approved templates they send, with the forms beside them. */
+/** Campaigns and the approved templates they send; both forms open in dialogs. */
 export function CampaignsView({
   accessToken,
   campaigns,
   templates,
   loading,
+  error,
   onChanged,
   run
 }: AreaContext & {
@@ -32,13 +42,16 @@ export function CampaignsView({
   const [campaignTemplate, setCampaignTemplate] = useState('');
   const [sendCap, setSendCap] = useState('500');
   const [scheduledFor, setScheduledFor] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [publishing, setPublishing] = useState(false);
 
   return (
-    <div className="rs-with-aside">
-      <div>
+    <>
+      <div className="rs-stack">
         <Section
           title="Campaigns"
           description="Consented sends. Every audience requires consent. You see counts here, never the people in them."
+          actions={<Button onClick={() => setCreating(true)}>Create a campaign</Button>}
         >
           <DataTable
             caption="Campaigns"
@@ -117,7 +130,15 @@ export function CampaignsView({
           />
         </Section>
 
-        <Section title="Approved copy" description="Templates, newest version first by key.">
+        <Section
+          title="Approved copy"
+          description="Templates, newest version first by key."
+          actions={
+            <Button variant="secondary" onClick={() => setPublishing(true)}>
+              Publish a template
+            </Button>
+          }
+        >
           <DataTable
             caption="Email templates"
             columns={[
@@ -141,88 +162,88 @@ export function CampaignsView({
         </Section>
       </div>
 
-      <aside className="rs-aside">
-        <Section title="Create a campaign">
-          <form
-            className="rs-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void run(
-                () =>
-                  createCampaign(accessToken, {
-                    templateKey: campaignTemplate,
-                    audience: { consentRequired: true },
-                    sendCap: Number(sendCap)
-                  }),
-                'Draft created. Nothing has been sent.'
-              ).then(onChanged);
-            }}
-          >
-            <Field label="Template key">
-              <input
-                value={campaignTemplate}
-                onChange={(event) => setCampaignTemplate(event.target.value)}
-                required
-              />
-            </Field>
-            <Field label="Send cap">
-              <input
-                type="number"
-                min={1}
-                value={sendCap}
-                onChange={(event) => setSendCap(event.target.value)}
-                required
-              />
-            </Field>
-            <div>
-              <Button type="submit" busy={loading}>
-                Create draft
-              </Button>
-            </div>
-          </form>
-        </Section>
+      <FormDialog
+        open={creating}
+        title="Create a campaign"
+        submitLabel="Create draft"
+        busy={loading}
+        error={error}
+        onClose={() => setCreating(false)}
+        onSubmit={() =>
+          void run(
+            () =>
+              createCampaign(accessToken, {
+                templateKey: campaignTemplate,
+                audience: { consentRequired: true },
+                sendCap: Number(sendCap)
+              }),
+            'Draft created. Nothing has been sent.'
+          ).then((ok) => {
+            if (!ok) return;
+            setCreating(false);
+            setCampaignTemplate('');
+            onChanged();
+          })
+        }
+      >
+        <Field label="Template key">
+          <input
+            value={campaignTemplate}
+            onChange={(event) => setCampaignTemplate(event.target.value)}
+            required
+          />
+        </Field>
+        <Field label="Send cap">
+          <input
+            type="number"
+            min={1}
+            value={sendCap}
+            onChange={(event) => setSendCap(event.target.value)}
+            required
+          />
+        </Field>
+      </FormDialog>
 
-        <Section title="Publish a template">
-          <Notice tone="readonly">
-            Publishing a version is the approval. A new version supersedes the live one; a campaign
-            already scheduled keeps the version it resolved.
-          </Notice>
-          <form
-            className="rs-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void run(
-                () => publishEmailTemplate(accessToken, { key: templateKey, subject, body }),
-                'Template published. It is now the live version for that key.'
-              ).then(onChanged);
-            }}
-          >
-            <Field label="Key">
-              <input
-                value={templateKey}
-                onChange={(event) => setTemplateKey(event.target.value)}
-                required
-              />
-            </Field>
-            <Field label="Subject">
-              <input
-                value={subject}
-                onChange={(event) => setSubject(event.target.value)}
-                required
-              />
-            </Field>
-            <Field label="Body">
-              <textarea value={body} onChange={(event) => setBody(event.target.value)} required />
-            </Field>
-            <div>
-              <Button type="submit" busy={loading}>
-                Publish version
-              </Button>
-            </div>
-          </form>
-        </Section>
-      </aside>
-    </div>
+      <FormDialog
+        open={publishing}
+        title="Publish a template"
+        submitLabel="Publish version"
+        busy={loading}
+        error={error}
+        onClose={() => setPublishing(false)}
+        onSubmit={() =>
+          void run(
+            () => publishEmailTemplate(accessToken, { key: templateKey, subject, body }),
+            'Template published. It is now the live version for that key.'
+          ).then((ok) => {
+            if (!ok) return;
+            setPublishing(false);
+            setTemplateKey('');
+            setSubject('');
+            setBody('');
+            onChanged();
+          })
+        }
+      >
+        <Notice tone="readonly">
+          Publishing a version is the approval. A new version supersedes the live one; a campaign
+          already scheduled keeps the version it resolved.
+        </Notice>
+        <Field label="Key">
+          <input
+            value={templateKey}
+            onChange={(event) => setTemplateKey(event.target.value)}
+            required
+          />
+        </Field>
+        <Field label="Subject">
+          <input value={subject} onChange={(event) => setSubject(event.target.value)} required />
+        </Field>
+        <Field label="Body">
+          <textarea value={body} onChange={(event) => setBody(event.target.value)} required />
+        </Field>
+      </FormDialog>
+    </>
   );
 }
 

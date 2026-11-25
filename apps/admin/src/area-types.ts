@@ -4,11 +4,14 @@
  * behave the same everywhere. `run` never throws; a refused call becomes the
  * server's own message on the page.
  */
-export type Runner = (work: () => Promise<unknown>, success?: string) => Promise<void>;
+/** Resolves true when the work succeeded, so a dialog can stay open on a refusal. */
+export type Runner = (work: () => Promise<unknown>, success?: string) => Promise<boolean>;
 
 export interface AreaContext {
   accessToken: string;
   roles: readonly string[];
   loading: boolean;
+  /** The last refusal, so a dialog can show it where the person is looking. */
+  error?: string | undefined;
   run: Runner;
 }

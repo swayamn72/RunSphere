@@ -12,3 +12,5 @@ export { AccountMenu } from './AccountMenu.js';
 export { Menu, MenuItem, MenuLabel, MenuRadioGroup, MenuSeparator } from './Menu.js';
 export { useThemePreference } from './ThemeSwitch.js';
 export { ConfirmButton } from './ConfirmButton.js';
+export { FormDialog } from './FormDialog.js';
+export { TableToolbar } from './TableToolbar.js';

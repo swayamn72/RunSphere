@@ -4,13 +4,23 @@ import { createCompetition, getCompetitions, setCompetitionStatus } from './api.
 import type { AreaContext } from './area-types.js';
 import { lifecycleTone } from './status-tone.js';
 import { useAreaLoad } from './use-area-load.js';
-import { Button, DataTable, Field, Notice, Section, StatusTag } from './ui/index.js';
+import {
+  Button,
+  DataTable,
+  Field,
+  FormDialog,
+  Notice,
+  Section,
+  StatusTag,
+  TableToolbar
+} from './ui/index.js';
 
-/** The list of competitions beside the form that drafts one. */
+/** The list of competitions, with the form that drafts one in a dialog. */
 export function CompetitionsView({
   accessToken,
   competitions,
   loading,
+  error,
   onChanged,
   run
 }: AreaContext & { competitions: readonly CompetitionSummary[]; onChanged: () => void }) {
@@ -18,10 +28,27 @@ export function CompetitionsView({
   const [periodStart, setPeriodStart] = useState('');
   const [lengthDays, setLengthDays] = useState('7');
   const [rewards, setRewards] = useState('');
+  const [drafting, setDrafting] = useState(false);
+  const [query, setQuery] = useState('');
+  const needle = query.trim().toLowerCase();
+  const shown = needle
+    ? competitions.filter((c) => `${c.title} ${c.status}`.toLowerCase().includes(needle))
+    : competitions;
 
   return (
-    <div className="rs-with-aside">
-      <Section title="Competitions" description="Scheduled and past.">
+    <>
+      <Section
+        title="Competitions"
+        description="Scheduled and past."
+        actions={<Button onClick={() => setDrafting(true)}>Draft a competition</Button>}
+      >
+        <TableToolbar
+          label="Search competitions"
+          query={query}
+          onQueryChange={setQuery}
+          shown={shown.length}
+          total={competitions.length}
+        />
         <DataTable
           caption="Competitions"
           columns={[
@@ -81,67 +108,69 @@ export function CompetitionsView({
               )
             }
           ]}
-          rows={competitions}
+          rows={shown}
           rowKey={(competition) => competition.id}
           emptyMessage={loading ? 'Loading…' : 'No competitions yet.'}
         />
       </Section>
 
-      <aside className="rs-aside">
-        <Section title="Draft a competition" description="Schedule a new one.">
-          <Notice tone="readonly">
-            A new competition is created as a draft. Announcing it is a second, deliberate act, and
-            it cannot be un-announced.
-          </Notice>
-          <form
-            className="rs-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void run(async () => {
-                await createCompetition(accessToken, {
-                  title,
-                  mode: 'active_minutes',
-                  periodStart,
-                  lengthDays: Number(lengthDays),
-                  ...(rewards ? { rewards } : {})
-                });
-              }, 'Draft created. It is not announced yet.').then(onChanged);
-            }}
-          >
-            <Field label="Title">
-              <input value={title} onChange={(event) => setTitle(event.target.value)} required />
-            </Field>
-            <Field label="First day">
-              <input
-                type="date"
-                value={periodStart}
-                onChange={(event) => setPeriodStart(event.target.value)}
-                required
-              />
-            </Field>
-            <Field label="Days">
-              <select value={lengthDays} onChange={(event) => setLengthDays(event.target.value)}>
-                <option value="7">7</option>
-                <option value="14">14</option>
-                <option value="30">30</option>
-              </select>
-            </Field>
-            <Field label="Rewards">
-              <input
-                value={rewards}
-                onChange={(event) => setRewards(event.target.value)}
-                placeholder="Cosmetic or status only"
-              />
-            </Field>
-            <div>
-              <Button type="submit" busy={loading}>
-                Create draft
-              </Button>
-            </div>
-          </form>
-        </Section>
-      </aside>
-    </div>
+      <FormDialog
+        open={drafting}
+        title="Draft a competition"
+        submitLabel="Create draft"
+        busy={loading}
+        error={error}
+        onClose={() => setDrafting(false)}
+        onSubmit={() =>
+          void run(async () => {
+            await createCompetition(accessToken, {
+              title,
+              mode: 'active_minutes',
+              periodStart,
+              lengthDays: Number(lengthDays),
+              ...(rewards ? { rewards } : {})
+            });
+          }, 'Draft created. It is not announced yet.').then((ok) => {
+            if (!ok) return;
+            setDrafting(false);
+            setTitle('');
+            setPeriodStart('');
+            setRewards('');
+            onChanged();
+          })
+        }
+      >
+        <Notice tone="readonly">
+          A new competition is created as a draft. Announcing it is a second, deliberate act, and it
+          cannot be un-announced.
+        </Notice>
+        <Field label="Title">
+          <input value={title} onChange={(event) => setTitle(event.target.value)} required />
+        </Field>
+        <Field label="First day">
+          <input
+            type="date"
+            value={periodStart}
+            onChange={(event) => setPeriodStart(event.target.value)}
+            required
+          />
+        </Field>
+        <Field label="Days">
+          <select value={lengthDays} onChange={(event) => setLengthDays(event.target.value)}>
+            <option value="7">7</option>
+            <option value="14">14</option>
+            <option value="30">30</option>
+          </select>
+        </Field>
+        <Field label="Rewards">
+          <input
+            value={rewards}
+            onChange={(event) => setRewards(event.target.value)}
+            placeholder="Cosmetic or status only"
+          />
+        </Field>
+      </FormDialog>
+    </>
   );
 }
 
