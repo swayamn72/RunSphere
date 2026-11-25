@@ -14,3 +14,6 @@ export { useThemePreference } from './ThemeSwitch.js';
 export { ConfirmButton } from './ConfirmButton.js';
 export { FormDialog } from './FormDialog.js';
 export { TableToolbar } from './TableToolbar.js';
+export { SearchableTable } from './SearchableTable.js';
+export { ConfirmDialog } from './ConfirmButton.js';
+export { RowMenu } from './Menu.js';

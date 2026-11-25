@@ -698,3 +698,44 @@
   gap: var(--rs-space-xl);
   min-width: 0;
 }
+
+/* Drawer: the same native dialog, docked right */
+.rs-dialog--drawer {
+  position: fixed;
+  inset: 0 0 0 auto;
+  width: min(480px, 100vw);
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  border-radius: var(--rs-radius-sheet) 0 0 var(--rs-radius-sheet);
+}
+.rs-detail {
+  display: grid;
+  gap: var(--rs-space-md);
+  margin: 0;
+}
+.rs-detail dt {
+  font-size: var(--rs-type-caption-size);
+  font-weight: var(--rs-weight-semibold);
+  color: var(--rs-text-secondary);
+}
+.rs-detail dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.rs-row-menu {
+  min-width: 36px;
+  min-height: 36px;
+  border: 1px solid var(--rs-border-subtle);
+  border-radius: var(--rs-radius-control);
+  background: transparent;
+  color: var(--rs-text-primary);
+  font-weight: var(--rs-weight-semibold);
+  line-height: 1;
+}
+.rs-row-menu:hover,
+.rs-row-menu[data-state='open'] {
+  background: var(--rs-background-surface-inset);
+}

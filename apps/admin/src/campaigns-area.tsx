@@ -18,6 +18,7 @@ import {
   Field,
   FormDialog,
   Notice,
+  SearchableTable,
   Section,
   StatusTag
 } from './ui/index.js';
@@ -44,6 +45,7 @@ export function CampaignsView({
   const [scheduledFor, setScheduledFor] = useState('');
   const [creating, setCreating] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [scheduling, setScheduling] = useState<CampaignSummary>();
 
   return (
     <>
@@ -53,7 +55,9 @@ export function CampaignsView({
           description="Consented sends. Every audience requires consent. You see counts here, never the people in them."
           actions={<Button onClick={() => setCreating(true)}>Create a campaign</Button>}
         >
-          <DataTable
+          <SearchableTable
+            searchLabel="Search campaigns"
+            searchText={(c) => `${c.templateKey} ${c.status}`}
             caption="Campaigns"
             columns={[
               {
@@ -75,32 +79,16 @@ export function CampaignsView({
                 render: (campaign) => (
                   <div className="rs-actions">
                     {campaign.status === 'draft' ? (
-                      <>
-                        <Field label="Send at">
-                          <input
-                            type="datetime-local"
-                            value={scheduledFor}
-                            onChange={(event) => setScheduledFor(event.target.value)}
-                          />
-                        </Field>
-                        <Button
-                          variant="secondary"
-                          disabled={loading || !scheduledFor}
-                          onClick={() =>
-                            void run(
-                              () =>
-                                scheduleCampaign(
-                                  accessToken,
-                                  campaign.id,
-                                  new Date(scheduledFor).toISOString()
-                                ),
-                              'Scheduled. It can still be cancelled until it sends.'
-                            ).then(onChanged)
-                          }
-                        >
-                          Schedule
-                        </Button>
-                      </>
+                      <Button
+                        variant="secondary"
+                        disabled={loading}
+                        onClick={() => {
+                          setScheduledFor('');
+                          setScheduling(campaign);
+                        }}
+                      >
+                        Schedule…
+                      </Button>
                     ) : null}
                     {campaign.status !== 'sent' && campaign.status !== 'cancelled' ? (
                       <ConfirmButton
@@ -161,6 +149,41 @@ export function CampaignsView({
           />
         </Section>
       </div>
+
+      <FormDialog
+        variant="drawer"
+        open={scheduling !== undefined}
+        title={`Schedule ${scheduling?.templateKey ?? 'campaign'}`}
+        submitLabel="Schedule"
+        busy={loading}
+        error={error}
+        onClose={() => setScheduling(undefined)}
+        onSubmit={() => {
+          if (!scheduling || !scheduledFor) return;
+          void run(
+            () =>
+              scheduleCampaign(accessToken, scheduling.id, new Date(scheduledFor).toISOString()),
+            'Scheduled. It can still be cancelled until it sends.'
+          ).then((ok) => {
+            if (!ok) return;
+            setScheduling(undefined);
+            onChanged();
+          });
+        }}
+      >
+        <Notice tone="readonly">
+          It sends once, at this time, to people who have agreed to hear from us. Until then it can
+          be cancelled.
+        </Notice>
+        <Field label="Send at">
+          <input
+            type="datetime-local"
+            value={scheduledFor}
+            onChange={(event) => setScheduledFor(event.target.value)}
+            required
+          />
+        </Field>
+      </FormDialog>
 
       <FormDialog
         open={creating}

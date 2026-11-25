@@ -11,13 +11,16 @@ export function Dialog({
   title,
   onClose,
   children,
-  footer
+  footer,
+  variant = 'center'
 }: {
   open: boolean;
   title: string;
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  /** `drawer` slides in from the right and keeps the page visible beside it. */
+  variant?: 'center' | 'drawer';
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -30,7 +33,12 @@ export function Dialog({
   }, [open]);
 
   return (
-    <dialog ref={ref} className="rs-dialog" aria-labelledby={titleId} onClose={onClose}>
+    <dialog
+      ref={ref}
+      className={variant === 'drawer' ? 'rs-dialog rs-dialog--drawer' : 'rs-dialog'}
+      aria-labelledby={titleId}
+      onClose={onClose}
+    >
       <div className="rs-dialog__head">
         <h2 id={titleId} className="rs-dialog__title">
           {title}

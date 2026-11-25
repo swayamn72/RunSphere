@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Button } from './Button.js';
 
 export interface Column<Row> {
   key: string;
@@ -18,14 +19,21 @@ export function DataTable<Row>({
   columns,
   rows,
   rowKey,
-  emptyMessage
+  emptyMessage,
+  onRowOpen,
+  rowLabel
 }: {
   caption: string;
   columns: readonly Column<Row>[];
   rows: readonly Row[];
   rowKey: (row: Row) => string;
   emptyMessage: string;
+  /** Adds a Details button to every row, for the screen to open a drawer. */
+  onRowOpen?: (row: Row) => void;
+  /** Names a row for that button, for example the submission id. */
+  rowLabel?: (row: Row) => string;
 }) {
+  const span = columns.length + (onRowOpen ? 1 : 0);
   return (
     <div className="rs-table-wrap" role="region" aria-label={caption} tabIndex={0}>
       <table className="rs-table">
@@ -41,12 +49,17 @@ export function DataTable<Row>({
                 {column.header}
               </th>
             ))}
+            {onRowOpen ? (
+              <th scope="col">
+                <span className="rs-visually-hidden">Details</span>
+              </th>
+            ) : null}
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="rs-table__empty">
+              <td colSpan={span} className="rs-table__empty">
                 {emptyMessage}
               </td>
             </tr>
@@ -58,6 +71,17 @@ export function DataTable<Row>({
                     {column.render(row)}
                   </td>
                 ))}
+                {onRowOpen ? (
+                  <td>
+                    <Button
+                      variant="ghost"
+                      aria-label={rowLabel ? `Details for ${rowLabel(row)}` : 'Details'}
+                      onClick={() => onRowOpen(row)}
+                    >
+                      Details
+                    </Button>
+                  </td>
+                ) : null}
               </tr>
             ))
           )}

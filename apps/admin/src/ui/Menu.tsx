@@ -10,21 +10,25 @@ export function Menu({
   label,
   trigger,
   children,
-  align = 'start'
+  align = 'start',
+  side = 'top',
+  triggerClassName = 'rs-menu-trigger'
 }: {
   /** The trigger's accessible name when its visible content is not enough. */
   label: string;
   trigger: ReactNode;
   children: ReactNode;
   align?: 'start' | 'end';
+  side?: 'top' | 'bottom';
+  triggerClassName?: string;
 }) {
   return (
     <DropdownMenu.Root>
-      <DropdownMenu.Trigger className="rs-menu-trigger" aria-label={label}>
+      <DropdownMenu.Trigger className={triggerClassName} aria-label={label}>
         {trigger}
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
-        <DropdownMenu.Content className="rs-menu" align={align} side="top" sideOffset={8}>
+        <DropdownMenu.Content className="rs-menu" align={align} side={side} sideOffset={8}>
           {children}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
@@ -84,4 +88,13 @@ export function MenuRadioGroup<T extends string>({
 
 export function MenuSeparator() {
   return <DropdownMenu.Separator className="rs-menu__separator" />;
+}
+
+/** The `…` button at the end of a table row, holding that row's actions. */
+export function RowMenu({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <Menu label={label} align="end" side="bottom" triggerClassName="rs-row-menu" trigger="⋯">
+      {children}
+    </Menu>
+  );
 }

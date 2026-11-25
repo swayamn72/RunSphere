@@ -3,7 +3,7 @@ import { PRIVACY_READ_ONLY_NOTE, privacyNeedsAttention } from './areas.js';
 import { getPrivacyQueue, type PrivacyRequest } from './api.js';
 import type { AreaContext } from './area-types.js';
 import { useAreaLoad } from './use-area-load.js';
-import { Button, DataTable, Notice, Section, StatusTag, type Column } from './ui/index.js';
+import { Button, type Column, Notice, SearchableTable, Section, StatusTag } from './ui/index.js';
 
 const columns: readonly Column<PrivacyRequest>[] = [
   { key: 'account', header: 'Account', render: (request) => <code>{request.accountId}</code> },
@@ -57,7 +57,9 @@ export function PrivacyView({
           </>
         }
       >
-        <DataTable
+        <SearchableTable
+          searchLabel="Search requests"
+          searchText={(request) => `${request.accountId} ${request.kind}`}
           caption="Open privacy requests"
           columns={columns}
           rows={shown}

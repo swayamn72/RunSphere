@@ -3,7 +3,7 @@ import type { StaffQuest } from '@runsphere/contracts';
 import { getStaffQuests, setQuestTimeLimit } from './api.js';
 import type { AreaContext } from './area-types.js';
 import { useAreaLoad } from './use-area-load.js';
-import { Button, DataTable, Section, StatusTag } from './ui/index.js';
+import { Button, SearchableTable, Section, StatusTag } from './ui/index.js';
 
 /**
  * Quest time limits (season_operator or admin, like `/v1/staff/quests`).
@@ -37,7 +37,9 @@ export function QuestsArea({ quests, loading, onSetLimit }: QuestsAreaProps) {
       title="Time limits"
       description="Set how long a runner has, from starting their quest run, to pass every stop. Leave it blank for no limit. 1 to 600 minutes."
     >
-      <DataTable
+      <SearchableTable
+        searchLabel="Search quests"
+        searchText={(quest) => quest.title}
         caption="Quest time limits"
         columns={[
           {

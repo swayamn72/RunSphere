@@ -3,7 +3,7 @@ import { RULES_READ_ONLY_NOTE } from './areas.js';
 import { getRuleVersions, type RuleVersion } from './api.js';
 import type { AreaContext } from './area-types.js';
 import { useAreaLoad } from './use-area-load.js';
-import { Button, DataTable, Notice, Section, StatusTag, type Column } from './ui/index.js';
+import { Button, type Column, Notice, SearchableTable, Section, StatusTag } from './ui/index.js';
 
 const columns: readonly Column<RuleVersion>[] = [
   {
@@ -67,7 +67,9 @@ export function RulesView({
           </>
         }
       >
-        <DataTable
+        <SearchableTable
+          searchLabel="Search rules"
+          searchText={(rule) => `${rule.kind} v${rule.version}`}
           caption="Published rules"
           columns={columns}
           rows={shown}

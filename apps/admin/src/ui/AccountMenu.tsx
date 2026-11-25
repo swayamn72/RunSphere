@@ -39,6 +39,8 @@ export function AccountMenu({
         options={themePreferences.map((value) => ({ value, label: THEME_LABEL[value] }))}
       />
       <MenuSeparator />
+      <MenuLabel>Press / to search the table</MenuLabel>
+      <MenuSeparator />
       <MenuItem onSelect={onSignOut}>Sign out</MenuItem>
     </Menu>
   );

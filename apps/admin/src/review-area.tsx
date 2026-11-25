@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { getStaffReviewQueue, type StaffReviewItem } from './api.js';
 import type { AreaContext } from './area-types.js';
 import { useAreaLoad } from './use-area-load.js';
-import { Button, DataTable, Section, StatusTag, type Column } from './ui/index.js';
+import { Button, Dialog, SearchableTable, Section, StatusTag, type Column } from './ui/index.js';
 
 const readableStatus = (status: StaffReviewItem['status']) => status.replace('_', ' ');
 
@@ -46,44 +46,99 @@ export function ReviewView({
   onRefresh: () => void;
 }) {
   const [status, setStatus] = useState<'all' | StaffReviewItem['status']>('all');
+  const [open, setOpen] = useState<StaffReviewItem>();
   const shown = status === 'all' ? items : items.filter((item) => item.status === status);
   return (
-    <Section
-      title="Activities requiring attention"
-      actions={
-        <>
-          <label className="rs-inline-filter">
-            <span>Status</span>
-            <select
-              value={status}
-              onChange={(event) => setStatus(event.target.value as typeof status)}
-            >
-              <option value="all">All</option>
-              <option value="rejected">Rejected</option>
-              <option value="validating">Validating</option>
-              <option value="received">Received</option>
-            </select>
-          </label>
-          <Button variant="secondary" busy={loading} onClick={onRefresh}>
-            {loading ? 'Refreshing…' : 'Refresh queue'}
-          </Button>
-        </>
-      }
-    >
-      <DataTable
-        caption="Activities requiring attention"
-        columns={columns}
-        rows={shown}
-        rowKey={(item) => item.id}
-        emptyMessage={
-          loading
-            ? 'Loading…'
-            : items.length > 0
-              ? 'Nothing matches that status.'
-              : 'No activities currently require review.'
+    <>
+      <Section
+        title="Activities requiring attention"
+        actions={
+          <>
+            <label className="rs-inline-filter">
+              <span>Status</span>
+              <select
+                value={status}
+                onChange={(event) => setStatus(event.target.value as typeof status)}
+              >
+                <option value="all">All</option>
+                <option value="rejected">Rejected</option>
+                <option value="validating">Validating</option>
+                <option value="received">Received</option>
+              </select>
+            </label>
+            <Button variant="secondary" busy={loading} onClick={onRefresh}>
+              {loading ? 'Refreshing…' : 'Refresh queue'}
+            </Button>
+          </>
         }
-      />
-    </Section>
+      >
+        <SearchableTable
+          searchLabel="Search submissions"
+          searchText={(item) => `${item.id} ${readableStatus(item.status)} ${reviewNote(item)}`}
+          onRowOpen={setOpen}
+          rowLabel={(item) => item.id}
+          caption="Activities requiring attention"
+          columns={columns}
+          rows={shown}
+          rowKey={(item) => item.id}
+          emptyMessage={
+            loading
+              ? 'Loading…'
+              : items.length > 0
+                ? 'Nothing matches that status.'
+                : 'No activities currently require review.'
+          }
+        />
+      </Section>
+      <Dialog
+        variant="drawer"
+        open={open !== undefined}
+        title="Submission"
+        onClose={() => setOpen(undefined)}
+        footer={
+          <Button variant="secondary" onClick={() => setOpen(undefined)}>
+            Close
+          </Button>
+        }
+      >
+        {open ? (
+          <dl className="rs-detail">
+            <div>
+              <dt>Submission</dt>
+              <dd>
+                <code>{open.id}</code>
+              </dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd>
+                <StatusTag tone={statusTone(open.status)}>{readableStatus(open.status)}</StatusTag>
+              </dd>
+            </div>
+            <div>
+              <dt>Submitted</dt>
+              <dd>{new Date(open.submittedAt).toLocaleString()}</dd>
+            </div>
+            <div>
+              <dt>Why it is here</dt>
+              <dd>{open.rejectionReason ?? 'Awaiting validation'}</dd>
+            </div>
+            {open.validationErrors.length ? (
+              <div>
+                <dt>Validation notes</dt>
+                <dd>
+                  <ul>
+                    {open.validationErrors.map((note) => (
+                      <li key={note}>{note}</li>
+                    ))}
+                  </ul>
+                </dd>
+              </div>
+            ) : null}
+          </dl>
+        ) : null}
+      </Dialog>
+    </>
   );
 }
 

@@ -120,6 +120,27 @@ export function AdminShell() {
     return () => window.removeEventListener('popstate', onPop);
   }, [accessToken, roles]);
 
+  // "/" jumps to the table search, as in most consoles. It never steals the key
+  // from a field someone is typing in.
+  useEffect(() => {
+    if (!accessToken) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))
+      )
+        return;
+      const search = document.querySelector<HTMLInputElement>('main input[type="search"]');
+      if (!search) return;
+      event.preventDefault();
+      search.focus();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [accessToken]);
+
   const handleSignIn = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     await run(async () => {

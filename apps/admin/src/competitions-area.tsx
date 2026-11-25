@@ -6,10 +6,13 @@ import { lifecycleTone } from './status-tone.js';
 import { useAreaLoad } from './use-area-load.js';
 import {
   Button,
+  ConfirmDialog,
   DataTable,
   Field,
   FormDialog,
+  MenuItem,
   Notice,
+  RowMenu,
   Section,
   StatusTag,
   TableToolbar
@@ -29,6 +32,7 @@ export function CompetitionsView({
   const [lengthDays, setLengthDays] = useState('7');
   const [rewards, setRewards] = useState('');
   const [drafting, setDrafting] = useState(false);
+  const [cancelling, setCancelling] = useState<CompetitionSummary>();
   const [query, setQuery] = useState('');
   const needle = query.trim().toLowerCase();
   const shown = needle
@@ -74,38 +78,26 @@ export function CompetitionsView({
             {
               key: 'actions',
               header: 'Actions',
-              render: (competition) => (
-                <div className="rs-actions">
-                  {competition.status === 'draft' ? (
-                    <Button
-                      variant="secondary"
-                      disabled={loading}
-                      onClick={() =>
-                        void run(
-                          () => setCompetitionStatus(accessToken, competition.id, true),
-                          'Announced. Members can enter it now.'
-                        ).then(onChanged)
-                      }
-                    >
-                      Announce
-                    </Button>
-                  ) : null}
-                  {competition.status !== 'finalized' && competition.status !== 'cancelled' ? (
-                    <Button
-                      variant="ghost"
-                      disabled={loading}
-                      onClick={() =>
-                        void run(
-                          () => setCompetitionStatus(accessToken, competition.id, false),
-                          'Cancelled. Nothing will be scored for it.'
-                        ).then(onChanged)
-                      }
-                    >
-                      Cancel
-                    </Button>
-                  ) : null}
-                </div>
-              )
+              render: (competition) =>
+                competition.status === 'finalized' || competition.status === 'cancelled' ? null : (
+                  <RowMenu label={`Actions for ${competition.title}`}>
+                    {competition.status === 'draft' ? (
+                      <MenuItem
+                        onSelect={() =>
+                          void run(
+                            () => setCompetitionStatus(accessToken, competition.id, true),
+                            'Announced. Members can enter it now.'
+                          ).then(onChanged)
+                        }
+                      >
+                        Announce
+                      </MenuItem>
+                    ) : null}
+                    <MenuItem danger onSelect={() => setCancelling(competition)}>
+                      Cancel competition
+                    </MenuItem>
+                  </RowMenu>
+                )
             }
           ]}
           rows={shown}
@@ -113,6 +105,22 @@ export function CompetitionsView({
           emptyMessage={loading ? 'Loading…' : 'No competitions yet.'}
         />
       </Section>
+
+      <ConfirmDialog
+        open={cancelling !== undefined}
+        danger
+        title={`Cancel ${cancelling?.title ?? 'this competition'}?`}
+        description="Nothing will be scored for it, and members who entered are told it is off."
+        confirmLabel="Cancel the competition"
+        onClose={() => setCancelling(undefined)}
+        onConfirm={() => {
+          if (!cancelling) return;
+          void run(
+            () => setCompetitionStatus(accessToken, cancelling.id, false),
+            'Cancelled. Nothing will be scored for it.'
+          ).then(onChanged);
+        }}
+      />
 
       <FormDialog
         open={drafting}

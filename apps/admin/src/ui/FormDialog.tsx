@@ -15,6 +15,7 @@ export function FormDialog({
   submitLabel,
   busy,
   error,
+  variant,
   onClose,
   onSubmit,
   children
@@ -25,6 +26,7 @@ export function FormDialog({
   busy: boolean;
   /** A refusal to show inside the dialog, which covers the page's own notice. */
   error?: string | undefined;
+  variant?: 'center' | 'drawer';
   onClose: () => void;
   onSubmit: () => void;
   children: ReactNode;
@@ -34,6 +36,7 @@ export function FormDialog({
     <Dialog
       open={open}
       title={title}
+      variant={variant ?? 'center'}
       onClose={onClose}
       footer={
         <>

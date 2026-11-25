@@ -226,13 +226,59 @@ test.describe('competitions', () => {
       }
     });
 
-    await page.getByRole('button', { name: 'Announce' }).click();
+    await page.getByRole('button', { name: 'Actions for December Dash' }).click();
+    await page.getByRole('menuitem', { name: 'Announce' }).click();
     await expect(page.getByRole('status')).toContainText('Announced.');
     expect(api.last()).toEqual({
       method: 'POST',
       path: '/v1/staff/competitions/c-1/status',
       body: { publish: true }
     });
+  });
+});
+
+test.describe('competition row menu', () => {
+  test('cancelling asks first, and sends nothing until it is confirmed', async ({ page }) => {
+    const api = await mockApi(page, {
+      responses: {
+        'GET /v1/competitions': {
+          data: [
+            {
+              id: 'c-9',
+              title: 'December Dash',
+              status: 'announced',
+              periodStart: '2026-12-01',
+              periodEnd: '2026-12-14',
+              participantCount: 12
+            }
+          ]
+        }
+      }
+    });
+    await open(page, 'Competitions');
+    await page.getByRole('button', { name: 'Actions for December Dash' }).click();
+    await page.getByRole('menuitem', { name: 'Cancel competition' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Cancel December Dash?' });
+    await expect(dialog).toBeVisible();
+    expect(api.calls.filter((call) => call.path.includes('/status'))).toHaveLength(0);
+    await dialog.getByRole('button', { name: 'Cancel the competition' }).click();
+    await expect(page.getByRole('status')).toContainText('Cancelled.');
+    expect(api.last()).toEqual({
+      method: 'POST',
+      path: '/v1/staff/competitions/c-9/status',
+      body: { publish: false }
+    });
+  });
+});
+
+test.describe('keyboard', () => {
+  test('"/" focuses the table search, but not while typing in a field', async ({ page }) => {
+    await mockApi(page);
+    await open(page, 'Competitions');
+    await page.locator('body').press('/');
+    await expect(page.getByRole('searchbox', { name: 'Search competitions' })).toBeFocused();
+    await page.keyboard.type('a/b');
+    await expect(page.getByRole('searchbox', { name: 'Search competitions' })).toHaveValue('a/b');
   });
 });
 
@@ -255,8 +301,8 @@ test.describe('competitions toolbar and dialog', () => {
     await expect(page.getByText('2 shown')).toBeVisible();
     await page.getByRole('searchbox', { name: 'Search competitions' }).fill('jan');
     await expect(page.getByText('1 of 2 shown')).toBeVisible();
-    await expect(page.getByRole('cell', { name: 'December Dash' })).toHaveCount(0);
-    await expect(page.getByRole('cell', { name: 'January Streak' })).toBeVisible();
+    await expect(page.getByRole('cell', { name: 'December Dash', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('cell', { name: 'January Streak', exact: true })).toBeVisible();
   });
 
   test('keeps the draft dialog open, with what was typed, when the server refuses', async ({
@@ -275,6 +321,83 @@ test.describe('competitions toolbar and dialog', () => {
       'A competition already covers those days.'
     );
     await expect(page.getByLabel('Title')).toHaveValue('January Streak');
+  });
+});
+
+test.describe('review drawer and campaign scheduling', () => {
+  test('opens a submission in a drawer with its full notes, and searches the queue', async ({
+    page
+  }) => {
+    await mockApi(page, {
+      responses: {
+        'GET /v1/staff/activity-review-queue': {
+          data: [
+            {
+              id: 'sub-aaa',
+              status: 'rejected',
+              submittedAt: '2026-11-24T09:12:00.000Z',
+              rejectionReason: 'Speed was not possible on foot.',
+              validationErrors: ['speed_spike', 'gap_in_samples']
+            },
+            {
+              id: 'sub-bbb',
+              status: 'validating',
+              submittedAt: '2026-11-24T10:40:00.000Z',
+              validationErrors: []
+            }
+          ]
+        }
+      }
+    });
+    await page.goto('/');
+    await signIn(page);
+    await expect(page.getByText('2 shown')).toBeVisible();
+    await page.getByRole('searchbox', { name: 'Search submissions' }).fill('speed');
+    await expect(page.getByText('1 of 2 shown')).toBeVisible();
+    await page.getByRole('button', { name: 'Details for sub-aaa' }).click();
+    const drawer = page.getByRole('dialog', { name: 'Submission' });
+    await expect(drawer).toContainText('Speed was not possible on foot.');
+    await expect(drawer).toContainText('gap_in_samples');
+    await drawer.getByRole('button', { name: 'Close', exact: true }).last().click();
+    await expect(drawer).toBeHidden();
+  });
+
+  test('schedules one draft from its own drawer with the exact request', async ({ page }) => {
+    const api = await mockApi(page, {
+      responses: {
+        'GET /v1/staff/campaigns': {
+          data: [
+            {
+              id: 'cm-1',
+              templateKey: 'winter-welcome',
+              status: 'draft',
+              sendCap: 250,
+              queuedCount: 0,
+              sentCount: 0
+            },
+            {
+              id: 'cm-2',
+              templateKey: 'spring-note',
+              status: 'draft',
+              sendCap: 100,
+              queuedCount: 0,
+              sentCount: 0
+            }
+          ]
+        }
+      }
+    });
+    await open(page, 'Campaign email');
+    await page.getByRole('button', { name: 'Schedule…' }).first().click();
+    const drawer = page.getByRole('dialog', { name: 'Schedule winter-welcome' });
+    await drawer.getByLabel('Send at').fill('2027-01-04T09:30');
+    await drawer.getByRole('button', { name: 'Schedule', exact: true }).click();
+    await expect(page.getByRole('status').first()).toContainText('Scheduled.');
+    expect(api.last()).toEqual({
+      method: 'POST',
+      path: '/v1/staff/campaigns/cm-1/schedule',
+      body: { scheduledFor: new Date('2027-01-04T09:30').toISOString() }
+    });
   });
 });
 

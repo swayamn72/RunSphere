@@ -209,16 +209,12 @@ describe('competitions', () => {
   const view = (competitions: CompetitionSummary[]) =>
     html(<CompetitionsView {...context} competitions={competitions} onChanged={() => undefined} />);
 
-  it('lets a draft be announced or cancelled, a live one only cancelled, a finished one neither', () => {
-    const markup = view([competition('draft')]);
-    expect(markup).toContain('>Announce<');
-    expect(markup).toContain('>Cancel<');
-    const live = view([competition('announced')]);
-    expect(live).not.toContain('>Announce<');
-    expect(live).toContain('>Cancel<');
+  it('gives a draft and a live competition an actions menu, and a finished one none', () => {
+    // The menu's items render only once it is open; the e2e specs open it.
+    expect(view([competition('draft')])).toContain('aria-label="Actions for Comp draft"');
+    expect(view([competition('announced')])).toContain('aria-label="Actions for Comp announced"');
     const done = view([competition('finalized'), competition('cancelled')]);
-    expect(done).not.toContain('>Announce<');
-    expect(done).not.toContain('>Cancel<');
+    expect(done).not.toContain('Actions for');
   });
 
   it('keeps the draft form and says that announcing is a second, deliberate act', () => {
@@ -251,10 +247,10 @@ describe('campaigns', () => {
 
   it('offers scheduling only for a draft, and cancelling only until it has sent', () => {
     const draft = view([campaign('draft')]);
-    expect(draft).toContain('>Schedule<');
+    expect(draft).toContain('>Schedule…<');
     expect(draft).toContain('>Cancel<');
     const sent = view([campaign('sent'), campaign('cancelled')]);
-    expect(sent).not.toContain('>Schedule<');
+    expect(sent).not.toContain('>Schedule…<');
     expect(sent).not.toContain('>Cancel<');
   });
 
