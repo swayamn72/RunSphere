@@ -25,6 +25,21 @@ const TO_BE_NAMED = '[to be named before launch]';
 
 const named = (value: string | undefined): string => escapeHtml(value ?? TO_BE_NAMED);
 
+/**
+ * Email is optional (unset means a logged no-op), so the notice only names an
+ * email provider once one is configured, rather than promising one "before
+ * launch". The web deletion page proves ownership by emailing a link
+ * (ADR-0012), so without email the route without the app is writing to the
+ * grievance officer from the sign-up address instead.
+ */
+const emailProviderClause = (contact: LegalContact): string =>
+  contact.emailProvider ? `our email delivery provider ${escapeHtml(contact.emailProvider)}, ` : '';
+
+const webDeletionRoute = (contact: LegalContact): string =>
+  contact.emailProvider
+    ? 'at <a href="/account/delete">/account/delete</a>'
+    : 'without the app, by emailing the grievance officer below from your sign-up address';
+
 const contactBlock = (contact: LegalContact): string => {
   const operator = escapeHtml(contact.operatorName ?? TO_BE_NAMED);
   const officer = escapeHtml(contact.grievanceOfficerName ?? TO_BE_NAMED);
@@ -100,8 +115,7 @@ emergency service.</li>
 
 <h2>Who processes data for us</h2>
 <p>We use service providers who process data only on our instructions: our hosting provider
-${named(contact.hostingProvider)}, our email delivery provider
-${named(contact.emailProvider)}, and Google Firebase Cloud Messaging for
+${named(contact.hostingProvider)}, ${emailProviderClause(contact)}and Google Firebase Cloud Messaging for
 push notifications (which receives a device token and a notification id, never your location). Map
 images load straight from OpenFreeMap, which sees your IP address and the part of the map you are
 looking at. We share data with authorities only when Indian law requires it.</p>
@@ -124,8 +138,8 @@ your data. It covers your account, settings, privacy zones, runs, ground, XP, ba
 blocks, safety contacts, reports you made, notification choices and what you agreed to.</li>
 <li><strong>Correct it:</strong> edit your profile, username and settings in the app.</li>
 <li><strong>Delete it:</strong> open a run and tap Delete run to delete that run, or delete
-your whole account in the app (Profile → Settings → Data and account → Delete account) or at
-<a href="/account/delete">/account/delete</a>, which erases all your runs too.</li>
+your whole account in the app (Profile → Settings → Data and account → Delete account) or
+${webDeletionRoute(contact)}, which erases all your runs too.</li>
 <li><strong>Withdraw consent:</strong> turn off location for TURFR in Android settings (you can
 still browse), turn off leaderboards, safety sharing and news emails in the app, or delete your
 account. Withdrawing doesn't undo what was done before.</li>

@@ -4,13 +4,14 @@
  * One version string covers all three, because sign-up records a single
  * `policyVersion` in `consent_history`. Bump it whenever any document's text
  * changes, so a consent record always names the exact text that was shown.
- * The `-draft` suffix stays until the owner's lawyer has approved the text
- * (C.7); the pages show a draft banner while it is there.
+ * A `-draft` suffix makes the pages show a draft banner. The owner published
+ * 2026-11-26 as the live text for launch; the lawyer review (C.7) follows, and
+ * any change it brings is a new version that existing runners re-accept.
  */
 // 2026-11-22b: others may see your runs and routes per your settings (M9 9.26, ADR-0015).
 // 2026-11-26: friend board and Ghost Races named, what the export covers, processors and
-// courts from config, app labels corrected.
-export const LEGAL_POLICY_VERSION = '2026-11-26-draft';
+// courts from config, app labels corrected. Published (no longer a draft) for launch.
+export const LEGAL_POLICY_VERSION = '2026-11-26';
 
 export const LEGAL_PAGES = {
   privacy: '/privacy',

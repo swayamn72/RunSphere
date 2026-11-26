@@ -105,7 +105,8 @@ export interface ApiConfig {
   /**
    * Who runs RunSphere and who handles complaints, shown on the legal pages
    * (IT Rules 2021 grievance officer; DPDP contact). Unset values show as "to be
-   * named", which is only acceptable while the pages carry the draft banner.
+   * named", so set the operator, officer, host and courts in production. The
+   * email provider is named only once email is configured.
    */
   legalContact?: LegalContact;
 }

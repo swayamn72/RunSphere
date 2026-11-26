@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { LEGAL_PAGES } from '@runsphere/domain';
+import { LEGAL_PAGES, LEGAL_POLICY_VERSION } from '@runsphere/domain';
 import { buildApp } from './app.js';
 
 /** M8 C.2: the privacy notice, terms and guidelines Play, DPDP and the IT Rules need. */
@@ -17,7 +17,7 @@ const get = (url: string, config: Parameters<typeof buildApp>[0] = {}) => {
 
 describe('legal pages', () => {
   it.each(Object.values(LEGAL_PAGES))(
-    '%s is public, self-contained and marked as a draft',
+    '%s is public, self-contained and shows its version',
     async (url) => {
       const response = await get(url);
 
@@ -25,7 +25,8 @@ describe('legal pages', () => {
       expect(response.headers['content-type']).toContain('text/html');
       expect(response.headers['content-security-policy']).toContain("default-src 'none'");
       expect(response.body).not.toMatch(/<script[^>]+src=|<link[^>]+href=/);
-      expect(response.body).toContain('<strong>Draft.</strong>');
+      expect(response.body).not.toContain('<strong>Draft.</strong>');
+      expect(response.body).toContain(`Version ${LEGAL_POLICY_VERSION}.`);
       expect(response.body).toContain('Grievance officer');
     }
   );
@@ -37,7 +38,6 @@ describe('legal pages', () => {
     expect(privacy).toContain('we keep only the fact that the check passed');
     expect(privacy).toContain('at least 500 m across');
     expect(privacy).toContain('Data Protection Board of India');
-    expect(privacy).toContain('href="/account/delete"');
     // The app's own labels, so a runner can follow the steps.
     expect(privacy).toContain('tap Delete run');
     expect(privacy).toContain('Data and account → Export');
@@ -57,7 +57,8 @@ describe('legal pages', () => {
     };
     const privacy = (await get('/privacy', config)).body;
     expect(privacy).toContain('Example Cloud');
-    expect(privacy).toContain('Example Mail');
+    expect(privacy).toContain('our email delivery provider Example Mail');
+    expect(privacy).toContain('href="/account/delete"');
     expect((await get('/terms', config)).body).toContain('Disputes go to the courts at Mumbai.');
   });
 
@@ -76,6 +77,16 @@ describe('legal pages', () => {
     expect(response.body).toContain('A. Officer');
     expect(response.body).toContain('href="mailto:grievance@example.in"');
     expect(response.body).not.toContain('<Labs>');
+  });
+
+  it('names no email provider and no web deletion page while email is off', async () => {
+    const privacy = (
+      await get('/privacy', { config: { legalContact: { hostingProvider: 'Railway' } } })
+    ).body;
+    expect(privacy).not.toContain('email delivery provider');
+    expect(privacy).toMatch(/our hosting provider\s+Railway, and Google Firebase Cloud Messaging/);
+    expect(privacy).not.toContain('href="/account/delete"');
+    expect(privacy).toContain('by emailing the grievance officer below from your sign-up address');
   });
 
   it('says plainly when nobody has been named yet', async () => {
