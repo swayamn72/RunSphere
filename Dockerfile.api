@@ -55,5 +55,7 @@ USER node
 EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD ["node", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 3001) + '/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
-ENTRYPOINT ["/usr/bin/tini", "--"]
+# -s: on hosts that start their own init first (Railway), tini is not PID 1
+# and still reaps child processes as a subreaper.
+ENTRYPOINT ["/usr/bin/tini", "-s", "--"]
 CMD ["node", "services/api/dist/server.js"]

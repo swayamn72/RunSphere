@@ -44,5 +44,7 @@ ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build /app /app
 USER node
-ENTRYPOINT ["/usr/bin/tini", "--"]
+# -s: on hosts that start their own init first (Railway), tini is not PID 1
+# and still reaps child processes as a subreaper.
+ENTRYPOINT ["/usr/bin/tini", "-s", "--"]
 CMD ["node", "services/worker/dist/index.js"]

@@ -1,8 +1,15 @@
 # Deploying to Railway
 
 Written 2026-11-26 for the first production deploy (Play closed test). One Railway project, three
-services: **Postgres** (PostGIS image), **api** and **worker** (this repo's Dockerfiles). Config as
-code lives in `infra/railway/*.json`; everything else is set in the Railway dashboard.
+services: **Postgres** (PostGIS image), **api** and **worker** (this repo's Dockerfiles).
+
+Railway no longer lets new services use a config file, so `infra/railway/*.json` is a record of
+the settings, not something Railway reads. Every setting below is entered in the dashboard, and a
+change to those files changes nothing on Railway until it is made there too. Live project:
+`discerning-mercy` (Singapore), deployed 2026-11-26.
+
+Don't let Railway "import" the repo as a monorepo: it creates a service for every workspace package
+(admin and mobile included). Add each service on its own as below.
 
 Railway's free trial ($5, 30 days) is enough to set this up. The API and worker must stay on, so
 move to the Hobby plan before the closed test starts.
@@ -29,17 +36,28 @@ The migrations create the `postgis`, `pgcrypto` and `uuid-ossp` extensions thems
 ## 2. api
 
 1. New service → **GitHub repo** → this repository, branch `main`.
-2. Settings → **Config-as-code file**: `infra/railway/api.json`. It builds `Dockerfile.api`, runs
-   the migrate job (`migrate-cli`, M4.2) before each deploy, and only switches traffic once
-   `/ready` answers, so a failed migration or an unreachable database never goes live.
-3. Settings → Networking → **Generate domain** (or add `api.<your-domain>`). This is the
-   `EXPO_PUBLIC_API_BASE_URL` for the release build.
+2. Settings (the values in `infra/railway/api.json`). Without them Railway's default builder
+   fails with "No start command detected".
+
+   | Setting              | Value                                                                                                                                                         |
+   | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | Builder              | Dockerfile, path `Dockerfile.api` (also set the variable `RAILWAY_DOCKERFILE_PATH=Dockerfile.api`)                                                            |
+   | Root directory       | empty (the build needs the whole repo)                                                                                                                        |
+   | Custom start command | empty (the Dockerfile's command)                                                                                                                              |
+   | Pre-deploy command   | `node packages/db/dist/migrate-cli.js` (the migrate job, M4.2)                                                                                                |
+   | Healthcheck          | `/ready`, timeout 120 s: traffic switches only once the database answers                                                                                      |
+   | Restart policy       | On failure, 10 retries                                                                                                                                        |
+   | Watch paths          | `Dockerfile.api`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `tsconfig*.json`, `packages/**`, `services/api/**`, `infra/postgres/migrations/**` |
+
+3. Settings → Networking → **Generate domain**, target port `3001` (or add `api.<your-domain>`).
+   This is the `EXPO_PUBLIC_API_BASE_URL` for the release build.
 4. Variables:
 
    | Name                      | Value                                                                                                                                          |
    | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
    | `DATABASE_URL`            | `postgresql://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:5432/${{Postgres.POSTGRES_DB}}` |
-   | `AUTH_TOKEN_SECRET`       | a generated secret, at least 32 characters                                                                                                     |
+   | `AUTH_TOKEN_SECRET`       | a generated secret, at least 32 characters (the api refuses to start otherwise)                                                                |
+   | `PORT`                    | `3001`, matching the domain's target port                                                                                                      |
    | `TRUST_PROXY`             | `1` (one proxy, Railway's edge, sits in front; rate limits then see the runner's real IP)                                                      |
    | `LEGAL_OPERATOR_NAME`     | the operator's name                                                                                                                            |
    | `GRIEVANCE_OFFICER_NAME`  | the grievance officer's name                                                                                                                   |
@@ -58,7 +76,10 @@ The migrations create the `postgis`, `pgcrypto` and `uuid-ossp` extensions thems
 ## 3. worker
 
 1. New service → the same GitHub repo and branch.
-2. Config-as-code file: `infra/railway/worker.json`. No domain: it only polls Postgres.
+2. Settings as for the api, with `Dockerfile.worker` (and `RAILWAY_DOCKERFILE_PATH=Dockerfile.worker`),
+   no pre-deploy command, no healthcheck, restart policy Always (On failure with 10 retries on the
+   trial, where Always is unavailable), and the api's watch paths plus `services/worker/**` with
+   `Dockerfile.worker` in place of `Dockerfile.api`. No domain: it only polls Postgres.
 3. Variables: the same `DATABASE_URL` reference, plus the email and push groups if the api has
    them (the worker sends the email and push notifications).
 
