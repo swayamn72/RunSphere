@@ -103,3 +103,30 @@ Use a durable deployed admin origin for non-preview environments; do not commit 
 ### Recorder disposition migration
 
 The legacy SQLite migration adds `activity_location_samples.disposition` with its safe default but does not add the current `CHECK` constraint. SQLite cannot add that constraint without rebuilding the table, which would be unsafe for private on-device recordings. New writes are constrained by the current schema and typed recorder; the legacy table remains additive until a separately reviewed migration can preserve all local recordings during a rebuild.
+
+## Play release build (local)
+
+The first closed-test bundle (versionCode 1, 2026-11-27) was built on Windows without EAS:
+
+1. Upload key: `C:\Users\<you>\.turfr\turfr-upload.keystore`, with its passwords in
+   `~/.gradle/gradle.properties` as `TURFR_UPLOAD_STORE_FILE`, `TURFR_UPLOAD_STORE_PASSWORD`,
+   `TURFR_UPLOAD_KEY_ALIAS` and `TURFR_UPLOAD_KEY_PASSWORD`. Never commit them. Without them a release
+   build is signed with the debug key, which Play refuses. Every update must use the same upload key.
+2. Bump `versionCode` in `android/app/build.gradle` for every upload after the first.
+3. From `apps/mobile/android`, with the production values in the environment (they override
+   `apps/mobile/.env`, which holds emulator settings):
+
+   ```sh
+   NODE_ENV=production \
+   EXPO_PUBLIC_API_BASE_URL=https://<api-domain> \
+   EXPO_PUBLIC_MAP_STYLE_URL=... EXPO_PUBLIC_MAP_STYLE_ORIGINS=... EXPO_PUBLIC_MAP_ATTRIBUTION=... \
+   EXPO_PUBLIC_SYNTHETIC_LOCATION=false EXPO_PUBLIC_SYNTHETIC_LOCATION_NDJSON= \
+   ./gradlew bundleRelease -PreactNativeArchitectures=arm64-v8a
+   ```
+
+   The bundle lands in `android/app/build/outputs/bundle/release/app-release.aab`.
+
+**Why arm64 only:** on this checkout, reanimated's 32-bit (`armeabi-v7a`) native build fails with
+"build.ninja still dirty after 100 tries". One prefab path is 261 characters, and the ninja bundled
+with CMake 3.22.1 can't read paths over 260 even with Windows long paths on. Shorten the pnpm
+virtual store path (`.npmrc`) or build on EAS to ship 32-bit too.

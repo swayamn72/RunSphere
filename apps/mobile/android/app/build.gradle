@@ -108,15 +108,24 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        // The Play upload key. Its file and passwords live outside the repo, in
+        // ~/.gradle/gradle.properties (TURFR_UPLOAD_*); without them a release
+        // build falls back to the debug key, which Play refuses.
+        if (findProperty('TURFR_UPLOAD_STORE_FILE')) {
+            release {
+                storeFile file(findProperty('TURFR_UPLOAD_STORE_FILE'))
+                storePassword findProperty('TURFR_UPLOAD_STORE_PASSWORD')
+                keyAlias findProperty('TURFR_UPLOAD_KEY_ALIAS')
+                keyPassword findProperty('TURFR_UPLOAD_KEY_PASSWORD')
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig findProperty('TURFR_UPLOAD_STORE_FILE') ? signingConfigs.release : signingConfigs.debug
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
