@@ -118,6 +118,11 @@ describe('TRUST_PROXY parsing (R4)', () => {
     expect(parseTrustProxy('10.0.0.0/8, 192.168.1.4')).toEqual(['10.0.0.0/8', '192.168.1.4']);
   });
 
+  it('accepts a hop count for hosts whose proxy addresses are not published (Railway)', () => {
+    expect(parseTrustProxy('1')).toBe(1);
+    expect(parseTrustProxy(' 2 ')).toBe(2);
+  });
+
   it('uses the forwarded client address for request.ip only when a proxy is trusted', async () => {
     const previous = process.env.TRUST_PROXY;
     try {
@@ -137,6 +142,27 @@ describe('TRUST_PROXY parsing (R4)', () => {
         seen.push((response.json() as { ip: string }).ip);
       }
       expect(seen).toEqual(['127.0.0.1', '203.0.113.9']);
+    } finally {
+      if (previous === undefined) delete process.env.TRUST_PROXY;
+      else process.env.TRUST_PROXY = previous;
+    }
+  });
+
+  it('with one trusted hop, a client cannot pick its IP by sending the header itself', async () => {
+    const previous = process.env.TRUST_PROXY;
+    try {
+      process.env.TRUST_PROXY = '1';
+      const app = buildApp();
+      apps.push(app);
+      app.get('/whoami', async (request) => ({ ip: request.ip }));
+      // The client forged 198.51.100.1; the proxy appended the real 203.0.113.9.
+      const response = await app.inject({
+        method: 'GET',
+        url: '/whoami',
+        remoteAddress: '10.0.0.5',
+        headers: { 'x-forwarded-for': '198.51.100.1, 203.0.113.9' }
+      });
+      expect((response.json() as { ip: string }).ip).toBe('203.0.113.9');
     } finally {
       if (previous === undefined) delete process.env.TRUST_PROXY;
       else process.env.TRUST_PROXY = previous;

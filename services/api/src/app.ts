@@ -89,13 +89,16 @@ export interface BuildAppOptions {
  * balancer's address, so one person's attempts throttle everyone. Off by
  * default, because trusting the header with no proxy in front lets any client
  * choose its own IP. Accepts `true` (trust every hop; only behind a proxy that
- * overwrites the header) or, preferably, a comma-separated list of proxy
- * addresses or CIDRs.
+ * overwrites the header), a comma-separated list of proxy addresses or CIDRs,
+ * or a hop count. A count suits hosts such as Railway whose edge addresses
+ * aren't published: `1` takes the address the one proxy in front added, so a
+ * client can't choose its own IP by sending the header itself.
  */
-export const parseTrustProxy = (value: string | undefined): boolean | string[] => {
+export const parseTrustProxy = (value: string | undefined): boolean | number | string[] => {
   const trimmed = value?.trim();
   if (!trimmed || trimmed === 'false') return false;
   if (trimmed === 'true') return true;
+  if (/^\d+$/.test(trimmed)) return Number(trimmed);
   return trimmed
     .split(',')
     .map((entry) => entry.trim())
@@ -121,7 +124,12 @@ export const buildApp = ({
   const config = configuredApiConfig(apiConfig);
   const database = db;
   const metrics = createMetrics();
-  const trustProxy = parseTrustProxy(process.env.TRUST_PROXY);
+  const parsedTrustProxy = parseTrustProxy(process.env.TRUST_PROXY);
+  // Fastify's types take a hop count as a function: trust the first `n` hops.
+  const trustProxy =
+    typeof parsedTrustProxy === 'number'
+      ? (_address: string, hop: number) => hop < parsedTrustProxy
+      : parsedTrustProxy;
   const app = loggerInstance
     ? Fastify({ loggerInstance, trustProxy })
     : Fastify({
