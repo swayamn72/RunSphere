@@ -38,7 +38,7 @@ const register = async () => {
     payload: {
       email: `xp-${randomUUID()}@example.test`,
       password: 'a-safe-pilot-password',
-      ageAssertion: true,
+      dateOfBirth: '1990-01-01',
       policyVersion: 'm2'
     }
   });

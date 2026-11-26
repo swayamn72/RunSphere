@@ -1,5 +1,6 @@
 import { Type, type Static } from '@sinclair/typebox';
 import { ActivityMetricsSchema } from './run-metrics.js';
+import { PrivacySettingsSchema } from './social-identity.js';
 
 const UuidSchema = Type.String({ format: 'uuid' });
 const Strict = { additionalProperties: false };
@@ -164,12 +165,19 @@ export const RegisterRequestSchema = Type.Object(
   {
     email: Type.String({ format: 'email', maxLength: 320 }),
     password: Type.String({ minLength: 12, maxLength: 256 }),
-    /** Legacy 18+ checkbox. New clients send `dateOfBirth` instead (ADR-0014). */
-    ageAssertion: Type.Optional(Type.Literal(true)),
-    /** `YYYY-MM-DD`. Used only for the 18+ check; never shown. */
-    dateOfBirth: Type.Optional(Type.String({ format: 'date' })),
+    /**
+     * `YYYY-MM-DD`. Used only for the 18+ check, then dropped (ADR-0014,
+     * migration 052). Required: the old self-declared `ageAssertion` checkbox
+     * was removed before launch because it skipped the check.
+     */
+    dateOfBirth: Type.String({ format: 'date' }),
     username: Type.Optional(Type.String({ minLength: 3, maxLength: 21 })),
     homeArea: Type.Optional(Type.String({ minLength: 1, maxLength: 60 })),
+    /**
+     * The version the app was built with. Kept for older builds; the server
+     * records its own current version, because the legal pages the sign-up
+     * screen links to are served live and always show that text.
+     */
     policyVersion: Type.String({ minLength: 1, maxLength: 64 })
   },
   { ...Strict, $id: 'RegisterRequest' }
@@ -358,19 +366,131 @@ export const SafetyShareReadResponseSchema = Type.Object(
   },
   { $id: 'SafetyShareReadResponse' }
 );
+const ExportTimeSchema = Type.String({ format: 'date-time' });
+const NullableExportTime = Type.Union([ExportTimeSchema, Type.Null()]);
+const NullableNumber = Type.Union([Type.Number(), Type.Null()]);
+
+/**
+ * "See and download your data" (privacy notice; DPDP Act s.11 right to a
+ * summary of the personal data held). One section per item the notice lists,
+ * so a reader can check the notice against what we actually hold. Runs are
+ * summaries: raw GPS points are deleted after 30 days, and `rawGpsKeptUntil`
+ * says when for the runs that still have them. Secrets (password hash, push
+ * tokens, sign-in codes) never appear.
+ */
 export const AccountExportResponseSchema = Type.Object(
   {
     status: Type.Literal('ready'),
-    generatedAt: Type.String({ format: 'date-time' }),
-    rawTraceAvailability: Type.Literal('available-within-retention-window'),
+    generatedAt: ExportTimeSchema,
     data: Type.Object(
       {
-        profile: Type.Object({
-          email: Type.String({ format: 'email' }),
-          activityVisibility: VisibilitySchema
-        }),
+        account: Type.Object(
+          {
+            email: Type.String({ format: 'email' }),
+            emailVerified: Type.Boolean(),
+            username: Type.String(),
+            displayName: Type.Union([Type.String(), Type.Null()]),
+            homeArea: Type.Union([Type.String(), Type.Null()]),
+            avatar: Type.Unknown(),
+            ageCheckedAt: ExportTimeSchema,
+            createdAt: ExportTimeSchema
+          },
+          Strict
+        ),
+        privacySettings: Type.Union([PrivacySettingsSchema, Type.Null()]),
         privacyZones: Type.Array(PrivacyZoneResponseSchema),
-        activities: Type.Array(Type.Object({ id: UuidSchema, rawTraceAvailable: Type.Boolean() }))
+        runs: Type.Array(
+          Type.Object(
+            {
+              id: UuidSchema,
+              recordedAt: ExportTimeSchema,
+              status: Type.String(),
+              runMode: Type.Union([Type.String(), Type.Null()]),
+              distanceMeters: NullableNumber,
+              durationSeconds: NullableNumber,
+              rawGpsKeptUntil: NullableExportTime
+            },
+            Strict
+          )
+        ),
+        turfClaims: Type.Array(
+          Type.Object(
+            {
+              id: UuidSchema,
+              runId: Type.Union([UuidSchema, Type.Null()]),
+              claimedAt: ExportTimeSchema,
+              areaSquareMeters: Type.Number(),
+              seasonMonth: Type.Union([Type.String(), Type.Null()]),
+              releasedAt: NullableExportTime
+            },
+            Strict
+          )
+        ),
+        xp: Type.Array(
+          Type.Object(
+            { source: Type.String(), amount: Type.Integer(), awardedAt: ExportTimeSchema },
+            Strict
+          )
+        ),
+        achievements: Type.Array(
+          Type.Object({ key: Type.String(), awardedAt: ExportTimeSchema }, Strict)
+        ),
+        friends: Type.Array(
+          Type.Object({ username: Type.String(), since: ExportTimeSchema }, Strict)
+        ),
+        blocked: Type.Array(
+          Type.Object({ username: Type.String(), since: ExportTimeSchema }, Strict)
+        ),
+        safetyContacts: Type.Array(
+          Type.Object(
+            { email: Type.String(), status: Type.String(), addedAt: ExportTimeSchema },
+            Strict
+          )
+        ),
+        reportsMade: Type.Array(
+          Type.Object(
+            {
+              about: Type.String(),
+              reason: Type.String(),
+              status: Type.String(),
+              madeAt: ExportTimeSchema
+            },
+            Strict
+          )
+        ),
+        notificationChoices: Type.Union([
+          Type.Object(
+            {
+              categories: Type.Unknown(),
+              channels: Type.Unknown(),
+              quietHours: Type.Unknown(),
+              newsEmails: Type.Boolean()
+            },
+            Strict
+          ),
+          Type.Null()
+        ]),
+        devices: Type.Array(
+          Type.Object(
+            {
+              platform: Type.String(),
+              addedAt: ExportTimeSchema,
+              lastSeenAt: NullableExportTime
+            },
+            Strict
+          )
+        ),
+        agreements: Type.Array(
+          Type.Object(
+            {
+              kind: Type.String(),
+              agreed: Type.Boolean(),
+              version: Type.String(),
+              recordedAt: ExportTimeSchema
+            },
+            Strict
+          )
+        )
       },
       Strict
     )

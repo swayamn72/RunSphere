@@ -49,7 +49,7 @@ export interface SocialIdentityRouteDeps {
   authSecret: string;
 }
 
-interface SettingsRow {
+export interface SettingsRow {
   profile_visibility: PrivacySettings['profileVisibility'];
   searchable: boolean;
   friend_requests_from: PrivacySettings['friendRequestsFrom'];
@@ -64,7 +64,7 @@ interface SettingsRow {
   reviewed_at: Date | null;
 }
 
-const settingsFrom = (row: SettingsRow): PrivacySettings => ({
+export const settingsFrom = (row: SettingsRow): PrivacySettings => ({
   profileVisibility: row.profile_visibility,
   searchable: row.searchable,
   friendRequestsFrom: row.friend_requests_from,

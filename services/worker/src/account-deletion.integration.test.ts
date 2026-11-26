@@ -34,7 +34,7 @@ const register = async (email: string) => {
   const response = await app.inject({
     method: 'POST',
     url: '/v1/auth/register',
-    payload: { email, password: PASSWORD, ageAssertion: true, policyVersion: 'm2' }
+    payload: { email, password: PASSWORD, dateOfBirth: '1990-01-01', policyVersion: 'm2' }
   });
   expect(response.statusCode).toBe(201);
   const session = response.json() as { accessToken: string; refreshToken: string };

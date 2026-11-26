@@ -19,6 +19,7 @@ import {
   isAdult,
   isHomeArea,
   kolkataDate,
+  LEGAL_POLICY_VERSION,
   normalizeUsername,
   usernameProblem,
   USERNAME_PROBLEM_MESSAGE
@@ -139,17 +140,12 @@ export const registerAuthRoutes = ({ routes, database, authSecret }: AuthRouteDe
       if (!database) return reply.code(503).send({ message: 'Service unavailable' });
       if (!allowAuthAttempt(`register:${request.ip}`))
         return reply.code(429).send({ message: 'Too many attempts' });
-      // ADR-0014: a date of birth is the 18+ check; the old checkbox is
-      // still accepted from clients that predate it. The date is checked here
-      // and then dropped: only the fact that one was given is stored
-      // (migration 052, DPDP data minimisation).
-      const { dateOfBirth, ageAssertion } = request.body;
-      if (dateOfBirth !== undefined) {
-        if (!isAdult(dateOfBirth, kolkataDate(new Date())))
-          return reply.code(400).send({ message: 'You need to be 18 or older to use TURFR.' });
-      } else if (ageAssertion !== true) {
-        return reply.code(400).send({ message: 'Add your date of birth to continue.' });
-      }
+      // ADR-0014: a date of birth is the 18+ check. It is checked here and
+      // then dropped: only the fact that one was given is stored (migration
+      // 052, DPDP data minimisation).
+      const { dateOfBirth } = request.body;
+      if (!isAdult(dateOfBirth, kolkataDate(new Date())))
+        return reply.code(400).send({ message: 'You need to be 18 or older to use TURFR.' });
       const username =
         request.body.username === undefined ? undefined : normalizeUsername(request.body.username);
       if (username !== undefined) {
@@ -173,16 +169,19 @@ export const registerAuthRoutes = ({ routes, database, authSecret }: AuthRouteDe
             [
               request.body.email.trim().toLowerCase(),
               passwordHash,
-              request.body.policyVersion,
+              LEGAL_POLICY_VERSION,
               username ?? null,
-              dateOfBirth !== undefined,
+              true,
               homeArea ?? null
             ]
           );
           const created = account.rows[0]!.id;
+          // The server's version, not the client's: the sign-up screen links
+          // to the live legal pages, which always show this text, and a
+          // client-supplied string could name text that never existed.
           await client.query(
             'INSERT INTO consent_history (account_id, consent_type, granted, policy_version) VALUES ($1, $2, true, $3)',
-            [created, 'age_assertion', request.body.policyVersion]
+            [created, 'age_assertion', LEGAL_POLICY_VERSION]
           );
           // New sign-ups get ADR-0014's defaults; the onboarding screen shows
           // and saves the choice.

@@ -151,10 +151,11 @@ describePostgis('sign-up with date of birth and username (ADR-0014)', () => {
     expect(check.json()).toMatchObject({ available: false });
   });
 
-  it('still accepts the legacy age checkbox and generates a username', async () => {
-    const legacy = await signUp({ ageAssertion: true });
-    expect(legacy.statusCode).toBe(201);
-    const token = (legacy.json() as { accessToken: string }).accessToken;
+  it('refuses the old age checkbox, and generates a username when none is picked', async () => {
+    expect((await signUp({ ageAssertion: true })).statusCode).toBe(400);
+    const unnamed = await signUp({ dateOfBirth: '1990-01-01' });
+    expect(unnamed.statusCode).toBe(201);
+    const token = (unnamed.json() as { accessToken: string }).accessToken;
     const identity = await app.inject({
       method: 'GET',
       url: '/v1/account/identity',

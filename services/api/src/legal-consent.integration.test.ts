@@ -10,6 +10,7 @@ import {
 import { LEGAL_POLICY_VERSION } from '@runsphere/domain';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
+import { issueSession } from './auth.js';
 
 /**
  * M9 9.26 against real PostgreSQL: a runner who agreed to older legal text is
@@ -58,7 +59,22 @@ const signUp = async (policyVersion: string) => {
 
 describePostgis('agreeing to updated legal text (M9 9.26)', () => {
   it('asks a runner who agreed to older text, and records their agreement once', async () => {
-    const headers = await signUp('2026-11-22-draft');
+    // Sign-up records the server's current text, so an account that signed
+    // up under older text is made directly, as one from before the change.
+    const created = await db.query<{ id: string }>(
+      `INSERT INTO accounts (email, password_hash, age_asserted_at, age_policy_version)
+       VALUES ($1, 'not-a-real-hash', now(), '2026-11-22-draft') RETURNING id`,
+      [`consent-${randomUUID()}@example.test`]
+    );
+    const id = created.rows[0]!.id;
+    accounts.push(id);
+    await db.query(
+      `INSERT INTO consent_history (account_id, consent_type, granted, policy_version)
+       VALUES ($1, 'age_assertion', true, '2026-11-22-draft')`,
+      [id]
+    );
+    const session = await issueSession(db, id, 'legal-consent-integration-secret');
+    const headers = { authorization: `Bearer ${session.accessToken}` };
     const before = await app.inject({ method: 'GET', url: '/v1/legal/consent', headers });
     expect(before.json()).toEqual({
       currentVersion: LEGAL_POLICY_VERSION,
@@ -94,6 +110,15 @@ describePostgis('agreeing to updated legal text (M9 9.26)', () => {
     const headers = await signUp(LEGAL_POLICY_VERSION);
     const status = await app.inject({ method: 'GET', url: '/v1/legal/consent', headers });
     expect(status.json()).toMatchObject({ needsAcceptance: false });
+  });
+
+  it('records the text in force at sign-up, whatever version an old app sends', async () => {
+    const headers = await signUp('an-old-build');
+    const status = await app.inject({ method: 'GET', url: '/v1/legal/consent', headers });
+    expect(status.json()).toMatchObject({
+      acceptedVersion: LEGAL_POLICY_VERSION,
+      needsAcceptance: false
+    });
   });
 });
 

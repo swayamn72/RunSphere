@@ -31,7 +31,7 @@ describe('mobile API auth client', () => {
       client.register({
         email: 'maya@example.com',
         password: 'long-enough-password',
-        ageAssertion: true,
+        dateOfBirth: '1990-01-01',
         policyVersion: 'm1'
       })
     ).resolves.toEqual(session);
@@ -49,7 +49,7 @@ describe('mobile API auth client', () => {
       client.register({
         email: 'maya@example.com',
         password: 'long-enough-password',
-        ageAssertion: true,
+        dateOfBirth: '1990-01-01',
         policyVersion: 'm1'
       })
     ).rejects.toMatchObject({

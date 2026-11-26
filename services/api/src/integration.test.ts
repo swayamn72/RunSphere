@@ -43,7 +43,7 @@ describePostgis('M1 PostGIS activity flow', () => {
       payload: {
         email: `pilot-${randomUUID()}-${Date.now()}@example.test`,
         password: 'a-safe-pilot-password',
-        ageAssertion: true,
+        dateOfBirth: '1990-01-01',
         policyVersion: 'm1'
       }
     });
@@ -199,7 +199,7 @@ describePostgis('M1 PostGIS activity flow', () => {
       payload: {
         email: `governance-${randomUUID()}@example.test`,
         password: 'a-safe-pilot-password',
-        ageAssertion: true,
+        dateOfBirth: '1990-01-01',
         policyVersion: 'm2'
       }
     });
@@ -235,7 +235,7 @@ describePostgis('M1 PostGIS activity flow', () => {
         payload: {
           email,
           password: 'a-safe-pilot-password',
-          ageAssertion: true,
+          dateOfBirth: '1990-01-01',
           policyVersion: 'm2'
         }
       });
@@ -357,7 +357,7 @@ describePostgis('M1 PostGIS activity flow', () => {
         payload: {
           email,
           password: 'a-safe-pilot-password',
-          ageAssertion: true,
+          dateOfBirth: '1990-01-01',
           policyVersion: 'm2'
         }
       });
@@ -540,7 +540,7 @@ describePostgis('run verification', () => {
       payload: {
         email: `verify-${randomUUID()}-${Date.now()}@example.test`,
         password: 'a-safe-pilot-password',
-        ageAssertion: true,
+        dateOfBirth: '1990-01-01',
         policyVersion: 'm1'
       }
     });
