@@ -114,16 +114,28 @@ export interface LegalContact {
   operatorName?: string;
   grievanceOfficerName?: string;
   grievanceOfficerEmail?: string;
+  /** Named in the privacy notice's "Who processes data for us" (DPDP s.8(2)). */
+  hostingProvider?: string;
+  emailProvider?: string;
+  /** The courts named in the terms' "Law and disputes", e.g. "the courts at Mumbai". */
+  courts?: string;
 }
+
+const LEGAL_CONTACT_ENV: Readonly<Record<keyof LegalContact, string>> = {
+  operatorName: 'LEGAL_OPERATOR_NAME',
+  grievanceOfficerName: 'GRIEVANCE_OFFICER_NAME',
+  grievanceOfficerEmail: 'GRIEVANCE_OFFICER_EMAIL',
+  hostingProvider: 'LEGAL_HOSTING_PROVIDER',
+  emailProvider: 'LEGAL_EMAIL_PROVIDER',
+  courts: 'LEGAL_COURTS'
+};
 
 const legalContactFrom = (environment: NodeJS.ProcessEnv): LegalContact | undefined => {
   const contact: LegalContact = {};
-  const operatorName = environment.LEGAL_OPERATOR_NAME?.trim();
-  const grievanceOfficerName = environment.GRIEVANCE_OFFICER_NAME?.trim();
-  const grievanceOfficerEmail = environment.GRIEVANCE_OFFICER_EMAIL?.trim();
-  if (operatorName) contact.operatorName = operatorName;
-  if (grievanceOfficerName) contact.grievanceOfficerName = grievanceOfficerName;
-  if (grievanceOfficerEmail) contact.grievanceOfficerEmail = grievanceOfficerEmail;
+  for (const [field, name] of Object.entries(LEGAL_CONTACT_ENV) as [keyof LegalContact, string][]) {
+    const value = environment[name]?.trim();
+    if (value) contact[field] = value;
+  }
   return Object.keys(contact).length > 0 ? contact : undefined;
 };
 

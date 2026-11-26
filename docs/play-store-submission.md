@@ -140,7 +140,11 @@ declaration. Check the final list with `./gradlew :app:processDebugMainManifest`
 
 - [ ] Lawyer has approved the legal text, `LEGAL_POLICY_VERSION` no longer ends in `-draft`, and the
       draft banner is gone (C.7).
-- [ ] `LEGAL_OPERATOR_NAME`, `GRIEVANCE_OFFICER_NAME` and `GRIEVANCE_OFFICER_EMAIL` are set on the API.
+- [ ] `LEGAL_OPERATOR_NAME`, `GRIEVANCE_OFFICER_NAME`, `GRIEVANCE_OFFICER_EMAIL`,
+      `LEGAL_HOSTING_PROVIDER`, `LEGAL_EMAIL_PROVIDER` and `LEGAL_COURTS` are set on the API (no page
+      says "to be named").
+- [ ] Email is set up in production (`EMAIL_*`, `APP_BASE_URL`): `/account/delete` works by emailing
+      a link, so without it the web deletion path does nothing. Test it end to end.
 - [ ] The privacy policy URL opens over HTTPS from a phone.
 - [ ] The foreground-service video is recorded on a device (C.3 is not field-tested until then).
 - [ ] The reviewer account works and has a verified email.

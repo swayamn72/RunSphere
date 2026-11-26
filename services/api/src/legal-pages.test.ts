@@ -38,6 +38,27 @@ describe('legal pages', () => {
     expect(privacy).toContain('at least 500 m across');
     expect(privacy).toContain('Data Protection Board of India');
     expect(privacy).toContain('href="/account/delete"');
+    // The app's own labels, so a runner can follow the steps.
+    expect(privacy).toContain('tap Delete run');
+    expect(privacy).toContain('Data and account → Export');
+    expect(privacy).toContain('friend board');
+    expect(privacy).toContain('Ghost Races');
+  });
+
+  it('names the processors and the courts from config', async () => {
+    const config = {
+      config: {
+        legalContact: {
+          hostingProvider: 'Example Cloud',
+          emailProvider: 'Example Mail',
+          courts: 'the courts at Mumbai'
+        }
+      }
+    };
+    const privacy = (await get('/privacy', config)).body;
+    expect(privacy).toContain('Example Cloud');
+    expect(privacy).toContain('Example Mail');
+    expect((await get('/terms', config)).body).toContain('Disputes go to the courts at Mumbai.');
   });
 
   it('names the grievance officer from config, escaped', async () => {

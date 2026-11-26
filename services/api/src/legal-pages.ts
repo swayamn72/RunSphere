@@ -23,6 +23,8 @@ const escapeHtml = (value: string): string =>
 
 const TO_BE_NAMED = '[to be named before launch]';
 
+const named = (value: string | undefined): string => escapeHtml(value ?? TO_BE_NAMED);
+
 const contactBlock = (contact: LegalContact): string => {
   const operator = escapeHtml(contact.operatorName ?? TO_BE_NAMED);
   const officer = escapeHtml(contact.grievanceOfficerName ?? TO_BE_NAMED);
@@ -85,6 +87,10 @@ of a run near your privacy zones are always cut before anyone else sees it. Runs
 are never shown.</li>
 <li>Your claimed ground appears on the Turf map, with your name unless you turn that off in
 the same privacy settings.</li>
+<li>Your friends see your weekly totals on their friend board. Turn off Friend board in the same
+privacy settings to leave it.</li>
+<li>Other runners can race a trimmed copy of a loop you ran (Ghost Races). It never shows where you
+started. Turn off Allow Ghost Races on my loops in the same privacy settings.</li>
 <li>Global leaderboards are off until you turn them on, and show only scores.</li>
 <li>Club members see club results, never your route or location.</li>
 <li>If you share a run with a safety contact, they see a rough area (at least 500 m across), at
@@ -94,7 +100,8 @@ emergency service.</li>
 
 <h2>Who processes data for us</h2>
 <p>We use service providers who process data only on our instructions: our hosting provider
-${TO_BE_NAMED}, our email delivery provider ${TO_BE_NAMED}, and Google Firebase Cloud Messaging for
+${named(contact.hostingProvider)}, our email delivery provider
+${named(contact.emailProvider)}, and Google Firebase Cloud Messaging for
 push notifications (which receives a device token and a notification id, never your location). Map
 images load straight from OpenFreeMap, which sees your IP address and the part of the map you are
 looking at. We share data with authorities only when Indian law requires it.</p>
@@ -112,10 +119,12 @@ that no longer identify you.</li>
 
 <h2>Your choices and rights</h2>
 <ul>
-<li><strong>See and download your data:</strong> Profile → Settings → Data → Export your data.</li>
+<li><strong>See and download your data:</strong> Profile → Settings → Data and account → Export
+your data. It covers your account, settings, privacy zones, runs, ground, XP, badges, friends,
+blocks, safety contacts, reports you made, notification choices and what you agreed to.</li>
 <li><strong>Correct it:</strong> edit your profile, username and settings in the app.</li>
-<li><strong>Delete it:</strong> open a run and tap Delete activity to delete that run, or delete
-your whole account in the app (Profile → Settings → Data → Delete account) or at
+<li><strong>Delete it:</strong> open a run and tap Delete run to delete that run, or delete
+your whole account in the app (Profile → Settings → Data and account → Delete account) or at
 <a href="/account/delete">/account/delete</a>, which erases all your runs too.</li>
 <li><strong>Withdraw consent:</strong> turn off location for TURFR in Android settings (you can
 still browse), turn off leaderboards, safety sharing and news emails in the app, or delete your
@@ -179,7 +188,7 @@ indirect losses from using the app. Nothing here limits rights you have under In
 law.</p>
 
 <h2>Law and disputes</h2>
-<p>These terms are governed by the laws of India. ${TO_BE_NAMED}: courts with jurisdiction.</p>
+<p>These terms are governed by the laws of India. Disputes go to ${named(contact.courts)}.</p>
 ${contactBlock(contact)}`;
 
 const guidelinesBody = (contact: LegalContact): string => `${draftBanner}

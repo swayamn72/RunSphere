@@ -8,7 +8,9 @@
  * (C.7); the pages show a draft banner while it is there.
  */
 // 2026-11-22b: others may see your runs and routes per your settings (M9 9.26, ADR-0015).
-export const LEGAL_POLICY_VERSION = '2026-11-22b-draft';
+// 2026-11-26: friend board and Ghost Races named, what the export covers, processors and
+// courts from config, app labels corrected.
+export const LEGAL_POLICY_VERSION = '2026-11-26-draft';
 
 export const LEGAL_PAGES = {
   privacy: '/privacy',
