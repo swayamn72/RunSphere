@@ -4,8 +4,14 @@ import { PrivacyZoneList } from './PrivacyZoneList';
 import { SharedWithYou } from './SharedWithYou';
 import { PrivacySettingsScreen } from './PrivacySettingsScreen';
 import { legalLinks } from './legal-model';
+import {
+  EXPORT_FAILED,
+  EXPORT_FAILED_TITLE,
+  EXPORT_SHARE_TITLE,
+  exportShareText
+} from './data-export-model';
 import { AccountRecoveryScreen } from './AccountRecoveryScreen';
-import { Alert, Linking, Pressable, Switch, View } from 'react-native';
+import { Alert, Linking, Pressable, Share, Switch, View } from 'react-native';
 import { BottomSheet } from '../components/BottomSheet';
 import { Text, TextInput } from '../components/Text';
 import * as Location from 'expo-location';
@@ -295,12 +301,9 @@ export function ProfileScreen({
   const requestExport = async () => {
     try {
       const exportResult = await api.exportAccount();
-      Alert.alert(
-        'Export ready',
-        `Generated ${new Date(exportResult.generatedAt).toLocaleString()}. Raw traces are ${exportResult.rawTraceAvailability.replaceAll('-', ' ')}.`
-      );
+      await Share.share({ title: EXPORT_SHARE_TITLE, message: exportShareText(exportResult) });
     } catch (error) {
-      Alert.alert('Export unavailable', failureMessage(error, 'Try again when connected.'));
+      Alert.alert(EXPORT_FAILED_TITLE, failureMessage(error, EXPORT_FAILED));
     }
   };
   if (screen === 'delete-account')
@@ -516,7 +519,7 @@ export function ProfileScreen({
       <SettingsGroup title="Data and account">
         <Setting
           label="Export your data"
-          value="Generate a private copy"
+          value="Save or send yourself a copy"
           onPress={() => void requestExport()}
         />
         <Setting label="Log out" value="Clear this phone" onPress={confirmLogout} />

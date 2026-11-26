@@ -95,4 +95,35 @@ describe('Who sees your runs? (M9 9.27)', () => {
     expect(api.savePrivacySettings).not.toHaveBeenCalled();
     expect(texts(renderer).some((line) => /try again/.test(line))).toBe(true);
   });
+
+  it('asks only for agreement when the text changed after runs were visible', async () => {
+    const api = {
+      getLegalConsent: vi.fn(),
+      getPrivacySettings: vi.fn(async () => ({ runsVisibility: 'everyone' })),
+      savePrivacySettings: vi.fn(),
+      acceptLegalPolicy: vi.fn(async () => ({ needsAcceptance: false })),
+      legalPageUrl: (page: string) => `https://example.test/${page}`
+    };
+    const onDone = vi.fn();
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        <RunsSharingPrompt api={api as never} kind="updated" onDone={onDone} onSignOut={vi.fn()} />
+      );
+    });
+    expect(texts(renderer)).toContain('We updated our terms');
+    expect(texts(renderer)).not.toContain('Who sees your runs?');
+    expect(texts(renderer)).toContain('Terms of use');
+    expect(renderer.root.findAll((node) => node.props.accessibilityRole === 'radio')).toHaveLength(
+      0
+    );
+    await act(async () => {
+      await renderer.root
+        .find((node) => (node.type as unknown) === 'PrimaryButton')
+        .props.onPress();
+    });
+    expect(api.savePrivacySettings).not.toHaveBeenCalled();
+    expect(api.acceptLegalPolicy).toHaveBeenCalledWith(LEGAL_POLICY_VERSION);
+    expect(onDone).toHaveBeenCalled();
+  });
 });

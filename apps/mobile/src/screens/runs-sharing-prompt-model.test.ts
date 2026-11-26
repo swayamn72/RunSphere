@@ -4,25 +4,36 @@ import {
   RUNS_PROMPT_LINES,
   agreeToRunsSharing,
   initialRunsAudience,
-  needsRunsPrompt
+  legalPromptFor,
+  needsLegalPrompt
 } from './runs-sharing-prompt-model.js';
 
 describe('who sees your runs prompt (M9 9.27)', () => {
   it('shows only when the runner agreed to older legal text, and never blocks when unknown', async () => {
     const status = (needsAcceptance: boolean) => ({
-      currentVersion: 'b',
-      acceptedVersion: 'a',
+      currentVersion: '2026-12-01',
+      acceptedVersion: '2026-11-22-draft',
       needsAcceptance
     });
-    expect(await needsRunsPrompt({ getLegalConsent: async () => status(true) })).toBe(true);
-    expect(await needsRunsPrompt({ getLegalConsent: async () => status(false) })).toBe(false);
+    expect(await needsLegalPrompt({ getLegalConsent: async () => status(true) })).toBe('runs');
+    expect(await needsLegalPrompt({ getLegalConsent: async () => status(false) })).toBe('none');
     expect(
-      await needsRunsPrompt({
+      await needsLegalPrompt({
         getLegalConsent: async () => {
           throw new Error('offline');
         }
       })
-    ).toBe(false);
+    ).toBe('none');
+  });
+
+  it('asks who sees your runs only of runners who agreed before runs were visible', () => {
+    const agreed = (acceptedVersion: string | null) =>
+      legalPromptFor({ currentVersion: '2026-12-01', acceptedVersion, needsAcceptance: true });
+    expect(agreed(null)).toBe('runs');
+    expect(agreed('m2')).toBe('runs');
+    expect(agreed('2026-11-22-draft')).toBe('runs');
+    expect(agreed('2026-11-22b-draft')).toBe('updated');
+    expect(agreed('2026-11-26-draft')).toBe('updated');
   });
 
   it('starts on the runner’s own setting, or Friends', () => {

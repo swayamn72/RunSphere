@@ -25,6 +25,10 @@ export const legalLinks = (urlFor: (page: LegalPage) => string | undefined): Leg
     return url ? [{ ...link, url }] : [];
   });
 
-/** The line under the sign-up button, above the three links. */
+/**
+ * The sign-up checkbox, above Create account, with the three links under it.
+ * Ticking it is the runner's clear yes (DPDP s.6), rather than agreement
+ * implied by tapping the button.
+ */
 export const SIGN_UP_AGREEMENT =
-  'Creating an account means you accept the terms and community guidelines. The privacy notice says what we keep and why.';
+  'I agree to the terms of use and community guidelines, and I’ve read the privacy notice.';

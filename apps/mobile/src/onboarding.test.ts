@@ -20,7 +20,8 @@ describe('onboarding state machine', () => {
       username: '@Maya_Runs',
       birthDay: '5',
       birthMonth: '3',
-      birthYear: '1996'
+      birthYear: '1996',
+      acceptedLegal: true
     };
     expect(canSubmitAccount(account, '2026-11-21')).toBe(true);
     expect(dateOfBirthFrom(account)).toBe('1996-03-05');
@@ -30,6 +31,26 @@ describe('onboarding state machine', () => {
     expect(accountProblem(minor, '2026-11-21')).toMatch(/18 or older/);
     expect(accountProblem({ ...account, username: '9lives' }, '2026-11-21')).toMatch(/Usernames/);
     expect(accountProblem({ ...account, birthDay: '' }, '2026-11-21')).toMatch(/date of birth/);
+  });
+
+  it('keeps Create account off until the runner ticks the terms box', () => {
+    const filled = {
+      ...initialOnboardingState,
+      step: 'account' as const,
+      name: 'Maya',
+      email: 'maya@example.com',
+      password: 'long-enough-password',
+      username: 'maya',
+      birthDay: '5',
+      birthMonth: '3',
+      birthYear: '1996'
+    };
+    expect(filled.acceptedLegal).toBe(false);
+    expect(accountProblem(filled, '2026-11-21')).toMatch(/agree to the terms/);
+    const ticked = onboardingReducer(filled, { type: 'setAcceptedLegal', value: true });
+    expect(canSubmitAccount(ticked, '2026-11-21')).toBe(true);
+    const unticked = onboardingReducer(ticked, { type: 'setAcceptedLegal', value: false });
+    expect(canSubmitAccount(unticked, '2026-11-21')).toBe(false);
   });
 
   it('adds the Who can see you step after sign-up, but not after sign-in', () => {

@@ -24,18 +24,53 @@ export const RUNS_PROMPT_LINES: readonly string[] = [
 export const RUNS_PROMPT_AGREE = 'Agree and continue';
 export const RUNS_PROMPT_NOTE = 'By continuing you agree to the updated privacy notice and terms.';
 
+/**
+ * Any later change to the legal text (C.7 onwards) gets this plain version:
+ * the runner already chose who sees their runs, so asking again would be
+ * news that isn't news. The links let them read what changed.
+ */
+export const UPDATED_PROMPT_TITLE = 'We updated our terms';
+export const UPDATED_PROMPT_LINES: readonly string[] = [
+  'Our privacy notice, terms of use or community guidelines have changed.',
+  'Have a look, then agree to keep running with TURFR.'
+];
+export const UPDATED_PROMPT_NOTE =
+  'By continuing you agree to the updated privacy notice, terms and community guidelines.';
+
+/**
+ * The first text under which others could see your runs (ADR-0015). Versions
+ * are `YYYY-MM-DD` plus an optional letter and `-draft`, so they sort as
+ * text: `2026-11-22-draft` comes before it, `2026-11-22b-draft` and later
+ * dates after.
+ */
+export const RUNS_ON_PROFILES_VERSION = '2026-11-22b';
+
+export type LegalPrompt = 'none' | 'runs' | 'updated';
+
+/** Which prompt an agreed version needs, when the current text differs. */
+export const legalPromptFor = (status: LegalConsentStatus): LegalPrompt => {
+  if (!status.needsAcceptance) return 'none';
+  const accepted = status.acceptedVersion;
+  const sawRuns =
+    accepted !== null &&
+    /^\d{4}-\d{2}-\d{2}/.test(accepted) &&
+    accepted >= RUNS_ON_PROFILES_VERSION;
+  return sawRuns ? 'updated' : 'runs';
+};
+
 export type PromptApi = Pick<
   MobileApiClient,
   'getLegalConsent' | 'acceptLegalPolicy' | 'getPrivacySettings' | 'savePrivacySettings'
 >;
 
-/** Whether to show the prompt. Unknown (offline, server down) never blocks the app. */
-export const needsRunsPrompt = async (api: Pick<PromptApi, 'getLegalConsent'>) => {
+/** Which prompt to show, if any. Unknown (offline, server down) never blocks the app. */
+export const needsLegalPrompt = async (
+  api: Pick<PromptApi, 'getLegalConsent'>
+): Promise<LegalPrompt> => {
   try {
-    const status: LegalConsentStatus = await api.getLegalConsent();
-    return status.needsAcceptance;
+    return legalPromptFor(await api.getLegalConsent());
   } catch {
-    return false;
+    return 'none';
   }
 };
 

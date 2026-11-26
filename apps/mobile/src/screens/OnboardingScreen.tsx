@@ -308,6 +308,33 @@ export function Onboarding({
                   <Text style={styles.textButton}>Forgot password?</Text>
                 </Pressable>
               )}
+              {state.accountMode === 'register' && (
+                <>
+                  <Pressable
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: state.acceptedLegal }}
+                    accessibilityLabel={SIGN_UP_AGREEMENT}
+                    onPress={() =>
+                      dispatch({ type: 'setAcceptedLegal', value: !state.acceptedLegal })
+                    }
+                    style={styles.checkRow}
+                  >
+                    <View style={[styles.checkbox, state.acceptedLegal && styles.checkboxChecked]}>
+                      {state.acceptedLegal ? <Text style={styles.checkMark}>✓</Text> : null}
+                    </View>
+                    <Text style={styles.checkCopy}>{SIGN_UP_AGREEMENT}</Text>
+                  </Pressable>
+                  {legal.map((link) => (
+                    <Pressable
+                      key={link.page}
+                      accessibilityRole="link"
+                      onPress={() => void Linking.openURL(link.url)}
+                    >
+                      <Text style={styles.textButton}>{link.label}</Text>
+                    </Pressable>
+                  ))}
+                </>
+              )}
               <PrimaryButton
                 label={
                   authStatus === 'loading'
@@ -321,20 +348,6 @@ export function Onboarding({
                 disabled={!canSubmitAccount(state) || authStatus === 'loading'}
                 onPress={() => void authenticate()}
               />
-              {state.accountMode === 'register' && legal.length >= 2 && (
-                <>
-                  <Text style={styles.rowDetail}>{SIGN_UP_AGREEMENT}</Text>
-                  {legal.map((link) => (
-                    <Pressable
-                      key={link.page}
-                      accessibilityRole="link"
-                      onPress={() => void Linking.openURL(link.url)}
-                    >
-                      <Text style={styles.textButton}>{link.label}</Text>
-                    </Pressable>
-                  ))}
-                </>
-              )}
               <Pressable
                 accessibilityRole="button"
                 disabled={authStatus === 'loading'}

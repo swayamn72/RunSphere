@@ -52,7 +52,7 @@ import { InviteAcceptSheet } from './src/screens/InviteAcceptSheet';
 import { RunsSharingPrompt } from './src/screens/RunsSharingPrompt';
 import { RunDetailProvider } from './src/screens/RunDetailHost';
 import { RunDetailScreen } from './src/screens/RunDetailScreen';
-import { needsRunsPrompt } from './src/screens/runs-sharing-prompt-model';
+import { needsLegalPrompt, type LegalPrompt } from './src/screens/runs-sharing-prompt-model';
 import { PrimaryButton } from './src/components/primitives';
 import { createAppStyles, useAppStyles } from './src/components/styles';
 import { darkTokens } from '@runsphere/ui';
@@ -346,17 +346,19 @@ function RunSphereApp() {
       ...(accountId ? { recorder: { clear: () => activityRecorder.clearAccount(accountId) } } : {})
     }).then(finishSession);
   }, [accountId, finishSession]);
-  // "Who sees your runs?" (M9 9.27): once per account, when the legal text it
-  // agreed to predates runs being visible. Unknown never blocks the app.
-  const [runsPrompt, setRunsPrompt] = useState(false);
+  // Agreeing to changed legal text: "Who sees your runs?" (M9 9.27) when the
+  // text the account agreed to predates runs being visible, otherwise "We
+  // updated our terms". Unknown never blocks the app.
+  const [legalPrompt, setLegalPrompt] = useState<LegalPrompt>('none');
+  const runsPrompt = legalPrompt !== 'none';
   useEffect(() => {
     if (onboarding.step !== 'complete' || !accountId) {
-      setRunsPrompt(false);
+      setLegalPrompt('none');
       return;
     }
     let active = true;
-    void needsRunsPrompt(apiClient).then((needed) => {
-      if (active) setRunsPrompt(needed);
+    void needsLegalPrompt(apiClient).then((needed) => {
+      if (active) setLegalPrompt(needed);
     });
     return () => {
       active = false;
@@ -423,13 +425,14 @@ function RunSphereApp() {
         </FocusedScrollShell>
       </SafeAreaView>
     );
-  if (onboarding.step === 'complete' && accountId && runsPrompt)
+  if (onboarding.step === 'complete' && accountId && legalPrompt !== 'none')
     return (
       <SafeAreaView style={styles.screen}>
         <FocusedScrollShell>
           <RunsSharingPrompt
             api={apiClient}
-            onDone={() => setRunsPrompt(false)}
+            kind={legalPrompt}
+            onDone={() => setLegalPrompt('none')}
             onSignOut={expireSession}
           />
         </FocusedScrollShell>

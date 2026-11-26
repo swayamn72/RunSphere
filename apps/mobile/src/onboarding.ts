@@ -21,6 +21,12 @@ export interface OnboardingState {
   birthDay: string;
   birthMonth: string;
   birthYear: string;
+  /**
+   * The sign-up checkbox: the runner ticked that they agree to the terms and
+   * community guidelines and have read the privacy notice. Create account
+   * stays off until it's ticked, so agreeing is a clear action (DPDP s.6).
+   */
+  acceptedLegal: boolean;
   hideStartFinish: boolean;
   visibility: 'private';
   location: LocationStatus;
@@ -36,6 +42,7 @@ export const initialOnboardingState: OnboardingState = {
   birthDay: '',
   birthMonth: '',
   birthYear: '',
+  acceptedLegal: false,
   hideStartFinish: false,
   visibility: 'private',
   location: 'idle'
@@ -53,6 +60,7 @@ export type OnboardingAction =
       birthMonth?: string;
       birthYear?: string;
     }
+  | { type: 'setAcceptedLegal'; value: boolean }
   | { type: 'socialDone' }
   | { type: 'authenticationSucceeded' }
   | { type: 'restoreSession' }
@@ -96,6 +104,8 @@ export const accountProblem = (
   }
   if (!hasValidEmail(state.email)) return 'Add your email.';
   if (!hasValidPassword(state.password)) return 'Passwords need at least 12 characters.';
+  if (state.accountMode === 'register' && !state.acceptedLegal)
+    return 'Tick the box to agree to the terms.';
   return undefined;
 };
 
@@ -122,6 +132,8 @@ export const onboardingReducer = (
       };
     case 'authenticationSucceeded':
       return { ...state, step: state.accountMode === 'register' ? 'social' : 'privacy' };
+    case 'setAcceptedLegal':
+      return { ...state, acceptedLegal: action.value };
     case 'socialDone':
       return { ...state, step: 'privacy' };
     case 'restoreSession':

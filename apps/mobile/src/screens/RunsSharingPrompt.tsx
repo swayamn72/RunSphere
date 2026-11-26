@@ -12,21 +12,31 @@ import {
   RUNS_PROMPT_LINES,
   RUNS_PROMPT_NOTE,
   RUNS_PROMPT_TITLE,
+  UPDATED_PROMPT_LINES,
+  UPDATED_PROMPT_NOTE,
+  UPDATED_PROMPT_TITLE,
   agreeToRunsSharing,
   initialRunsAudience,
   type PromptApi
 } from './runs-sharing-prompt-model';
 
-/** The one-time "Who sees your runs?" step (M9 9.27); see `runs-sharing-prompt-model.ts`. */
+/**
+ * Agreeing to changed legal text: the one-time "Who sees your runs?" step
+ * (M9 9.27) for runners who agreed before runs were visible, otherwise a
+ * plain "We updated our terms". See `runs-sharing-prompt-model.ts`.
+ */
 export function RunsSharingPrompt({
   api,
+  kind = 'runs',
   onDone,
   onSignOut
 }: {
   api: PromptApi & Pick<MobileApiClient, 'legalPageUrl'>;
+  kind?: 'runs' | 'updated';
   onDone: () => void;
   onSignOut: () => void;
 }) {
+  const runs = kind === 'runs';
   const styles = useAppStyles();
   const [current, setCurrent] = useState<Audience>('friends');
   const [chosen, setChosen] = useState<Audience>('friends');
@@ -61,35 +71,37 @@ export function RunsSharingPrompt({
 
   return (
     <View accessibilityViewIsModal>
-      <Text style={styles.eyebrow}>NEW: RUNS ON PROFILES</Text>
+      {runs && <Text style={styles.eyebrow}>NEW: RUNS ON PROFILES</Text>}
       <Text accessibilityRole="header" style={styles.onboardingTitle}>
-        {RUNS_PROMPT_TITLE}
+        {runs ? RUNS_PROMPT_TITLE : UPDATED_PROMPT_TITLE}
       </Text>
-      {RUNS_PROMPT_LINES.map((line) => (
+      {(runs ? RUNS_PROMPT_LINES : UPDATED_PROMPT_LINES).map((line) => (
         <Text key={line} style={styles.lead}>
           {line}
         </Text>
       ))}
-      <View style={styles.segmented} accessibilityRole="radiogroup" accessibilityLabel="Runs">
-        {AUDIENCE_OPTIONS.map((option) => {
-          const active = option.value === chosen;
-          return (
-            <Pressable
-              key={option.value}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: active }}
-              accessibilityLabel={`Runs: ${option.label}`}
-              onPress={() => setChosen(option.value)}
-              style={[styles.segment, active && styles.segmentActive]}
-            >
-              <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
-                {option.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-      <Text style={styles.rowDetail}>{RUNS_HELP[chosen]}</Text>
+      {runs && (
+        <View style={styles.segmented} accessibilityRole="radiogroup" accessibilityLabel="Runs">
+          {AUDIENCE_OPTIONS.map((option) => {
+            const active = option.value === chosen;
+            return (
+              <Pressable
+                key={option.value}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={`Runs: ${option.label}`}
+                onPress={() => setChosen(option.value)}
+                style={[styles.segment, active && styles.segmentActive]}
+              >
+                <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+      {runs && <Text style={styles.rowDetail}>{RUNS_HELP[chosen]}</Text>}
       {notice !== '' && (
         <Text accessibilityLiveRegion="polite" style={styles.rowDetail}>
           {notice}
@@ -100,7 +112,7 @@ export function RunsSharingPrompt({
         disabled={busy}
         onPress={() => void agree()}
       />
-      <Text style={styles.rowDetail}>{RUNS_PROMPT_NOTE}</Text>
+      <Text style={styles.rowDetail}>{runs ? RUNS_PROMPT_NOTE : UPDATED_PROMPT_NOTE}</Text>
       {legal.map((link) => (
         <Pressable
           key={link.page}
