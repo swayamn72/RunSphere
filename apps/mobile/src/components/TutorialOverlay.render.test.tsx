@@ -115,7 +115,7 @@ describe('tour overlay (M9 9.23)', () => {
     await act(async () => {
       renderer = create(
         <TutorialOverlay
-          state={{ index: 2 }}
+          state={{ index: 4 }}
           onAction={vi.fn()}
           activeTab="Home"
           onShowTab={onShowTab}
@@ -123,9 +123,11 @@ describe('tour overlay (M9 9.23)', () => {
         />
       );
     });
-    expect(onShowTab).toHaveBeenCalledWith('Map');
-    expect(texts(renderer)).toContain(TOUR_STEPS[2]!.title);
-    await act(async () => registry.report('tab-map', { x: 80, y: 740, width: 80, height: 50 }));
+    expect(onShowTab).toHaveBeenCalledWith('Profile');
+    expect(texts(renderer)).toContain(TOUR_STEPS[4]!.title);
+    await act(async () =>
+      registry.report('tab-profile', { x: 300, y: 740, width: 80, height: 50 })
+    );
     expect(
       renderer.root
         .findAll((node) => (node.type as unknown) === 'Animated.View')

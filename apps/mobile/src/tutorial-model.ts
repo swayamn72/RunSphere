@@ -50,7 +50,9 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: 'map',
     targetId: 'tab-map',
-    tab: 'Map',
+    // The Map button is in the tab bar on every tab. Opening the map itself
+    // mid-tour stalled the step while the map loaded, for nothing the step shows.
+    tab: 'Home',
     title: 'Your ground',
     rhoLine: 'Close a loop on a Turf run and the ground inside is yours on the map.',
     placement: 'above'

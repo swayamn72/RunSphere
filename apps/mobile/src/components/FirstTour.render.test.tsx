@@ -134,7 +134,8 @@ describe('first tour after sign-up (M9 9.25)', () => {
       await press(renderer, index === TOUR_STEPS.length - 1 ? 'Done' : 'Next');
     }
 
-    expect(tabs).toEqual(['Map', 'Home', 'Profile']);
+    // Only the last step leaves Home: the map is never opened mid-tour.
+    expect(tabs).toEqual(['Profile']);
     // Android ignores accessibilityViewIsModal: each step moves TalkBack to the bubble.
     expect(a11y.focus).toHaveBeenCalledWith(42);
     expect(onFinished).toHaveBeenCalledTimes(1);

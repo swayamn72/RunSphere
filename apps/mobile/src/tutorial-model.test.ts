@@ -18,6 +18,10 @@ describe('guided tour (M9 9.21)', () => {
     expect(new Set(TOUR_STEPS.map((step) => step.id)).size).toBe(TOUR_STEPS.length);
   });
 
+  it('never opens the map: loading it stalled the step it was on', () => {
+    expect(TOUR_STEPS.some((step) => step.tab === 'Map')).toBe(false);
+  });
+
   it('moves next and back, and skip or the last Next ends it', () => {
     let state = tourReducer({ index: 0 }, 'back');
     expect(state).toEqual({ index: 0 });

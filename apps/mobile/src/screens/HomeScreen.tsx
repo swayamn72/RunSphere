@@ -386,7 +386,8 @@ export function HomeScreen({
       {dashboardPreviewEnabled && <Text style={styles.muted}>Sample dashboard data</Text>}
 
       {/* The thing a runner does next comes first (component plan 4.2). */}
-      <TutorialTarget id="home-start">
+      {/* The gap below sits outside the target, so the tour's ring hugs the button. */}
+      <TutorialTarget id="home-start" style={local.startSlot}>
         <HomeStartButton onPress={onStart} />
       </TutorialTarget>
 
@@ -609,6 +610,7 @@ function Unavailable({
 const createStyles = (t: ReturnType<typeof useAppTheme>['tokens']) =>
   StyleSheet.create({
     coachCard: { borderLeftColor: t.zone.owned, borderLeftWidth: 3, gap: space.md },
+    startSlot: { marginBottom: space.md },
     panel: {
       backgroundColor: t.background.paper,
       borderColor: t.border.paper,

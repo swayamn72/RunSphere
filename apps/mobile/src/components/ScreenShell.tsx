@@ -61,6 +61,10 @@ export function TabScrollShell({ children }: { children: React.ReactNode }) {
         // A settled scroll has moved every tour target on the tab (M9 9.22).
         onScrollEndDrag={tutorialTargets.requestMeasure}
         onMomentumScrollEnd={tutorialTargets.requestMeasure}
+        // Found on a device: cards that load after the tour measured (the profile
+        // prompt) push later targets down without firing their own onLayout, so
+        // the ring stayed on the old spot. Content changing size moves them.
+        onContentSizeChange={tutorialTargets.requestMeasure}
       >
         {children}
       </ScrollView>
