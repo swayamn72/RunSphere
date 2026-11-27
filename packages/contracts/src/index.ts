@@ -164,7 +164,7 @@ export const ErrorResponseSchema = Type.Object(
 export const RegisterRequestSchema = Type.Object(
   {
     email: Type.String({ format: 'email', maxLength: 320 }),
-    password: Type.String({ minLength: 12, maxLength: 256 }),
+    password: Type.String({ minLength: 8, maxLength: 256 }),
     /**
      * `YYYY-MM-DD`. Used only for the 18+ check, then dropped (ADR-0014,
      * migration 052). Required: the old self-declared `ageAssertion` checkbox
