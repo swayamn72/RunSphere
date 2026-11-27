@@ -126,6 +126,14 @@ The first closed-test bundle (versionCode 1, 2026-11-27) was built on Windows wi
 
    The bundle lands in `android/app/build/outputs/bundle/release/app-release.aab`.
 
+4. Release builds run R8 (shrinking and obfuscation, set by `withR8InReleaseBuilds` in
+   `app.config.ts`), so native crash traces in Play Console are obfuscated. Upload
+   `android/app/build/outputs/mapping/release/mapping.txt` with each bundle (App bundle explorer →
+   the version → Downloads → ReTrace mapping file). The file is different for every build. If a
+   release build crashes with `ClassNotFoundException` or `NoSuchMethodError` while a debug build
+   runs fine, R8 removed something that is only reached through reflection. Add a `-keep` rule to
+   `android/app/proguard-rules.pro`.
+
 **Why arm64 only:** on this checkout, reanimated's 32-bit (`armeabi-v7a`) native build fails with
 "build.ninja still dirty after 100 tries". One prefab path is 261 characters, and the ninja bundled
 with CMake 3.22.1 can't read paths over 260 even with Windows long paths on. Shorten the pnpm

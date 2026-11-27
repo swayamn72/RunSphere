@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
 import type { ExpoConfig } from 'expo/config';
-import { withInfoPlist, type ConfigPlugin } from 'expo/config-plugins';
+import { withGradleProperties, withInfoPlist, type ConfigPlugin } from 'expo/config-plugins';
 
 /**
  * Firebase's own config, which carries the sender id FCM addresses this
@@ -49,6 +49,29 @@ const withoutUnusedIosPurposeStrings: ConfigPlugin = (expoConfig) =>
   withInfoPlist(expoConfig, (modConfig) => {
     delete modConfig.modResults.NSMotionUsageDescription;
     delete modConfig.modResults.NSLocationAlwaysUsageDescription;
+    return modConfig;
+  });
+
+/**
+ * Release builds run R8: it shrinks and obfuscates the DEX and drops unused
+ * resources. Play Console flags a release whose code is barely obfuscated, and
+ * that can limit its visibility. Set as a config plugin, not a hand-edit of
+ * `gradle.properties`, so `expo prebuild` keeps it. Libraries ship their own
+ * keep rules; app-specific ones go in `android/app/proguard-rules.pro`.
+ */
+const R8_RELEASE_PROPERTIES = {
+  'android.enableMinifyInReleaseBuilds': 'true',
+  'android.enableShrinkResourcesInReleaseBuilds': 'true'
+};
+
+const withR8InReleaseBuilds: ConfigPlugin = (expoConfig) =>
+  withGradleProperties(expoConfig, (modConfig) => {
+    for (const [key, value] of Object.entries(R8_RELEASE_PROPERTIES)) {
+      modConfig.modResults = modConfig.modResults.filter(
+        (item) => !(item.type === 'property' && item.key === key)
+      );
+      modConfig.modResults.push({ type: 'property', key, value });
+    }
     return modConfig;
   });
 
@@ -145,6 +168,7 @@ const config: ExpoConfig = {
     // Listed first: config mods run in reverse order, so this one sees the
     // Info.plist after `expo-location` has written its keys.
     withoutUnusedIosPurposeStrings,
+    withR8InReleaseBuilds,
     'expo-secure-store',
     [
       'expo-local-authentication',
