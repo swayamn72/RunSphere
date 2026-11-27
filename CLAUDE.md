@@ -132,7 +132,8 @@ APK exists and `aapt` isn't on PATH. Run `vitest run` directly to test only the 
   `apps/mobile/src/theme/game-world.ts`. `theme.test.ts` fails on any hex literal elsewhere and checks
   AA contrast.
 - **Design system (in progress, ADR-0016):** light is the default in both apps and dark is optional
-  (Light / Dark / Match device). Map and live run stay dark in both. Accent stays TURFR lime: a fill
+  (Light / Dark / Match device). Maps and the live run follow the theme (ADR-0017): map colours come
+  from `useGameWorld()` / `gameWorldFor(scheme)`, never `gameWorld` directly in a screen. Accent stays TURFR lime: a fill
   for yours and selected, never text on light (use `text.accent`). The typeface is Inter, weights
   400–700 only, with tabular figures for numbers. Spec, phase status and checklists:
   `docs/plans/frontend-reconstruction.md`. Admin colours come from `@runsphere/ui` via CSS variables

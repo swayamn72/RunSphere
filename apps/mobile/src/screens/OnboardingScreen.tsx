@@ -10,18 +10,18 @@ import { statusBarStyleFor } from '../theme/theme-state';
 import type { MobileApiClient } from '../api-client';
 import { AuthFailure } from '../auth-failure';
 import { getLocationPermissionState } from '../location-permission';
-import { accountProblem, canSubmitAccount, dateOfBirthFrom } from '../onboarding';
+import { accountFieldProblems, dateOfBirthFrom, signUpPasswordHint } from '../onboarding';
 import { OnboardingSocialStep } from './OnboardingSocialStep';
 import { AccountRecoveryScreen } from './AccountRecoveryScreen';
-import { usernameHint } from './privacy-settings-model';
 import { SIGN_UP_AGREEMENT, legalLinks } from './legal-model';
-import { LEGAL_POLICY_VERSION } from '@runsphere/domain';
-import type { initialOnboardingState, onboardingReducer } from '../onboarding';
+import { LEGAL_POLICY_VERSION, normalizeUsername } from '@runsphere/domain';
+import type { AccountMode, initialOnboardingState, onboardingReducer } from '../onboarding';
 import { PermissionCard, PrimaryButton, StepHeader } from '../components/primitives';
 import { KeyboardSafe } from '../components/ScreenShell';
 import { useAppStyles } from '../components/styles';
 
-type AuthStatus = 'idle' | 'loading' | 'error';
+type AccountField = keyof ReturnType<typeof accountFieldProblems>;
+type AccountUpdate = Extract<Parameters<typeof onboardingReducer>[1], { type: 'updateAccount' }>;
 
 export function Onboarding({
   state,
@@ -36,9 +36,14 @@ export function Onboarding({
 }) {
   const styles = useAppStyles();
   const { colorScheme, tokens } = useAppTheme();
-  const [authStatus, setAuthStatus] = useState<AuthStatus>('idle');
-  const [authError, setAuthError] = useState<string>();
-  const [authFailureKind, setAuthFailureKind] = useState<AuthFailure['kind']>();
+  const [loading, setLoading] = useState(false);
+  const [authError, setAuthError] = useState<{
+    message: string;
+    field?: AccountField;
+    kind?: AuthFailure['kind'];
+  }>();
+  const [showPassword, setShowPassword] = useState(false);
+  const [checkedFields, setCheckedFields] = useState<Partial<Record<AccountField, boolean>>>({});
   /** Forgot password replaces the sign-in form until it's done or backed out of. */
   const [recovering, setRecovering] = useState(false);
   const legal = legalLinks((page) => api.legalPageUrl(page));
@@ -55,11 +60,41 @@ export function Onboarding({
     dispatch({ type: 'finish' });
   };
   const [authNotice, setAuthNotice] = useState<string>();
-  const authenticate = async () => {
-    if (!canSubmitAccount(state)) return;
-    setAuthStatus('loading');
+  const registering = state.accountMode === 'register';
+  const problems = accountFieldProblems(state);
+  const firstProblem = Object.values(problems)[0];
+  const checkField = (field: AccountField) =>
+    setCheckedFields((previous) => ({ ...previous, [field]: true }));
+  const updateField = (field: AccountField, update: Omit<AccountUpdate, 'type'>) => {
+    if (authError?.field === field) setAuthError(undefined);
+    dispatch({ type: 'updateAccount', ...update });
+  };
+  const openAccount = (mode: AccountMode) => {
     setAuthError(undefined);
-    setAuthFailureKind(undefined);
+    setAuthNotice(undefined);
+    setShowPassword(false);
+    setCheckedFields({});
+    dispatch({ type: 'startAccount', mode });
+  };
+  const fieldMessage = (field: AccountField, hint?: string) => {
+    const problem =
+      authError?.field === field ? authError.message : checkedFields[field] && problems[field];
+    if (!problem && !hint) return null;
+    return (
+      <Text
+        accessibilityLiveRegion="polite"
+        style={problem ? styles.accountFieldError : styles.rowDetail}
+      >
+        {problem || hint}
+      </Text>
+    );
+  };
+  const emailConflict = authError?.kind === 'account-exists';
+  const submitDisabled = Boolean(firstProblem || loading || authError?.field);
+  const authenticate = async () => {
+    if (submitDisabled) return;
+    setLoading(true);
+    setAuthError(undefined);
     try {
       const session =
         state.accountMode === 'login'
@@ -68,7 +103,7 @@ export function Onboarding({
               email: state.email.trim(),
               password: state.password,
               dateOfBirth: dateOfBirthFrom(state)!,
-              username: state.username.trim().replace(/^@/, '').toLowerCase(),
+              username: normalizeUsername(state.username),
               policyVersion: LEGAL_POLICY_VERSION
             });
       onAuthenticated(session);
@@ -78,16 +113,32 @@ export function Onboarding({
         await api.updateProfile({ displayName: state.name.trim() }).catch(() => undefined);
       dispatch({ type: 'authenticationSucceeded' });
     } catch (error) {
-      setAuthError(
-        error instanceof AuthFailure
-          ? error.message
-          : failureMessage(error, "Couldn't sign in. Try again.")
-      );
-      setAuthFailureKind(error instanceof AuthFailure ? error.kind : 'unknown');
-      setAuthStatus('error');
-      return;
+      if (error instanceof AuthFailure) {
+        const field =
+          error.registrationIssue?.field ??
+          (error.kind === 'account-exists'
+            ? 'email'
+            : error.kind === 'username-taken'
+              ? 'username'
+              : undefined);
+        const message =
+          registering && error.kind === 'invalid-request' && !field
+            ? "We couldn't create your account. Try again in a moment."
+            : error.message;
+        setAuthError({ message, ...(field ? { field } : {}), kind: error.kind });
+      } else {
+        setAuthError({
+          message: failureMessage(
+            error,
+            registering
+              ? "Couldn't create your account. Try again."
+              : "Couldn't sign in. Try again."
+          )
+        });
+      }
+    } finally {
+      setLoading(false);
     }
-    setAuthStatus('idle');
   };
   const reconcileLocationPermission = useCallback(async () => {
     const permission = await Location.getForegroundPermissionsAsync();
@@ -141,14 +192,11 @@ export function Onboarding({
                 </Text>
                 <Text style={styles.splashTagline}>Run a loop. Claim your ground.</Text>
               </View>
-              <PrimaryButton
-                label="Get started"
-                onPress={() => dispatch({ type: 'startAccount', mode: 'register' })}
-              />
+              <PrimaryButton label="Get started" onPress={() => openAccount('register')} />
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="I already have an account"
-                onPress={() => dispatch({ type: 'startAccount', mode: 'login' })}
+                onPress={() => openAccount('login')}
               >
                 <Text style={styles.textButton}>I already have an account</Text>
               </Pressable>
@@ -170,19 +218,21 @@ export function Onboarding({
             <>
               <StepHeader
                 step={state.accountMode === 'login' ? 'SIGN IN' : 'STEP 1 OF 3'}
-                onBack={() => dispatch({ type: 'back' })}
+                onBack={() => {
+                  if (!loading) dispatch({ type: 'back' });
+                }}
               />
               <Text style={styles.wordmark}>TURFR</Text>
               <Text style={styles.eyebrow}>
                 {state.accountMode === 'login' ? 'WELCOME BACK' : 'MAKE IT YOURS'}
               </Text>
               <Text style={styles.onboardingTitle}>
-                {state.accountMode === 'login' ? 'Sign in securely.' : 'A few details first.'}
+                {state.accountMode === 'login' ? 'Sign in securely.' : 'Create your account'}
               </Text>
               <Text style={styles.lead}>
                 {state.accountMode === 'login'
                   ? 'Use your email and password to restore your private TURFR account.'
-                  : 'We use your email and password to create your private TURFR account.'}
+                  : 'Set up your private TURFR account.'}
               </Text>
               {state.accountMode === 'register' && (
                 <>
@@ -190,29 +240,31 @@ export function Onboarding({
                   <TextInput
                     accessibilityLabel="Display name"
                     autoCapitalize="words"
+                    editable={!loading}
                     value={state.name}
+                    onBlur={() => checkField('name')}
                     onChangeText={(name) => dispatch({ type: 'updateAccount', name })}
-                    placeholder="How should we call you?"
+                    placeholder="What should we call you?"
                     placeholderTextColor={tokens.text.secondary}
                     style={styles.input}
                   />
+                  {fieldMessage('name')}
                   <Text style={styles.fieldLabel}>USERNAME</Text>
                   <TextInput
                     accessibilityLabel="Username"
                     autoCapitalize="none"
                     autoCorrect={false}
+                    editable={!loading}
                     value={state.username}
-                    onChangeText={(username) => dispatch({ type: 'updateAccount', username })}
+                    onBlur={() => checkField('username')}
+                    onChangeText={(username) => updateField('username', { username })}
                     placeholder="@username"
                     placeholderTextColor={tokens.text.secondary}
                     style={styles.input}
                   />
-                  {usernameHint(state.username) ? (
-                    <Text style={styles.rowDetail}>{usernameHint(state.username)}</Text>
-                  ) : (
-                    <Text style={styles.rowDetail}>
-                      How friends find you. You can change it later.
-                    </Text>
+                  {fieldMessage(
+                    'username',
+                    'Use 3–20 letters, numbers or underscores. Start with a letter.'
                   )}
                   <Text style={styles.fieldLabel}>DATE OF BIRTH</Text>
                   <View style={styles.filterRow}>
@@ -220,8 +272,9 @@ export function Onboarding({
                       accessibilityLabel="Day of birth"
                       keyboardType="number-pad"
                       maxLength={2}
+                      editable={!loading}
                       value={state.birthDay}
-                      onChangeText={(birthDay) => dispatch({ type: 'updateAccount', birthDay })}
+                      onChangeText={(birthDay) => updateField('birthDate', { birthDay })}
                       placeholder="DD"
                       placeholderTextColor={tokens.text.secondary}
                       style={[styles.input, styles.flexCopy]}
@@ -230,8 +283,9 @@ export function Onboarding({
                       accessibilityLabel="Month of birth"
                       keyboardType="number-pad"
                       maxLength={2}
+                      editable={!loading}
                       value={state.birthMonth}
-                      onChangeText={(birthMonth) => dispatch({ type: 'updateAccount', birthMonth })}
+                      onChangeText={(birthMonth) => updateField('birthDate', { birthMonth })}
                       placeholder="MM"
                       placeholderTextColor={tokens.text.secondary}
                       style={[styles.input, styles.flexCopy]}
@@ -240,16 +294,19 @@ export function Onboarding({
                       accessibilityLabel="Year of birth"
                       keyboardType="number-pad"
                       maxLength={4}
+                      editable={!loading}
                       value={state.birthYear}
-                      onChangeText={(birthYear) => dispatch({ type: 'updateAccount', birthYear })}
+                      onBlur={() => checkField('birthDate')}
+                      onChangeText={(birthYear) => updateField('birthDate', { birthYear })}
                       placeholder="YYYY"
                       placeholderTextColor={tokens.text.secondary}
                       style={[styles.input, styles.flexCopy]}
                     />
                   </View>
-                  <Text style={styles.rowDetail}>
-                    Only to check you're 18 or older. Never shown to anyone.
-                  </Text>
+                  {fieldMessage(
+                    'birthDate',
+                    "Only to check you're 18 or older. Never shown to anyone."
+                  )}
                 </>
               )}
               <Text style={styles.fieldLabel}>EMAIL</Text>
@@ -257,54 +314,62 @@ export function Onboarding({
                 accessibilityLabel="Email address"
                 autoCapitalize="none"
                 autoComplete="email"
+                autoCorrect={false}
+                editable={!loading}
                 keyboardType="email-address"
                 value={state.email}
-                onChangeText={(email) => dispatch({ type: 'updateAccount', email })}
+                onBlur={() => checkField('email')}
+                onChangeText={(email) => updateField('email', { email })}
                 placeholder="you@example.com"
                 placeholderTextColor={tokens.text.secondary}
                 style={styles.input}
               />
+              {fieldMessage('email')}
+              {emailConflict && (
+                <Pressable accessibilityRole="button" onPress={() => openAccount('login')}>
+                  <Text style={styles.textButton}>Sign in with this email</Text>
+                </Pressable>
+              )}
               <Text style={styles.fieldLabel}>PASSWORD</Text>
-              <TextInput
-                accessibilityLabel="Password"
-                autoCapitalize="none"
-                autoComplete={state.accountMode === 'login' ? 'current-password' : 'new-password'}
-                secureTextEntry
-                value={state.password}
-                onChangeText={(password) => dispatch({ type: 'updateAccount', password })}
-                placeholder="At least 12 characters"
-                placeholderTextColor={tokens.text.secondary}
-                style={styles.input}
-              />
-              {!authError && accountProblem(state) && (state.email || state.password) ? (
-                <Text style={styles.rowDetail}>{accountProblem(state)}</Text>
-              ) : null}
+              <View style={styles.passwordRow}>
+                <TextInput
+                  accessibilityLabel="Password"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete={registering ? 'new-password' : 'current-password'}
+                  editable={!loading}
+                  secureTextEntry={!showPassword}
+                  value={state.password}
+                  onBlur={() => checkField('password')}
+                  onChangeText={(password) => updateField('password', { password })}
+                  placeholder="Password"
+                  placeholderTextColor={tokens.text.secondary}
+                  style={[styles.input, styles.flexCopy]}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                  onPress={() => setShowPassword((visible) => !visible)}
+                  style={styles.passwordToggle}
+                >
+                  <Text style={styles.textButton}>{showPassword ? 'Hide' : 'Show'}</Text>
+                </Pressable>
+              </View>
+              {fieldMessage('password', registering ? signUpPasswordHint : undefined)}
               {authNotice && !authError ? (
                 <Text accessibilityLiveRegion="polite" style={styles.rowDetail}>
                   {authNotice}
                 </Text>
               ) : null}
-              {authError && (
-                <Text accessibilityLiveRegion="polite" style={styles.errorText}>
-                  {authError}
-                </Text>
-              )}
-              {authFailureKind === 'account-exists' && (
+              {state.accountMode === 'login' && (
                 <Pressable
                   accessibilityRole="button"
-                  disabled={authStatus === 'loading'}
+                  disabled={loading}
                   onPress={() => {
                     setAuthError(undefined);
-                    setAuthFailureKind(undefined);
-                    setAuthStatus('idle');
-                    dispatch({ type: 'startAccount', mode: 'login' });
+                    setRecovering(true);
                   }}
                 >
-                  <Text style={styles.textButton}>Sign in with this email</Text>
-                </Pressable>
-              )}
-              {state.accountMode === 'login' && (
-                <Pressable accessibilityRole="button" onPress={() => setRecovering(true)}>
                   <Text style={styles.textButton}>Forgot password?</Text>
                 </Pressable>
               )}
@@ -314,6 +379,7 @@ export function Onboarding({
                     accessibilityRole="checkbox"
                     accessibilityState={{ checked: state.acceptedLegal }}
                     accessibilityLabel={SIGN_UP_AGREEMENT}
+                    disabled={loading}
                     onPress={() =>
                       dispatch({ type: 'setAcceptedLegal', value: !state.acceptedLegal })
                     }
@@ -335,28 +401,31 @@ export function Onboarding({
                   ))}
                 </>
               )}
+              {(firstProblem || authError) && (
+                <Text
+                  accessibilityLiveRegion="polite"
+                  style={authError ? styles.errorText : styles.rowDetail}
+                >
+                  {authError?.message ?? firstProblem}
+                </Text>
+              )}
               <PrimaryButton
                 label={
-                  authStatus === 'loading'
-                    ? 'Please wait…'
-                    : authStatus === 'error'
-                      ? 'Try again'
-                      : state.accountMode === 'login'
-                        ? 'Sign in'
-                        : 'Create account'
+                  loading
+                    ? registering
+                      ? 'Creating account…'
+                      : 'Signing in…'
+                    : registering
+                      ? 'Create account'
+                      : 'Sign in'
                 }
-                disabled={!canSubmitAccount(state) || authStatus === 'loading'}
+                disabled={submitDisabled}
                 onPress={() => void authenticate()}
               />
               <Pressable
                 accessibilityRole="button"
-                disabled={authStatus === 'loading'}
-                onPress={() =>
-                  dispatch({
-                    type: 'startAccount',
-                    mode: state.accountMode === 'login' ? 'register' : 'login'
-                  })
-                }
+                disabled={loading}
+                onPress={() => openAccount(registering ? 'login' : 'register')}
               >
                 <Text style={styles.textButton}>
                   {state.accountMode === 'login'

@@ -7,9 +7,8 @@ The [Play submission guide](../play-store-submission.md) covers launch assets an
 
 ## Approved design
 
-- The [approved Home color reference](../assets/homepage-reference3.png) sets
-  the near-black, lime and warm off-white palette. Its old wordmark and labels
-  are visual reference only. Shared colors live in
+- The [Home launch screenshot](../assets/turfr-phone-01-home.png) shows
+  the near-black, lime and warm off-white palette. Shared colors live in
   [packages/ui](../../packages/ui/src/index.ts). Map-specific colors live in
   [game-world.ts](../../apps/mobile/src/theme/game-world.ts).
 - Home reads Turf, Start a run, This week, Quests. The Turf illustration is

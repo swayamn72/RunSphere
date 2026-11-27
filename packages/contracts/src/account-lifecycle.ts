@@ -12,7 +12,7 @@ export const PasswordResetRequestedResponseSchema = Type.Object(
   { $id: 'PasswordResetRequestedResponse' }
 );
 export const PasswordResetCompleteRequestSchema = Type.Object(
-  { token: TokenSchema, newPassword: Type.String({ minLength: 12, maxLength: 256 }) },
+  { token: TokenSchema, newPassword: Type.String({ minLength: 8, maxLength: 256 }) },
   { ...Strict, $id: 'PasswordResetCompleteRequest' }
 );
 

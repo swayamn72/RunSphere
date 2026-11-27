@@ -3,7 +3,7 @@ import type { FeatureCollection, GeoJsonProperties, Geometry, Position } from 'g
 import { GeoJSONSource, Layer } from '@maplibre/maplibre-react-native';
 import type { SemanticTokens } from '@runsphere/ui';
 import { decimateCoordinates } from './map-model';
-import { gameWorld } from '../theme/game-world';
+import { gameWorld, type GameWorldPalette } from '../theme/game-world';
 
 export interface LocalGeoJsonLayer {
   readonly id: string;
@@ -79,10 +79,13 @@ export const createRendererLocalGeoJson = (
  */
 export function LocalGeoJsonLayers({
   layers,
-  tokens
+  tokens,
+  world = gameWorld
 }: {
   layers: readonly LocalGeoJsonLayer[];
   tokens: SemanticTokens;
+  /** Day or night map palette (ADR-0017). Routes are lime on night ground, deep olive on paper. */
+  world?: GameWorldPalette;
 }) {
   const rendererLayers = useMemo(
     () => layers.map((layer) => ({ ...layer, data: createRendererLocalGeoJson(layer.data) })),
@@ -108,7 +111,7 @@ export function LocalGeoJsonLayers({
                 'line-opacity': 0.95,
                 ...(layer.gradient
                   ? { 'line-gradient': layer.gradient as never }
-                  : { 'line-color': gameWorld.route.quick })
+                  : { 'line-color': world.route.quick })
               }}
             />
           ) : layer.kind === 'route-head' ? (
@@ -116,7 +119,7 @@ export function LocalGeoJsonLayers({
               id={`${layer.id}-layer`}
               type="circle"
               paint={{
-                'circle-color': gameWorld.route.head,
+                'circle-color': world.route.head,
                 'circle-radius': 6,
                 'circle-blur': 0.4,
                 'circle-opacity': layer.visible === false ? 0 : 0.95
@@ -128,10 +131,10 @@ export function LocalGeoJsonLayers({
               type="circle"
               paint={{
                 'circle-color':
-                  layer.kind === 'route-start' ? gameWorld.route.start : gameWorld.route.finish,
+                  layer.kind === 'route-start' ? world.route.start : world.route.finish,
                 'circle-radius': layer.visible === false ? 0 : 7,
                 'circle-radius-transition': { duration: 260, delay: 0 },
-                'circle-stroke-color': gameWorld.route.markerRim,
+                'circle-stroke-color': world.route.markerRim,
                 'circle-stroke-width': layer.visible === false ? 0 : 2
               }}
             />
@@ -143,7 +146,7 @@ export function LocalGeoJsonLayers({
               type="line"
               layout={{ 'line-cap': 'round', 'line-join': 'round' }}
               paint={{
-                'line-color': gameWorld.quest.marker,
+                'line-color': world.quest.marker,
                 'line-width': 4,
                 'line-opacity': 0.95,
                 'line-dasharray': [1.5, 1.2]
@@ -157,12 +160,7 @@ export function LocalGeoJsonLayers({
               type="line"
               layout={{ 'line-cap': 'round', 'line-join': 'round' }}
               paint={{
-                'line-color': [
-                  'case',
-                  ['get', 'passed'],
-                  gameWorld.quest.passed,
-                  gameWorld.quest.rim
-                ],
+                'line-color': ['case', ['get', 'passed'], world.quest.passed, world.quest.rim],
                 'line-width': 6,
                 'line-opacity': 0.9
               }}
@@ -172,7 +170,7 @@ export function LocalGeoJsonLayers({
               id={`${layer.id}-layer`}
               type="line"
               paint={{
-                'line-color': tokens.route.line,
+                'line-color': world.route.quick,
                 'line-width': 13,
                 'line-blur': 5,
                 'line-opacity': 0.6
@@ -183,8 +181,7 @@ export function LocalGeoJsonLayers({
               id={`${layer.id}-layer`}
               type="line"
               paint={{
-                'line-color':
-                  layer.kind === 'loop-ready' ? gameWorld.loop.ready : gameWorld.loop.returning,
+                'line-color': layer.kind === 'loop-ready' ? world.loop.ready : world.loop.returning,
                 'line-width': 4,
                 'line-dasharray': [1.2, 1.8],
                 'line-opacity': layer.opacity ?? 1,
@@ -197,7 +194,7 @@ export function LocalGeoJsonLayers({
               type="fill"
               paint={{
                 'fill-color': tokens.route.fill,
-                'fill-outline-color': tokens.route.line,
+                'fill-outline-color': world.route.quick,
                 // The reader's own cells read stronger than the rest. Nothing
                 // else separates them, because nothing else may be shown.
                 'fill-opacity': ['case', ['get', 'isSelf'], 0.55, 0.25]
@@ -208,7 +205,7 @@ export function LocalGeoJsonLayers({
               id={`${layer.id}-layer`}
               type="line"
               paint={{
-                'line-color': tokens.route.line,
+                'line-color': world.route.quick,
                 'line-width': 5,
                 'line-opacity': 0.92
               }}

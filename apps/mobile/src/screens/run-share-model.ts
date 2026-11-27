@@ -46,7 +46,7 @@ export const runTitle = (startedAt: string): string => {
 };
 
 export const runShareCard = (input: {
-  metrics: Pick<ActivityMetrics, 'distanceMeters' | 'movingSeconds' | 'movingPaceSecondsPerKm'> & {
+  metrics: Pick<ActivityMetrics, 'distanceMeters' | 'elapsedSeconds' | 'movingPaceSecondsPerKm'> & {
     elevation: { gainMeters: number } | null;
   };
   /** When it started; a run from the log may only know its day. */
@@ -60,11 +60,11 @@ export const runShareCard = (input: {
   const day = timed ? kolkataDate(new Date(startedAt)) : startedOn;
   if (metrics.distanceMeters <= 0 || !day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
   const distance = `${(metrics.distanceMeters / 1_000).toFixed(2)} km`;
-  const time = durationLabel(metrics.movingSeconds);
+  const time = durationLabel(metrics.elapsedSeconds);
   const pace = `${paceClock(metrics.movingPaceSecondsPerKm)} /km`;
   const stats: RunShareStat[] = [
     { label: 'Distance', value: distance },
-    { label: 'Moving time', value: time },
+    { label: 'Elapsed time', value: time },
     { label: 'Pace', value: pace }
   ];
   const climb = metrics.elevation ? Math.round(metrics.elevation.gainMeters) : 0;

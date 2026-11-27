@@ -18,15 +18,14 @@ export const statCells = (item: RunLogItem, metrics: ActivityMetrics | undefined
   const cells: StatCell[] = [
     { label: 'Distance', value: `${(item.distanceMeters / 1_000).toFixed(2)} km` },
     {
-      label: 'Moving time',
-      value: durationLabel(metrics?.movingSeconds ?? item.movingSeconds ?? item.durationSeconds)
+      label: 'Elapsed time',
+      value: durationLabel(metrics?.elapsedSeconds ?? item.durationSeconds)
     },
     {
       label: 'Pace',
       value: paceLabel(metrics?.movingPaceSecondsPerKm ?? item.paceSecondsPerKm)
     }
   ];
-  if (metrics) cells.push({ label: 'Elapsed', value: durationLabel(metrics.elapsedSeconds) });
   const climb = metrics?.elevation?.gainMeters ?? item.elevationGainMeters;
   if (climb !== null && climb !== undefined)
     cells.push({ label: 'Climb', value: `${Math.round(climb)} m` });

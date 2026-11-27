@@ -1,6 +1,6 @@
 # ADR-0016: One design system, light by default
 
-- **Status:** Accepted
+- **Status:** Accepted; decision 1 amended by [ADR-0017](0017-maps-follow-app-theme.md) (maps follow the app theme)
 - **Date:** 2026-11-25
 - **Decided by:** product owner (frontend reconstruction brief, answered 2026-11-25). The accent and
   typeface were delegated to the design lead "on merit, not ease"; the reasoning is recorded here.

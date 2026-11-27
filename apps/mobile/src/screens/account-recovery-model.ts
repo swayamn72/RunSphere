@@ -6,7 +6,7 @@ import { failureMessage } from '../failure-copy';
  * emailed link. The link points at a web page that isn't built yet (M3.4), so
  * the app takes the pasted link, or just its code, and reads the token out.
  */
-export const MIN_PASSWORD_LENGTH = 12;
+export const MIN_PASSWORD_LENGTH = 8;
 
 /** The token from a pasted link (`…?token=abc`), or a bare code; undefined if neither. */
 export const tokenFromPasted = (pasted: string): string | undefined => {

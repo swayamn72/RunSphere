@@ -1146,7 +1146,11 @@ export class MobileApiClient {
       throw failure;
     }
     if (!response.ok) {
-      const failure = classifyAuthResponse(response.status, operation);
+      const detail =
+        operation === 'register' && [400, 409, 422].includes(response.status)
+          ? await responseMessage(response, path)
+          : undefined;
+      const failure = classifyAuthResponse(response.status, operation, detail);
       reportAuthFailure(operation, failure);
       throw failure;
     }

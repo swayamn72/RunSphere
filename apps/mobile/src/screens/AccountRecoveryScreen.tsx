@@ -147,7 +147,7 @@ export function AccountRecoveryScreen({
           {forgot && (
             <>
               {input('New password', password, setPassword, {
-                placeholder: 'At least 12 characters',
+                placeholder: 'At least 8 characters',
                 secure: true
               })}
               {input('Confirm new password', confirm, setConfirm, {

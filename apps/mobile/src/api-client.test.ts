@@ -62,6 +62,57 @@ describe('mobile API auth client', () => {
   });
 
   it.each([
+    ['body/email must match format "email"', 'email', 'Enter a valid email address'],
+    ['body/password must NOT have fewer than 12 characters', 'password', 'at least 12 characters'],
+    ['body/password must NOT have more than 256 characters', 'password', 'Use a shorter password'],
+    ['body/dateOfBirth must match format "date"', 'birthDate', 'Enter a valid date of birth'],
+    ['You need to be 18 or older to use TURFR.', 'birthDate', '18 or older'],
+    ['That name is reserved. Try another.', 'username', 'Try another']
+  ])(
+    'turns registration validation into safe field feedback (%s)',
+    async (message, field, copy) => {
+      const client = new MobileApiClient(
+        'https://api.runsphere.test',
+        async () => new Response(JSON.stringify({ message }), { status: 400 })
+      );
+
+      await expect(
+        client.register({
+          email: 'maya@example.com',
+          password: 'long-enough-password',
+          dateOfBirth: '1990-01-01',
+          username: 'maya',
+          policyVersion: 'm1'
+        })
+      ).rejects.toMatchObject({
+        kind: 'invalid-request',
+        registrationIssue: { field },
+        message: expect.stringContaining(copy)
+      });
+    }
+  );
+
+  it.each([
+    ['That username is taken. Try another.', 'username-taken'],
+    ['Account could not be created', 'account-exists']
+  ])('distinguishes registration conflicts (%s)', async (message, kind) => {
+    const client = new MobileApiClient(
+      'https://api.runsphere.test',
+      async () => new Response(JSON.stringify({ message }), { status: 409 })
+    );
+
+    await expect(
+      client.register({
+        email: 'maya@example.com',
+        password: 'long-enough-password',
+        dateOfBirth: '1990-01-01',
+        username: 'maya',
+        policyVersion: 'm1'
+      })
+    ).rejects.toMatchObject({ kind });
+  });
+
+  it.each([
     [new TypeError('Network request failed'), 'network'],
     [new Error('SSLHandshakeException: Trust anchor not found'), 'tls']
   ])('classifies transport failures safely', async (transportError, expectedKind) => {

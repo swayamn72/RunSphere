@@ -12,12 +12,14 @@ import { Text } from './Text';
 import { BlurView } from 'expo-blur';
 import Animated, {
   Easing,
+  useAnimatedProps,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
   withSequence,
   withTiming
 } from 'react-native-reanimated';
+import Svg, { Path } from 'react-native-svg';
 import type { Tab } from '../navigation/types';
 import type { Rect } from '../screens/run-detail-model';
 import { useAppTheme } from '../theme/theme';
@@ -43,6 +45,10 @@ import { TourRho, useTypedLine } from './TourRho';
 const blurSupported =
   Platform.OS === 'ios' || (Platform.OS === 'android' && Number(Platform.Version) >= 31);
 const GLIDE_MS = 260;
+const BLUR_INTENSITY = 24;
+// Match expo-blur's Android dark tint where the corners meet the blur panels.
+const ANDROID_BLUR_TINT_OPACITY = Math.floor(255 * (BLUR_INTENSITY / 100) * 0.69) / 255;
+const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 /**
  * The guided tour's overlay (M9 9.23). Four blurred panels cover the screen
@@ -154,7 +160,7 @@ export function TutorialOverlay({
     pulse.value = reduceMotion
       ? 1
       : withRepeat(
-          withSequence(withTiming(1.04, { duration: 700 }), withTiming(1, { duration: 700 })),
+          withSequence(withTiming(0.8, { duration: 700 }), withTiming(1, { duration: 700 })),
           -1
         );
   }, [reduceMotion, pulse]);
@@ -173,12 +179,29 @@ export function TutorialOverlay({
     width: Math.max(0, width - x.value - w.value),
     height: h.value
   }));
+  // The panels leave a rectangular gap. Shade the parts of that gap outside
+  // the rounded ring, using the same animated bounds so the edges stay aligned.
+  const corners = useAnimatedProps(() => {
+    const left = x.value;
+    const top = y.value;
+    const right = left + w.value;
+    const bottom = top + h.value;
+    const r = Math.min(RING_RADIUS, w.value / 2, h.value / 2);
+    if (r <= 0) return { d: '' };
+    return {
+      d: `M ${left} ${top} H ${right} V ${bottom} H ${left} Z
+          M ${left + r} ${top} H ${right - r} A ${r} ${r} 0 0 1 ${right} ${top + r}
+          V ${bottom - r} A ${r} ${r} 0 0 1 ${right - r} ${bottom}
+          H ${left + r} A ${r} ${r} 0 0 1 ${left} ${bottom - r}
+          V ${top + r} A ${r} ${r} 0 0 1 ${left + r} ${top} Z`
+    };
+  });
   const ringStyle = useAnimatedStyle(() => ({
     left: x.value,
     top: y.value,
     width: w.value,
     height: h.value,
-    transform: [{ scale: pulse.value }]
+    opacity: pulse.value
   }));
 
   if (!step) return null;
@@ -193,7 +216,7 @@ export function TutorialOverlay({
     <Animated.View key={key} pointerEvents="none" style={[StyleSheet.absoluteFill, style]}>
       {canBlur ? (
         <BlurView
-          intensity={24}
+          intensity={BLUR_INTENSITY}
           tint="dark"
           {...(Platform.OS === 'android'
             ? { blurMethod: 'dimezisBlurViewSdk31Plus' as const, blurTarget }
@@ -221,6 +244,21 @@ export function TutorialOverlay({
       {panel(bottom, 'bottom')}
       {panel(left, 'left')}
       {panel(right, 'right')}
+      <Svg pointerEvents="none" style={StyleSheet.absoluteFill} width={width} height={height}>
+        {canBlur && Platform.OS === 'android' ? (
+          <AnimatedPath
+            animatedProps={corners}
+            fill="rgb(25, 25, 25)"
+            fillOpacity={ANDROID_BLUR_TINT_OPACITY}
+            fillRule="evenodd"
+          />
+        ) : null}
+        <AnimatedPath
+          animatedProps={corners}
+          fill={canBlur ? tokens.scrim.subtle : tokens.scrim.strong}
+          fillRule="evenodd"
+        />
+      </Svg>
       {ring ? (
         <Animated.View
           pointerEvents="none"
@@ -236,30 +274,31 @@ export function TutorialOverlay({
         onLayout={(event) => setBubbleHeight(event.nativeEvent.layout.height)}
         accessibilityLiveRegion="polite"
       >
-        <View style={styles.tourBubbleRow}>
-          <TourRho
-            gesture={
-              state !== 'done' && (state.index === 0 || state.index === TOUR_STEPS.length - 1)
-                ? 'wave'
-                : 'point'
-            }
-            reduceMotion={reduceMotion}
-          />
-          <View
-            ref={bubbleCopy}
-            style={styles.flexCopy}
-            accessible
-            accessibilityLabel={`${tourProgress(state)}. ${step.title}. ${step.rhoLine}`}
-          >
-            <Text style={styles.eyebrow}>{tourProgress(state).toUpperCase()}</Text>
-            <Text accessibilityRole="header" style={styles.rowTitle}>
-              {step.title}
-            </Text>
-            {/* Typed on for sight; read whole by TalkBack from the start. */}
-            <Text style={styles.rowDetail} accessibilityLabel={step.rhoLine}>
-              {typed}
-            </Text>
+        <View
+          ref={bubbleCopy}
+          accessible
+          accessibilityLabel={`${tourProgress(state)}. ${step.title}. ${step.rhoLine}`}
+        >
+          <View style={styles.tourBubbleRow}>
+            <TourRho
+              gesture={first || last ? 'wave' : 'point'}
+              reduceMotion={reduceMotion}
+              size={48}
+            />
+            <View style={styles.flexCopy}>
+              <Text style={styles.eyebrow}>{tourProgress(state).toUpperCase()}</Text>
+              <Text accessibilityRole="header" style={styles.tourBubbleTitle}>
+                {step.title}
+              </Text>
+            </View>
           </View>
+          <Text style={styles.tourBubbleBody} accessibilityLabel={step.rhoLine}>
+            {typed}
+            {/* Reserve the whole line so the bubble stays put while Rho talks. */}
+            {typed.length < step.rhoLine.length ? (
+              <Text style={styles.tourPendingCopy}>{step.rhoLine.slice(typed.length)}</Text>
+            ) : null}
+          </Text>
         </View>
         <View style={styles.tourButtons}>
           <Pressable
@@ -267,14 +306,23 @@ export function TutorialOverlay({
             accessibilityState={{ disabled: first }}
             disabled={first}
             onPress={() => onAction('back')}
+            style={styles.tourButton}
           >
-            <Text style={[styles.textButton, first && styles.tourButtonOff]}>Back</Text>
+            <Text style={[styles.tourButtonLabel, first && styles.tourButtonOff]}>Back</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={() => onAction('skip')}>
-            <Text style={styles.textButton}>Skip</Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => onAction('skip')}
+            style={styles.tourButton}
+          >
+            <Text style={styles.tourButtonLabel}>Skip</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={() => onAction('next')}>
-            <Text style={[styles.textButton, styles.tourNext]}>{last ? 'Done' : 'Next'}</Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => onAction('next')}
+            style={styles.tourButton}
+          >
+            <Text style={[styles.tourButtonLabel, styles.tourNext]}>{last ? 'Done' : 'Next'}</Text>
           </Pressable>
         </View>
       </View>

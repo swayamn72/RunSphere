@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FeatureCollection, GeoJsonProperties, Geometry } from 'geojson';
 import { MapSurface } from '../maps/MapSurface';
 import type { LocalGeoJsonLayer } from '../maps/LocalGeoJsonLayers';
-import { gameWorld } from '../theme/game-world';
+import { gameWorldFor } from '../theme/game-world';
 import {
   FIT_PADDING,
   FRAME_MS,
@@ -35,6 +35,7 @@ export function RunDetailMap({
   lines,
   paceSeries,
   reduceMotion,
+  scheme = 'dark',
   accessibilityLabel,
   marker
 }: {
@@ -42,6 +43,8 @@ export function RunDetailMap({
   /** `[distanceMeters, secondsPerKm]`; without it the line is one colour. */
   paceSeries?: readonly (readonly [number, number])[] | undefined;
   reduceMotion: boolean;
+  /** The app theme; the route takes the day or night colours of the map under it. */
+  scheme?: 'light' | 'dark';
   accessibilityLabel: string;
   /** Where the chart cursor is on the route (9.19), shown as a dot. */
   marker?: [number, number] | undefined;
@@ -53,9 +56,9 @@ export function RunDetailMap({
   const stops = useMemo(
     () =>
       paceSeries && paceSeries.length > 1
-        ? paceStops(paceSeries, gameWorld.route.quick, gameWorld.route.easy)
+        ? paceStops(paceSeries, gameWorldFor(scheme).route.quick, gameWorldFor(scheme).route.easy)
         : undefined,
-    [paceSeries]
+    [paceSeries, scheme]
   );
 
   useEffect(() => {

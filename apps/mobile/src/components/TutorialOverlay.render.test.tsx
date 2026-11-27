@@ -94,6 +94,14 @@ describe('tour overlay (M9 9.23)', () => {
       .findAll((node) => (node.type as unknown) === 'Animated.View')
       .find((node) => styleOf(node).borderRadius === 16)!;
     expect(styleOf(ring)).toMatchObject({ left: 154, top: 734, width: 92, height: 62 });
+    const corners = renderer.root.findAll(
+      (node) => (node.type as unknown) === 'Path' && node.props.fillRule === 'evenodd'
+    );
+    expect(corners).toHaveLength(2);
+    expect(corners[0]!.props.fillOpacity).toBeGreaterThan(0);
+    expect(corners[1]!.props.animatedProps).toEqual(corners[0]!.props.animatedProps);
+    expect(corners[0]!.props.animatedProps.d).toContain('M 154 734 H 246 V 796 H 154 Z');
+    expect(corners[0]!.props.animatedProps.d).toContain('M 170 734 H 230 A 16 16 0 0 1 246 750');
 
     // A tap anywhere else is taken by the overlay and does nothing.
     const root = renderer.root.findAll((node) => node.props.accessibilityViewIsModal)[0]!;

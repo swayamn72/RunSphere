@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useReducer, useMemo, useRef, useState } from 'react';
-import { Linking, View } from 'react-native';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { Linking, StyleSheet, View } from 'react-native';
 import { Text } from './src/components/Text';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { activityQueue } from './src/activity-queue.native';
@@ -54,8 +54,7 @@ import { RunDetailProvider } from './src/screens/RunDetailHost';
 import { RunDetailScreen } from './src/screens/RunDetailScreen';
 import { needsLegalPrompt, type LegalPrompt } from './src/screens/runs-sharing-prompt-model';
 import { PrimaryButton } from './src/components/primitives';
-import { createAppStyles, useAppStyles } from './src/components/styles';
-import { darkTokens } from '@runsphere/ui';
+import { useAppStyles } from './src/components/styles';
 import { coordinateLogout } from './src/logout-coordinator';
 import { setGuidanceStore } from './src/loop-guidance';
 import { persistentGuidanceStore } from './src/loop-guidance.native';
@@ -69,11 +68,13 @@ import {
 } from './src/tutorial-model';
 import { TutorialOverlay } from './src/components/TutorialOverlay';
 import { BlurTargetView } from 'expo-blur';
-import { persistentTourStore } from './src/tour-secure-store.native';
+import { persistentTourStore, persistentTurfStoryStore } from './src/tour-secure-store.native';
+import { TurfStoryScreen } from './src/screens/TurfStoryScreen';
+import { markTurfStorySeen, setTurfStoryStore } from './src/screens/turf-story-model';
 import { registerForPush, revokePushRegistration } from './src/push-registration';
 import { nativePushTokenSource, pushRegistrationStore } from './src/push-registration.native';
 import { TabBar } from './src/navigation/TabBar';
-import { isAlwaysDark, isTabBarVisible, selectAppShell } from './src/navigation/app-shell';
+import { isTabBarVisible, selectAppShell } from './src/navigation/app-shell';
 import {
   activityFlowReducer,
   activityOriginReturn,
@@ -103,14 +104,17 @@ import {
   NOTIFICATION_TARGET_TAB
 } from './src/screens/notifications-model';
 import { TurfScreen } from './src/screens/TurfScreen';
+import { prefetchTurfWorldStyle } from './src/maps/turf-world-style-cache';
 import { QuestDetailScreen } from './src/screens/QuestDetailScreen';
 import { ForceTheme, ThemeProvider, useAppTheme } from './src/theme/theme';
 import { persistentThemePreferenceStore } from './src/theme/theme-preference.native';
+import { loadDeviceMapPreferences } from './src/maps/map-preferences-device.native';
 
 // Guidance memory is resolved through the registry so no screen imports a
 // native secure-storage module.
 setGuidanceStore(persistentGuidanceStore);
 setTourStore(persistentTourStore);
+setTurfStoryStore(persistentTurfStoryStore);
 const apiClient = new MobileApiClient(undefined, fetch, authStorage);
 const activitySync = createActivitySyncCoordinator(apiClient, activityRecorder);
 const accountIdFromSession = (session: AuthSession): string => accountScopeFor(session);
@@ -157,6 +161,22 @@ if (TaskManager) {
   }
 }
 
+/**
+ * What the screen switch below returns for the Map tab. The Turf screen itself
+ * is drawn outside the switch so it can stay mounted while hidden; this marker
+ * tells the shell that the map is the screen being shown.
+ */
+const MAP_SLOT = <></>;
+
+const keepAliveStyles = StyleSheet.create({
+  shown: { flex: 1 },
+  // Out of layout and out of sight, but the native map and its state live on.
+  hidden: { display: 'none' }
+});
+
+// Device map settings (3D buildings). Read once; maps redraw if it changes the default.
+void loadDeviceMapPreferences();
+
 export default function App() {
   return (
     <SafeAreaProvider>
@@ -170,7 +190,6 @@ export default function App() {
 function RunSphereApp() {
   const { tokens } = useAppTheme();
   const styles = useAppStyles();
-  const darkAppStyles = useMemo(() => createAppStyles(darkTokens), []);
   const [onboarding, dispatch] = useReducer(onboardingReducer, initialOnboardingState);
   const [activeTab, setActiveTab] = useState<Tab>(landingTab);
   const [claimRunId, setClaimRunId] = useState<string>();
@@ -183,6 +202,18 @@ function RunSphereApp() {
   );
   const [recording, setRecording] = useState<ActivitySession>();
   const [accountId, setAccountId] = useState<string>();
+  /**
+   * The Map tab stays mounted, hidden, once it has been opened, so coming back
+   * doesn't rebuild the map and refetch everything. Released on sign-out and
+   * during a recorded run, when the live map and GPS need the phone more.
+   */
+  const [mapOpened, setMapOpened] = useState(false);
+  /** The How Turf works story, over everything while it plays. */
+  const [storyOpen, setStoryOpen] = useState(false);
+  // Fetch the Map tab's dark style once signed in, so the first visit opens on it.
+  useEffect(() => {
+    if (accountId) prefetchTurfWorldStyle();
+  }, [accountId]);
   const [initializationState, setInitializationState] = useState<
     'loading' | 'ready' | 'storage-failure'
   >('loading');
@@ -332,6 +363,8 @@ function RunSphereApp() {
     setRouteGuide(undefined);
     setHomeLoop(undefined);
     setRecording(undefined);
+    setMapOpened(false);
+    setStoryOpen(false);
     setAccountId(undefined);
     dispatch({ type: 'logoutComplete' });
   }, []);
@@ -475,6 +508,12 @@ function RunSphereApp() {
     setSelectedQuest(undefined);
     setActiveTab('Run');
   };
+  const openStory = () => setStoryOpen(true);
+  // Finishing or skipping both count as seen: it never plays itself twice.
+  const closeStory = () => {
+    setStoryOpen(false);
+    if (accountId) void markTurfStorySeen(accountId);
+  };
   const exitActivity = () => {
     const origin = routeOrigin(activityRoute);
     dispatchActivityRoute({ type: 'exit' });
@@ -515,11 +554,6 @@ function RunSphereApp() {
       activityRoute.screen === 'idle' &&
       !recording
   });
-  // The map and the live run stay dark in both themes (ADR-0016). The root
-  // views below are drawn here, outside the island's provider, so they take the
-  // dark styles directly.
-  const island = isAlwaysDark(shell);
-  const shellStyles = island ? darkAppStyles : styles;
   const content =
     recording && accountId ? (
       <ActivityRecording
@@ -655,21 +689,7 @@ function RunSphereApp() {
         onSessionExpired={expireSession}
       />
     ) : activeTab === 'Map' ? (
-      <TurfScreen
-        api={apiClient}
-        {...(claimRunId ? { requestedRunId: claimRunId } : {})}
-        {...(accountId ? { accountId } : {})}
-        onOpenRun={() => openActivity('map')}
-        onOpenProfile={() => {
-          setProfileEntry('profile');
-          setActiveTab('Profile');
-        }}
-        onOpenSettings={() => {
-          setProfileEntry('settings');
-          setActiveTab('Profile');
-        }}
-        onSessionExpired={expireSession}
-      />
+      MAP_SLOT
     ) : activeTab === 'Social' ? (
       <PlayScreen
         key={socialEntry}
@@ -703,9 +723,16 @@ function RunSphereApp() {
       </>
     );
 
+  const mapShown = content === MAP_SLOT;
+  // Adjusting state while rendering (React's "previous render" pattern): hooks
+  // can't run here, below the early returns.
+  if (mapShown && !mapOpened && !recording) setMapOpened(true);
+  if (recording && mapOpened) setMapOpened(false);
+  const keepMap = Boolean(accountId) && !recording && (mapShown || mapOpened);
+
   return (
-    <ForceTheme {...(island ? { scheme: 'dark' as const } : {})}>
-      <SafeAreaView edges={['top']} style={shellStyles.screen}>
+    <ForceTheme>
+      <SafeAreaView edges={['top']} style={styles.screen}>
         <RunDetailProvider
           renderDetail={(props) => (
             <RunDetailScreen
@@ -728,12 +755,40 @@ function RunSphereApp() {
           {/* What the tour's panels blur on Android (M9 9.23). */}
           <BlurTargetView
             ref={tourBlurTarget}
-            style={shellStyles.screen}
+            style={styles.screen}
             // Android has no accessibilityViewIsModal: hide the app from
             // TalkBack while the tour is over it (found on a phone, M9 9.29).
             importantForAccessibility={tour || runOpen ? 'no-hide-descendants' : 'auto'}
           >
-            {shell === 'tab-scroll' ? (
+            {keepMap ? (
+              <View
+                key={accountId}
+                style={mapShown ? keepAliveStyles.shown : keepAliveStyles.hidden}
+                importantForAccessibility={mapShown ? 'auto' : 'no-hide-descendants'}
+              >
+                <FocusedFlexShell fullBleed>
+                  <TurfScreen
+                    api={apiClient}
+                    visible={mapShown}
+                    {...(claimRunId ? { requestedRunId: claimRunId } : {})}
+                    {...(accountId ? { accountId } : {})}
+                    onOpenRun={() => openActivity('map')}
+                    onOpenProfile={() => {
+                      setProfileEntry('profile');
+                      setActiveTab('Profile');
+                    }}
+                    onOpenSettings={() => {
+                      setProfileEntry('settings');
+                      setActiveTab('Profile');
+                    }}
+                    onSessionExpired={expireSession}
+                    onOpenStory={openStory}
+                    storyBlocked={Boolean(tour)}
+                  />
+                </FocusedFlexShell>
+              </View>
+            ) : null}
+            {mapShown ? null : shell === 'tab-scroll' ? (
               <TabScrollShell>{content}</TabScrollShell>
             ) : shell === 'tab-map' ? (
               <FocusedFlexShell fullBleed>{content}</FocusedFlexShell>
@@ -775,6 +830,17 @@ function RunSphereApp() {
                 setActiveTab(tab);
               }}
             />
+          ) : null}
+          {storyOpen ? (
+            <View style={StyleSheet.absoluteFill}>
+              <TurfStoryScreen
+                onDone={closeStory}
+                onStartRun={() => {
+                  closeStory();
+                  chooseRun('map');
+                }}
+              />
+            </View>
           ) : null}
         </RunDetailProvider>
       </SafeAreaView>

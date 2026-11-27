@@ -32,6 +32,7 @@ vi.mock('../theme/theme', () => ({
   })
 }));
 vi.mock('./RunDetailMap', () => ({ RunDetailMap: () => null }));
+vi.mock('./RunReplayScreen', () => ({ RunReplayScreen: () => null }));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 24, bottom: 0, left: 0, right: 0 })
 }));
@@ -135,8 +136,7 @@ describe('run detail layout (M9 9.19)', () => {
     expect(shown).toEqual(
       expect.arrayContaining([
         'Claimed 482 Turf points',
-        'Moving time',
-        'Elapsed',
+        'Elapsed time',
         'Best km',
         'SPLITS',
         'Km 1 · Best',
@@ -146,6 +146,7 @@ describe('run detail layout (M9 9.19)', () => {
         'Delete run'
       ])
     );
+    expect(shown).not.toContain('Moving time');
     // No elevation recorded: no elevation chart.
     expect(shown).not.toContain('ELEVATION');
   });

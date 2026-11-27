@@ -30,6 +30,7 @@ vi.mock('@maplibre/maplibre-react-native', async () => {
 });
 vi.mock('../theme/theme', () => ({
   useAppTheme: () => ({
+    colorScheme: 'dark',
     reduceMotion: true,
     tokens: {
       background: { surfaceInset: '#000' },
@@ -50,6 +51,7 @@ vi.mock('./map-config', () => ({
 vi.mock('./LocalGeoJsonLayers', () => ({ LocalGeoJsonLayers: () => null }));
 
 const { MapSurface } = await import('./MapSurface.js');
+const { resetTurfWorldStyleCache } = await import('./turf-world-style-cache.js');
 
 describe('map render interaction', () => {
   it('reports follow to free-pan and delegates explicit recenter requests', async () => {
@@ -112,6 +114,8 @@ describe('map render interaction', () => {
     // A style object, not the provider's URL: the world style was built from it.
     expect(typeof themed.props.mapStyle).toBe('object');
 
+    // A fresh session: the first render kept the good download.
+    resetTurfWorldStyleCache();
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => ({ ok: false, json: async () => undefined }))

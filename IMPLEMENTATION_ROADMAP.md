@@ -207,6 +207,13 @@ V1 launch polish (2026-11-24):
 - Pace zones on run detail (pace bands against the runner's own usual pace).
 - All-time best efforts across runs.
 
+Turf story, 3D map and replay, light map (2026-11-27, plan: [`docs/plans/turf-tour-3d-light-map.md`](docs/plans/turf-tour-3d-light-map.md)):
+
+- 🟡 Maps follow the app theme (ADR-0017): day palette, claim casing, contrast tests. Phone check left (sunlight).
+- 🟡 3D buildings from zoom 15 with a per-device switch in the Turf layers sheet. Phone check left (frame rate).
+- 🟡 "How Turf works" story: five map scenes, first Map visit and map intel. Phone check left.
+- 🟡 Run replay from run detail: follow camera, pace legend, live stats, scrub, 1×/2×/4×. Phone check left.
+
 ## Milestone 7 — Housekeeping (any time, low risk)
 
 | ID   | Task                                                                                                                                                                                                                                                                                         | Done when                                 |

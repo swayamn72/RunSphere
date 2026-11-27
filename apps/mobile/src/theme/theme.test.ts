@@ -9,7 +9,7 @@ import {
   statusBarStyleFor,
   tokensFor
 } from './theme-state.js';
-import { gameWorld } from './game-world.js';
+import { gameWorld, gameWorldDay } from './game-world.js';
 
 const luminance = (hex: string): number => {
   const channels = [0, 2, 4].map(
@@ -132,6 +132,34 @@ describe('light-default theme (ADR-0016)', () => {
     ];
     for (const [name, foreground, background] of pairs)
       expect(contrast(foreground, background), name).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('keeps the day map HUD readable on its light glass (ADR-0017, AA)', () => {
+    const { hud, map } = gameWorldDay;
+    const pairs: [string, string, string][] = [
+      ['hud text on glass', hud.text, hud.glass],
+      ['hud detail on glass', hud.detail, hud.glass],
+      ['status on glass', hud.status, hud.glass],
+      ['tool on glass', hud.tool, hud.glass],
+      ['sheet text', hud.text, hud.sheet],
+      ['sheet helper', hud.textSoft, hud.sheet],
+      ['place labels on the ground', map.label, map.night]
+    ];
+    for (const [name, foreground, background] of pairs)
+      expect(contrast(foreground, background), name).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('draws day routes and the claim casing at 3:1 or better on the day ground', () => {
+    // Lime itself is 1.14:1 on paper: this is why day routes are olive and amber-brown.
+    expect(contrast(appPalette.accent, gameWorldDay.map.night)).toBeLessThan(3);
+    for (const [name, colour] of Object.entries({
+      quick: gameWorldDay.route.quick,
+      easy: gameWorldDay.route.easy,
+      loopReady: gameWorldDay.loop.ready,
+      loopReturning: gameWorldDay.loop.returning,
+      casing: gameWorldDay.map.casing
+    }))
+      expect(contrast(colour, gameWorldDay.map.night), name).toBeGreaterThanOrEqual(3);
   });
 
   it('keeps the brand rose for zones and a lighter rose only for text', () => {

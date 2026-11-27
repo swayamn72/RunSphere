@@ -128,16 +128,16 @@ button.addEventListener('click', async () => {
 });`
 );
 
-// Mirrors `PasswordResetCompleteRequestSchema` (12–256 characters); the API still decides.
+// Mirrors `PasswordResetCompleteRequestSchema` (8–256 characters); the API still decides.
 const resetPasswordPage = page(
   'Set a new password',
-  `<p>Choose a new password of at least 12 characters. Once it's set, you're signed out everywhere and
+  `<p>Choose a new password of at least 8 characters. Once it's set, you're signed out everywhere and
 can sign in with the new one.</p>
 <form id="form">
   <label for="password">New password</label>
-  <input id="password" type="password" autocomplete="new-password" required minlength="12" maxlength="256">
+  <input id="password" type="password" autocomplete="new-password" required minlength="8" maxlength="256">
   <label for="confirm">Type it again</label>
-  <input id="confirm" type="password" autocomplete="new-password" required minlength="12" maxlength="256">
+  <input id="confirm" type="password" autocomplete="new-password" required minlength="8" maxlength="256">
   <button type="submit" id="submit">Set new password</button>
 </form>`,
   `${readTokenScript}
@@ -151,8 +151,8 @@ if (!token) {
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   const newPassword = document.getElementById('password').value;
-  if (newPassword.length < 12) {
-    status.textContent = 'Use at least 12 characters.';
+  if (newPassword.length < 8) {
+    status.textContent = 'Use at least 8 characters.';
     return;
   }
   if (newPassword !== document.getElementById('confirm').value) {

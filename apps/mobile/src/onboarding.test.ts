@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  accountFieldProblems,
   accountProblem,
   canSubmitAccount,
   dateOfBirthFrom,
@@ -8,6 +9,25 @@ import {
 } from './onboarding.js';
 
 describe('onboarding state machine', () => {
+  it('gives specific field feedback for malformed email, date and password', () => {
+    const draft = {
+      ...initialOnboardingState,
+      email: 'maya@@example.com',
+      password: 'a'.repeat(257),
+      birthDay: '30',
+      birthMonth: '2',
+      birthYear: '1996'
+    };
+    expect(accountFieldProblems(draft, '2026-11-21')).toMatchObject({
+      email: 'Enter an email address like you@example.com.',
+      birthDate: 'Enter a valid date of birth.',
+      password: 'Use a shorter password.'
+    });
+    expect(accountFieldProblems({ ...draft, password: 'abcdefg' }).password).toMatch(/at least 8/);
+    expect(accountFieldProblems({ ...draft, password: 'abcdefgh' }).password).toBeUndefined();
+    expect(accountFieldProblems({ ...draft, password: '😀'.repeat(256) }).password).toBeUndefined();
+  });
+
   it('requires a valid password, an adult date of birth, a username and a name to register', () => {
     expect(canSubmitAccount(initialOnboardingState)).toBe(false);
 

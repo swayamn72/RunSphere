@@ -7,6 +7,7 @@ import * as Sharing from 'expo-sharing';
 import { PrimaryButton } from '../components/primitives';
 import { useAppStyles } from '../components/styles';
 import { Text } from '../components/Text';
+import { TurfrMark } from '../components/TurfrMark';
 import { failureMessage } from '../failure-copy';
 import { gameWorld } from '../theme/game-world';
 import {
@@ -100,7 +101,10 @@ export function ShareCardFace({ card }: { card: RunShareCard }) {
   return (
     <View style={[local.card, { backgroundColor: gameWorld.map.night }]}>
       <View style={local.header}>
-        <Text style={[local.brand, { color: gameWorld.route.quick }]}>TURFR</Text>
+        <View style={local.wordmark}>
+          <TurfrMark color={gameWorld.route.quick} />
+          <Text style={[local.brand, { color: gameWorld.hud.text }]}>TURFR</Text>
+        </View>
         <Text style={[local.date, { color: gameWorld.hud.textSoft }]}>{card.dateLabel}</Text>
       </View>
       <Text style={[local.title, { color: gameWorld.hud.text }]}>{card.title}</Text>
@@ -157,6 +161,7 @@ const local: Record<string, ViewStyle | TextStyle> = {
     width: SHARE_CARD_WIDTH
   },
   header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  wordmark: { alignItems: 'center', flexDirection: 'row', gap: space.sm },
   brand: { fontSize: typeScale.subheading.size, fontWeight: '700', letterSpacing: 2 },
   date: { fontSize: 13, fontWeight: '700' },
   title: { fontSize: typeScale.heading.size, fontWeight: '700', marginTop: 6 },

@@ -129,9 +129,14 @@ export function OnboardingSocialStep({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Choose your area"
+        accessibilityState={{ expanded: showAreas }}
         onPress={() => setShowAreas((open) => !open)}
+        style={styles.pickerField}
       >
-        <Text style={styles.textButton}>{area ?? 'Pick a neighbourhood'}</Text>
+        <Text style={area ? styles.pickerFieldText : styles.pickerFieldPlaceholder}>
+          {area ?? 'Pick a neighbourhood'}
+        </Text>
+        <Text style={styles.pickerFieldPlaceholder}>{showAreas ? '▲' : '▼'}</Text>
       </Pressable>
       {showAreas && (
         <View style={styles.filterRow}>
@@ -144,7 +149,7 @@ export function OnboardingSocialStep({
                 setArea(name);
                 setShowAreas(false);
               }}
-              style={[styles.segment, area === name && styles.segmentActive]}
+              style={[styles.areaChip, area === name && styles.areaChipActive]}
             >
               <Text style={[styles.segmentText, area === name && styles.segmentTextActive]}>
                 {name}

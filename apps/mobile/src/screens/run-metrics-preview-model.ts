@@ -40,7 +40,7 @@ export interface RunMetricsSplitRow {
  */
 export interface RunMetricsHeadline {
   distanceKm: string;
-  movingTime: string;
+  elapsedTime: string;
   pace: string;
 }
 
@@ -111,7 +111,7 @@ const panelFrom = (
 ): RunMetricsPanel | null => {
   if (metrics.distanceMeters <= 0 || metrics.splits.length === 0) return null;
   const fastest = metrics.splits.find((split) => split.km === metrics.fastestSplitKm);
-  const stats: RunMetricsStat[] = [{ label: 'Elapsed', value: clock(metrics.elapsedSeconds) }];
+  const stats: RunMetricsStat[] = [];
   if (metrics.elevation)
     stats.push({ label: 'Climb', value: `${Math.round(metrics.elevation.gainMeters)} m` });
   if (fastest) stats.push({ label: 'Best km', value: paceClock(fastest.paceSecondsPerKm) });
@@ -120,7 +120,7 @@ const panelFrom = (
     note,
     headline: {
       distanceKm: (metrics.distanceMeters / 1_000).toFixed(2),
-      movingTime: clock(metrics.movingSeconds),
+      elapsedTime: clock(metrics.elapsedSeconds),
       pace: paceClock(metrics.movingPaceSecondsPerKm)
     },
     stats,

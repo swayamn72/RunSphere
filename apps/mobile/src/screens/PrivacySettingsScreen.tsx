@@ -205,7 +205,7 @@ export function PrivacySettingsScreen({
                 accessibilityRole="button"
                 accessibilityLabel={`Set your area to ${area}`}
                 onPress={() => void saveArea(area)}
-                style={[styles.segment, identity?.homeArea === area && styles.segmentActive]}
+                style={[styles.areaChip, identity?.homeArea === area && styles.areaChipActive]}
               >
                 <Text
                   style={[

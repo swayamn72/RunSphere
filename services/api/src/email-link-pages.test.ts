@@ -79,7 +79,7 @@ describe('email link pages', () => {
     });
 
     expect(response.body).toContain('autocomplete="new-password"');
-    expect(response.body.match(/minlength="12"/g)).toHaveLength(2);
+    expect(response.body.match(/minlength="8"/g)).toHaveLength(2);
   });
 });
 

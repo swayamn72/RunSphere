@@ -582,3 +582,34 @@ export const claimFailureNotice = (error: unknown): string =>
   error instanceof ApiFailure && error.status === 429
     ? 'Lots of claims just now. Wait a minute, then try again.'
     : "Couldn't claim right now. Your run is safe; try again.";
+
+/**
+ * The ground a camera will show, worked out before the map has drawn.
+ *
+ * Lets the Map tab ask for territory while the style and tiles are still
+ * loading, instead of waiting for the map's first region event. Web Mercator
+ * at MapLibre's 512 px tiles. A pitched camera sees further towards the
+ * horizon, so `northReach` stretches the top edge; the real viewport replaces
+ * this as soon as the map reports it.
+ */
+export const boundsAround = (
+  center: readonly [number, number],
+  zoom: number,
+  size: { width: number; height: number },
+  northReach = 1
+): TerritoryClaimBounds => {
+  const worldPx = 512 * 2 ** zoom;
+  const halfLng = ((size.width / 2) * 360) / worldPx;
+  const toY = (lat: number) =>
+    (0.5 - Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360)) / (2 * Math.PI)) * worldPx;
+  const toLat = (y: number) =>
+    (Math.atan(Math.exp((0.5 - y / worldPx) * 2 * Math.PI)) * 360) / Math.PI - 90;
+  const centreY = toY(center[1]);
+  const clampLat = (lat: number) => Math.max(-85, Math.min(85, lat));
+  return {
+    west: Math.max(-180, center[0] - halfLng),
+    east: Math.min(180, center[0] + halfLng),
+    south: clampLat(toLat(centreY + size.height / 2)),
+    north: clampLat(toLat(centreY - (size.height / 2) * northReach))
+  };
+};

@@ -13,7 +13,13 @@ import { Text } from '../components/Text';
 import { useAppTheme } from '../theme/theme';
 import { LocalGeoJsonLayers, type LocalGeoJsonLayer } from './LocalGeoJsonLayers';
 import { mapProductCopy, resolveMapRenderPlan } from './map-config';
-import { turfWorldStyle } from './turf-world-style';
+import { gameWorldFor } from '../theme/game-world';
+import { useMapBuildings } from './map-preferences';
+import {
+  cachedTurfWorldStyle,
+  hasTurfWorldStyle,
+  loadTurfWorldStyle
+} from './turf-world-style-cache';
 import {
   adjustMapZoom,
   applyNativeCameraState,
@@ -66,8 +72,8 @@ export interface MapSurfaceProps {
   /** Map children drawn over the local layers, such as a quest's numbered stop markers. */
   readonly children?: ReactNode;
   /**
-   * Draw the app's dark game-world basemap (the Turf map's look) instead of
-   * the provider's own style. Falls back to the provider style if it can't load.
+   * Draw the app's game-world basemap (the Turf map's look, day or night with
+   * the app theme, ADR-0017) instead of the provider's own style. Falls back to the provider style if it can't load.
    * On by default: a plain white street map on a run or a run's detail read as
    * a different app from the Turf map it sits beside.
    */
@@ -96,7 +102,8 @@ export function MapSurface({
   children,
   world = true
 }: MapSurfaceProps) {
-  const { tokens, reduceMotion } = useAppTheme();
+  const { tokens, reduceMotion, colorScheme } = useAppTheme();
+  const buildings = useMapBuildings();
   const providerConfig = useMemo(() => resolveMapRenderPlan(), []);
   const [lifecycle, setLifecycle] = useState<MapLifecycleState>(
     fallbackState ?? (providerConfig.kind === 'provider' ? 'loading' : 'fallback')
@@ -107,26 +114,36 @@ export function MapSurface({
   const cameraRef = useRef<CameraRef>(null);
   const appliedRecenterRequest = useRef<number | undefined>(undefined);
   const providerUrl = providerConfig.kind === 'provider' ? providerConfig.provider.styleUrl : '';
-  // `undefined` while the dark style loads, `null` once it failed (use the provider's).
-  const [worldStyle, setWorldStyle] = useState<StyleSpecification | null | undefined>(
-    world ? undefined : null
-  );
+  // The style comes from the session cache shared with the Turf map: one
+  // download, then a day or night variant per theme and 3D setting.
+  const [styleFailed, setStyleFailed] = useState(!world || !providerUrl);
+  const [styleLoads, setStyleLoads] = useState(0);
   useEffect(() => {
     if (!world || !providerUrl) {
-      setWorldStyle(null);
+      setStyleFailed(true);
       return;
     }
-    const controller = new AbortController();
-    void fetch(providerUrl, { signal: controller.signal })
-      .then((response) => (response.ok ? response.json() : undefined))
-      .then((style: StyleSpecification | undefined) => {
-        if (!controller.signal.aborted) setWorldStyle((style && turfWorldStyle(style)) ?? null);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setWorldStyle(null);
-      });
-    return () => controller.abort();
+    if (hasTurfWorldStyle(providerUrl)) return;
+    let current = true;
+    void loadTurfWorldStyle(providerUrl, { scheme: colorScheme, buildings }).then((style) => {
+      if (!current) return;
+      if (style) setStyleLoads((count) => count + 1);
+      else setStyleFailed(true);
+    });
+    return () => {
+      current = false;
+    };
+    // Only the first download matters; variants are built from it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providerUrl, world]);
+  // `undefined` while the style loads, `null` once it failed (use the provider's).
+  const worldStyle = useMemo<StyleSpecification | null | undefined>(
+    () =>
+      styleFailed ? null : cachedTurfWorldStyle(providerUrl, { scheme: colorScheme, buildings }),
+    // styleLoads: re-read the cache once the download has landed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [buildings, colorScheme, providerUrl, styleFailed, styleLoads]
+  );
   const hasStartedFollowing = useRef(false);
 
   useEffect(() => {
@@ -258,7 +275,7 @@ export function MapSurface({
       {showMap && providerConfig.kind === 'provider' && worldStyle === undefined ? null : showMap &&
         providerConfig.kind === 'provider' ? (
         <Map
-          key={`${mapInstance}-${worldStyle ? 'world' : 'provider'}`}
+          key={`${mapInstance}-${worldStyle ? `world-${colorScheme}-${buildings ? '3d' : 'flat'}` : 'provider'}`}
           accessibilityLabel={accessibilityLabel}
           style={StyleSheet.absoluteFill}
           mapStyle={worldStyle ?? providerConfig.provider.styleUrl}
@@ -279,14 +296,18 @@ export function MapSurface({
             onStyleReady?.();
           }}
           onDidFailLoadingMap={() => {
-            // A dark style that won't load falls back to the provider's own.
-            if (worldStyle) setWorldStyle(null);
+            // A world style that won't load falls back to the provider's own.
+            if (worldStyle) setStyleFailed(true);
             else setLifecycle((current) => transitionMapLifecycle(current, 'style-failed'));
           }}
           onRegionDidChange={onRegionChanged}
         >
           <Camera ref={cameraRef} initialViewState={initialViewState} />
-          <LocalGeoJsonLayers layers={localLayers} tokens={tokens} />
+          <LocalGeoJsonLayers
+            layers={localLayers}
+            tokens={tokens}
+            world={gameWorldFor(colorScheme)}
+          />
           {children}
         </Map>
       ) : (

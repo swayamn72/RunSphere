@@ -280,6 +280,33 @@ export const createAppStyles = (t: SemanticTokens) =>
       paddingVertical: space.sm
     },
     filterChipActive: { backgroundColor: t.action.primary, color: t.text.onAccent },
+    /** Neighbourhood picker: a field that opens a wrapping grid of chips. Chips
+     * size to their label; `segment` stretches (flex: 1) and looks broken when it wraps. */
+    pickerField: {
+      alignItems: 'center',
+      backgroundColor: t.background.surface,
+      borderColor: t.border.subtle,
+      borderRadius: radius.control,
+      borderWidth: 1,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: space.sm,
+      minHeight: 52,
+      paddingHorizontal: 15
+    },
+    pickerFieldText: { color: t.text.primary, fontSize: 15 },
+    pickerFieldPlaceholder: { color: t.text.secondary, fontSize: 15 },
+    areaChip: {
+      alignItems: 'center',
+      backgroundColor: t.background.surface,
+      borderColor: t.border.subtle,
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      justifyContent: 'center',
+      minHeight: 36,
+      paddingHorizontal: 14
+    },
+    areaChipActive: { backgroundColor: t.action.primary, borderColor: t.action.primary },
     badge: {
       backgroundColor: t.background.surfaceRaised,
       borderRadius: radius.pill,
@@ -457,6 +484,9 @@ export const createAppStyles = (t: SemanticTokens) =>
       minHeight: 52,
       paddingHorizontal: 15
     },
+    accountFieldError: { color: t.text.danger, fontSize: 14, lineHeight: 20 },
+    passwordRow: { alignItems: 'center', flexDirection: 'row', gap: space.sm },
+    passwordToggle: { justifyContent: 'center', minHeight: 48, paddingHorizontal: space.sm },
     /** Rounded search field with a leading glyph (Map). */
     searchField: {
       alignItems: 'center',
@@ -772,16 +802,26 @@ export const createAppStyles = (t: SemanticTokens) =>
       borderRadius: radius.control,
       borderWidth: 1,
       left: 16,
-      padding: space.lg,
+      paddingHorizontal: space.xl,
+      paddingTop: space.lg,
+      paddingBottom: space.sm,
       position: 'absolute',
       right: 16
     },
-    tourBubbleRow: { flexDirection: 'row', gap: space.md },
+    tourBubbleRow: { alignItems: 'center', flexDirection: 'row', gap: space.sm },
+    tourBubbleTitle: { color: t.text.primary, fontSize: 20, fontWeight: '700', lineHeight: 26 },
+    tourBubbleBody: { color: t.text.secondary, fontSize: 15, lineHeight: 22, marginTop: space.md },
+    tourPendingCopy: { color: 'transparent' },
     tourButtons: {
+      borderTopColor: t.border.subtle,
+      borderTopWidth: StyleSheet.hairlineWidth,
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginTop: space.md
+      marginTop: space.lg,
+      paddingTop: space.xs
     },
+    tourButton: { alignItems: 'center', justifyContent: 'center', minHeight: 44, minWidth: 44 },
+    tourButtonLabel: { color: t.action.primary, fontSize: 15, fontWeight: '600' },
     tourButtonOff: { opacity: 0.4 },
     tourNext: { fontWeight: '700' },
     /** The run detail overlay (M9 9.16): its drag-to-close header and body. */

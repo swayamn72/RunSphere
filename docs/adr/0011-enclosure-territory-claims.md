@@ -28,6 +28,10 @@ Ship **enclosure claims** as a mechanic independent of the H3 cell engine.
 - A new loop **contests** a held claim when at least 60% of its area lies inside
   it, and **takes** it only if strictly faster. A tie leaves the ground where it
   is.
+  _Update 2026-11-27: superseded in the code by carving. A faster loop takes only the
+  overlap (at least max(5,000 m², 10% of the smaller claim)), with an effort grace capped at
+  15%; the holder keeps the rest if it is still 5,000 m² or more. See
+  `packages/domain/src/territory-claim.ts` and `docs/territory-guide.md`._
 - The map shows the boundary, the holder's display name and avatar, and the time
   to beat.
 - Claiming is an **explicit act**. A run does not reach the map because somebody

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Pressable, View, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Text } from '../components/Text';
 import Animated, {
   Extrapolation,
@@ -18,6 +18,7 @@ import { failureMessage } from '../failure-copy';
 import { useAppTheme } from '../theme/theme';
 import type { RunDetailSlotProps } from './RunDetailHost';
 import { RunDetailMap } from './RunDetailMap';
+import { RunReplayScreen } from './RunReplayScreen';
 import { RunChart } from './RunCharts';
 import { RunShareSheet } from './RunShareSheet';
 import { runShareCard } from './run-share-model';
@@ -58,7 +59,7 @@ export function RunDetailScreen({
   status
 }: RunDetailSlotProps & { api: RunDetailApi; status?: ReactNode }) {
   const styles = useAppStyles();
-  const { tokens } = useAppTheme();
+  const { tokens, colorScheme } = useAppTheme();
   const { width, height } = useWindowDimensions();
   // The overlay is absolutely placed, so it ignores the shell's safe area: the
   // header clears the status bar itself (found on a phone).
@@ -74,6 +75,7 @@ export function RunDetailScreen({
   const [deleting, setDeleting] = useState(false);
   const [notice, setNotice] = useState('');
   const [shareOpen, setShareOpen] = useState(false);
+  const [replayOpen, setReplayOpen] = useState(false);
 
   useEffect(() => {
     if (!run.owner) return;
@@ -105,7 +107,7 @@ export function RunDetailScreen({
         ? runShareCard({
             metrics: metrics ?? {
               distanceMeters: run.item.distanceMeters,
-              movingSeconds: run.item.movingSeconds ?? run.item.durationSeconds,
+              elapsedSeconds: run.item.durationSeconds,
               movingPaceSecondsPerKm: run.item.paceSecondsPerKm,
               elevation:
                 run.item.elevationGainMeters === null
@@ -198,6 +200,7 @@ export function RunDetailScreen({
                 lines={lines}
                 paceSeries={metrics?.paceSeries}
                 reduceMotion={reduceMotion}
+                scheme={colorScheme}
                 marker={scrub?.position}
                 accessibilityLabel={run.owner ? 'Your route' : 'Their route'}
               />
@@ -341,6 +344,16 @@ export function RunDetailScreen({
         {shareCard
           ? section(
               <View>
+                {lines.some((part) => part.length > 1) ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Replay your run on the map"
+                    onPress={() => setReplayOpen(true)}
+                    style={styles.secondaryButton}
+                  >
+                    <Text style={styles.secondaryText}>Replay your run</Text>
+                  </Pressable>
+                ) : null}
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Share your run as an image"
@@ -393,6 +406,18 @@ export function RunDetailScreen({
             )
           : null}
       </Animated.ScrollView>
+      {replayOpen && shareCard ? (
+        // Over the whole detail page: a replay is its own full-screen view.
+        <View style={StyleSheet.absoluteFill}>
+          <RunReplayScreen
+            lines={lines}
+            distanceMeters={metrics?.distanceMeters ?? run.item.distanceMeters}
+            averagePace={metrics?.movingPaceSecondsPerKm ?? run.item.paceSecondsPerKm}
+            elapsedSeconds={metrics?.elapsedSeconds ?? run.item.durationSeconds}
+            onClose={() => setReplayOpen(false)}
+          />
+        </View>
+      ) : null}
     </View>
   );
 }

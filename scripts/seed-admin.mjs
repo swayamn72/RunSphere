@@ -10,7 +10,7 @@ import { createDatabase, defaultDatabaseUrl } from '../packages/db/dist/index.js
  *   SEED_ADMIN_EMAIL           required. The staff account to create or update.
  *   SEED_ADMIN_PASSWORD        required when the account does not exist yet,
  *                              or when SEED_ADMIN_RESET_PASSWORD=true.
- *                              At least 12 characters (the registration rule).
+ *                              At least 8 characters (the registration rule).
  *   SEED_ADMIN_ROLES           optional, comma-separated. Defaults to every role.
  *                              One of: admin, data_steward, moderator,
  *                              privacy_officer, campaign_manager,
@@ -41,7 +41,7 @@ const ALL_ROLES = [
   'season_operator',
   'support'
 ];
-const MIN_PASSWORD_LENGTH = 12;
+const MIN_PASSWORD_LENGTH = 8;
 
 const fail = (message) => {
   console.error(`seed-admin: ${message}`);

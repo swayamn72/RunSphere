@@ -3,7 +3,7 @@ import { SHARE_ROUTE_SIZE, runShareCard, runTitle } from './run-share-model.js';
 
 const metrics = {
   distanceMeters: 5_020,
-  movingSeconds: 1_575,
+  elapsedSeconds: 1_635,
   movingPaceSecondsPerKm: 313.7,
   elevation: { gainMeters: 41.6, lossMeters: 40, maxMeters: 60, minMeters: 18 }
 };
@@ -20,17 +20,17 @@ const square: [number, number][][] = [
 ];
 
 describe('run share card', () => {
-  it('shows distance, moving time, moving pace and climb, with the date and a title', () => {
+  it('shows distance, elapsed time, pace and climb, with the date and a title', () => {
     const card = runShareCard({ metrics, startedAt: '2026-11-24T00:45:00.000Z', lines: square })!;
     expect(card.title).toBe('Morning run');
     expect(card.dateLabel).toBe('Tue 24 Nov');
     expect(card.stats).toEqual([
       { label: 'Distance', value: '5.02 km' },
-      { label: 'Moving time', value: '26:15' },
+      { label: 'Elapsed time', value: '27:15' },
       { label: 'Pace', value: '5:14 /km' },
       { label: 'Climb', value: '42 m' }
     ]);
-    expect(card.summary).toBe('5.02 km in 26:15 on TURFR.');
+    expect(card.summary).toBe('5.02 km in 27:15 on TURFR.');
   });
 
   it('draws the route as a line fitted inside the card, with no map under it', () => {
@@ -49,7 +49,7 @@ describe('run share card', () => {
       lines: null
     })!;
     expect(card.route).toBeNull();
-    expect(card.stats.map((stat) => stat.label)).toEqual(['Distance', 'Moving time', 'Pace']);
+    expect(card.stats.map((stat) => stat.label)).toEqual(['Distance', 'Elapsed time', 'Pace']);
   });
 
   it('makes no card for a run with no distance or no start time', () => {

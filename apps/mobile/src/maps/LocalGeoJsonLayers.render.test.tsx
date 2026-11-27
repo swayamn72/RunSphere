@@ -7,6 +7,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { SemanticTokens } from '@runsphere/ui';
 import type { LocalGeoJsonLayer } from './LocalGeoJsonLayers';
+import { gameWorld } from '../theme/game-world';
 
 vi.mock('@maplibre/maplibre-react-native', async () => {
   const React = await import('react');
@@ -70,8 +71,9 @@ describe('the accepted-route guide', () => {
       'line-dasharray': [2, 2],
       'line-opacity': 0.5
     });
+    // The trace takes the map palette's route colour (lime at night, olive by day, ADR-0017).
     expect(painted['trace-layer']).toMatchObject({
-      'line-color': tokens.route.line,
+      'line-color': gameWorld.route.quick,
       'line-opacity': 0.92
     });
     expect(painted['trace-layer']?.['line-dasharray']).toBeUndefined();

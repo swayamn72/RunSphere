@@ -1106,8 +1106,8 @@ export function ActivityDetail({
       {metricsPanel ? (
         <SummaryMetrics
           distance={metricsPanel.headline.distanceKm}
-          time={metricsPanel.headline.movingTime}
-          timeLabel="Moving time"
+          time={metricsPanel.headline.elapsedTime}
+          timeLabel="Elapsed time"
           pace={metricsPanel.headline.pace}
           provenance={
             presentation.state === 'validated'
@@ -1425,19 +1425,21 @@ function SummaryMetrics({
   );
 }
 
-/** Elapsed, climb, best km, best efforts and the km splits; the phone's until the server's arrive. */
+/** Climb, best km, best efforts and splits; the phone's until the server's arrive. */
 function RunSplits({ panel }: { panel: RunMetricsPanel }) {
   const styles = useAppStyles();
   return (
     <View accessibilityLabel="Splits">
-      <View style={styles.metricRow}>
-        {panel.stats.map((stat) => (
-          <View key={stat.label} style={styles.metricCell}>
-            <Text style={styles.metricCellValue}>{stat.value}</Text>
-            <Text style={styles.metricCellLabel}>{stat.label}</Text>
-          </View>
-        ))}
-      </View>
+      {panel.stats.length ? (
+        <View style={styles.metricRow}>
+          {panel.stats.map((stat) => (
+            <View key={stat.label} style={styles.metricCell}>
+              <Text style={styles.metricCellValue}>{stat.value}</Text>
+              <Text style={styles.metricCellLabel}>{stat.label}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
       {panel.efforts.length ? (
         <View accessibilityLabel="Best efforts" style={styles.effortBlock}>
           <Text accessibilityRole="header" style={styles.effortTitle}>

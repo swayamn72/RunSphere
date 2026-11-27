@@ -44,6 +44,7 @@ vi.mock('react-native', async () => {
     StyleSheet: { create: <T,>(styles: T) => styles, absoluteFill: {} },
     Text: native('Text'),
     TextInput: native('TextInput'),
+    useWindowDimensions: () => ({ width: 400, height: 800 }),
     View: native('View')
   };
 });
@@ -79,6 +80,13 @@ vi.mock('../maps/map-config', () => ({
     kind: 'provider',
     provider: { styleUrl: 'https://tiles.example.com/style.json', attribution: 'Example' }
   })
+}));
+
+/** No style server in tests: the map draws straight away on the plain style. */
+vi.mock('../maps/turf-world-style-cache', () => ({
+  cachedTurfWorldStyle: () => undefined,
+  hasTurfWorldStyle: () => true,
+  loadTurfWorldStyle: async () => undefined
 }));
 
 const { TurfScreen } = await import('./TurfScreen.js');
@@ -290,11 +298,64 @@ describe('the turf map', () => {
       getTerritoryClaims
     } as unknown as MobileApiClient;
     const renderer = await renderTurf(api);
+    // Opening at street zoom asks for the ground under the camera; only the
+    // zoom-out matters here.
+    getTerritoryClaims.mockClear();
 
     await moveMap(renderer, [-180, -85, 180, 85], 2);
 
     expect(getTerritoryClaims).not.toHaveBeenCalled();
     expect(textOf(renderer)).toContain('Zoom in to a city to see who holds what');
+  });
+
+  it('asks for the ground under the camera before the map has drawn', async () => {
+    const getTerritoryClaims = vi.fn(() =>
+      Promise.resolve({ claims: [claim()], truncated: false, mapNote: MAP_NOTE })
+    );
+    const renderer = await renderTurf({
+      ...stubApi({}),
+      getTerritoryClaims
+    } as unknown as MobileApiClient);
+
+    // No region event yet: the request comes from the opening camera alone.
+    expect(getTerritoryClaims).toHaveBeenCalledTimes(1);
+    const [bounds] = getTerritoryClaims.mock.calls[0] as unknown as [
+      { west: number; east: number; south: number; north: number }
+    ];
+    expect(bounds.west).toBeLessThan(72.8777);
+    expect(bounds.east).toBeGreaterThan(72.8777);
+    const drawn = (claimSource(renderer)?.props as { data?: { features: unknown[] } }).data;
+    expect(drawn?.features.length).toBeGreaterThan(0);
+  });
+
+  it('stays quiet while hidden and refreshes when shown again', async () => {
+    const getTerritoryClaims = vi.fn(() =>
+      Promise.resolve({ claims: [], truncated: false, mapNote: MAP_NOTE })
+    );
+    const getTerritoryClaimSummary = vi.fn(() =>
+      Promise.resolve({ claimCount: 0, totalAreaSqm: 0, lostCount: 0 })
+    );
+    const api = {
+      ...stubApi({}),
+      getTerritoryClaims,
+      getTerritoryClaimSummary
+    } as unknown as MobileApiClient;
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(React.createElement(TurfScreen, { api, visible: true }));
+    });
+    getTerritoryClaims.mockClear();
+    getTerritoryClaimSummary.mockClear();
+
+    await act(async () =>
+      renderer.update(React.createElement(TurfScreen, { api, visible: false }))
+    );
+    expect(getTerritoryClaims).not.toHaveBeenCalled();
+    expect(getTerritoryClaimSummary).not.toHaveBeenCalled();
+
+    await act(async () => renderer.update(React.createElement(TurfScreen, { api, visible: true })));
+    expect(getTerritoryClaims).toHaveBeenCalledTimes(1);
+    expect(getTerritoryClaimSummary).toHaveBeenCalledTimes(1);
   });
 
   it('says when there was more ground than it could draw', async () => {

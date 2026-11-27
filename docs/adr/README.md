@@ -18,3 +18,4 @@ ADRs record durable decisions. A new ADR is required when a change affects priva
 - [ADR-0014: Social identity, discovery and privacy controls](0014-social-identity-and-privacy-controls.md) — **amends ADR-0007** (discovery, friend board)
 - [ADR-0015: Who sees your runs by default](0015-run-visibility-defaults.md) — **amends ADR-0014** (start and finish may be shown)
 - [ADR-0016: One design system, light by default](0016-design-system-light-default.md) — **amends the TURFR handoff** (light default; lime and Inter kept)
+- [ADR-0017: Maps follow the app theme](0017-maps-follow-app-theme.md) — **amends ADR-0016** (day map in the light theme; 3D buildings)

@@ -81,16 +81,14 @@ describe('runMetricsPanel (M9 9.12)', () => {
     expect(panel.splits.map((split) => split.label)).toEqual(['Km 1', 'Last 0.50 km']);
     expect(panel.splits[0]!.pace).toBe('5:00');
     expect(panel.splits[0]!.climb).toMatch(/^\+\d+ m$/);
-    expect(panel.stats.map((stat) => stat.label)).toEqual(['Elapsed', 'Climb', 'Best km']);
-    expect(panel.stats[0]!.value).toBe('00:07:30');
-    expect(panel.headline).toEqual({ distanceKm: '1.50', movingTime: '00:07:30', pace: '5:00' });
+    expect(panel.stats.map((stat) => stat.label)).toEqual(['Climb', 'Best km']);
+    expect(panel.headline).toEqual({ distanceKm: '1.50', elapsedTime: '00:07:30', pace: '5:00' });
   });
 
   it('switches to the server’s numbers once the run counts', () => {
     const panel = runMetricsPanel(counted(serverMetrics), samples)!;
     expect(panel).toMatchObject({ source: 'server', note: null });
     expect(panel.stats).toEqual([
-      { label: 'Elapsed', value: '00:07:40' },
       { label: 'Climb', value: '7 m' },
       { label: 'Best km', value: '4:58' }
     ]);
@@ -104,11 +102,11 @@ describe('runMetricsPanel (M9 9.12)', () => {
     ]);
   });
 
-  it('leads with moving time and moving pace, so a stop does not slow the pace', () => {
+  it('shows elapsed time and uses moving time to calculate pace', () => {
     // 455 s moving over 1.52 km is 4:59/km; over the 460 s elapsed it would be 5:03.
     expect(runMetricsPanel(counted(serverMetrics), samples)!.headline).toEqual({
       distanceKm: '1.52',
-      movingTime: '00:07:35',
+      elapsedTime: '00:07:40',
       pace: '4:59'
     });
   });
@@ -135,7 +133,7 @@ describe('runMetricsPanel (M9 9.12)', () => {
   it('leaves climb out when the phone recorded no altitude', () => {
     const flat = samples.map((sample) => ({ ...sample, altitude: null }));
     const panel = runMetricsPanel({ state: 'pending' }, flat)!;
-    expect(panel.stats.map((stat) => stat.label)).toEqual(['Elapsed', 'Best km']);
+    expect(panel.stats.map((stat) => stat.label)).toEqual(['Best km']);
     expect(panel.splits[0]!.climb).toBeNull();
   });
 

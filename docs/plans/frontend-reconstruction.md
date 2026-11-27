@@ -50,7 +50,7 @@ reference only.
 lime `#C9F44A` for primary actions, your Turf and active tabs, and warm off-white paper
 `#F4F2ED` cards with dark ink for Home metrics, Social standings and Profile stats. The Map
 and the live run stay dark. Launcher icon, splash and Play assets already use it.
-The reference is `docs/assets/homepage-reference3.png`.
+The [Home launch screenshot](../assets/turfr-phone-01-home.png) shows the original dark presentation.
 
 The reconstruction brief proposed light-by-default with an orange accent. The owner chose light by
 default. The accent stays lime on contrast and differentiation grounds (ADR-0016).

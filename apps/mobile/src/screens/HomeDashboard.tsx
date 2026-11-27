@@ -2,6 +2,7 @@ import { useMemo, type ComponentProps, type ReactNode } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import { NavigationIcon } from '../components/NavigationIcon';
+import { TurfrMark } from '../components/TurfrMark';
 import Svg, { Path } from 'react-native-svg';
 import { type SemanticTokens, appPalette, darkTokens as night, radius, space } from '@runsphere/ui';
 import { useAppTheme } from '../theme/theme';
@@ -38,12 +39,7 @@ export function HomeHeader({
     <View style={styles.header}>
       <View style={styles.copy}>
         <View style={styles.wordmark}>
-          <Svg width={25} height={24} viewBox="0 0 25 24" accessible={false}>
-            <Path
-              d="M1 14l4-4h6l4 4v5l-4 4H5l-4-4zm10-10 4-4h6l4 4v5l-4 4h-6l-4-4z"
-              fill={tokens.brand.lime}
-            />
-          </Svg>
+          <TurfrMark color={tokens.brand.lime} />
           <Text style={styles.brand}>TURFR</Text>
         </View>
         <Text accessibilityRole="header" style={styles.name}>

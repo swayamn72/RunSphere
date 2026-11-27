@@ -72,15 +72,14 @@ describe('run detail layout (M9 9.19)', () => {
   it('fills the stats grid from metrics, or from the log item alone', () => {
     expect(statCells(item, metrics)).toEqual([
       { label: 'Distance', value: '2.50 km' },
-      { label: 'Moving time', value: '13:00' },
+      { label: 'Elapsed time', value: '13:40' },
       { label: 'Pace', value: '5:12 /km' },
-      { label: 'Elapsed', value: '13:40' },
       { label: 'Climb', value: '10 m' },
       { label: 'Best km', value: '5:00 /km' }
     ]);
     expect(statCells(item, undefined).map((cell) => cell.label)).toEqual([
       'Distance',
-      'Moving time',
+      'Elapsed time',
       'Pace'
     ]);
   });

@@ -10,6 +10,7 @@ import type {
 import { ApiFailure } from '../api-client';
 import {
   OWNER_PALETTE,
+  boundsAround,
   claimFailureNotice,
   ZONE_FILTERS,
   filterClaims,
@@ -684,5 +685,33 @@ describe('claimFailureNotice (R5)', () => {
 
   it('keeps every other failure retryable and says the run is safe', () => {
     expect(claimFailureNotice(new Error('offline'))).toMatch(/run is safe/);
+  });
+});
+
+describe('boundsAround (Map asks for ground before it has drawn)', () => {
+  const mumbai: [number, number] = [72.8777, 19.076];
+
+  it('centres the box on the camera and spans the screen at that zoom', () => {
+    const box = boundsAround(mumbai, 14.5, { width: 400, height: 800 });
+    // 400 px at zoom 14.5 on 512 px tiles is about 0.012 degrees of longitude.
+    expect(box.east - box.west).toBeCloseTo((400 * 360) / (512 * 2 ** 14.5), 6);
+    expect((box.east + box.west) / 2).toBeCloseTo(mumbai[0], 6);
+    expect(box.south).toBeLessThan(mumbai[1]);
+    expect(box.north).toBeGreaterThan(mumbai[1]);
+  });
+
+  it('reaches further north for a pitched camera', () => {
+    const flat = boundsAround(mumbai, 14.5, { width: 400, height: 800 });
+    const pitched = boundsAround(mumbai, 14.5, { width: 400, height: 800 }, 2);
+    expect(pitched.north).toBeGreaterThan(flat.north);
+    expect(pitched.south).toBeCloseTo(flat.south, 9);
+  });
+
+  it('stays on the globe when zoomed right out', () => {
+    const box = boundsAround(mumbai, 0, { width: 2000, height: 4000 });
+    expect(box.west).toBe(-180);
+    expect(box.east).toBe(180);
+    expect(box.north).toBeLessThanOrEqual(85);
+    expect(box.south).toBeGreaterThanOrEqual(-85);
   });
 });

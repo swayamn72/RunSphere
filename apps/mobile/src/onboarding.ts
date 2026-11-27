@@ -1,4 +1,10 @@
-import { isAdult, kolkataDate, normalizeUsername, usernameProblem } from '@runsphere/domain';
+import {
+  ageOn,
+  kolkataDate,
+  MINIMUM_AGE_YEARS,
+  normalizeUsername,
+  usernameProblem
+} from '@runsphere/domain';
 
 export type LocationStatus = 'idle' | 'granted' | 'denied' | 'blocked';
 export type AccountMode = 'register' | 'login';
@@ -72,8 +78,13 @@ export type OnboardingAction =
   | { type: 'logoutComplete' }
   | { type: 'back' };
 
-const hasValidEmail = (email: string): boolean => /^\S+@\S+\.\S+$/.test(email.trim());
-const hasValidPassword = (password: string): boolean => password.length >= 12;
+const hasValidEmail = (email: string): boolean =>
+  /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i.test(
+    email
+  );
+const SIGN_UP_PASSWORD_MIN = 8;
+const PASSWORD_MAX = 256;
+export const signUpPasswordHint = `Use at least ${SIGN_UP_PASSWORD_MIN} characters.`;
 
 /** `YYYY-MM-DD` from the three fields, or undefined while incomplete. */
 export const dateOfBirthFrom = (state: OnboardingState): string | undefined => {
@@ -84,30 +95,43 @@ export const dateOfBirthFrom = (state: OnboardingState): string | undefined => {
   return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 };
 
-/**
- * The one thing stopping sign-up, in plain words, or undefined when it can
- * go. Shown under the form so a disabled button is never a mystery.
- */
-export const accountProblem = (
+export const accountFieldProblems = (
   state: OnboardingState,
   today: string = kolkataDate(new Date())
-): string | undefined => {
+) => {
+  const problems: Partial<
+    Record<'name' | 'username' | 'birthDate' | 'email' | 'password' | 'terms', string>
+  > = {};
   if (state.accountMode === 'register') {
-    if (state.name.trim().length === 0) return 'Add a display name.';
+    const nameLength = [...state.name.trim()].length;
+    if (!nameLength) problems.name = 'Add a display name.';
+    else if (nameLength > 40) problems.name = 'Use 40 characters or fewer for your display name.';
     const username = normalizeUsername(state.username);
-    if (username.length === 0) return 'Pick a username.';
-    if (usernameProblem(username))
-      return 'Usernames are 3–20 letters, numbers or _, starting with a letter.';
+    if (!username) problems.username = 'Pick a username.';
+    else if (usernameProblem(username))
+      problems.username = 'Usernames are 3–20 letters, numbers or _, starting with a letter.';
     const dob = dateOfBirthFrom(state);
-    if (!dob) return 'Add your date of birth.';
-    if (!isAdult(dob, today)) return 'You need to be 18 or older to use TURFR.';
+    const age = dob ? ageOn(dob, today) : undefined;
+    if (age === undefined || age > 120) problems.birthDate = 'Enter a valid date of birth.';
+    else if (age < MINIMUM_AGE_YEARS)
+      problems.birthDate = 'You need to be 18 or older to use TURFR.';
   }
-  if (!hasValidEmail(state.email)) return 'Add your email.';
-  if (!hasValidPassword(state.password)) return 'Passwords need at least 12 characters.';
+  const email = state.email.trim();
+  if (!email) problems.email = 'Add your email address.';
+  else if (email.length > 320) problems.email = 'Use an email address of 320 characters or fewer.';
+  else if (!hasValidEmail(email)) problems.email = 'Enter an email address like you@example.com.';
+  const passwordLength = [...state.password].length;
+  if (!passwordLength) problems.password = 'Enter your password.';
+  else if (state.accountMode === 'register' && passwordLength < SIGN_UP_PASSWORD_MIN)
+    problems.password = `Use at least ${SIGN_UP_PASSWORD_MIN} characters for your password.`;
+  else if (passwordLength > PASSWORD_MAX) problems.password = 'Use a shorter password.';
   if (state.accountMode === 'register' && !state.acceptedLegal)
-    return 'Tick the box to agree to the terms.';
-  return undefined;
+    problems.terms = 'Tick the box to agree to the terms.';
+  return problems;
 };
+
+export const accountProblem = (state: OnboardingState, today?: string): string | undefined =>
+  Object.values(accountFieldProblems(state, today))[0];
 
 export const canSubmitAccount = (state: OnboardingState, today?: string): boolean =>
   accountProblem(state, today) === undefined;

@@ -7,6 +7,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
+import { TurfrMark } from '../components/TurfrMark.js';
 
 vi.mock('react-native', async () => {
   const React = await import('react');
@@ -30,7 +31,7 @@ const { runShareCard } = await import('./run-share-model.js');
 const card = runShareCard({
   metrics: {
     distanceMeters: 5_020,
-    movingSeconds: 1_575,
+    elapsedSeconds: 1_575,
     movingPaceSecondsPerKm: 313.7,
     elevation: { gainMeters: 42 }
   },
@@ -71,6 +72,12 @@ describe('the run share sheet', () => {
     for (const value of ['TURFR', 'Morning run', '5.02 km', '26:15', '5:14 /km', '42 m'])
       expect(text).toContain(value);
     expect(renderer.root.findAllByType('Map' as React.ElementType)).toHaveLength(0);
+    const capturedCard = renderer.root
+      .findAllByType('View' as React.ElementType)
+      .find(
+        (node) => node.props.collapsable === false && node.props.accessibilityLabel === card.summary
+      );
+    expect(capturedCard?.findAllByType(TurfrMark)).toHaveLength(1);
   });
 
   it('captures the card as a 1080 × 1350 image and opens the share sheet with it', async () => {

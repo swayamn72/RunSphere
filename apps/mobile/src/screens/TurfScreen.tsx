@@ -12,6 +12,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  useWindowDimensions,
   View
 } from 'react-native';
 import { Text, TextInput } from '../components/Text';
@@ -42,7 +43,11 @@ import type {
 import type { MobileApiClient } from '../api-client';
 import { useAppTheme } from '../theme/theme';
 import { resolveMapRenderPlan } from '../maps/map-config';
-import { turfWorldStyle } from '../maps/turf-world-style';
+import {
+  cachedTurfWorldStyle,
+  hasTurfWorldStyle,
+  loadTurfWorldStyle
+} from '../maps/turf-world-style-cache';
 import { useTurfPosition } from '../maps/use-turf-position';
 import { useTurfExploration } from '../maps/use-turf-exploration';
 import { fogFeatures } from '../maps/turf-exploration';
@@ -71,6 +76,7 @@ import {
   eventLine,
   leaderboardRows,
   TRUNCATED_NOTE,
+  boundsAround,
   boundsFrom,
   TURF_LEGEND,
   captureCelebration,
@@ -97,7 +103,10 @@ import {
   type ZoneFilter,
   claimFailureNotice
 } from './territory-claim-model';
-import { gameWorld } from '../theme/game-world';
+import type { GameWorldPalette } from '../theme/game-world';
+import { useGameWorld } from '../theme/use-game-world';
+import { shouldShowTurfStory } from './turf-story-model';
+import { setMapBuildings, useMapBuildings } from '../maps/map-preferences';
 
 /**
  * Turf — the territory map (Phase 5, milestone 5.1; ADR-0011).
@@ -129,11 +138,62 @@ export interface TurfScreenProps {
    */
   readonly ghostHint?: boolean;
   readonly onSessionExpired?: () => void;
+  /**
+   * False while another tab is open. The app keeps this screen mounted and
+   * hidden after the first visit so coming back is instant; hidden, it stops
+   * GPS, the pulse timer and the back button, and it refreshes when shown.
+   */
+  readonly visible?: boolean;
+  /** Plays the How Turf works story (TurfStoryScreen). */
+  readonly onOpenStory?: () => void;
+  /**
+   * Set while the first-run spotlight tour is up: the story waits rather than
+   * stacking a second tour on top of the first.
+   */
+  readonly storyBlocked?: boolean;
 }
 
 /** Mumbai, so an empty first launch opens somewhere rather than at null island. */
 const INITIAL_CENTRE: [number, number] = [72.8777, 19.076];
 const INITIAL_ZOOM = 14.5;
+/** How long the Map tab waits for the dark style before drawing the plain one. */
+const STYLE_WAIT_MS = 2500;
+
+/**
+ * The last ground drawn, kept in memory for the session. The tab unmounts when
+ * you leave it, so without this every return opened on an empty map until the
+ * requests came back. Keyed by account so a sign-out never shows the next
+ * person someone else's view; it is never written to disk.
+ */
+interface TurfVisit {
+  accountId: string;
+  claims: readonly TerritoryClaim[];
+  truncated: boolean;
+  mapNote: string;
+  summary: TerritoryClaimSummary | undefined;
+  feed: readonly TerritoryClaimActivityItem[];
+  events: readonly TerritoryEvent[];
+  board: TerritoryLeaderboardResponse | undefined;
+}
+let lastVisit: TurfVisit | undefined;
+
+/**
+ * Where the camera was, so the map reopens there rather than on Mumbai. Same
+ * rules as `lastVisit`: per account, in memory only.
+ */
+interface TurfCamera {
+  center: [number, number];
+  zoom: number;
+  bearing: number;
+}
+let lastCamera: (TurfCamera & { accountId: string }) | undefined;
+
+/**
+ * How far past the top of the screen a camera at INITIAL_PITCH sees, as a
+ * multiple of half the screen height. Only sizes the first request; the map's
+ * own bounds take over once it has drawn.
+ */
+const PITCH_NORTH_REACH = 1.8;
 const INITIAL_PITCH = 52;
 /** The ring around a cluster that contains any of the reader's own ground. */
 const SELF_RING = SELF_COLOUR;
@@ -147,15 +207,36 @@ export function TurfScreen({
   onOpenSettings,
   onGhostRace,
   ghostHint = false,
-  onSessionExpired
+  onSessionExpired,
+  visible = true,
+  onOpenStory,
+  storyBlocked = false
 }: TurfScreenProps) {
-  const { tokens, reduceMotion } = useAppTheme();
-  const styles = useMemo(() => createStyles(tokens), [tokens]);
+  const { tokens, reduceMotion, colorScheme } = useAppTheme();
+  const world = useGameWorld();
+  const styles = useMemo(() => createStyles(tokens, world), [tokens, world]);
+  const buildings = useMapBuildings();
+  const day = colorScheme === 'light';
   const renderPlan = useMemo(() => resolveMapRenderPlan(), []);
   const providerUrl = renderPlan.kind === 'provider' ? renderPlan.provider.styleUrl : undefined;
   const cameraRef = useRef<CameraRef>(null);
   const mapRef = useRef<MapRef>(null);
-  const [worldStyle, setWorldStyle] = useState<StyleSpecification>();
+  const [styleReady, setStyleReady] = useState(
+    () => !providerUrl || hasTurfWorldStyle(providerUrl)
+  );
+  /** Bumped when the download lands, so the derived style below is read again. */
+  const [styleLoads, setStyleLoads] = useState(0);
+  /** The restyled map failed to load once; draw the provider's own style instead. */
+  const [styleFailed, setStyleFailed] = useState(false);
+  const worldStyle = useMemo<StyleSpecification | undefined>(
+    () =>
+      providerUrl && !styleFailed
+        ? cachedTurfWorldStyle(providerUrl, { scheme: colorScheme, buildings })
+        : undefined,
+    // styleLoads: re-read the cache once the download has landed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [buildings, colorScheme, providerUrl, styleFailed, styleLoads]
+  );
   const [following, setFollowing] = useState(false);
   const [bearing, setBearing] = useState(0);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -167,20 +248,33 @@ export function TurfScreen({
   const [progression, setProgression] = useState<ProgressionSummary>();
   const [pulseBright, setPulseBright] = useState(true);
 
+  // What this runner saw on their last visit, drawn at once while fresh data loads.
+  const [restored] = useState(() =>
+    !dashboardPreviewEnabled && accountId && lastVisit?.accountId === accountId
+      ? lastVisit
+      : undefined
+  );
+  const [startCamera] = useState<TurfCamera>(() =>
+    !dashboardPreviewEnabled && accountId && lastCamera?.accountId === accountId
+      ? lastCamera
+      : { center: INITIAL_CENTRE, zoom: INITIAL_ZOOM, bearing: 0 }
+  );
   const [claims, setClaims] = useState<readonly TerritoryClaim[]>(
-    dashboardPreviewEnabled ? previewClaims : []
+    dashboardPreviewEnabled ? previewClaims : (restored?.claims ?? [])
   );
-  const [truncated, setTruncated] = useState(false);
+  const [truncated, setTruncated] = useState(restored?.truncated ?? false);
   const [summary, setSummary] = useState<TerritoryClaimSummary | undefined>(
-    dashboardPreviewEnabled ? { claimCount: 7, totalAreaSqm: 84_000, lostCount: 1 } : undefined
+    dashboardPreviewEnabled
+      ? { claimCount: 7, totalAreaSqm: 84_000, lostCount: 1 }
+      : restored?.summary
   );
-  const [feed, setFeed] = useState<readonly TerritoryClaimActivityItem[]>([]);
+  const [feed, setFeed] = useState<readonly TerritoryClaimActivityItem[]>(restored?.feed ?? []);
   const [mapNote, setMapNote] = useState(
     dashboardPreviewEnabled
       ? 'Sample territories'
-      : 'Territory shows the loops people ran and the holder’s name.'
+      : (restored?.mapNote ?? 'Territory shows the loops people ran and the holder’s name.')
   );
-  const [zoom, setZoom] = useState(INITIAL_ZOOM);
+  const [zoom, setZoom] = useState(startCamera.zoom);
   const [notice, setNotice] = useState('');
   const [selected, setSelected] = useState<string>();
   /** A holder's profile opened from the claim card (SI.6). */
@@ -229,25 +323,40 @@ export function TurfScreen({
   const [celebration, setCelebration] = useState<CaptureCelebration>();
   const [showDetail, setShowDetail] = useState(false);
   const [privacyPrompt, setPrivacyPrompt] = useState(false);
-  const [events, setEvents] = useState<readonly TerritoryEvent[]>([]);
-  const [board, setBoard] = useState<TerritoryLeaderboardResponse>();
+  const [events, setEvents] = useState<readonly TerritoryEvent[]>(restored?.events ?? []);
+  const [board, setBoard] = useState<TerritoryLeaderboardResponse | undefined>(restored?.board);
+  useEffect(() => {
+    if (dashboardPreviewEnabled || !accountId) return;
+    lastVisit = { accountId, claims, truncated, mapNote, summary, feed, events, board };
+  }, [accountId, board, claims, events, feed, mapNote, summary, truncated]);
   const { position, requestPosition } = useTurfPosition(
-    Boolean(providerUrl) && !showDetail && !ghostClaimId,
+    visible && Boolean(providerUrl) && !showDetail && !ghostClaimId,
     dashboardPreviewEnabled
   );
   const lastBounds = useRef<TerritoryClaimBounds | undefined>(undefined);
   const mounted = useRef(true);
 
   useEffect(() => {
-    if (!providerUrl) return;
-    const controller = new AbortController();
-    void fetch(providerUrl, { signal: controller.signal })
-      .then((response) => (response.ok ? response.json() : undefined))
-      .then((style: StyleSpecification | undefined) => {
-        if (style && !controller.signal.aborted) setWorldStyle(turfWorldStyle(style));
-      })
-      .catch(() => undefined);
-    return () => controller.abort();
+    if (!providerUrl || hasTurfWorldStyle(providerUrl)) return;
+    let current = true;
+    // Hold the map back until the dark style is in hand, so it's built once
+    // rather than drawn plain and rebuilt. A slow style server must not leave
+    // the tab blank, so after a short wait it draws the plain map anyway.
+    const fallback = setTimeout(() => {
+      if (current) setStyleReady(true);
+    }, STYLE_WAIT_MS);
+    void loadTurfWorldStyle(providerUrl, { scheme: colorScheme, buildings }).then(() => {
+      if (!current) return;
+      clearTimeout(fallback);
+      setStyleLoads((count) => count + 1);
+      setStyleReady(true);
+    });
+    return () => {
+      current = false;
+      clearTimeout(fallback);
+    };
+    // Only the first download matters; variants are built from it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providerUrl]);
 
   useEffect(() => {
@@ -265,7 +374,8 @@ export function TurfScreen({
   }, []);
 
   useEffect(() => {
-    if (!searchOpen && !mapInfoOpen && !selected && !filtersOpen) return;
+    // Hidden behind another tab, the back button belongs to that tab.
+    if (!visible || (!searchOpen && !mapInfoOpen && !selected && !filtersOpen)) return;
     const listener = BackHandler.addEventListener('hardwareBackPress', () => {
       if (searchOpen) closeSearch();
       else if (mapInfoOpen) setMapInfoOpen(false);
@@ -277,7 +387,16 @@ export function TurfScreen({
       return true;
     });
     return () => listener.remove();
-  }, [closeSearch, filtersOpen, ghostClaimId, mapInfoOpen, searchOpen, selected, showDetail]);
+  }, [
+    closeSearch,
+    filtersOpen,
+    ghostClaimId,
+    mapInfoOpen,
+    searchOpen,
+    selected,
+    showDetail,
+    visible
+  ]);
 
   useEffect(() => {
     if (dashboardPreviewEnabled) return;
@@ -355,9 +474,11 @@ export function TurfScreen({
     }
   }, [api, requestedRunId]);
 
+  // Also runs each time the tab is shown again, so a run claimed elsewhere
+  // shows up here; nothing is fetched while it sits hidden.
   useEffect(() => {
-    if (!dashboardPreviewEnabled) void loadMine();
-  }, [loadMine]);
+    if (!dashboardPreviewEnabled && visible) void loadMine();
+  }, [loadMine, visible]);
 
   const loadClusters = useCallback(
     async (bounds: TerritoryClaimBounds) => {
@@ -387,25 +508,80 @@ export function TurfScreen({
     [api]
   );
 
+  const loadViewport = useCallback(
+    (next: TerritoryClaimBounds, atZoom: number) => {
+      // Zoomed out, the map asks for activity blobs; zoomed in, for territories.
+      // Asking for both at every zoom would ship a continent of polygons to draw
+      // a dozen dots.
+      if (showsClusters(detailTierFor(atZoom))) {
+        void loadClusters(next);
+        return;
+      }
+      void loadClaims(next);
+      void loadRecommendations(next);
+    },
+    [loadClaims, loadClusters, loadRecommendations]
+  );
+
   const onRegionChanged = (event: { nativeEvent: ViewStateChangeEvent }) => {
-    const { bounds, zoom: nextZoom } = event.nativeEvent;
+    const { bounds, center, zoom: nextZoom } = event.nativeEvent;
     setZoom(nextZoom);
     setBearing(event.nativeEvent.bearing ?? 0);
     if (dashboardPreviewEnabled) return;
+    if (accountId)
+      lastCamera = {
+        accountId,
+        center: [center[0], center[1]],
+        zoom: nextZoom,
+        bearing: event.nativeEvent.bearing ?? 0
+      };
     const next = boundsFrom(bounds);
     if (!worthRefetching(lastBounds.current, next)) return;
     lastBounds.current = next;
     setViewport(next);
-    // Zoomed out, the map asks for activity blobs; zoomed in, for territories.
-    // Asking for both at every zoom would ship a continent of polygons to draw
-    // a dozen dots.
-    if (showsClusters(detailTierFor(nextZoom))) {
-      void loadClusters(next);
-      return;
-    }
-    void loadClaims(next);
-    void loadRecommendations(next);
+    loadViewport(next, nextZoom);
   };
+
+  // Ask for the ground under the opening camera straight away, in parallel
+  // with the style and tiles, rather than after the map's first region event.
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const firstViewport = useRef({ width: screenWidth, height: screenHeight });
+  useEffect(() => {
+    if (dashboardPreviewEnabled || !providerUrl) return;
+    const next = boundsAround(
+      startCamera.center,
+      startCamera.zoom,
+      firstViewport.current,
+      PITCH_NORTH_REACH
+    );
+    lastBounds.current = next;
+    setViewport(next);
+    loadViewport(next, startCamera.zoom);
+  }, [loadViewport, providerUrl, startCamera]);
+
+  // The first time this runner opens the map, the story plays once (plan, Feature A).
+  const storyChecked = useRef(false);
+  useEffect(() => {
+    if (!visible || storyBlocked || !accountId || !onOpenStory || dashboardPreviewEnabled) return;
+    if (storyChecked.current) return;
+    storyChecked.current = true;
+    let current = true;
+    void shouldShowTurfStory(accountId).then((show) => {
+      if (current && show) onOpenStory();
+    });
+    return () => {
+      current = false;
+    };
+  }, [accountId, onOpenStory, storyBlocked, visible]);
+
+  // Coming back from another tab: the ground may have changed while hidden.
+  const wasVisible = useRef(visible);
+  useEffect(() => {
+    const returning = visible && !wasVisible.current;
+    wasVisible.current = visible;
+    if (returning && !dashboardPreviewEnabled && lastBounds.current)
+      loadViewport(lastBounds.current, zoom);
+  }, [loadViewport, visible, zoom]);
 
   const tier = detailTierFor(zoom);
   const clustered = !dashboardPreviewEnabled && showsClusters(tier);
@@ -434,10 +610,10 @@ export function TurfScreen({
   const hasPulse =
     !clustered && visibleClaims.some((claim) => isContested(claim) || claim.revengeAvailable);
   useEffect(() => {
-    if (!hasPulse || reduceMotion || showDetail || ghostClaimId) return;
+    if (!visible || !hasPulse || reduceMotion || showDetail || ghostClaimId) return;
     const timer = setInterval(() => setPulseBright((bright) => !bright), 1050);
     return () => clearInterval(timer);
-  }, [ghostClaimId, hasPulse, reduceMotion, showDetail]);
+  }, [ghostClaimId, hasPulse, reduceMotion, showDetail, visible]);
   const markers = useMemo(
     () => (clustered ? [] : claimMarkers(visibleClaims)),
     [visibleClaims, clustered]
@@ -518,7 +694,7 @@ export function TurfScreen({
       <View style={[styles.root, styles.detailFrame]}>
         {hudProgression && (
           <View style={styles.detailStatus}>
-            <ProgressionBadge summary={hudProgression} turf />
+            <ProgressionBadge summary={hudProgression} turf hud={world.hud} />
           </View>
         )}
         <TerritoryDetailScreen
@@ -544,13 +720,19 @@ export function TurfScreen({
   return (
     <View style={styles.root}>
       <View style={styles.mapWrap}>
-        {renderPlan.kind === 'provider' ? (
+        {renderPlan.kind === 'provider' && !styleReady ? (
+          <View
+            accessible
+            accessibilityLabel="Loading the map"
+            style={[StyleSheet.absoluteFill, styles.mapPending]}
+          />
+        ) : renderPlan.kind === 'provider' ? (
           <Map
-            // Remount when the dark Turf world style replaces the provider's
-            // URL style. Swapping the style on a live map reloads it and drops
-            // the GeoJSON layers already added, so held ground, fog and event
-            // areas vanished while the marker views (badges, beacons) stayed.
-            key={worldStyle ? 'turf-world' : 'provider'}
+            // Remount when the style changes (day/night, 3D on/off, or the
+            // provider fallback). Swapping the style on a live map reloads it
+            // and drops the GeoJSON layers already added, so held ground, fog
+            // and event areas vanished while the marker views stayed.
+            key={worldStyle ? `turf-world-${colorScheme}-${buildings ? '3d' : 'flat'}` : 'provider'}
             ref={mapRef}
             accessibilityLabel="Territory map. Areas people hold, with their names."
             style={StyleSheet.absoluteFill}
@@ -569,7 +751,7 @@ export function TurfScreen({
                 .catch(() => undefined);
             }}
             onDidFailLoadingMap={() => {
-              if (worldStyle) setWorldStyle(undefined);
+              if (worldStyle) setStyleFailed(true);
             }}
             onRegionWillChange={(event) => {
               if (event.nativeEvent.userInteraction) setFollowing(false);
@@ -579,8 +761,9 @@ export function TurfScreen({
             <Camera
               ref={cameraRef}
               initialViewState={{
-                center: INITIAL_CENTRE,
-                zoom: INITIAL_ZOOM,
+                center: startCamera.center,
+                zoom: startCamera.zoom,
+                bearing: startCamera.bearing,
                 pitch: INITIAL_PITCH
               }}
             />
@@ -590,7 +773,7 @@ export function TurfScreen({
                   id="turf-private-fog-fill"
                   type="fill"
                   paint={{
-                    'fill-color': gameWorld.map.fog,
+                    'fill-color': world.map.fog,
                     'fill-opacity': 0.32,
                     'fill-antialias': false
                   }}
@@ -644,9 +827,22 @@ export function TurfScreen({
                   'line-color': ['get', 'colour'],
                   'line-width': 11,
                   'line-blur': 6,
-                  'line-opacity': 0.7
+                  // A glow is light on night ground; on paper it only blurs the edge.
+                  'line-opacity': day ? 0.3 : 0.7
                 }}
               />
+              {day && (
+                // Lime is 1.14:1 on paper: the casing is what draws the edge.
+                <Layer
+                  id="turf-claims-casing"
+                  type="line"
+                  paint={{
+                    'line-color': world.map.casing,
+                    'line-width': 4.5,
+                    'line-opacity': 0.55
+                  }}
+                />
+              )}
               <Layer
                 id="turf-claims-outline"
                 type="line"
@@ -828,7 +1024,7 @@ export function TurfScreen({
               </View>
             </Pressable>
             <View style={styles.hudStatus}>
-              <ProgressionBadge summary={hudProgression} turf />
+              <ProgressionBadge summary={hudProgression} turf hud={world.hud} />
               <View
                 style={styles.seasonPill}
                 accessible
@@ -862,7 +1058,7 @@ export function TurfScreen({
                 (filtersOpen || zoneFilter !== 'all') && styles.controlActive
               ]}
             >
-              <NavigationIcon name="layers" color={gameWorld.hud.tool} />
+              <NavigationIcon name="layers" color={world.hud.tool} />
             </Pressable>
             {providerUrl && (
               <Pressable
@@ -882,7 +1078,7 @@ export function TurfScreen({
               onPress={() => setMapInfoOpen((open) => !open)}
               style={styles.control}
             >
-              <NavigationIcon name="info" color={gameWorld.hud.tool} />
+              <NavigationIcon name="info" color={world.hud.tool} />
             </Pressable>
             {onOpenSettings && (
               <Pressable
@@ -891,7 +1087,7 @@ export function TurfScreen({
                 onPress={onOpenSettings}
                 style={styles.control}
               >
-                <NavigationIcon name="settings" color={gameWorld.hud.tool} />
+                <NavigationIcon name="settings" color={world.hud.tool} />
               </Pressable>
             )}
           </View>
@@ -948,6 +1144,18 @@ export function TurfScreen({
                   </Pressable>
                 );
               })}
+              {/* A view setting, not a filter: kept on this device for every map. */}
+              <Pressable
+                accessibilityRole="switch"
+                accessibilityState={{ checked: buildings }}
+                accessibilityLabel="3D buildings"
+                onPress={() => setMapBuildings(!buildings)}
+                style={[styles.filterChip, buildings && styles.filterChipActive]}
+              >
+                <Text style={[styles.filterChipText, buildings && styles.filterChipTextActive]}>
+                  3D buildings
+                </Text>
+              </Pressable>
             </ScrollView>
           )}
           {(filtersOpen || zoneFilter !== 'all' || search !== '') && (
@@ -996,6 +1204,17 @@ export function TurfScreen({
               {zoneFilterSummary(zoneFilter, visibleClaims.length, claims.length, search)}
             </Text>
             <Text style={styles.helper}>{summaryLine(summary)}</Text>
+            {onOpenStory ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setMapInfoOpen(false);
+                  onOpenStory();
+                }}
+              >
+                <Text style={styles.link}>How Turf works</Text>
+              </Pressable>
+            ) : null}
             <View
               accessible
               accessibilityLabel={`Map colours: ${TURF_LEGEND.map((entry) => entry.label).join(', ')}`}
@@ -1237,7 +1456,7 @@ export function TurfScreen({
                     <Path
                       d={claimRoute.path}
                       fill="none"
-                      stroke={gameWorld.hud.tool}
+                      stroke={world.hud.tool}
                       strokeWidth={3}
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -1355,7 +1574,7 @@ function PlayerBeacon({
   );
 }
 
-const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
+const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens'], world: GameWorldPalette) =>
   StyleSheet.create({
     root: { backgroundColor: tokens.background.canvas, flex: 1 },
     detailFrame: { paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: 82 },
@@ -1363,6 +1582,8 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
     legendItem: { alignItems: 'center', flexDirection: 'row', gap: 6 },
     legendSwatch: { borderRadius: 3, height: 12, width: 12 },
     mapWrap: { backgroundColor: tokens.background.surfaceInset, flex: 1 },
+    /** The night ground the dark style opens on, so the wait doesn't flash light. */
+    mapPending: { backgroundColor: world.map.night },
     fallback: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 24 },
     fallbackTitle: {
       color: tokens.text.primary,
@@ -1382,14 +1603,14 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
     },
     pinAnchor: { alignItems: 'center', justifyContent: 'center', width: 88, height: 72 },
     pinStem: { borderRadius: 2, height: 7, width: 2 },
-    crownBadge: { position: 'absolute', top: 2, fontSize: 20, color: gameWorld.badge.crown },
+    crownBadge: { position: 'absolute', top: 2, fontSize: 20, color: world.badge.crown },
     defenseBadge: {
       position: 'absolute',
       right: 0,
       bottom: 10,
       borderRadius: radius.control,
-      backgroundColor: gameWorld.badge.shield,
-      borderColor: gameWorld.badge.shieldRim,
+      backgroundColor: world.badge.shield,
+      borderColor: world.badge.shieldRim,
       borderWidth: 1,
       paddingHorizontal: 5
     },
@@ -1397,15 +1618,15 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       position: 'absolute',
       top: 0,
       borderRadius: radius.control,
-      backgroundColor: gameWorld.badge.revenge,
-      borderColor: gameWorld.badge.revengeRim,
+      backgroundColor: world.badge.revenge,
+      borderColor: world.badge.revengeRim,
       borderWidth: 1,
       paddingHorizontal: 6,
       paddingVertical: space.xxs
     },
     revengeDim: { opacity: 0.64 },
     revengeBeacon: { position: 'relative', minHeight: 30, justifyContent: 'center' },
-    badgeText: { color: gameWorld.badge.text, fontSize: 11, fontWeight: '700' },
+    badgeText: { color: world.badge.text, fontSize: 11, fontWeight: '700' },
     bubble: {
       alignItems: 'center',
       backgroundColor: tokens.background.surface,
@@ -1449,8 +1670,8 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       gap: space.sm,
       paddingVertical: 7,
       paddingHorizontal: 9,
-      backgroundColor: gameWorld.hud.glass,
-      borderColor: gameWorld.hud.edgeSoft,
+      backgroundColor: world.hud.glass,
+      borderColor: world.hud.edgeSoft,
       borderWidth: 1,
       borderRadius: 22
     },
@@ -1462,30 +1683,30 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
       height: 39,
       borderRadius: 20,
       borderWidth: 2,
-      borderColor: gameWorld.hud.progress,
-      backgroundColor: gameWorld.hud.avatar
+      borderColor: world.hud.progress,
+      backgroundColor: world.hud.avatar
     },
     hudStatus: { alignItems: 'flex-end', gap: 6, flexShrink: 1 },
     detailStatus: { paddingHorizontal: space.lg, paddingVertical: space.xs },
     seasonPill: {
       alignItems: 'center',
-      backgroundColor: gameWorld.hud.glass,
+      backgroundColor: world.hud.glass,
       borderWidth: 1,
-      borderColor: gameWorld.hud.edgeSoft,
+      borderColor: world.hud.edgeSoft,
       borderRadius: 18,
       paddingHorizontal: space.md,
       paddingVertical: 7
     },
     claimPreview: { flexDirection: 'row', alignItems: 'center', gap: space.md },
     claimPreviewCopy: { flex: 1 },
-    hudLabel: { color: gameWorld.hud.text, fontSize: 14, fontWeight: '700' },
-    hudDetail: { color: gameWorld.hud.detail, fontSize: 11, fontWeight: '700' },
-    toolText: { color: gameWorld.hud.tool, fontSize: 20, fontWeight: '700' },
+    hudLabel: { color: world.hud.text, fontSize: 14, fontWeight: '700' },
+    hudDetail: { color: world.hud.detail, fontSize: 11, fontWeight: '700' },
+    toolText: { color: world.hud.tool, fontSize: 20, fontWeight: '700' },
     filterStatus: {
       alignSelf: 'flex-start',
       borderRadius: radius.control,
-      backgroundColor: gameWorld.hud.glass,
-      color: gameWorld.hud.status,
+      backgroundColor: world.hud.glass,
+      color: world.hud.status,
       paddingHorizontal: 9,
       paddingVertical: 5,
       fontSize: 12
@@ -1494,22 +1715,22 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
     playerBeacon: { alignItems: 'center', height: 72, justifyContent: 'center', width: 72 },
     radar: {
       ...StyleSheet.absoluteFill,
-      backgroundColor: gameWorld.player.radar,
-      borderColor: gameWorld.player.radarRing,
+      backgroundColor: world.player.radar,
+      borderColor: world.player.radarRing,
       borderRadius: 36,
       borderWidth: 2
     },
     playerCore: {
       alignItems: 'center',
-      backgroundColor: gameWorld.player.core,
-      borderColor: gameWorld.player.coreRing,
+      backgroundColor: world.player.core,
+      borderColor: world.player.coreRing,
       borderRadius: radius.card,
       borderWidth: 2,
       height: 32,
       justifyContent: 'center',
       width: 32
     },
-    playerArrow: { color: gameWorld.player.arrow, fontSize: 17, fontWeight: '700' },
+    playerArrow: { color: world.player.arrow, fontSize: 17, fontWeight: '700' },
     /** Search field and zone chips, floated over the top of the map. */
     zoneBar: { gap: 10, left: 12, position: 'absolute', right: 12, top: 12 },
     searchField: {
@@ -1563,8 +1784,8 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
     },
     bannerText: { color: tokens.map.controlText, fontSize: 13, fontWeight: '700' },
     sheet: {
-      backgroundColor: gameWorld.hud.sheet,
-      borderColor: gameWorld.hud.edge,
+      backgroundColor: world.hud.sheet,
+      borderColor: world.hud.edge,
       borderWidth: 1,
       borderRadius: 22,
       position: 'absolute',
@@ -1576,13 +1797,13 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
     infoSheet: { maxHeight: '56%' },
     sheetScroll: { flexGrow: 0 },
     sheetContent: { gap: space.sm, padding: space.md },
-    title: { color: gameWorld.hud.text, fontSize: 20, fontWeight: '700' },
-    subtitle: { color: gameWorld.hud.text, fontSize: 15, fontWeight: '700', marginTop: space.sm },
-    body: { color: gameWorld.hud.text, fontSize: 14, lineHeight: 20 },
-    helper: { color: gameWorld.hud.textSoft, fontSize: 13, lineHeight: 18 },
-    notice: { color: gameWorld.hud.textSoft, fontSize: 13, lineHeight: 18 },
-    feedLine: { color: gameWorld.hud.textSoft, fontSize: 14, lineHeight: 20 },
-    link: { color: gameWorld.hud.textSoft, fontSize: 13, fontWeight: '700', marginTop: 6 },
+    title: { color: world.hud.text, fontSize: 20, fontWeight: '700' },
+    subtitle: { color: world.hud.text, fontSize: 15, fontWeight: '700', marginTop: space.sm },
+    body: { color: world.hud.text, fontSize: 14, lineHeight: 20 },
+    helper: { color: world.hud.textSoft, fontSize: 13, lineHeight: 18 },
+    notice: { color: world.hud.textSoft, fontSize: 13, lineHeight: 18 },
+    feedLine: { color: world.hud.textSoft, fontSize: 14, lineHeight: 20 },
+    link: { color: world.hud.textSoft, fontSize: 13, fontWeight: '700', marginTop: 6 },
     card: {
       gap: space.xs,
       padding: space.xxs
@@ -1595,12 +1816,12 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens']) =>
     },
     cardActions: { flexDirection: 'row', gap: space.sm, marginTop: 5 },
     smallButton: { minWidth: 44, minHeight: 44, justifyContent: 'center', alignItems: 'center' },
-    ghostAction: { flex: 1, backgroundColor: gameWorld.action.ghost },
-    ghostActionText: { color: gameWorld.action.ghostText, fontSize: 15, fontWeight: '700' },
+    ghostAction: { flex: 1, backgroundColor: world.action.ghost },
+    ghostActionText: { color: world.action.ghostText, fontSize: 15, fontWeight: '700' },
     lineageAction: {
       flex: 1,
-      backgroundColor: gameWorld.action.lineage,
-      borderColor: gameWorld.action.lineageRim,
+      backgroundColor: world.action.lineage,
+      borderColor: world.action.lineageRim,
       borderWidth: 1
     },
     primary: {
