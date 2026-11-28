@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import type { Database } from '@runsphere/db';
 import type { Logger } from '@runsphere/observability';
 import {
@@ -112,6 +112,10 @@ describe('privacy maintenance', () => {
   });
 
   it('runs competing maintenance jobs sequentially', async () => {
+    // Mid-month: in a season's last days the season-ending warning also runs,
+    // so the expected order would depend on the day the tests are run.
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-16T06:00:00Z') });
+    onTestFinished(() => void vi.useRealTimers());
     const calls: string[] = [];
     const database = {
       query: vi.fn(async (sql: string) => {
