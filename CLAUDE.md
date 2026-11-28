@@ -138,6 +138,8 @@ APK exists and `aapt` isn't on PATH. Run `vitest run` directly to test only the 
   400–700 only, with tabular figures for numbers. Spec, phase status and checklists:
   `docs/plans/frontend-reconstruction.md`. Admin colours come from `@runsphere/ui` via CSS variables
   (`toCssVariables`), never hex in `apps/admin/src`. Don't add Tailwind/shadcn (the admin may use unstyled Radix primitives for menus, ADR-0016 amendment). Mobile: import `Text`/`TextInput` from `src/components/Text`, never `react-native` (that is how Inter is applied); use only the four weights and the font sizes in `typeScale` (`theme/design-scale.test.ts` enforces it); read colours from roles (`text.accent`, `background.paper`, `text.onPaper`), never `appPalette`.
+- **Icons:** open-source Lucide SVGs live in `apps/mobile/assets/icons/lucide` (ISC); draw them with
+  `components/Icon`, and regenerate `lucide-icons.ts` with `scripts/generate-icons.mjs` (a test checks).
 - **Admin areas:** `apps/admin/src/areas.ts` gates each area with the API's own role predicates; new
   areas get their own component file (e.g. `turf-area.tsx`) with a `renderToStaticMarkup` test.
 - **Held back for v1:** `apps/mobile/src/launch-features.ts`. Clubs are off (`CLUBS_ENABLED`): hidden

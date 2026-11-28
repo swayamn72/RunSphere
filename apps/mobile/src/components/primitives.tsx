@@ -3,6 +3,7 @@ import { Pressable, View } from 'react-native';
 import { Text } from './Text';
 import { useAppStyles } from './styles';
 import { Chevron } from './Chevron';
+import { Icon } from './Icon';
 import { useAppTheme } from '../theme/theme';
 
 export function StepHeader({ step, onBack }: { step: string; onBack: () => void }) {
@@ -64,6 +65,7 @@ export function PrimaryButton({
   accessibilityLabel?: string;
 }) {
   const styles = useAppStyles();
+  const { tokens } = useAppTheme();
   return (
     <Pressable
       accessibilityRole="button"
@@ -78,7 +80,9 @@ export function PrimaryButton({
       ]}
     >
       <Text style={styles.primaryText}>{label}</Text>
-      <Text style={styles.primaryArrow}>→</Text>
+      <View style={styles.primaryArrow}>
+        <Icon name="arrow-right" color={tokens.text.onAccent} size={20} />
+      </View>
     </Pressable>
   );
 }

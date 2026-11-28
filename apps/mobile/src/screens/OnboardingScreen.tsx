@@ -12,6 +12,7 @@ import { AuthFailure } from '../auth-failure';
 import { getLocationPermissionState } from '../location-permission';
 import { accountFieldProblems, dateOfBirthFrom, signUpPasswordHint } from '../onboarding';
 import { OnboardingSocialStep } from './OnboardingSocialStep';
+import { WelcomeScreen } from './WelcomeScreen';
 import { AccountRecoveryScreen } from './AccountRecoveryScreen';
 import { SIGN_UP_AGREEMENT, legalLinks } from './legal-model';
 import { LEGAL_POLICY_VERSION, normalizeUsername } from '@runsphere/domain';
@@ -181,26 +182,19 @@ export function Onboarding({
       <StatusBar style={statusBarStyleFor(colorScheme)} />
       <KeyboardSafe>
         <ScrollView
-          contentContainerStyle={styles.onboardingContent}
+          contentContainerStyle={[
+            styles.onboardingContent,
+            state.step === 'welcome' && styles.welcomeContent
+          ]}
           keyboardShouldPersistTaps="handled"
         >
           {state.step === 'welcome' && (
-            <>
-              <View style={styles.splashMark}>
-                <Text accessibilityRole="header" style={styles.wordmark}>
-                  TURFR
-                </Text>
-                <Text style={styles.splashTagline}>Run a loop. Claim your ground.</Text>
-              </View>
-              <PrimaryButton label="Get started" onPress={() => openAccount('register')} />
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="I already have an account"
-                onPress={() => openAccount('login')}
-              >
-                <Text style={styles.textButton}>I already have an account</Text>
-              </Pressable>
-            </>
+            <WelcomeScreen
+              legal={legal}
+              onOpenLegal={(url) => void Linking.openURL(url)}
+              onGetStarted={() => openAccount('register')}
+              onSignIn={() => openAccount('login')}
+            />
           )}
           {state.step === 'account' && recovering && (
             <AccountRecoveryScreen

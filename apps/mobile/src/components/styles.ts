@@ -9,6 +9,8 @@ export const createAppStyles = (t: SemanticTokens) =>
     screen: { flex: 1, backgroundColor: t.background.canvas },
     content: { padding: 18, paddingBottom: 118 },
     onboardingContent: { padding: 18, paddingBottom: 44 },
+    // Fills the screen so the welcome actions can sit at the bottom.
+    welcomeContent: { flexGrow: 1, paddingBottom: space.lg },
     flexCopy: { flex: 1 },
     // Off-screen live region: a screen reader speaks it, sighted users
     // read the same information from the cards themselves.
@@ -360,7 +362,7 @@ export const createAppStyles = (t: SemanticTokens) =>
       paddingHorizontal: space.xl
     },
     primaryText: { color: t.text.onAccent, fontSize: 15, fontWeight: '700' },
-    primaryArrow: { color: t.text.onAccent, fontSize: 20, position: 'absolute', right: 19 },
+    primaryArrow: { position: 'absolute', right: 19 },
     buttonPressed: { opacity: 0.8 },
     buttonDisabled: { backgroundColor: t.action.disabled },
     /**
@@ -585,46 +587,11 @@ export const createAppStyles = (t: SemanticTokens) =>
      * Splash (first launch)
      * ---------------------------------------------------------------- */
 
-    /**
-     * Taller than the step hero and carrying the wordmark, so first launch is
-     * one image with a name on it rather than art above a stack of copy.
-     */
-    splashHero: {
-      backgroundColor: t.background.surfaceRaised,
-      borderRadius: radius.card,
-      height: 430,
-      justifyContent: 'flex-end',
-      marginBottom: space.xxl,
-      overflow: 'hidden'
-    },
-    splashLogo: {
-      alignSelf: 'center',
-      height: 200,
-      marginBottom: 'auto',
-      marginTop: space.xxl,
-      width: 230
-    },
-    accountLogo: {
-      alignSelf: 'flex-start',
-      height: 48,
-      marginBottom: space.md,
-      width: 56
-    },
-    splashMark: { gap: 10, padding: 24 },
     wordmark: {
       color: t.text.primary,
       fontSize: 40,
       fontWeight: '700',
       letterSpacing: -1.6
-    },
-    splashTagline: { color: t.text.secondary, fontSize: 17, fontWeight: '700', lineHeight: 24 },
-    splashFooter: {
-      color: t.text.secondary,
-      fontSize: 12,
-      fontWeight: '700',
-      letterSpacing: 1.1,
-      marginTop: 18,
-      textAlign: 'center'
     },
 
     /* ---------------------------------------------------------------- *
