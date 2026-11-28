@@ -8,14 +8,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   BackHandler,
-  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
   useWindowDimensions,
   View
 } from 'react-native';
-import { Text, TextInput } from '../components/Text';
+import { Text } from '../components/Text';
 import {
   Camera,
   GeoJSONSource,
@@ -125,8 +124,8 @@ export interface TurfScreenProps {
   readonly api: MobileApiClient;
   readonly accountId?: string;
   readonly onOpenRun?: () => void;
+  readonly onClaimed?: () => void;
   readonly onOpenProfile?: () => void;
-  readonly onOpenSettings?: () => void;
   /**
    * Leaves the tab to start a run with a ghost on the map. Optional, so a
    * caller that has nowhere to send the runner simply never shows the button.
@@ -203,8 +202,8 @@ export function TurfScreen({
   requestedRunId,
   accountId,
   onOpenRun,
+  onClaimed,
   onOpenProfile,
-  onOpenSettings,
   onGhostRace,
   ghostHint = false,
   onSessionExpired,
@@ -239,9 +238,9 @@ export function TurfScreen({
   );
   const [following, setFollowing] = useState(false);
   const [bearing, setBearing] = useState(0);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [mapInfoOpen, setMapInfoOpen] = useState(false);
+  const [intelRevision, setIntelRevision] = useState(0);
   const [viewport, setViewport] = useState<TerritoryClaimBounds>();
   const visited = useTurfExploration(accountId, dashboardPreviewEnabled);
   const [profile, setProfile] = useState<Profile>();
@@ -282,7 +281,6 @@ export function TurfScreen({
   useEffect(() => setHolderProfile(undefined), [selected]);
   /** The zone bar: which ground is drawn, and the name being looked for. */
   const [zoneFilter, setZoneFilter] = useState<ZoneFilter>('all');
-  const [search, setSearch] = useState('');
   const [claimableRunId, setClaimableRunId] = useState<string>();
   const [claimRoute, setClaimRoute] = useState<{ id: string; path?: string }>();
   useEffect(() => {
@@ -317,7 +315,7 @@ export function TurfScreen({
    * refreshed underneath.
    */
   const [ghostClaimId, setGhostClaimId] = useState<string>();
-  const [recommendations, setRecommendations] = useState<readonly TerritoryRecommendation[]>([]);
+  const [recommendations, setRecommendations] = useState<readonly TerritoryRecommendation[]>();
   const [recommendationNote, setRecommendationNote] = useState('');
   const [notEnoughRuns, setNotEnoughRuns] = useState(false);
   const [celebration, setCelebration] = useState<CaptureCelebration>();
@@ -368,17 +366,11 @@ export function TurfScreen({
     });
   }, [following, ghostClaimId, position, reduceMotion, showDetail]);
 
-  const closeSearch = useCallback(() => {
-    Keyboard.dismiss();
-    setSearchOpen(false);
-  }, []);
-
   useEffect(() => {
     // Hidden behind another tab, the back button belongs to that tab.
-    if (!visible || (!searchOpen && !mapInfoOpen && !selected && !filtersOpen)) return;
+    if (!visible || (!mapInfoOpen && !selected && !filtersOpen)) return;
     const listener = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (searchOpen) closeSearch();
-      else if (mapInfoOpen) setMapInfoOpen(false);
+      if (mapInfoOpen) setMapInfoOpen(false);
       else if (filtersOpen) setFiltersOpen(false);
       else if (ghostClaimId) setGhostClaimId(undefined);
       else if (showDetail) setShowDetail(false);
@@ -387,16 +379,7 @@ export function TurfScreen({
       return true;
     });
     return () => listener.remove();
-  }, [
-    closeSearch,
-    filtersOpen,
-    ghostClaimId,
-    mapInfoOpen,
-    searchOpen,
-    selected,
-    showDetail,
-    visible
-  ]);
+  }, [filtersOpen, ghostClaimId, mapInfoOpen, selected, showDetail, visible]);
 
   useEffect(() => {
     if (dashboardPreviewEnabled) return;
@@ -445,20 +428,16 @@ export function TurfScreen({
 
   const loadMine = useCallback(async () => {
     try {
-      const [mine, activity, runs, eventList, leaderboard] = await Promise.all([
+      const [mine, runs, eventList] = await Promise.all([
         api.getTerritoryClaimSummary(),
-        api.getTerritoryClaimActivity(),
         // Claiming is something a person does, not something that happens to
         // them: a run only reaches the map when they say so (ADR-0011).
         api.listActivities().catch(() => []),
-        api.getTerritoryEvents().catch(() => ({ data: [] })),
-        api.getTerritoryLeaderboard().catch(() => undefined)
+        api.getTerritoryEvents().catch(() => ({ data: [] }))
       ]);
       if (!mounted.current) return;
       setSummary(mine);
-      setFeed(activity.data);
       setEvents(eventList.data);
-      if (leaderboard) setBoard(leaderboard);
       const candidate = pickClaimableRun(runs, requestedRunId);
       setClaimableRunId(candidate);
       if (requestedRunId && !candidate) {
@@ -493,21 +472,6 @@ export function TurfScreen({
     [api]
   );
 
-  const loadRecommendations = useCallback(
-    async (bounds: TerritoryClaimBounds) => {
-      try {
-        const response = await api.getTerritoryRecommendations(bounds);
-        if (!mounted.current) return;
-        setRecommendations(response.data);
-        setRecommendationNote(response.note);
-        setNotEnoughRuns(response.unavailableReason === 'not_enough_runs');
-      } catch {
-        if (mounted.current) setRecommendations([]);
-      }
-    },
-    [api]
-  );
-
   const loadViewport = useCallback(
     (next: TerritoryClaimBounds, atZoom: number) => {
       // Zoomed out, the map asks for activity blobs; zoomed in, for territories.
@@ -518,12 +482,12 @@ export function TurfScreen({
         return;
       }
       void loadClaims(next);
-      void loadRecommendations(next);
     },
-    [loadClaims, loadClusters, loadRecommendations]
+    [loadClaims, loadClusters]
   );
 
   const onRegionChanged = (event: { nativeEvent: ViewStateChangeEvent }) => {
+    if (!visible) return;
     const { bounds, center, zoom: nextZoom } = event.nativeEvent;
     setZoom(nextZoom);
     setBearing(event.nativeEvent.bearing ?? 0);
@@ -585,15 +549,53 @@ export function TurfScreen({
 
   const tier = detailTierFor(zoom);
   const clustered = !dashboardPreviewEnabled && showsClusters(tier);
+  useEffect(() => {
+    if (!visible || !mapInfoOpen || dashboardPreviewEnabled) return;
+    let active = true;
+    void api.getTerritoryClaimActivity().then(
+      ({ data }) => {
+        if (active) setFeed(data);
+      },
+      () => undefined
+    );
+    void api.getTerritoryLeaderboard().then(
+      (leaderboard) => {
+        if (active) setBoard(leaderboard);
+      },
+      () => undefined
+    );
+    return () => {
+      active = false;
+    };
+  }, [api, intelRevision, mapInfoOpen, visible]);
+
+  useEffect(() => {
+    if (!visible || !mapInfoOpen || !viewport || clustered || dashboardPreviewEnabled) return;
+    let active = true;
+    setRecommendations(undefined);
+    setRecommendationNote('');
+    setNotEnoughRuns(false);
+    void api.getTerritoryRecommendations(viewport).then(
+      (response) => {
+        if (!active) return;
+        setRecommendations(response.data);
+        setRecommendationNote(response.note);
+        setNotEnoughRuns(response.unavailableReason === 'not_enough_runs');
+      },
+      () => {
+        if (active) setRecommendations([]);
+      }
+    );
+    return () => {
+      active = false;
+    };
+  }, [api, clustered, intelRevision, mapInfoOpen, viewport, visible]);
   /**
    * The bar narrows what is drawn, not what was loaded: the summary line below
    * still counts everything in the viewport, so a filter that hides every zone
    * reads as a filter rather than as empty ground.
    */
-  const visibleClaims = useMemo(
-    () => filterClaims(claims, zoneFilter, search),
-    [claims, zoneFilter, search]
-  );
+  const visibleClaims = useMemo(() => filterClaims(claims, zoneFilter), [claims, zoneFilter]);
   const features = useMemo(
     () => claimFeatures(clustered ? [] : visibleClaims),
     [visibleClaims, clustered]
@@ -1023,31 +1025,9 @@ export function TurfScreen({
                 </Text>
               </View>
             </Pressable>
-            <View style={styles.hudStatus}>
-              <ProgressionBadge summary={hudProgression} turf hud={world.hud} />
-              <View
-                style={styles.seasonPill}
-                accessible
-                accessibilityLabel={`Season resets in ${seasonDaysLeft(new Date())} days`}
-              >
-                <Text style={styles.hudDetail}>SEASON</Text>
-                <Text style={styles.hudLabel}>{seasonDaysLeft(new Date())}d left</Text>
-              </View>
-            </View>
+            <ProgressionBadge summary={hudProgression} turf hud={world.hud} />
           </View>
-          <View style={styles.tools}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={searchOpen ? 'Close zone search' : 'Open zone search'}
-              accessibilityState={{ expanded: searchOpen }}
-              onPress={searchOpen ? closeSearch : () => setSearchOpen(true)}
-              style={[styles.control, search !== '' && styles.controlActive]}
-            >
-              <NavigationIcon
-                name={searchOpen ? 'close' : 'search'}
-                color={tokens.map.controlText}
-              />
-            </Pressable>
+          <View style={styles.tools} pointerEvents="box-none">
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Territory filters"
@@ -1068,7 +1048,7 @@ export function TurfScreen({
                 onPress={() => void recenter()}
                 style={[styles.control, following && styles.controlActive]}
               >
-                <NavigationIcon name="locate" color={tokens.map.controlText} />
+                <NavigationIcon name="locate" color={world.hud.tool} />
               </Pressable>
             )}
             <Pressable
@@ -1080,50 +1060,18 @@ export function TurfScreen({
             >
               <NavigationIcon name="info" color={world.hud.tool} />
             </Pressable>
-            {onOpenSettings && (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Turf settings"
-                onPress={onOpenSettings}
-                style={styles.control}
-              >
-                <NavigationIcon name="settings" color={world.hud.tool} />
-              </Pressable>
-            )}
-          </View>
-          {searchOpen && (
-            <View style={styles.searchField}>
-              <Text style={styles.searchGlyph} allowFontScaling={false}>
-                ⌕
-              </Text>
-              <TextInput
-                accessibilityLabel="Search zones by holder or city"
-                autoFocus
-                autoCapitalize="none"
-                autoCorrect={false}
-                onChangeText={setSearch}
-                onSubmitEditing={closeSearch}
-                placeholder="Find a holder or city"
-                placeholderTextColor={tokens.text.secondary}
-                returnKeyType="search"
-                style={styles.searchInput}
-                value={search}
-              />
-              {search !== '' && (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear the zone search"
-                  onPress={() => setSearch('')}
-                >
-                  <Text style={styles.searchGlyph}>×</Text>
-                </Pressable>
-              )}
+            <View
+              style={styles.seasonPill}
+              accessible
+              accessibilityLabel={`Season resets in ${seasonDaysLeft(new Date())} days`}
+            >
+              <Text style={styles.hudDetail}>SEASON</Text>
+              <Text style={styles.hudLabel}>{seasonDaysLeft(new Date())}d left</Text>
             </View>
-          )}
+          </View>
           {filtersOpen && (
             <ScrollView
               horizontal
-              keyboardShouldPersistTaps="handled"
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.filterRow}
             >
@@ -1158,9 +1106,9 @@ export function TurfScreen({
               </Pressable>
             </ScrollView>
           )}
-          {(filtersOpen || zoneFilter !== 'all' || search !== '') && (
+          {(filtersOpen || zoneFilter !== 'all') && (
             <Text style={styles.filterStatus}>
-              {zoneFilterSummary(zoneFilter, visibleClaims.length, claims.length, search)}
+              {zoneFilterSummary(zoneFilter, visibleClaims.length, claims.length)}
             </Text>
           )}
         </View>
@@ -1201,7 +1149,7 @@ export function TurfScreen({
             {/* What the bar is showing, above what this account holds overall, so a
             narrowed map is never mistaken for unclaimed ground. */}
             <Text style={styles.body}>
-              {zoneFilterSummary(zoneFilter, visibleClaims.length, claims.length, search)}
+              {zoneFilterSummary(zoneFilter, visibleClaims.length, claims.length)}
             </Text>
             <Text style={styles.helper}>{summaryLine(summary)}</Text>
             {onOpenStory ? (
@@ -1236,7 +1184,9 @@ export function TurfScreen({
                   <Text style={styles.helper}>
                     Run a few more times and TURFR can estimate which territories are within reach.
                   </Text>
-                ) : recommendations.length === 0 ? (
+                ) : !recommendations && viewport && !dashboardPreviewEnabled ? (
+                  <Text style={styles.helper}>Finding nearby territories…</Text>
+                ) : !recommendations?.length ? (
                   <Text style={styles.helper}>
                     Nothing nearby looks within reach right now. Pan the map to look elsewhere.
                   </Text>
@@ -1497,6 +1447,8 @@ export function TurfScreen({
                       if (result.claimed || result.refusal === 'already_claimed')
                         setClaimableRunId(undefined);
                       if (result.claimed) {
+                        onClaimed?.();
+                        setIntelRevision((revision) => revision + 1);
                         setCelebration(captureCelebration(result.claim, result.takenOverCount));
                         // Said once, the moment it becomes true, rather than
                         // inferred from where somebody lives.
@@ -1655,13 +1607,17 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens'], world: G
     rank: { color: tokens.text.primary, fontSize: 14, fontWeight: '700', minWidth: 34 },
     celebrationHeadline: { color: tokens.text.primary, fontSize: 17, fontWeight: '700' },
     celebrationDetail: { color: tokens.text.primary, fontSize: 14, lineHeight: 20 },
-    tools: { alignSelf: 'flex-start', flexDirection: 'row', gap: space.sm },
+    tools: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: space.xs
+    },
     hudHeader: {
       flexDirection: 'row',
-      alignItems: 'flex-start',
+      alignItems: 'center',
       justifyContent: 'space-between',
-      gap: space.md,
-      paddingRight: typeof __DEV__ !== 'undefined' && __DEV__ ? 56 : 0
+      gap: space.md
     },
     playerPill: {
       flexDirection: 'row',
@@ -1686,7 +1642,6 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens'], world: G
       borderColor: world.hud.progress,
       backgroundColor: world.hud.avatar
     },
-    hudStatus: { alignItems: 'flex-end', gap: 6, flexShrink: 1 },
     detailStatus: { paddingHorizontal: space.lg, paddingVertical: space.xs },
     seasonPill: {
       alignItems: 'center',
@@ -1694,8 +1649,11 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens'], world: G
       borderWidth: 1,
       borderColor: world.hud.edgeSoft,
       borderRadius: 18,
+      marginLeft: 'auto',
+      minHeight: 44,
+      justifyContent: 'center',
       paddingHorizontal: space.md,
-      paddingVertical: 7
+      paddingVertical: space.xs
     },
     claimPreview: { flexDirection: 'row', alignItems: 'center', gap: space.md },
     claimPreviewCopy: { flex: 1 },
@@ -1731,21 +1689,8 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens'], world: G
       width: 32
     },
     playerArrow: { color: world.player.arrow, fontSize: 17, fontWeight: '700' },
-    /** Search field and zone chips, floated over the top of the map. */
+    /** Map controls and zone chips, floated over the top of the map. */
     zoneBar: { gap: 10, left: 12, position: 'absolute', right: 12, top: 12 },
-    searchField: {
-      alignItems: 'center',
-      backgroundColor: tokens.background.surface,
-      borderColor: tokens.border.subtle,
-      borderRadius: radius.pill,
-      borderWidth: 1,
-      flexDirection: 'row',
-      gap: 10,
-      minHeight: 46,
-      paddingHorizontal: space.lg
-    },
-    searchGlyph: { color: tokens.text.secondary, fontSize: 17, fontWeight: '700' },
-    searchInput: { color: tokens.text.primary, flex: 1, fontSize: 14, padding: 0 },
     filterRow: { flexDirection: 'row', gap: space.sm, paddingRight: space.sm },
     filterChip: {
       backgroundColor: tokens.background.surface,
@@ -1764,13 +1709,13 @@ const createStyles = (tokens: ReturnType<typeof useAppTheme>['tokens'], world: G
     filterChipTextActive: { color: tokens.text.onAccent },
     control: {
       alignItems: 'center',
-      backgroundColor: tokens.map.control,
-      borderColor: tokens.border.subtle,
-      borderRadius: radius.sheet,
+      backgroundColor: world.hud.glass,
+      borderColor: world.hud.edgeSoft,
+      borderRadius: radius.control,
       borderWidth: 1,
-      height: 48,
+      height: 44,
       justifyContent: 'center',
-      width: 48
+      width: 44
     },
     controlText: { color: tokens.map.controlText, fontSize: 20, fontWeight: '700' },
     banner: {

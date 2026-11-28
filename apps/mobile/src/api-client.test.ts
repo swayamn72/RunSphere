@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ApiFailure, MobileApiClient } from './api-client.js';
 import { createAuthStorage, type SecureKeyValueStore } from './auth-storage-core.js';
 import { AuthFailure } from './auth-failure.js';
@@ -21,6 +21,68 @@ const session = {
   refreshToken: 'refresh-token',
   expiresInSeconds: 900
 };
+
+describe('mobile API read reuse', () => {
+  it('sends one request for concurrent and repeated reads within the freshness window', async () => {
+    const storage = createAuthStorage(new MemorySecureStore());
+    await storage.save(session);
+    const fetcher = vi.fn(async () => Response.json({ data: [] }));
+    const client = new MobileApiClient('https://api.runsphere.test', fetcher, storage);
+
+    await Promise.all(Array.from({ length: 10 }, () => client.listFriends()));
+    for (let visit = 0; visit < 10; visit++) await client.listFriends();
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes expired reads and preserves separation across queries and signed-in accounts', async () => {
+    const storage = createAuthStorage(new MemorySecureStore());
+    await storage.save(session);
+    const fetcher = vi.fn(async () => Response.json({ data: [], nextCursor: null }));
+    const client = new MobileApiClient('https://api.runsphere.test', fetcher, storage);
+    const now = vi.spyOn(Date, 'now').mockReturnValue(100_000);
+    try {
+      await client.getRunLog();
+      await client.getRunLog('next-page');
+      await client.getRunLog();
+      expect(fetcher).toHaveBeenCalledTimes(2);
+
+      now.mockReturnValue(121_000);
+      await client.getRunLog();
+      await storage.save({ ...session, accessToken: 'different-account' });
+      await client.getRunLog();
+      expect(fetcher).toHaveBeenCalledTimes(4);
+    } finally {
+      now.mockRestore();
+    }
+  });
+
+  it('invalidates an edited resource, retains unrelated reads and retries failed reads', async () => {
+    const storage = createAuthStorage(new MemorySecureStore());
+    await storage.save(session);
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => Response.json({}));
+    const client = new MobileApiClient('https://api.runsphere.test', fetcher, storage);
+    await client.getProfile();
+    await client.getTerritoryClaimSummary();
+    await client.updateProfile({ displayName: 'Updated name' });
+    await client.getTerritoryClaimSummary();
+    fetcher.mockResolvedValueOnce(Response.json({}, { status: 503 }));
+    await expect(client.getProfile()).rejects.toMatchObject({ status: 503 });
+    await client.getProfile();
+    expect(fetcher).toHaveBeenCalledTimes(5);
+  });
+
+  it('shares simultaneous inbox reads but fetches again after they settle', async () => {
+    const storage = createAuthStorage(new MemorySecureStore());
+    await storage.save(session);
+    const fetcher = vi.fn(async () => Response.json({ data: [] }));
+    const client = new MobileApiClient('https://api.runsphere.test', fetcher, storage);
+
+    await Promise.all([client.getNotificationInbox(), client.getNotificationInbox()]);
+    await client.getNotificationInbox();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe('mobile API auth client', () => {
   it('registers and persists the returned bearer and refresh tokens', async () => {
@@ -193,7 +255,13 @@ describe('mobile API auth client', () => {
     };
     const client = new MobileApiClient('https://api.runsphere.test', fetcher, storage);
 
-    const results = await Promise.all(Array.from({ length: 5 }, () => client.listFriendRequests()));
+    const results = await Promise.all([
+      client.listFriendRequests(),
+      client.listFriends(),
+      client.listBlocks(),
+      client.getNotificationInbox(),
+      client.listChallenges()
+    ]);
 
     expect(results).toHaveLength(5);
     expect(refreshCalls).toBe(1);

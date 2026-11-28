@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Linking, StyleSheet, View } from 'react-native';
 import { Text } from './src/components/Text';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -90,11 +90,13 @@ import { initialOnboardingState, onboardingReducer } from './src/onboarding';
 import {
   ActivityHistory,
   ActivityPreparation,
-  ActivityRecording
+  ActivityRecording,
+  loadActivityHistory
 } from './src/screens/ActivityScreens';
 import { Onboarding } from './src/screens/OnboardingScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { ProfileScreen } from './src/screens/ProductScreens';
+import { createProfileCache, profileResource } from './src/screens/profile-cache';
 import { PlayScreen } from './src/screens/PlayScreen';
 import { ExploreScreen } from './src/screens/ExploreScreen';
 import { RoutePreviewScreen } from './src/screens/RoutePreviewScreen';
@@ -202,6 +204,19 @@ function RunSphereApp() {
   );
   const [recording, setRecording] = useState<ActivitySession>();
   const [accountId, setAccountId] = useState<string>();
+  const profileCache = useMemo(
+    () => (accountId ? createProfileCache(apiClient) : undefined),
+    [accountId]
+  );
+  const historyCache = useMemo(
+    () =>
+      accountId
+        ? profileResource<Awaited<ReturnType<typeof loadActivityHistory>>>((previous) =>
+            loadActivityHistory(accountId, activitySync, previous?.details)
+          )
+        : undefined,
+    [accountId]
+  );
   /**
    * The Map tab stays mounted, hidden, once it has been opened, so coming back
    * doesn't rebuild the map and refetch everything. Released on sign-out and
@@ -355,6 +370,7 @@ function RunSphereApp() {
   }, [claimPushAddress, storageAttempt]);
 
   const finishSession = useCallback(() => {
+    apiClient.clearReadCache();
     setActiveTab(landingTab);
     setProfileEntry('profile');
     setSelectedQuest(undefined);
@@ -516,6 +532,7 @@ function RunSphereApp() {
   };
   const exitActivity = () => {
     const origin = routeOrigin(activityRoute);
+    if (recording) historyCache?.invalidate();
     dispatchActivityRoute({ type: 'exit' });
     setRecording(undefined);
     setRouteGuide(undefined);
@@ -569,6 +586,8 @@ function RunSphereApp() {
         }}
         onChange={(session) => {
           if (session?.state === 'completed-local') {
+            profileCache?.runs.invalidate();
+            profileCache?.progression.invalidate();
             dispatchActivityRoute({ type: 'recording-finished' });
             // `product.md`: the engine learns from completed runs. Best effort
             // and never blocking - a lost event costs a ranking hint, and the
@@ -703,14 +722,11 @@ function RunSphereApp() {
         <ProfileScreen
           key={profileEntry}
           api={apiClient}
+          cache={profileCache}
           accountId={accountId}
           initialScreen={profileEntry}
           onLogoutComplete={finishSession}
-          history={
-            accountId && (
-              <ActivityHistory accountId={accountId} sync={activitySync} onOpen={setRecording} />
-            )
-          }
+          history={historyCache && <ActivityHistory cache={historyCache} onOpen={setRecording} />}
           onReplayTour={() => setTour({ index: 0 })}
           onNavigate={(target) => {
             // Friend requests open the friends list inside Social; challenges
@@ -773,12 +789,13 @@ function RunSphereApp() {
                     {...(claimRunId ? { requestedRunId: claimRunId } : {})}
                     {...(accountId ? { accountId } : {})}
                     onOpenRun={() => openActivity('map')}
+                    onClaimed={() => {
+                      profileCache?.turf.invalidate();
+                      profileCache?.progression.invalidate();
+                      profileCache?.runs.invalidate();
+                    }}
                     onOpenProfile={() => {
                       setProfileEntry('profile');
-                      setActiveTab('Profile');
-                    }}
-                    onOpenSettings={() => {
-                      setProfileEntry('settings');
                       setActiveTab('Profile');
                     }}
                     onSessionExpired={expireSession}

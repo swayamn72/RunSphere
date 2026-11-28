@@ -125,6 +125,7 @@ import type {
 } from '@runsphere/contracts';
 import type { AuthSession, AuthStorage } from './auth-storage-core';
 import { getApiBaseUrl } from './api-config';
+import { ApiReadCache } from './api-read-cache';
 import { canonicalJson, sha256 } from './activity-checksum';
 import { runStartFields, type RunStart } from './run-start';
 import {
@@ -182,6 +183,8 @@ const boundsQuery = (bounds: TerritoryClaimBounds): string =>
   }).toString();
 
 export class MobileApiClient {
+  private readonly reads = new ApiReadCache();
+
   constructor(
     private readonly baseUrl = getApiBaseUrl(),
     private readonly fetcher: typeof fetch = fetch,
@@ -250,6 +253,7 @@ export class MobileApiClient {
     );
   }
   async logout(): Promise<void> {
+    this.clearReadCache();
     const session = await this.auth?.read();
     if (session && this.baseUrl)
       await this.fetcher(`${this.baseUrl}/v1/auth/logout`, {
@@ -259,7 +263,11 @@ export class MobileApiClient {
       });
   }
 
-  async listQuests(): Promise<readonly QuestSummary[]> {
+  listQuests(): Promise<readonly QuestSummary[]> {
+    return this.reads.read('/v1/quests', undefined, () => this.fetchQuestList());
+  }
+
+  private async fetchQuestList(): Promise<readonly QuestSummary[]> {
     if (!this.baseUrl) throw new AuthFailure('configuration');
     let response: Response;
     try {
@@ -1099,6 +1107,22 @@ export class MobileApiClient {
     if (!this.baseUrl) throw new AuthFailure('configuration');
     const session = authenticated ? await this.auth?.read() : undefined;
     if (authenticated && !session) throw new AuthFailure('invalid-credentials');
+    const send = () => this.sendRequest<T>(path, request, session, retried);
+    return request.method === 'GET' && !retried
+      ? this.reads.read(path, session?.accessToken, send)
+      : send();
+  }
+
+  clearReadCache() {
+    this.reads.clear();
+  }
+
+  private async sendRequest<T>(
+    path: string,
+    request: { method: string; headers?: Record<string, string>; body?: unknown; empty?: boolean },
+    session: AuthSession | undefined,
+    retried: boolean
+  ): Promise<T> {
     let response: Response;
     try {
       response = await this.fetcher(`${this.baseUrl}${path}`, {
@@ -1113,17 +1137,18 @@ export class MobileApiClient {
     } catch (error) {
       throw classifyTransportFailure(error);
     }
-    if (response.status === 401 && authenticated && !retried) {
+    if (response.status === 401 && session && !retried) {
       // Another request may already have rotated the session while this one
       // was on the wire. Its new access token is then in storage, and rotating
       // again would spend a refresh token for nothing; just retry with it.
       const latest = await this.auth?.read();
       if (!latest || latest.accessToken === session?.accessToken) await this.refresh();
-      return this.request(path, request, authenticated, true);
+      return this.request(path, request, true, true);
     }
     if (response.status === 401 || response.status === 403)
       throw new AuthFailure('invalid-credentials', response.status);
     if (!response.ok) throw new ApiFailure(response.status, await responseMessage(response, path));
+    if (request.method !== 'GET') this.reads.afterWrite(path);
     return (request.empty ? (undefined as T) : await jsonBody<T>(response, path)) as T;
   }
 
@@ -1166,6 +1191,7 @@ export class MobileApiClient {
     }
   }
   private async saveSession(session: AuthSession): Promise<AuthSession> {
+    this.clearReadCache();
     await this.auth?.save(session);
     return session;
   }

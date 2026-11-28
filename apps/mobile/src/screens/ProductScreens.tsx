@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { failureMessage } from '../failure-copy';
 import { PrivacyZoneList } from './PrivacyZoneList';
 import { SharedWithYou } from './SharedWithYou';
@@ -16,12 +16,9 @@ import { BottomSheet } from '../components/BottomSheet';
 import { Text, TextInput } from '../components/Text';
 import * as Location from 'expo-location';
 import type {
-  Profile,
-  ProgressionSummary,
   Sanction,
   PrivacyZoneResponse,
   SafetyContactResponse,
-  TerritoryClaimSummary,
   WeeklyGoalResponse
 } from '@runsphere/contracts';
 import type { MobileApiClient } from '../api-client';
@@ -46,9 +43,11 @@ import {
   AchievementStrip,
   ProfileIdentityHead,
   ProfileLevel,
+  ProfileOverviewSkeleton,
   ProfileStats
 } from './ProfileOverview';
 import { RunLogSection } from './RunLogSection';
+import { createProfileCache, type ProfileCache } from './profile-cache';
 import { useOpenRun } from './RunDetailHost';
 import {
   achievementMedallions,
@@ -82,7 +81,7 @@ type RemoteState = HomeRemoteState;
  * section out entirely rather than implying something exists that cannot be
  * read.
  */
-const useSanctions = (api: MobileApiClient) => {
+const useSanctions = (api: MobileApiClient, enabled: boolean) => {
   const [sanctions, setSanctions] = useState<readonly Sanction[]>([]);
   const [loaded, setLoaded] = useState(false);
   const reload = () => {
@@ -95,6 +94,7 @@ const useSanctions = (api: MobileApiClient) => {
       .catch(() => setLoaded(false));
   };
   useEffect(() => {
+    if (!enabled) return;
     let active = true;
     void api
       .listSanctions()
@@ -109,7 +109,7 @@ const useSanctions = (api: MobileApiClient) => {
     return () => {
       active = false;
     };
-  }, [api]);
+  }, [api, enabled]);
   return { sanctions, loaded, reload };
 };
 
@@ -132,8 +132,29 @@ const useWeeklyGoal = (api: MobileApiClient) => {
   return { goal, state, load, setGoal, setState };
 };
 
+function useProfileResource<T>(
+  resource: { peek: () => T | undefined; load: () => Promise<T> },
+  enabled: boolean
+) {
+  const [settled, setSettled] = useState<{ resource: typeof resource }>();
+  useEffect(() => {
+    if (!enabled) return;
+    let active = true;
+    const finish = () => {
+      if (active) setSettled({ resource });
+    };
+    void resource.load().then(finish, finish);
+    return () => {
+      active = false;
+    };
+  }, [enabled, resource]);
+  const value = resource.peek();
+  return { value, loading: settled?.resource !== resource && value === undefined };
+}
+
 export function ProfileScreen({
   api,
+  cache,
   accountId,
   onLogoutComplete,
   onReplayTour,
@@ -142,6 +163,7 @@ export function ProfileScreen({
   initialScreen = 'profile'
 }: {
   api: MobileApiClient;
+  cache?: ProfileCache | undefined;
   accountId: string | undefined;
   onLogoutComplete: () => void;
   /** Starts the guided tour again (M9 9.21, 9.25). */
@@ -172,71 +194,33 @@ export function ProfileScreen({
     | 'clubs'
     | 'delete-account'
   >(initialScreen);
-  // The profile is the only identity a social surface may show, and an account
-  // without one is invisible to friends: a 404 here is a normal "unset" state.
-  const [profile, setProfile] = useState<Profile>();
-  const [handle, setHandle] = useState<string>();
+  const resources = useMemo(() => cache ?? createProfileCache(api), [api, cache]);
+  const overview = screen === 'profile';
+  const { value: profile, loading: profileLoading } = useProfileResource(
+    resources.profile,
+    overview || screen === 'settings'
+  );
+  const { value: identity } = useProfileResource(resources.identity, overview);
+  const { value: progression, loading: progressionLoading } = useProfileResource(
+    resources.progression,
+    overview
+  );
+  const { value: overviewTurf, loading: turfLoading } = useProfileResource(
+    resources.turf,
+    overview
+  );
+  const handle = identity?.username;
   const legal = legalLinks((page) => api.legalPageUrl(page));
-  useEffect(() => {
-    let active = true;
-    void api
-      .getIdentity()
-      .then((identity) => {
-        if (active) setHandle(identity.username);
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, [api, screen]);
-  useEffect(() => {
-    let active = true;
-    void api
-      .getProfile()
-      .then((next) => {
-        if (active) setProfile(next);
-      })
-      .catch(() => {
-        if (active) setProfile(undefined);
-      });
-    return () => {
-      active = false;
-    };
-  }, [api, screen]);
-  /**
-   * The cosmetic level band and the week's figures shown above the settings.
-   *
-   * Both are optional decoration on a screen whose job is the account: a
-   * failure leaves the card out rather than blocking identity or settings, and
-   * neither is ever projected locally (ADR-0005).
-   */
-  const [progression, setProgression] = useState<ProgressionSummary>();
-  const [overviewTurf, setOverviewTurf] = useState<TerritoryClaimSummary>();
-  useEffect(() => {
-    let active = true;
-    void api
-      .getProgressionSummary()
-      .then((next) => {
-        if (active) setProgression(next);
-      })
-      .catch(() => {
-        if (active) setProgression(undefined);
-      });
-    void Promise.resolve()
-      .then(() => api.getTerritoryClaimSummary())
-      .then((next) => {
-        if (active) setOverviewTurf(next);
-      })
-      .catch(() => {
-        if (active) setOverviewTurf(undefined);
-      });
-    return () => {
-      active = false;
-    };
-  }, [api, screen]);
-  const loadRunLog = useCallback((cursor?: string) => api.getRunLog(cursor), [api]);
+  const loadRunLog = useCallback(
+    (cursor?: string) => (cursor ? api.getRunLog(cursor) : resources.runs.load()),
+    [api, resources]
+  );
   const openRun = useOpenRun();
-  const { sanctions, loaded: sanctionsLoaded, reload: reloadSanctions } = useSanctions(api);
+  const {
+    sanctions,
+    loaded: sanctionsLoaded,
+    reload: reloadSanctions
+  } = useSanctions(api, screen === 'settings');
   const [appealDrafts, setAppealDrafts] = useState<Readonly<Record<string, string>>>({});
   const [appealNotice, setAppealNotice] = useState('');
   const [appealBusy, setAppealBusy] = useState(false);
@@ -349,7 +333,11 @@ export function ProfileScreen({
   if (screen === 'goals') return <GoalsScreen api={api} onBack={() => setScreen('profile')} />;
   if (screen === 'identity')
     return (
-      <ProfileIdentityScreen api={api} onBack={() => setScreen('profile')} onSaved={setProfile} />
+      <ProfileIdentityScreen
+        api={api}
+        onBack={() => setScreen('profile')}
+        onSaved={resources.profile.write}
+      />
     );
   if (screen === 'notifications')
     return (
@@ -558,28 +546,53 @@ export function ProfileScreen({
 
   return (
     <>
-      <ProfileIdentityHead
-        name={profileNameLabel(profile?.displayName)}
-        initials={profileInitials(profile?.displayName)}
-        {...(handle ? { handle } : {})}
-        {...(profile?.cosmetic.tier ? { tier: profile.cosmetic.tier } : {})}
-        onEdit={() => setScreen('identity')}
-        onOpenSettings={() => setScreen('settings')}
-      />
+      {profileLoading ? (
+        <ProfileOverviewSkeleton section="identity" />
+      ) : (
+        <ProfileIdentityHead
+          name={profileNameLabel(profile?.displayName)}
+          initials={profileInitials(profile?.displayName)}
+          {...(handle ? { handle } : {})}
+          {...(profile?.cosmetic.tier ? { tier: profile.cosmetic.tier } : {})}
+          onEdit={() => setScreen('identity')}
+          onOpenSettings={() => setScreen('settings')}
+        />
+      )}
+      {progressionLoading ? <ProfileOverviewSkeleton section="card" /> : null}
       {progression && <ProfileLevel summary={progression} />}
+      {turfLoading ? <ProfileOverviewSkeleton section="card" /> : null}
       <ProfileStats cells={profileStatCells(overviewTurf)} />
-      <AchievementStrip
-        medallions={achievementMedallions(progression?.achievements ?? [])}
-        earnedCount={progression?.achievements.length ?? 0}
-        onViewAll={() => setScreen('achievements')}
-      />
+      {!progressionLoading && (
+        <AchievementStrip
+          medallions={achievementMedallions(progression?.achievements ?? [])}
+          earnedCount={progression?.achievements.length ?? 0}
+          onViewAll={() => setScreen('achievements')}
+        />
+      )}
       <RunLogSection
         load={loadRunLog}
+        initialPage={resources.runs.peek()}
         owner
         {...(openRun
           ? {
               onOpenRun: (item, origin, measureOrigin, onDeleted) =>
-                openRun({ item, owner: true, origin, measureOrigin, onDeleted })
+                openRun({
+                  item,
+                  owner: true,
+                  origin,
+                  measureOrigin,
+                  onDeleted: () => {
+                    const firstPage = resources.runs.peek();
+                    if (firstPage) {
+                      resources.runs.write({
+                        ...firstPage,
+                        data: firstPage.data.filter(({ id }) => id !== item.id)
+                      });
+                    }
+                    resources.runs.invalidate();
+                    onDeleted();
+                  }
+                })
             }
           : {})}
       />

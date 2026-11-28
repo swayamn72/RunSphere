@@ -38,7 +38,6 @@ vi.mock('react-native', async () => {
       React.createElement(name as React.ElementType, props, children as React.ReactNode);
   return {
     BackHandler: { addEventListener: () => ({ remove: () => undefined }) },
-    Keyboard: { dismiss: () => undefined },
     Pressable: native('Pressable'),
     ScrollView: native('ScrollView'),
     StyleSheet: { create: <T,>(styles: T) => styles, absoluteFill: {} },
@@ -223,6 +222,20 @@ const moveMap = async (renderer: ReactTestRenderer, bounds: number[], zoom: numb
 };
 
 describe('the turf map', () => {
+  it('defers Map Intel requests until the panel opens', async () => {
+    const api = stubApi({});
+    const requests = [
+      vi.spyOn(api, 'getTerritoryRecommendations'),
+      vi.spyOn(api, 'getTerritoryClaimActivity'),
+      vi.spyOn(api, 'getTerritoryLeaderboard')
+    ];
+    const renderer = await renderTurf(api);
+
+    for (const request of requests) expect(request).not.toHaveBeenCalled();
+    await press(renderer, 'Open map intel');
+    for (const request of requests) expect(request).toHaveBeenCalledTimes(1);
+  });
+
   it('invites somebody holding nothing to claim some', async () => {
     const renderer = await renderTurf(stubApi({}));
 
@@ -688,25 +701,6 @@ describe('the zone bar', () => {
     expect(shown).toContain('No zone here is yours');
     expect(shown).toContain('1 held in this view');
     expect(shown).not.toContain('No ground is held in this view yet.');
-  });
-
-  it('searches the holder and the city the server tagged', async () => {
-    const renderer = await renderTurf(stubApi({ map: mixedMap }));
-    await moveMap(renderer, [72.87, 19.07, 72.89, 19.09], 14);
-
-    expect(byLabel(renderer, 'Search zones by holder or city')).toHaveLength(0);
-    const [openSearch] = byLabel(renderer, 'Open zone search');
-    await act(async () => (openSearch!.props as { onPress: () => void }).onPress());
-    const [field] = byLabel(renderer, 'Search zones by holder or city');
-    await act(async () =>
-      (field!.props as { onChangeText: (text: string) => void }).onChangeText('ravi')
-    );
-    expect(drawnIds(renderer)).toEqual(['00000000-0000-4000-8000-0000000000d2']);
-
-    await act(async () =>
-      (field!.props as { onChangeText: (text: string) => void }).onChangeText('mumbai')
-    );
-    expect(drawnIds(renderer)).toEqual(['00000000-0000-4000-8000-0000000000d1']);
   });
 
   it('says what to tap after Ghost Race was picked on the Run tab (M9 9.6)', async () => {

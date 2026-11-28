@@ -28,6 +28,7 @@ vi.mock('../theme/theme', () => ({
   useAppTheme: () => ({
     tokens: {
       action: { primary: 'action' },
+      border: { subtle: 'border' },
       status: { success: 'success' },
       text: { primary: 'text' }
     }

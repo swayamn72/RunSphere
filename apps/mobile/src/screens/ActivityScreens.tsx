@@ -41,6 +41,7 @@ import {
 import { deviceAuthenticator, verificationDeviceStore } from '../run-verification.native';
 import { type createActivitySyncCoordinator } from '../activity-sync';
 import type { ActivityDetail } from '../api-client';
+import { RunCardSkeleton } from './RunLogSection';
 import {
   activityHistoryLabel,
   activityHistoryMetric,
@@ -1235,50 +1236,64 @@ export const refreshHistoryDetails = async (
   return results;
 };
 
+export async function loadActivityHistory(
+  accountId: string,
+  sync: ReturnType<typeof createActivitySyncCoordinator>,
+  previous?: Readonly<Record<string, ActivityDetail>>
+) {
+  await sync.syncPending(accountId);
+  const local = await activityRecorder.list(accountId);
+  const fetched = await refreshHistoryDetails(local.filter(shouldRefreshHistoryDetail), sync);
+  const items = await activityRecorder.list(accountId);
+  const remoteIds = new Set(items.flatMap((item) => (item.remoteId ? [item.remoteId] : [])));
+  const details = {
+    ...Object.fromEntries(Object.entries(previous ?? {}).filter(([id]) => remoteIds.has(id))),
+    ...Object.fromEntries(
+      fetched
+        .filter((detail): detail is ActivityDetail => Boolean(detail && remoteIds.has(detail.id)))
+        .map((detail) => [detail.id, detail])
+    )
+  };
+  return { items, details };
+}
+
+type ActivityHistorySnapshot = Awaited<ReturnType<typeof loadActivityHistory>>;
+
 export function ActivityHistory({
-  accountId,
-  sync,
+  cache,
   onOpen
 }: {
-  accountId: string;
-  sync: ReturnType<typeof createActivitySyncCoordinator>;
+  cache: {
+    peek: () => ActivityHistorySnapshot | undefined;
+    load: () => Promise<ActivityHistorySnapshot>;
+    invalidate: () => void;
+  };
   onOpen: (session: ActivitySession) => void;
 }) {
   const styles = useAppStyles();
-  const [items, setItems] = useState<ActivitySession[]>([]);
-  const [details, setDetails] = useState<Record<string, ActivityDetail>>({});
-  const [loading, setLoading] = useState(false);
+  const [snapshot, setSnapshot] = useState(cache.peek);
+  const { items = [], details = {} } = snapshot ?? {};
+  const [loading, setLoading] = useState(!snapshot);
   const [error, setError] = useState<string>();
   const refreshInFlight = useRef(false);
-  const refresh = useCallback(async () => {
-    if (refreshInFlight.current) return;
-    refreshInFlight.current = true;
-    setLoading(true);
-    setError(undefined);
-    try {
-      await sync.syncPending(accountId);
-      const local = await activityRecorder.list(accountId);
-      const fetched = await refreshHistoryDetails(local.filter(shouldRefreshHistoryDetail), sync);
-      const refreshedItems = await activityRecorder.list(accountId);
-      const remoteIds = new Set(
-        refreshedItems.flatMap((item) => (item.remoteId ? [item.remoteId] : []))
-      );
-      setDetails((current) => ({
-        ...Object.fromEntries(Object.entries(current).filter(([id]) => remoteIds.has(id))),
-        ...Object.fromEntries(
-          fetched
-            .filter((detail): detail is ActivityDetail => Boolean(detail))
-            .map((detail) => [detail.id, detail])
-        )
-      }));
-      setItems(refreshedItems);
-    } catch {
-      setError('Your local history is still safe. Go online to refresh your results.');
-    } finally {
-      refreshInFlight.current = false;
-      setLoading(false);
-    }
-  }, [accountId, sync]);
+  const refresh = useCallback(
+    async (manual = false) => {
+      if (refreshInFlight.current) return;
+      refreshInFlight.current = true;
+      if (manual || !cache.peek()) setLoading(true);
+      setError(undefined);
+      if (manual) cache.invalidate();
+      try {
+        setSnapshot(await cache.load());
+      } catch {
+        setError('Your local history is still safe. Go online to refresh your results.');
+      } finally {
+        refreshInFlight.current = false;
+        setLoading(false);
+      }
+    },
+    [cache]
+  );
   useEffect(() => {
     void refresh();
   }, [refresh]);
@@ -1286,10 +1301,11 @@ export function ActivityHistory({
     <View style={styles.history}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Your runs</Text>
-        <Pressable accessibilityRole="button" onPress={() => void refresh()}>
+        <Pressable accessibilityRole="button" onPress={() => void refresh(true)}>
           <Text style={styles.link}>{loading ? 'Refreshing…' : 'Refresh'}</Text>
         </Pressable>
       </View>
+      {loading && !snapshot && <RunCardSkeleton />}
       {error && (
         <View style={[styles.notice, styles.warningNotice]} accessibilityLiveRegion="polite">
           <Text style={styles.noticeIcon}>!</Text>

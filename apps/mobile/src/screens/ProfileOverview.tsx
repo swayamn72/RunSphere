@@ -3,6 +3,8 @@ import { Pressable, View } from 'react-native';
 import { AchievementArt, TurfPointsMark } from '../components/ProgressionArtwork';
 import { Text } from '../components/Text';
 import { SettingsButton } from '../components/SettingsButton';
+import { Skeleton } from '../components/Skeleton';
+import { space } from '@runsphere/ui';
 import { useAppStyles } from '../components/styles';
 import { progressionPresentation } from './home-progression-model';
 import { type AchievementMedallion, type ProfileStatCell } from './profile-overview-model';
@@ -81,6 +83,27 @@ export function ProfileLevel({ summary }: { summary: ProgressionSummary }) {
           {level.terminal ? 'Top level reached' : level.xpInLevelLabel}
         </Text>
       )}
+    </View>
+  );
+}
+
+export function ProfileOverviewSkeleton({ section }: { section: 'identity' | 'card' }) {
+  const styles = useAppStyles();
+  return section === 'identity' ? (
+    <View
+      accessibilityLabel="Loading profile"
+      accessibilityState={{ busy: true }}
+      accessible
+      style={[styles.profileHead, { gap: space.sm }]}
+    >
+      <Skeleton width={88} height={88} round />
+      <Skeleton width={144} height={24} />
+      <Skeleton width={96} height={14} />
+    </View>
+  ) : (
+    <View style={[styles.profileLevelCard, { gap: space.sm }]}>
+      <Skeleton width="45%" height={18} />
+      <Skeleton width="75%" height={10} />
     </View>
   );
 }

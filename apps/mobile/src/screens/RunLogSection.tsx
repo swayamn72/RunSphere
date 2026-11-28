@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { View as NativeView } from 'react-native';
 import { Pressable, View } from 'react-native';
 import { Text } from '../components/Text';
+import { Skeleton } from '../components/Skeleton';
+import { space } from '@runsphere/ui';
 import Svg, { Circle, Path } from 'react-native-svg';
 import type { RunLogItem } from '@runsphere/contracts';
 import { useAppStyles } from '../components/styles';
@@ -24,10 +26,12 @@ export interface RunLogPage {
  */
 export function RunLogSection({
   load,
+  initialPage,
   owner,
   onOpenRun
 }: {
   load: (cursor?: string) => Promise<RunLogPage>;
+  initialPage?: RunLogPage | undefined;
   owner: boolean;
   /**
    * Opens the run's detail (9.16), with where the card is on screen so the
@@ -42,17 +46,20 @@ export function RunLogSection({
   ) => void;
 }) {
   const styles = useAppStyles();
-  const [items, setItems] = useState<RunLogItem[]>([]);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [visible, setVisible] = useState(true);
-  const [state, setState] = useState<'loading' | 'ready' | 'more' | 'failed'>('loading');
+  const [items, setItems] = useState<RunLogItem[]>(initialPage?.data ?? []);
+  const [cursor, setCursor] = useState(initialPage?.nextCursor ?? null);
+  const [visible, setVisible] = useState(initialPage?.visible ?? true);
+  const [state, setState] = useState<'loading' | 'ready' | 'more' | 'failed'>(
+    initialPage ? 'ready' : 'loading'
+  );
+  const hasInitialPage = useRef(Boolean(initialPage));
   const [failure, setFailure] = useState<unknown>();
   const generation = useRef(0);
 
   const fetchPage = useCallback(
-    async (after?: string) => {
+    async (after?: string, keepVisible = false) => {
       const mine = ++generation.current;
-      setState(after ? 'more' : 'loading');
+      if (!keepVisible) setState(after ? 'more' : 'loading');
       try {
         const page = await load(after);
         if (mine !== generation.current) return;
@@ -70,7 +77,7 @@ export function RunLogSection({
   );
 
   useEffect(() => {
-    void fetchPage();
+    void fetchPage(undefined, hasInitialPage.current);
     return () => {
       generation.current += 1;
     };
@@ -86,7 +93,7 @@ export function RunLogSection({
           Runs
         </Text>
       </View>
-      {state === 'loading' ? <Text style={styles.muted}>Loading runs…</Text> : null}
+      {state === 'loading' && items.length === 0 ? <RunCardSkeleton /> : null}
       {state === 'failed' ? (
         <Pressable accessibilityRole="button" onPress={() => void fetchPage()}>
           <Text style={styles.muted}>
@@ -127,6 +134,25 @@ export function RunLogSection({
           <Text style={styles.textButton}>{state === 'more' ? 'Loading…' : 'Show more'}</Text>
         </Pressable>
       ) : null}
+    </View>
+  );
+}
+
+export function RunCardSkeleton() {
+  const styles = useAppStyles();
+  return (
+    <View
+      accessible
+      accessibilityLabel="Loading runs"
+      accessibilityState={{ busy: true }}
+      style={styles.runCard}
+    >
+      <Skeleton width={64} height={64} />
+      <View style={[styles.flexCopy, { gap: space.xs }]}>
+        <Skeleton width="48%" height={12} />
+        <Skeleton width="84%" height={16} />
+        <Skeleton width="62%" height={12} />
+      </View>
     </View>
   );
 }
