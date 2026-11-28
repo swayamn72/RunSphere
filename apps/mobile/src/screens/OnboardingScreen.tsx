@@ -3,7 +3,9 @@ import { failureMessage } from '../failure-copy';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useState } from 'react';
 import type React from 'react';
-import { AppState, Linking, Pressable, SafeAreaView, ScrollView, Switch, View } from 'react-native';
+import { AppState, Linking, Pressable, ScrollView, Switch, View } from 'react-native';
+// Not React Native's own, which insets nothing on Android's edge-to-edge screens.
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text, TextInput } from '../components/Text';
 import { useAppTheme } from '../theme/theme';
 import { statusBarStyleFor } from '../theme/theme-state';
